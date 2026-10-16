@@ -108,6 +108,8 @@ class SCPIDriver(ScopeDriver):
                 break
             if resp.strip() in ("1", "ON"):
                 found.append(f"CHAN{n}")
+        # 真機驗證：探測到不存在的通道會逾時並留下 -113，清掉避免污染之後的 _check_error
+        self.res.write("*CLS")
         return found
 
 

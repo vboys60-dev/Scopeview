@@ -28,26 +28,25 @@ class InfiniiVisionDriver(SCPIDriver):
     """
 
     series = Series.INFINIIVISION
-    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3")
+    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3", "HD3")
 
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕。timeout 15 秒。
 
-        # 待真機驗證：:HARDcopy:AREA 是否影響 :DISPlay:DATA? 的結果
+        # :HARDcopy:AREA GRAT 真機不支援，不送；格線區由 UI 裁切
         """
         with self._timeout(15000):
             # 設定墨粉節省（INKSaver）
             mode = "ON" if opts.inverted else "OFF"
             self._write(f":HARDcopy:INKSaver {mode}")
 
-            # 設定擷取區域（待真機驗證是否生效）
-            area = "GRAT" if opts.area.value == "graticule" else "SCReen"
-            self._write(f":HARDcopy:AREA {area}")
+            # 真機驗證（DSO-X 3014G）：:HARDcopy:AREA GRAT 回 -221 Settings conflict，
+            # 一律回整個螢幕，格線區由 UI 端裁切。
 
             # 擷取影像二進位資料
             fmt = opts.image_format.value
             data = self._query_binary(f":DISPlay:DATA? {fmt}", datatype="B")
-            return bytes(data)
+            return data.astype(np.uint8).tobytes()
 
     def capture(
         self, channels: list[str], points: int, retrigger: bool
@@ -55,6 +54,7 @@ class InfiniiVisionDriver(SCPIDriver):
         """擷取波形。timeout 60 秒，RUN/STOP 狀態自動還原。"""
         with self._timeout(60000):
             with self._run_state():
+                self._write("*CLS")
                 # 觸發擷取或停止
                 if retrigger:
                     self._write(":DIGitize")
@@ -97,12 +97,9 @@ class InfiniiVisionDriver(SCPIDriver):
 
     def max_points(self) -> int:
         """查詢最大可取點數。"""
-        try:
-            resp = self._query(":ACQuire:POINts:MAXimum?")
-            return int(float(resp.strip()))
-        except Exception:
-            # 查詢失敗，回傳保守的上限
-            return 4_000_000
+        # 真機驗證：InfiniiVision 沒有 :ACQuire:POINts:MAXimum?（-113 且 10 秒逾時），
+        # 手冊上限固定 4M 點（見 docs/reference/infiniivision-資料匯出.md）。
+        return 4_000_000
 
 
 # 註冊此驅動
