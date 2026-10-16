@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -77,6 +78,9 @@ class SCPIDriver(ScopeDriver):
         finally:
             self.res.timeout = original
 
+    #: 本 driver 上次寫 :RUN 的 time.monotonic()；未知（使用者手動按的）為 None
+    _run_started: float | None = None
+
     @contextmanager
     def _run_state(self) -> Iterator[None]:
         """記住 RUN/STOP，離開時（含例外）還原成呼叫前的樣子。
@@ -93,6 +97,8 @@ class SCPIDriver(ScopeDriver):
             yield
         finally:
             self._write(":RUN" if was_running else ":STOP")
+            if was_running:
+                self._run_started = time.monotonic()
 
     def channels(self) -> list[str]:
         """查 `:CHANnel<n>:DISPlay?` 找出目前開啟中的通道，兩家系列命令相同。

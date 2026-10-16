@@ -44,6 +44,13 @@ def _crop_graticule(img: bytes, fmt: str) -> bytes:
     return bytes(ba)
 
 
+def _settle_wait(scale: float, run_started: float | None, now: float) -> float:
+    """STOP 前還要等幾秒。RUN 時間未知（使用者手動按的）退回固定 1.5 秒。"""
+    if run_started is None:
+        return 1.5
+    return max(0.0, 10 * scale + 1.0 - (now - run_started))
+
+
 class InfiniiVisionDriver(SCPIDriver):
     """InfiniiVision 3000G/3000X 示波器的 SCPI 驅動。
 
@@ -85,11 +92,12 @@ class InfiniiVisionDriver(SCPIDriver):
                 if retrigger:
                     self._write(":DIGitize")
                 else:
-                    # 真機驗證：RUN 後不到約 1 秒就 :STOP，:WAVeform:PREamble? 會卡死
-                    # （:ACQuire:COMPlete? 恆回 100，擋不住）。執行中就先等 1.5 秒。
-                    # ponytail: 1.5 秒只在 5ms/div 量過；慢時基/Normal 觸發可能不夠，待驗證
+                    # 真機驗證：從 STOP 重新 RUN 後要等一整筆記錄（10×時基）採完才能 :STOP，
+                    # 否則 :WAVeform:PREamble? 卡死（已在執行中的畫面 STOP 則無妨）。
+                    # ponytail: 只量過 Auto 觸發；Normal/Single/Roll 未測。
                     if int(self._query(":OPERegister:CONDition?")) & 0x8:
-                        time.sleep(1.5)
+                        scale = float(self._query(":TIMebase:SCALe?"))
+                        time.sleep(_settle_wait(scale, self._run_started, time.monotonic()))
                     self._write(":STOP")
 
                 # 逐通道讀取波形
@@ -138,6 +146,9 @@ register(InfiniiVisionDriver)
 
 
 if __name__ == "__main__":
+    assert _settle_wait(0.5, None, 100) == 1.5
+    assert abs(_settle_wait(0.5, 100, 100.2) - 5.8) < 1e-9  # 5s 記錄 + 1s - 已過 0.2s
+    assert _settle_wait(0.5, 100, 200) == 0.0
     # 自我檢查：用假的 resource stub 驗證命令順序與行為
     class _StubResource:
         """記錄收到的所有命令。"""
