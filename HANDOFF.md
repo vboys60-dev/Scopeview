@@ -4,7 +4,7 @@
 
 ## 現況（2026-10-16）
 
-- 最新 commit `cdcbc50`；調色盤修正與 3014G 第八輪紀錄尚未 commit。
+- 已全部 commit（最新見 `git log`），工作區乾淨。
 - 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
 - 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader ui.tab_capture ui.tab_screenshot ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
@@ -37,6 +37,7 @@
 - MXR：沒有 `:WAVeform:POINts <n>`/`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
 - 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`（3014G 也接受）。
 - InfiniiVision `:DISPlay:DATA?` 的調色盤參數會保留在儀器上（`:HARDcopy:PALette?` 看不出來），被設成灰階後截圖一直是灰階 → 每次送 `<fmt>,COLor`（問題在 4154G 發現，修正在 3014G 驗證；HD3 帶第二參數會逾時，不帶）。
+- 等不到觸發時 `:DIGitize` 的 `*OPC?` 會 60 秒逾時，之後示波器不回應 → `_prepare_capture` 逾時後 device clear 並丟明確 ScopeError（3014G 實測；Infiniium 未測）。
 
 ## 已知小問題（未處理）
 
@@ -46,7 +47,6 @@
 - CSV 時間欄 `.6e` 精度略損；CSV 通道名 `CH1` vs HDF5 `CHAN1` 不一致（待 CSV 規則一起處理）。
 - 截圖頁區域選項仍標「(待驗證)」。
 - 調色盤修正（`,COLor`）4154G 未重測。
-- Normal 無觸發時勾「重新觸發」：`:DIGitize` 等不到觸發，60 秒後逾時，示波器要 device clear 才恢復（3014G 實測，未處理）。
 
 ## 先讀
 

@@ -130,7 +130,15 @@ class SCPIDriver(ScopeDriver):
     def _prepare_capture(self, retrigger: bool) -> None:
         """RUN 中先等完整記錄再 STOP；擷取後維持 STOP。Infiniium 待真機驗證。"""
         if retrigger:
-            self._write(":DIGitize")
+            try:
+                self._write(":DIGitize")
+            except ScopeTimeoutError as exc:
+                # DSO-X 3014G 實測：等不到觸發逾時後，須 device clear 才恢復通訊；Infiniium 未測。
+                self._clear()
+                raise ScopeError(
+                    "重新觸發等不到觸發（可能是 Single/Normal 觸發但沒有訊號），已中止。"
+                    "請檢查觸發設定，或切到 Auto 觸發再試。"
+                ) from exc
         elif self._is_running():
             scale = float(self._query(":TIMebase:SCALe?"))
             time.sleep(10 * scale + 1)
@@ -165,6 +173,10 @@ if __name__ == "__main__":
             self.commands: list[str] = []
             self.payload = bytes([1, 2, 3])
             self.read_sizes: list[int] = []
+            self.cleared = False
+
+        def clear(self) -> None:
+            self.cleared = True
 
         def write(self, cmd: str) -> None:
             self.commands.append(cmd)
@@ -234,6 +246,25 @@ if __name__ == "__main__":
         pass
     else:
         raise AssertionError("binary block 逾時應轉成 ScopeTimeoutError")
+
+    class _TriggerTimeoutResource(_StubResource):
+        def query(self, cmd: str) -> str:
+            if cmd == "*OPC?" and self.commands[-1:] == [":DIGitize"]:
+                self.commands.append(cmd)
+                raise pyvisa.errors.VisaIOError(pyvisa.constants.StatusCode.error_timeout)
+            return super().query(cmd)
+
+    trigger_res = _TriggerTimeoutResource()
+    try:
+        _StubDriver(trigger_res, "STUB")._prepare_capture(True)
+    except ScopeError as exc:
+        assert not isinstance(exc, ScopeTimeoutError)
+        assert "等不到觸發" in str(exc)
+        assert isinstance(exc.__cause__, ScopeTimeoutError)
+        assert trigger_res.cleared
+        assert trigger_res.commands == [":DIGitize", "*OPC?"]
+    else:
+        raise AssertionError("等不到觸發應清除通訊並轉成 ScopeError")
 
     # Error 273 要轉成 RemoteDesktopError
     class _ErrResource(_StubResource):
