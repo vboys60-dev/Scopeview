@@ -88,7 +88,10 @@ def _extract_waveforms(hf: h5py.File) -> list[Waveform]:
             continue
 
         dataset = hf["Waveforms"][ch_key][data_key]
-        attrs = dataset.attrs
+        # 契約/Keysight 原生：attrs 在 group 上；退回 dataset attrs 容忍舊檔
+        attrs = hf["Waveforms"][ch_key].attrs
+        if "XInc" not in attrs:
+            attrs = dataset.attrs
 
         if "XInc" not in attrs or "XOrg" not in attrs:
             raise ScopeError(f"HDF5 {data_key} 缺少時間軸參數。")

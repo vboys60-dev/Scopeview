@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import datetime as _dt
+import time
 
 import numpy as np
 
 from scope_tool.contracts import (
+    CaptureArea,
     CaptureResult,
     ImageFormat,
     Preamble,
@@ -19,6 +21,27 @@ from scope_tool.contracts import (
 )
 from scope_tool.instruments.base import SCPIDriver
 from scope_tool.instruments.registry import register
+
+
+# 真機量測（DSO-X 3014G，800×512 截圖）：格線 10×8 格，x 16..657、y 52..451。
+# ponytail: 只在 800×512 才裁，其他解析度（3000T 等）回全圖，要支援得重量。
+_SCREEN_SIZE = (800, 512)
+_GRAT_BOX = (16, 52, 642, 400)  # x, y, w, h
+
+
+def _crop_graticule(img: bytes, fmt: str) -> bytes:
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRect
+    from PySide6.QtGui import QImage
+
+    qimg = QImage.fromData(img)
+    if qimg.isNull() or (qimg.width(), qimg.height()) != _SCREEN_SIZE:
+        return img
+    ba = QByteArray()  # 必須持有參照，否則 QBuffer 指到已釋放的記憶體 → segfault
+    buf = QBuffer(ba)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    qimg.copy(QRect(*_GRAT_BOX)).save(buf, fmt)
+    buf.close()
+    return bytes(ba)
 
 
 class InfiniiVisionDriver(SCPIDriver):
@@ -33,7 +56,7 @@ class InfiniiVisionDriver(SCPIDriver):
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕。timeout 15 秒。
 
-        # :HARDcopy:AREA GRAT 真機不支援，不送；格線區由 UI 裁切
+        # :HARDcopy:AREA GRAT 真機不支援，不送；格線區在 driver 內裁切
         """
         with self._timeout(15000):
             # 設定墨粉節省（INKSaver）
@@ -41,12 +64,15 @@ class InfiniiVisionDriver(SCPIDriver):
             self._write(f":HARDcopy:INKSaver {mode}")
 
             # 真機驗證（DSO-X 3014G）：:HARDcopy:AREA GRAT 回 -221 Settings conflict，
-            # 一律回整個螢幕，格線區由 UI 端裁切。
+            # 一律回整個螢幕，格線區在這裡裁切。
 
             # 擷取影像二進位資料
             fmt = opts.image_format.value
             data = self._query_binary(f":DISPlay:DATA? {fmt}", datatype="B")
-            return data.astype(np.uint8).tobytes()
+            img = data.astype(np.uint8).tobytes()
+            if opts.area is CaptureArea.GRATICULE:
+                img = _crop_graticule(img, fmt)
+            return img
 
     def capture(
         self, channels: list[str], points: int, retrigger: bool
@@ -59,6 +85,11 @@ class InfiniiVisionDriver(SCPIDriver):
                 if retrigger:
                     self._write(":DIGitize")
                 else:
+                    # 真機驗證：RUN 後不到約 1 秒就 :STOP，:WAVeform:PREamble? 會卡死
+                    # （:ACQuire:COMPlete? 恆回 100，擋不住）。執行中就先等 1.5 秒。
+                    # ponytail: 1.5 秒只在 5ms/div 量過；慢時基/Normal 觸發可能不夠，待驗證
+                    if int(self._query(":OPERegister:CONDition?")) & 0x8:
+                        time.sleep(1.5)
                     self._write(":STOP")
 
                 # 逐通道讀取波形
@@ -97,8 +128,8 @@ class InfiniiVisionDriver(SCPIDriver):
 
     def max_points(self) -> int:
         """查詢最大可取點數。"""
-        # 真機驗證：InfiniiVision 沒有 :ACQuire:POINts:MAXimum?（-113 且 10 秒逾時），
-        # 手冊上限固定 4M 點（見 docs/reference/infiniivision-資料匯出.md）。
+        # 真機驗證：沒有 :ACQuire:POINts:MAXimum?（-113 且逾時）。DSO-X 3014G 要 4M 點實際
+        # 只回 1M（= 目前記憶體深度，隨時基/通道數變動），所以不查、固定 4M，儀器自己截斷。
         return 4_000_000
 
 
@@ -131,7 +162,7 @@ if __name__ == "__main__":
                 return "1,2,100,1,1e-9,-5e-7,0,0.01,0.0,128"
             if cmd.startswith(":CHANnel"):
                 return "1"
-            if cmd == ":ACQuire:POINts:MAXimum?":
+            if cmd == ":ACQuire:POINts?":
                 return "4000000"
             return "0"
 

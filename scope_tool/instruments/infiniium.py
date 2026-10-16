@@ -43,7 +43,7 @@ class InfiniiumDriver(SCPIDriver):
 
         with self._timeout(15000):
             data = self._query_binary(cmd, "B")
-        return bytes(data)
+        return data.astype(np.uint8).tobytes()
 
     def max_points(self) -> int:
         """查詢硬體最大可取點數。
@@ -128,7 +128,7 @@ class InfiniiumDriver(SCPIDriver):
 
                 cmd_get = f':DISK:GETFILE? "{remote_path}"'
                 file_data = self._query_binary(cmd_get, "B")
-                file_bytes = bytes(file_data)
+                file_bytes = np.asarray(file_data).astype(np.uint8).tobytes()
         finally:
             cmd_del = f':DISK:DELete "{remote_path}"'
             try:

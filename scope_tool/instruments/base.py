@@ -97,17 +97,18 @@ class SCPIDriver(ScopeDriver):
     def channels(self) -> list[str]:
         """查 `:CHANnel<n>:DISPlay?` 找出目前開啟中的通道，兩家系列命令相同。
 
-        # 待真機驗證：假設通道編號從 1 連續往上，查到第一個失敗就停止；
-        # 未證實通道關閉時是回 "0" 還是直接讓查詢失敗。
+        # 真機驗證（InfiniiVision）：關閉的通道回 "0"；查到不存在的通道會逾時，所以
+        # 探測期間 timeout 縮為 1 秒。Infiniium 未測，LAN 較慢時 1 秒可能偏短。
         """
         found: list[str] = []
-        for n in range(1, 9):
-            try:
-                resp = self._query(f":CHANnel{n}:DISPlay?")
-            except ScopeError:
-                break
-            if resp.strip() in ("1", "ON"):
-                found.append(f"CHAN{n}")
+        with self._timeout(1000):  # 探測不存在的通道會等到逾時，縮短
+            for n in range(1, 9):
+                try:
+                    resp = self._query(f":CHANnel{n}:DISPlay?")
+                except ScopeError:
+                    break
+                if resp.strip() in ("1", "ON"):
+                    found.append(f"CHAN{n}")
         # 真機驗證：探測到不存在的通道會逾時並留下 -113，清掉避免污染之後的 _check_error
         self.res.write("*CLS")
         return found
