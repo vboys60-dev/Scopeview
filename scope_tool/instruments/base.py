@@ -32,6 +32,20 @@ class SCPIDriver(ScopeDriver):
         except Exception as exc:
             raise self._wrap(exc, cmd) from exc
 
+    def _write_nowait(self, cmd: str) -> None:
+        """送出寫入型命令但不等 `*OPC?`。儀器在等待觸發（Single/Normal）時 `*OPC?` 不會回應。"""
+        try:
+            self.res.write(cmd)
+        except Exception as exc:
+            raise self._wrap(exc, cmd) from exc
+
+    def _clear(self) -> None:
+        """VISA device clear，卡住的查詢之後用來恢復通訊；失敗就算了。"""
+        try:
+            self.res.clear()
+        except Exception:
+            pass
+
     def _query(self, cmd: str) -> str:
         """送出查詢命令，回傳去除頭尾空白的字串。"""
         try:
@@ -93,12 +107,21 @@ class SCPIDriver(ScopeDriver):
             was_running = bool(cond & 0x8)
         except (ScopeError, ValueError):
             was_running = True
+        failed = False
         try:
             yield
+        except BaseException:
+            failed = True
+            raise
         finally:
-            self._write(":RUN" if was_running else ":STOP")
-            if was_running:
-                self._run_started = time.monotonic()
+            # 真機驗證：還原用 _write（含 *OPC?）會在 Single 等待觸發時逾時，並蓋掉原始例外
+            try:
+                self._write_nowait(":RUN" if was_running else ":STOP")
+                if was_running:
+                    self._run_started = time.monotonic()
+            except ScopeError:
+                if not failed:
+                    raise
 
     def channels(self) -> list[str]:
         """查 `:CHANnel<n>:DISPlay?` 找出目前開啟中的通道，兩家系列命令相同。
@@ -176,7 +199,22 @@ if __name__ == "__main__":
 
     with d._run_state():
         pass
-    assert res.commands[-2:] == [":RUN", "*OPC?"]  # OPERegister 回 8，bit3 有值 → 還原成 RUN
+    assert res.commands[-1] == ":RUN"  # OPERegister 回 8，bit3 有值 → 還原成 RUN（不等 *OPC?）
+
+    # 還原失敗不可蓋掉原始例外
+    class _BadRun(_StubResource):
+        def write(self, cmd: str) -> None:
+            if cmd == ":RUN":
+                raise RuntimeError("restore failed")
+            super().write(cmd)
+
+    try:
+        with _StubDriver(_BadRun(), "STUB")._run_state():
+            raise ValueError("原始錯誤")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("原始 ValueError 被還原失敗蓋掉")
 
     assert d.channels() == ["CHAN1", "CHAN2"]
 

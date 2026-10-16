@@ -13,6 +13,8 @@ import numpy as np
 from scope_tool.contracts import (
     CaptureArea,
     CaptureResult,
+    ScopeError,
+    ScopeTimeoutError,
     ImageFormat,
     Preamble,
     ScreenshotOptions,
@@ -87,7 +89,7 @@ class InfiniiVisionDriver(SCPIDriver):
         """擷取波形。timeout 60 秒，RUN/STOP 狀態自動還原。"""
         with self._timeout(60000):
             with self._run_state():
-                self._write("*CLS")
+                self._write_nowait("*CLS")  # 不等 *OPC?：Single 等待觸發時會卡住
                 # 觸發擷取或停止
                 if retrigger:
                     self._write(":DIGitize")
@@ -112,7 +114,16 @@ class InfiniiVisionDriver(SCPIDriver):
                     self._write(f":WAVeform:POINts {points}")
 
                     # 讀取前導參數與波形資料
-                    pre_str = self._query(":WAVeform:PREamble?")
+                    # 真機驗證：沒有完整採集（Single/Normal 等觸發、剛 RUN 就 STOP）時這裡會卡死
+                    with self._timeout(5000):
+                        try:
+                            pre_str = self._query(":WAVeform:PREamble?")
+                        except ScopeTimeoutError as exc:
+                            self._clear()
+                            raise ScopeError(
+                                "儀器目前沒有完整的採集可讀（可能在等待觸發 Single/Normal，"
+                                "或剛 RUN 就 STOP）。請先觸發一次，或切到 Auto 觸發再試。"
+                            ) from exc
                     pre = Preamble.parse(pre_str)
 
                     raw_data = self._query_binary(":WAVeform:DATA?", datatype="H")
