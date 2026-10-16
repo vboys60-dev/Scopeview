@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import datetime as dt
 import json
 import re
@@ -107,41 +106,14 @@ def write_waveform(directory: Path, name: str, result: CaptureResult,
 
     # 寫 CSV
     if fmt == WaveformFormat.CSV:
-        filepath = timestamped(directory, name, "csv")
-        _write_csv(filepath, result)
-        return filepath
+        from scope_tool.storage import csv_export
+
+        return csv_export.export_csv(directory, name, result.waveforms)
 
     # 寫 HDF5
     filepath = timestamped(directory, name, "h5")
     _write_hdf5(filepath, result)
     return filepath
-
-
-def _write_csv(filepath: Path, result: CaptureResult) -> None:
-    """寫 CSV：Time(s),CH1(V),CH2(V),... 格式。
-
-    首列為欄位名，之後每列一筆取樣點。
-    """
-    if not result.waveforms:
-        return
-
-    time_axis = result.waveforms[0].time
-
-    with open(filepath, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-
-        # 欄位名
-        headers = ['Time(s)']
-        for wf in result.waveforms:
-            headers.append(f"{_channel_to_csv_header(wf.channel)}(V)")
-        writer.writerow(headers)
-
-        # 數據行
-        for i in range(len(time_axis)):
-            row = [f"{time_axis[i]}"]
-            for wf in result.waveforms:
-                row.append(f"{wf.voltage[i]}")
-            writer.writerow(row)
 
 
 def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
@@ -234,12 +206,13 @@ if __name__ == "__main__":
         from scope_tool.contracts import Preamble, Waveform
         from scope_tool.storage.reader import read_waveform_file
 
-        # CSV 時間軸在大偏移與小間隔下仍須完整還原
+        # CSV 時間軸在大偏移與小間隔下，誤差仍須小於取樣間隔的十分之一
         precision_pre = Preamble.parse("1,2,100,1,1e-11,-5e-4,0,0.01,0,0")
         precision_waveform = Waveform.from_raw("CHAN1", precision_pre, np.arange(100))
         result1.waveforms = [precision_waveform]
         precision_file = write_waveform(tmpdir, "precision", result1, WaveformFormat.CSV)
-        assert np.array_equal(read_waveform_file(precision_file)[0].time, precision_waveform.time)
+        assert np.max(np.abs(read_waveform_file(precision_file)[0].time
+                             - precision_waveform.time)) < precision_pre.x_increment / 10
 
         pre = Preamble.parse("1,2,5,1,1e-9,0,0,0.01,0.125,128")
         raw = np.array([0, 1, 128, 32768, 65535], dtype=np.uint16)

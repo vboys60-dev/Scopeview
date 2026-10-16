@@ -12,7 +12,7 @@
 2. **不准安裝新的第三方套件。** 可用的只有：`pyvisa`、`pyqtgraph`、`numpy`、`h5py`、`zeroconf`、`PySide6`，以及 Python 標準函式庫。缺什麼就用標準庫湊。
 3. **Qt 綁定只能用 PySide6。** 機器上 PyQt5 / PyQt6 / PySide6 三套並存，混用會直接 crash。程式進入點必須在 `import pyqtgraph` **之前**執行 `os.environ["QT_API"] = "pyside6"`。任何模組都不准 `import PyQt5` 或 `import PyQt6`。
 4. **UI 執行緒不准做 VISA I/O。** 所有 `driver.*()` 呼叫一律丟進 `ui/worker.py` 的 QThread，結果用 signal 回傳。UI 裡出現 `self.res.query(...)` 就是錯的。
-5. **擷取一律存 HDF5。** 擷取頁沒有格式選單。CSV 匯出規則尚未定案，定案前不准自行加回 CSV 選項或任何自動轉檔。
+5. **擷取一律存 HDF5。** 擷取頁沒有格式選單、不自動轉檔。CSV 只能從分析頁把已開啟的波形檔匯出：範圍選「全部」或「兩條垂直游標之間」；可勾「縮點」並輸入點數上限（預設 10,000,000），超過就每 N 點取 1 點；欄名照契約 `Time(s),CH1(V)`；數值一律科學記號，位數依資料自動決定（不損失、不出現浮點尾巴）。
 6. **檔名一律加時間戳，永不覆蓋。** 格式 `{name}_{YYYYMMDD}_{HHMMSS}.{ext}`。
 7. **VISA 例外一律轉成 `ScopeError` 子類別再往外丟。** UI 只 catch `ScopeError`。SCPI Error 273 必須轉成 `RemoteDesktopError`。
 8. **寫入型 SCPI 命令後要 `*OPC?`。** 逾時：截圖 15 秒、大檔傳輸 60 秒。逾時或失敗前，要清掉自己在儀器上留下的暫存檔（`:DISK:DELete`）。
@@ -43,7 +43,7 @@
 | `scope_tool/instruments/base.py`、`registry.py`、`discovery.py` | T1 |
 | `scope_tool/instruments/infiniivision.py` | T2 |
 | `scope_tool/instruments/infiniium.py` | T3 |
-| `scope_tool/storage/writer.py` | T4 |
+| `scope_tool/storage/writer.py`、`csv_export.py` | T4 |
 | `scope_tool/storage/reader.py` | T5 |
 | `scope_tool/ui/main_window.py`、`ui/worker.py` | T6 |
 | `scope_tool/ui/tab_analysis.py` | T7 |

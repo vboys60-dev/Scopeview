@@ -12,13 +12,13 @@
 ## 下一步
 
 1. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
-2. CSV 匯出規則與使用者討論：入口（擷取時同存 vs 分析頁由 HDF5 轉）、大檔上限（100M×4 通道文字約 9 GB、逐列寫很慢）、欄名是否沿用契約 `CH1(V)`。時間欄精度與讀回通道名（CSV `CH1` → `CHAN1`）已修。
+2. （CSV 匯出已在 GUI 實測：3014G 4M 檔，全部 1M 點與游標區間縮點 1 萬點，與原檔逐點比對正確。縮點時時間位數依縮點後間隔，觸發次取樣偏移會被捨去，使用者確認不改。）
 3. 資料分析功能改進：下次與使用者討論。
 
 ## 擷取規則（使用者定案，已寫入 RULES.md 第 5、9 條）
 
 - **示波器只因「使用者手動」或「按下擷取」而停止。** 擷取時若在 RUN：等 `10×時基+1` 秒再 `:STOP`，讀完**維持 STOP**。原本 STOP 直接讀。`retrigger` → `:DIGitize`。
-- **一律存 HDF5**；CSV 匯出之後再議（reader 仍讀 CSV，writer 的 CSV 函式保留）。
+- **一律存 HDF5**；CSV 只能從分析頁匯出（`storage/csv_export.py`，RULES 第 5 條）：範圍全部／游標區間；可勾縮點、上限預設 10M（每 N 點取 1）；欄名照契約 `CH1(V)`；科學記號、每欄位數依「最小相異間隔」自動決定（誤差 < 間隔/10）。存到來源檔同資料夾、加時間戳。實測 4 通道 10M 列約 11 秒、668 MB。
 - **HDF5 存原始整數**：uint16 + group attrs `YInc/YOrg/YReference`；無 preamble 才存 float64 電壓。
 - `max_points()`：HD3 100M、3000G 4M、Infiniium 查 `:ACQuire:POINts:MAXimum?`（MXR 200M）。
 - **Infiniium 一律存檔轉取整筆記錄**（`:DISK:SAVE ALL` → `GETFILE?` → `DELete`），「點數」只當上限：記錄點數 > 設定點數就丟 ScopeError，不改使用者記憶體深度。存檔維持 `ALL`，原生檔含所有顯示中通道。

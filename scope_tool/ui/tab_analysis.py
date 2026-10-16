@@ -18,6 +18,9 @@ os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QSpinBox,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -33,6 +36,8 @@ import pyqtgraph as pg
 
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_waveform_file
+from scope_tool.storage.csv_export import export_csv
+from scope_tool.ui.worker import Job
 
 # 通道顏色循環，數量夠多不必為固定值另外做設定。
 _CHANNEL_COLORS = ["#ffcc00", "#00d0ff", "#ff5b5b", "#7cff5b", "#c58bff", "#ff9d3f"]
@@ -44,15 +49,15 @@ class AnalysisTab(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._waveforms: list[Waveform] = []
+        self._source_path: Path | None = None
+        self._export_job: Job | None = None
         self._base_time: np.ndarray | None = None  # 游標吸附用的原始時間軸（取第一個通道）
         self._base_voltage: np.ndarray | None = None
 
         self._build_ui()
         self._build_cursors()
 
-    # ------------------------------------------------------------------
     # UI 建構
-    # ------------------------------------------------------------------
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
 
@@ -60,6 +65,23 @@ class AnalysisTab(QWidget):
         self.open_button = QPushButton("開啟波形檔")
         self.open_button.clicked.connect(self._on_open_clicked)
         left.addWidget(self.open_button)
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("範圍"))
+        self.export_range = QComboBox()
+        self.export_range.addItems(["全部", "游標區間"])
+        self.reduce_points = QCheckBox("縮點")
+        self.point_limit = QSpinBox()
+        self.point_limit.setRange(1, 2_000_000_000)
+        self.point_limit.setValue(10_000_000)
+        self.point_limit.setGroupSeparatorShown(True)
+        self.point_limit.setEnabled(False)
+        self.reduce_points.toggled.connect(self.point_limit.setEnabled)
+        self.export_button = QPushButton("匯出 CSV")
+        self.export_button.setEnabled(False)
+        self.export_button.clicked.connect(self._on_export_clicked)
+        for widget in (self.export_range, self.reduce_points, self.point_limit, self.export_button):
+            controls.addWidget(widget)
+        left.addLayout(controls)
 
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.addLegend()
@@ -94,9 +116,7 @@ class AnalysisTab(QWidget):
         self.hline1.sigDragged.connect(self._update_readout)
         self.hline2.sigDragged.connect(self._update_readout)
 
-    # ------------------------------------------------------------------
     # 開檔
-    # ------------------------------------------------------------------
     def _on_open_clicked(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(
             self, "開啟波形檔", "", "波形檔 (*.csv *.h5 *.hdf5)"
@@ -109,10 +129,46 @@ class AnalysisTab(QWidget):
             QMessageBox.critical(self, "開檔失敗", str(e))
             return
         self.load_waveforms(waveforms)
+        self._source_path = Path(path_str)
 
-    # ------------------------------------------------------------------
+    def _export_args(self, directory: Path) -> dict:
+        """在 UI 執行緒擷取匯出參數，不開對話框也不啟動工作。"""
+        return dict(directory=directory,
+                    name=self._source_path.stem if self._source_path else "waveform",
+                    waveforms=list(self._waveforms),
+                    t_range=(self.vline1.value(), self.vline2.value())
+                    if self.export_range.currentIndex() == 1 else None,
+                    max_points=self.point_limit.value() if self.reduce_points.isChecked() else None)
+
+    def _on_export_clicked(self) -> None:
+        if self._export_job is not None and self._export_job.isRunning():
+            return
+        if self._source_path is not None:
+            directory = self._source_path.parent
+        else:
+            chosen = QFileDialog.getExistingDirectory(self, "選擇 CSV 輸出資料夾")
+            if not chosen:
+                return
+            directory = Path(chosen)
+        self._export_job = Job(export_csv, **self._export_args(directory))
+        self._export_job.done.connect(self._export_done)
+        self._export_job.failed.connect(self._export_failed)
+        self._export_job.finished.connect(self._export_finished)
+        self.export_button.setEnabled(False)
+        self.export_button.setText("匯出中…")
+        self._export_job.start()
+
+    def _export_finished(self) -> None:
+        self.export_button.setText("匯出 CSV")
+        self.export_button.setEnabled(bool(self._waveforms))
+
+    def _export_done(self, path: Path) -> None:
+        QMessageBox.information(self, "匯出完成", str(path))
+
+    def _export_failed(self, message: str) -> None:
+        QMessageBox.critical(self, "匯出失敗", message)
+
     # 繪圖
-    # ------------------------------------------------------------------
     def load_waveforms(self, waveforms: list[Waveform]) -> None:
         """把一組 Waveform 畫到圖上。可直接餵物件（不經檔案），供自我檢查與其他頁面呼叫。"""
         if not waveforms:
@@ -122,7 +178,9 @@ class AnalysisTab(QWidget):
         for line in (self.vline1, self.vline2, self.hline1, self.hline2):
             self.plot_widget.addItem(line)
 
+        self._source_path = None
         self._waveforms = waveforms
+        self.export_button.setEnabled(self._export_job is None or not self._export_job.isRunning())
         for idx, wf in enumerate(waveforms):
             color = _CHANNEL_COLORS[idx % len(_CHANNEL_COLORS)]
             curve = self.plot_widget.plot(wf.time, wf.voltage, pen=pg.mkPen(color, width=1), name=wf.channel)
@@ -141,9 +199,7 @@ class AnalysisTab(QWidget):
         self.hline2.setValue(v_max)
         self._update_readout()
 
-    # ------------------------------------------------------------------
     # 游標讀值
-    # ------------------------------------------------------------------
     def _nearest_sample(self, t: float) -> tuple[float, float]:
         """在原始（未 downsample）時間陣列上找最近取樣點，回傳 (snapped_t, v)。"""
         time_arr, volt_arr = self._base_time, self._base_voltage
@@ -181,9 +237,7 @@ class AnalysisTab(QWidget):
         self._last_v_at_t2 = v2
 
 
-# --------------------------------------------------------------------------
 # 自我檢查
-# --------------------------------------------------------------------------
 
 def _self_check() -> None:
     from PySide6.QtWidgets import QApplication
@@ -191,6 +245,7 @@ def _self_check() -> None:
     app = QApplication.instance() or QApplication([])
 
     tab = AnalysisTab()
+    assert not tab.export_button.isEnabled()
 
     # 1. 直接餵 Waveform 物件，驗證畫得出來（不經檔案）。
     n = 1000
@@ -213,6 +268,21 @@ def _self_check() -> None:
     actual_dt = tab.vline2.value() - tab.vline1.value()
     assert abs(actual_dt - expected_dt) < dt, f"ΔT 誤差過大：{actual_dt} vs {expected_dt}"
     assert abs(tab._last_v_at_t1 - voltage1[100]) < 1e-9
+
+    import tempfile
+
+    assert tab._source_path is None and tab.export_button.isEnabled()
+    tab.export_range.setCurrentIndex(1)
+    tab.vline1.setValue(time[100])
+    tab.vline2.setValue(time[199])
+    with tempfile.TemporaryDirectory() as tmp:
+        path = export_csv(**tab._export_args(Path(tmp)))
+        assert len(read_waveform_file(path)[0].time) == 100
+        tab.reduce_points.setChecked(True)
+        assert tab.point_limit.isEnabled()
+        tab.point_limit.setValue(30)
+        path = export_csv(**tab._export_args(Path(tmp)))
+        assert len(read_waveform_file(path)[0].time) == 25
 
     # 3. 100 萬點資料載入不拋例外。
     big_n = 1_000_000
