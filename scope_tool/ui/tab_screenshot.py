@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from scope_tool import config
-from scope_tool.contracts import CaptureArea, ImageFormat, ScreenshotOptions, Series
+from scope_tool.contracts import CaptureArea, ImageFormat, ScreenshotOptions
 from scope_tool.storage.writer import write_screenshot
 from scope_tool.ui.worker import Job
 
@@ -38,9 +38,7 @@ from scope_tool.ui.worker import Job
 class ScreenshotTab(QWidget):
     """截圖頁：設定 → 觸發背景截圖 → 存檔 → 預覽。
 
-    `main_window` 只需要具備 `driver`（`ScopeDriver | None`）屬性，
-    有 `driver_changed` signal 的話會自動連上以更新區域選項的標註；
-    沒有（例如自我檢查時直接塞 driver）也不會壞。
+    `main_window` 只需要具備 `driver`（`ScopeDriver | None`）屬性。
     """
 
     def __init__(self, main_window: QWidget | None = None) -> None:
@@ -51,10 +49,6 @@ class ScreenshotTab(QWidget):
 
         self._build_ui()
         self._load_config()
-
-        changed = getattr(main_window, "driver_changed", None)
-        if changed is not None:
-            changed.connect(self._on_driver_changed)
 
     # ------------------------------------------------------------------
     # UI 組裝
@@ -106,8 +100,6 @@ class ScreenshotTab(QWidget):
         self.status_label = QLabel("")
         root.addWidget(self.status_label)
 
-        self._update_area_hint()
-
     # ------------------------------------------------------------------
     # config 進出
     # ------------------------------------------------------------------
@@ -133,21 +125,6 @@ class ScreenshotTab(QWidget):
         directory = QFileDialog.getExistingDirectory(self, "選擇存檔目錄", self.dir_edit.text())
         if directory:
             self.dir_edit.setText(directory)
-
-    def _on_driver_changed(self, driver: object) -> None:
-        """機型換了（連線/斷線）就重新標註區域選項的驗證狀態。"""
-        self._update_area_hint()
-
-    def _update_area_hint(self) -> None:
-        """InfiniiVision 的區域選項尚未經真機驗證，標「(待驗證)」但仍可選。
-
-        # 待真機驗證：InfiniiVision 的 :DISPlay:DATA? 格線區裁切座標未經真機確認。
-        """
-        driver = getattr(self._main_window, "driver", None)
-        unverified = driver is not None and getattr(driver, "series", None) is Series.INFINIIVISION
-        for i in range(self.area_combo.count()):
-            base = self.area_combo.itemText(i).split(" (")[0]
-            self.area_combo.setItemText(i, f"{base} (待驗證)" if unverified else base)
 
     def _on_start_clicked(self) -> None:
         driver = getattr(self._main_window, "driver", None)
@@ -251,8 +228,10 @@ def _self_check() -> None:
         assert tab.preview_label.pixmap() is not None
         assert not tab.preview_label.pixmap().isNull(), "預覽 QPixmap 不該是空的"
 
-    # InfiniiVision 標「(待驗證)」的行為
-    assert "(待驗證)" in tab.area_combo.itemText(0), tab.area_combo.itemText(0)
+    # 區域選項固定顯示名稱，不附加驗證狀態標記。
+    area_texts = [tab.area_combo.itemText(i) for i in range(tab.area_combo.count())]
+    assert area_texts == ["全螢幕", "格線區"], area_texts
+    assert all("待驗證" not in text for text in area_texts), area_texts
 
     print("tab_screenshot self-check OK")
 

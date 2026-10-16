@@ -4,7 +4,7 @@
 
 ## 現況（2026-10-16）
 
-- 已全部 commit（最新見 `git log`），工作區乾淨。
+- 已全部 commit（最新見 `git log`）。
 - 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
 - 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader ui.tab_capture ui.tab_screenshot ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
@@ -45,7 +45,6 @@
 - HD3 `DATA?` 連 1000 點也要約 4 秒。
 - 4 通道 × 100M 記憶體約 7 GB 以上，再大要改契約（凍結）。
 - CSV 時間欄 `.6e` 精度略損；CSV 通道名 `CH1` vs HDF5 `CHAN1` 不一致（待 CSV 規則一起處理）。
-- 截圖頁區域選項仍標「(待驗證)」。
 - 調色盤修正（`,COLor`）4154G 未重測。
 
 ## 先讀
