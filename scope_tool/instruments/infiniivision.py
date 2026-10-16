@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import datetime as _dt
-import time
 
 import numpy as np
 from PySide6.QtGui import QImage
@@ -22,7 +21,7 @@ from scope_tool.contracts import (
     Series,
     Waveform,
 )
-from scope_tool.instruments.base import SCPIDriver
+from scope_tool.instruments.base import SCPIDriver, _binary_block, _waveform_from_raw
 from scope_tool.instruments.registry import register
 
 
@@ -49,13 +48,6 @@ def _crop_graticule(img: bytes, fmt: str) -> bytes:
     qimg.copy(QRect(*_GRAT_BOX)).save(buf, fmt)
     buf.close()
     return bytes(ba)
-
-
-def _settle_wait(scale: float, run_started: float | None, now: float) -> float:
-    """STOP 前還要等幾秒。RUN 時間未知（使用者手動按的）退回固定 1.5 秒。"""
-    if run_started is None:
-        return 1.5
-    return max(0.0, 10 * scale + 1.0 - (now - run_started))
 
 
 def _hd3_graticule_box(qimg: QImage) -> tuple[int, int, int, int]:
@@ -127,50 +119,39 @@ class InfiniiVisionDriver(SCPIDriver):
     def capture(
         self, channels: list[str], points: int, retrigger: bool
     ) -> CaptureResult:
-        """擷取波形。timeout 60 秒，RUN/STOP 狀態自動還原。"""
+        """擷取波形。timeout 60 秒，RUN 中先等完整記錄，擷取後維持 STOP。"""
         with self._timeout(60000):
-            with self._run_state():
-                self._write_nowait("*CLS")  # 不等 *OPC?：Single 等待觸發時會卡住
-                # 觸發擷取或停止
-                if retrigger:
-                    self._write(":DIGitize")
-                else:
-                    # 真機驗證：從 STOP 重新 RUN 後要等一整筆記錄（10×時基）採完才能 :STOP，
-                    # 否則 :WAVeform:PREamble? 卡死（已在執行中的畫面 STOP 則無妨）。
-                    # ponytail: 只量過 Auto 觸發；Normal/Single/Roll 未測。
-                    if self._is_running():
-                        scale = float(self._query(":TIMebase:SCALe?"))
-                        time.sleep(_settle_wait(scale, self._run_started, time.monotonic()))
-                    self._write(":STOP")
+            self._write_nowait("*CLS")  # 不等 *OPC?：Single 等待觸發時會卡住
+            self._prepare_capture(retrigger)
 
-                # 逐通道讀取波形
-                waveforms: list[Waveform] = []
-                for ch_name in channels:
-                    ch_num = ch_name[4]  # "CHAN1" → "1"
-                    self._write(f":WAVeform:SOURce CHANnel{ch_num}")
-                    self._write(":WAVeform:FORMat WORD")
-                    self._write(":WAVeform:UNSigned 1")
-                    self._write(":WAVeform:BYTeorder LSBFirst")
-                    self._write(":WAVeform:POINts:MODE RAW")
-                    self._write(f":WAVeform:POINts {points}")
+            # 逐通道讀取波形
+            waveforms: list[Waveform] = []
+            for ch_name in channels:
+                ch_num = ch_name[4]  # "CHAN1" → "1"
+                self._write(f":WAVeform:SOURce CHANnel{ch_num}")
+                self._write(":WAVeform:FORMat WORD")
+                self._write(":WAVeform:UNSigned 1")
+                self._write(":WAVeform:BYTeorder LSBFirst")
+                self._write(":WAVeform:POINts:MODE RAW")
+                self._write(f":WAVeform:POINts {points}")
 
-                    # 讀取前導參數與波形資料
-                    # 真機驗證：沒有完整採集時，3000G 可能逾時，HD3 回十個空欄位
-                    with self._timeout(5000):
-                        try:
-                            pre_str = self._query(":WAVeform:PREamble?")
-                        except ScopeTimeoutError as exc:
-                            self._clear()
-                            raise ScopeError(_NO_ACQUISITION) from exc
-                    if not "".join(pre_str.replace(",", "").split()):
-                        raise ScopeError(_NO_ACQUISITION)
-                    pre = Preamble.parse(pre_str)
+                # 讀取前導參數與波形資料
+                # 真機驗證：沒有完整採集時，3000G 可能逾時，HD3 回十個空欄位
+                with self._timeout(5000):
+                    try:
+                        pre_str = self._query(":WAVeform:PREamble?")
+                    except ScopeTimeoutError as exc:
+                        self._clear()
+                        raise ScopeError(_NO_ACQUISITION) from exc
+                if not "".join(pre_str.replace(",", "").split()):
+                    raise ScopeError(_NO_ACQUISITION)
+                pre = Preamble.parse(pre_str)
 
-                    raw_data = self._query_binary(":WAVeform:DATA?", datatype="H")
-                    waveform = Waveform.from_raw(ch_name, pre, raw_data)
-                    waveforms.append(waveform)
+                raw_data = self._query_binary(":WAVeform:DATA?", datatype="H")
+                waveform = _waveform_from_raw(ch_name, pre, raw_data, waveforms[-1] if waveforms else None)
+                waveforms.append(waveform)
 
-                self._check_error()
+            self._check_error()
 
         return CaptureResult(
             waveforms=waveforms,
@@ -200,6 +181,10 @@ class HD3Driver(InfiniiVisionDriver):
 
     model_prefixes = ("HD3",)
 
+    def max_points(self) -> int:
+        """HD3 記憶體 100M 點；儀器會取成 100M 的整數分之一。"""
+        return 100_000_000
+
     def _is_running(self) -> bool:
         return self._query(":RSTate?") != "STOP"
 
@@ -220,10 +205,6 @@ if __name__ == "__main__":
     from PySide6.QtGui import QColor, QPainter, QPen
     from scope_tool.instruments.registry import driver_for
 
-    assert _settle_wait(0.5, None, 100) == 1.5
-    assert abs(_settle_wait(0.5, 100, 100.2) - 5.8) < 1e-9  # 5s 記錄 + 1s - 已過 0.2s
-    assert _settle_wait(0.5, 100, 200) == 0.0
-
     class _StubResource:
         """記錄收到的所有命令，OPERegister 照舊回 8。"""
 
@@ -233,6 +214,7 @@ if __name__ == "__main__":
 
         def write(self, cmd: str) -> None:
             self.commands.append(cmd)
+            self.block = _binary_block(np.full(100, 128, dtype="<u2").tobytes() if cmd == ":WAVeform:DATA?" else b"PNG")
 
         def query(self, cmd: str) -> str:
             self.commands.append(cmd)
@@ -240,12 +222,12 @@ if __name__ == "__main__":
                 "*OPC?": "1", ":SYSTem:ERRor?": '+0,"No error"',
                 ":OPERegister:CONDition?": "8", ":RSTate?": "STOP",
                 ":WAVeform:PREamble?": "1,2,100,1,1e-9,-5e-7,0,0.01,0.0,128",
-                ":ACQuire:POINts?": "4000000",
+                ":ACQuire:POINts?": "4000000", ":TIMebase:SCALe?": "0.5",
             }.get(cmd, "1" if cmd.startswith(":CHANnel") else "0")
 
-        def query_binary_values(self, cmd, datatype, container):
-            self.commands.append(cmd)
-            return [128] * 100  # 與 preamble 裡的 points 相符
+        def read_bytes(self, count: int) -> bytes:
+            data, self.block = self.block[:count], self.block[count:]
+            return data
 
     res = _StubResource()
     driver = InfiniiVisionDriver(res, "TEST-3000G")
@@ -253,7 +235,30 @@ if __name__ == "__main__":
     assert ":HARDcopy:INKSaver ON" in res.commands
     assert any(":DISPlay:DATA?" in cmd for cmd in res.commands)
     res.commands.clear()
-    result = driver.capture(["CHAN1", "CHAN2"], 100, retrigger=False)
+    from unittest.mock import patch
+    with patch("scope_tool.instruments.base.time.sleep") as sleep:
+        result = driver.capture(["CHAN1", "CHAN2"], 100, retrigger=False)
+    sleep.assert_called_once_with(6.0)
+    assert res.commands.index(":TIMebase:SCALe?") < res.commands.index(":STOP")
+    assert ":RUN" not in res.commands
+    assert result.waveforms[0].time is result.waveforms[1].time
+    stopped = _StubResource()
+    hd3 = HD3Driver(stopped, "HD304MSO")
+    assert hd3.max_points() == 100_000_000
+    hd3.capture(["CHAN1"], 100, False)
+    assert not any(c in stopped.commands for c in (":STOP", ":RUN", ":TIMebase:SCALe?", ":DIGitize"))
+    stopped.commands.clear()
+    hd3.capture(["CHAN1"], 100, True)
+    assert ":DIGitize" in stopped.commands and ":RUN" not in stopped.commands
+    class _RunningHD3(_StubResource):
+        def query(self, cmd: str) -> str:
+            return "RUN" if cmd == ":RSTate?" else super().query(cmd)
+    running = _RunningHD3()
+    with patch("scope_tool.instruments.base.time.sleep") as sleep:
+        HD3Driver(running, "HD304MSO").capture(["CHAN1"], 100, False)
+    sleep.assert_called_once_with(6.0)
+    assert running.commands.index(":TIMebase:SCALe?") < running.commands.index(":STOP")
+    assert ":RUN" not in running.commands
     # 每個通道的 points mode 都要在 points 之前
     for i, cmd in enumerate(res.commands):
         if ":POINts 100" in cmd:

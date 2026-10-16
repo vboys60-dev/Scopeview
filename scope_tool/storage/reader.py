@@ -97,6 +97,12 @@ def _extract_waveforms(hf: h5py.File) -> list[Waveform]:
             raise ScopeError(f"HDF5 {data_key} 缺少時間軸參數。")
 
         voltage = np.array(dataset, dtype=np.float64)
+        if np.issubdtype(dataset.dtype, np.integer) and all(
+                key in attrs for key in ("YInc", "YOrg")):
+            # 本工具的原始碼值須扣參考值；MXR254B 原生 H5INt 實測不扣。
+            if "ScopeTool" in hf:
+                voltage -= float(attrs["YReference"])
+            voltage = voltage * float(attrs["YInc"]) + float(attrs["YOrg"])
         x_inc = float(attrs["XInc"])
         x_org = float(attrs["XOrg"])
         time = np.arange(len(voltage), dtype=np.float64) * x_inc + x_org
@@ -174,6 +180,14 @@ def _self_check() -> None:
 
         wf = read_waveform_file(h5_no_scope)
         assert len(wf) == 1, "應能容忍缺 /ScopeTool"
+
+        # 原生整數 H5 也要依 attrs 換算電壓
+        with h5py.File(h5_no_scope, "a") as hf:
+            group = hf["Waveforms/Channel 1"]
+            del group["Channel 1Data"]
+            group.create_dataset("Channel 1Data", data=np.array([-2, 0, 2], dtype=np.int16))
+            group.attrs.update({"XInc": 1e-6, "XOrg": 0.0, "YInc": 0.1, "YOrg": 1.0, "YReference": 1})
+        assert np.max(np.abs(read_waveform_file(h5_no_scope)[0].voltage - [0.8, 1.0, 1.2])) < 1e-12
 
         # 測試 4：不支援的格式 .txt
         txt_file = tmpdir / "test.txt"

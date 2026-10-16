@@ -1,4 +1,4 @@
-"""波形擷取頁：選通道、格式、點數，擷取後寫檔。
+"""波形擷取頁：選通道、點數，固定 HDF5，擷取後寫檔。
 RULES.md 第 4 條：driver.channels()／max_points()／capture() 都可能是真正的
 VISA 查詢，一律透過 `worker.Job` 丟到背景執行緒，UI 執行緒本身不直接呼叫。
 """
@@ -13,7 +13,6 @@ from typing import Any
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -29,9 +28,6 @@ from PySide6.QtWidgets import (
 from scope_tool.contracts import CaptureResult, ScopeDriver, WaveformFormat
 from scope_tool.storage.writer import write_waveform
 from scope_tool.ui.worker import Job
-
-#: CSV 格式下，點數達到這個門檻就要跳守門對話框詢問使用者（RULES.md 第 5 條）。
-_CSV_WARN_POINTS = 100_000
 
 def _query_driver_info(driver: ScopeDriver) -> tuple[list[str], int]:
     """在背景執行緒跑：查目前開啟的通道與最大可取點數。"""
@@ -72,10 +68,6 @@ class CaptureTab(QWidget):
         self.channel_layout = QHBoxLayout(self.channel_group)
         root.addWidget(self.channel_group)
         opt_row = QHBoxLayout()
-        opt_row.addWidget(QLabel("格式："))
-        self.format_combo = QComboBox()
-        self.format_combo.addItems([f.value for f in WaveformFormat])
-        opt_row.addWidget(self.format_combo)
         opt_row.addWidget(QLabel("點數："))
         self.points_spin = QSpinBox()
         self.points_spin.setRange(1, 2_000_000_000)
@@ -96,9 +88,6 @@ class CaptureTab(QWidget):
         cfg = getattr(self.host, "cfg", {})
         self.dir_edit.setText(str(cfg.get("waveform_dir", str(Path.home()))))
         self.name_edit.setText(str(cfg.get("waveform_name", "wave")))
-        idx = self.format_combo.findText(str(cfg.get("waveform_format", "CSV")))
-        if idx >= 0:
-            self.format_combo.setCurrentIndex(idx)
         self.points_spin.setValue(int(cfg.get("points", 10_000)))
         self.retrigger_check.setChecked(bool(cfg.get("retrigger", False)))
 
@@ -108,7 +97,6 @@ class CaptureTab(QWidget):
             return
         cfg["waveform_dir"] = self.dir_edit.text()
         cfg["waveform_name"] = self.name_edit.text()
-        cfg["waveform_format"] = self.format_combo.currentText()
         cfg["points"] = self.points_spin.value()
         cfg["retrigger"] = self.retrigger_check.isChecked()
     # ---------------------------------------------------------- driver 狀態
@@ -153,19 +141,6 @@ class CaptureTab(QWidget):
     def _selected_channels(self) -> list[str]:
         return [ch for ch, check in self._channel_checks.items() if check.isChecked()]
 
-    def _confirm_large_csv(self) -> WaveformFormat:
-        """CSV 且點數 ≥ 門檻：跳兩顆按鈕，使用者選了才動格式，選 HDF5 要連下拉選單一起改（RULES.md 第 5 條）。"""
-        box = QMessageBox(self)
-        box.setWindowTitle("大點數 CSV 提醒")
-        box.setText(f"點數已達 {self.points_spin.value()}，CSV 格式會很慢也會很大。")
-        btn_hdf5 = box.addButton("改用 HDF5", QMessageBox.ButtonRole.AcceptRole)
-        box.addButton("我知道，照存", QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is btn_hdf5:
-            self.format_combo.setCurrentText(WaveformFormat.HDF5.value)
-            return WaveformFormat.HDF5
-        return WaveformFormat.CSV
-
     def _on_start_clicked(self) -> None:
         driver = getattr(self.host, "driver", None)
         if driver is None:
@@ -183,23 +158,20 @@ class CaptureTab(QWidget):
             msg = f"這台機器目前最多可取 {self._max_points} 點，請調低點數。"
             QMessageBox.warning(self, "點數超過上限", msg)
             return
-        fmt = WaveformFormat(self.format_combo.currentText())
-        if fmt == WaveformFormat.CSV and points >= _CSV_WARN_POINTS:
-            fmt = self._confirm_large_csv()
         self._save_to_config()
         self.start_button.setEnabled(False)
         self.status_label.setText("擷取中…")
         self._job = Job(driver.capture, channels, points, self.retrigger_check.isChecked())
-        self._job.done.connect(lambda result: self._on_capture_done(result, fmt))
+        self._job.done.connect(self._on_capture_done)
         self._job.failed.connect(self._on_capture_failed)
         self._job.start()
 
-    def _on_capture_done(self, result: CaptureResult, fmt: WaveformFormat) -> None:
+    def _on_capture_done(self, result: CaptureResult) -> None:
         self.start_button.setEnabled(True)
         directory = Path(self.dir_edit.text())
         name = self.name_edit.text() or "wave"
         try:
-            path = write_waveform(directory, name, result, fmt)
+            path = write_waveform(directory, name, result, WaveformFormat.HDF5)
         except OSError as exc:
             self.status_label.setText("寫檔失敗")
             QMessageBox.critical(self, "寫檔失敗", str(exc))
@@ -235,54 +207,40 @@ def _self_check() -> None:
         assert predicate(), "等待逾時"
     # 攔截 QMessageBox，避免自我檢查真的跳出視窗（headless 下 exec() 會卡死）。
     class _FakeBox:
-        class ButtonRole:
-            AcceptRole, RejectRole = 0, 1
-        def __init__(self, *_a: Any, **_k: Any) -> None: self._hdf5_btn: object | None = None
-        def setWindowTitle(self, *_a: Any) -> None: pass
-        def setText(self, *_a: Any) -> None: pass
-        def exec(self) -> None: pass
-        def clickedButton(self) -> object: return self._hdf5_btn
         warning = staticmethod(lambda *_a, **_k: None)
         critical = staticmethod(lambda *_a, **_k: None)
-        def addButton(self, text: str, _role: int) -> object:
-            btn = object()
-            if text == "改用 HDF5":
-                self._hdf5_btn = btn
-            return btn
 
     def out_path(tab: "CaptureTab") -> Path:
         return Path(tab.status_label.text().split("：", 1)[1])
     with tempfile.TemporaryDirectory() as tmpdir:
         host = _Host()
         host.cfg["waveform_dir"] = tmpdir
+        host.cfg["waveform_format"] = "CSV"  # 舊設定必須忽略
         tab = CaptureTab(host)
         host.driver = FakeDriver()
         host.driver_changed.emit(host.driver)
         pump(lambda: tab._max_points is not None)
         assert tab._max_points == 4_000_000
         assert set(tab._channel_checks) == {"CHAN1", "CHAN2"}
-        # 案例 1：點數 1000 + CSV → 直接存成，檔案存在。
+        # 案例 1：點數 1000 → HDF5 直接存成，檔案存在。
         tab.points_spin.setValue(1000)
-        tab.format_combo.setCurrentText("CSV")
         tab.name_edit.setText("case1")
         tab._on_start_clicked()
         pump(lambda: "已存檔" in tab.status_label.text())
         p1 = out_path(tab)
-        assert p1.exists() and p1.suffix == ".csv", p1
+        assert p1.exists() and p1.suffix == ".h5", p1
         # `-m` 執行時本模組是 `__main__`；重新 import 會拿到另一份副本、globals
         # 不共用，要用 sys.modules[__name__] 才能改到正在跑的這一份。
         mod = sys.modules[__name__]
         original_msgbox = mod.QMessageBox
         mod.QMessageBox = _FakeBox
         try:
-            # 案例 2：點數 200000 + CSV → 跳守門對話框，模擬按「改用 HDF5」。
+            # 案例 2：點數 200000 → HDF5 直接存成，不跳格式對話框。
             tab.status_label.setText("")
             tab.points_spin.setValue(200_000)
-            tab.format_combo.setCurrentText("CSV")
             tab.name_edit.setText("case2")
             tab._on_start_clicked()
             pump(lambda: "已存檔" in tab.status_label.text())
-            assert tab.format_combo.currentText() == "HDF5", "選了改用 HDF5，UI 應同步改格式"
             p2 = out_path(tab)
             assert p2.suffix == ".h5", p2
             # 案例 3：點數超過 max_points() → 擋下，不呼叫 capture。

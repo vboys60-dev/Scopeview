@@ -9,18 +9,19 @@ import numpy as np
 
 from scope_tool.contracts import (
     CaptureResult,
-    Preamble,
+    ScopeError,
     ScreenshotOptions,
     Series,
     Waveform,
 )
-from scope_tool.instruments.base import SCPIDriver
+from scope_tool.instruments.base import SCPIDriver, _binary_block
 
 
 class InfiniiumDriver(SCPIDriver):
     """Keysight Infiniium (EXR/MXR/S) 系列示波器驅動。
 
-    支援 PC 端直接存檔轉取（>= 100k 點）和波形直讀（< 100k 點）兩條路線。
+    一律以存檔轉取擷取完整記錄，points 僅作為點數上限。
+    存檔轉取、H5INt 換算、截圖與 max_points 已在 MXR254B（韌體 11.51）驗證。
     """
 
     series: ClassVar[Series] = Series.INFINIIUM
@@ -30,7 +31,7 @@ class InfiniiumDriver(SCPIDriver):
         """擷取示波器螢幕，直接回傳 PNG/BMP 位元組。
 
         命令：:DISPlay:DATA? <format>,<screen_mode>,<compression>,<inversion>
-        逾時：15 秒
+        逾時：15 秒；已在 MXR254B 驗證。
         # 待真機驗證：Error 273 的實際觸發條件與訊息
         """
         self._check_error()
@@ -48,7 +49,7 @@ class InfiniiumDriver(SCPIDriver):
     def max_points(self) -> int:
         """查詢硬體最大可取點數。
 
-        # 待真機驗證：:ACQuire:POINts:MAXimum? 的實際回應
+        :ACQuire:POINts:MAXimum? 已在 MXR254B 驗證。
         """
         try:
             resp = self._query(":ACQuire:POINts:MAXimum?")
@@ -61,56 +62,26 @@ class InfiniiumDriver(SCPIDriver):
     ) -> CaptureResult:
         """擷取波形。逾時 60 秒。
 
-        - points < 100,000：直讀（命令流）
-        - points >= 100,000：存檔轉取（:DISK:SAVE → :DISK:GETFILE? → :DISK:DELete）
-
-        RUN/STOP 狀態在進入時記下，離開時還原（_run_state context manager 負責）。
-        # 待真機驗證：大點數存檔轉取與逾時設定
+        一律存檔轉取完整記錄；目前記錄超過 points 上限時拒絕擷取。
+        RUN 中先等 10×時基 + 1 秒再 STOP，擷取後維持 STOP（待真機驗證）。
+        存檔轉取已在 MXR254B 驗證。
         """
         self._check_error()
 
-        with self._run_state():
-            if points < 100_000:
-                return self._capture_direct(channels, points, retrigger)
-            else:
-                return self._capture_disk(channels, points, retrigger)
-
-    def _capture_direct(
-        self, channels: list[str], points: int, retrigger: bool
-    ) -> CaptureResult:
-        """直讀路線：< 100k 點，逐通道串流讀取。"""
         with self._timeout(60000):
-            if retrigger:
-                self._write(":SINGle")
-            else:
-                self._write(":STOP")
-
-            waveforms: list[Waveform] = []
-            for ch in channels:
-                self._write(f":WAVeform:SOURce {ch}")
-                self._write(":WAVeform:FORMat BYTE")
-                self._write(":WAVeform:POINts:MODE RAW")
-                self._write(f":WAVeform:POINts {points}")
-                self._write(":WAVeform:UNSigned ON")
-
-                preamble_str = self._query(":WAVeform:PREamble?")
-                preamble = Preamble.parse(preamble_str)
-
-                raw = self._query_binary(":WAVeform:DATA?", "B")
-                waveform = Waveform.from_raw(ch, preamble, raw)
-                waveforms.append(waveform)
-
-        return CaptureResult(
-            waveforms=waveforms,
-            model=self.model,
-            series=self.series,
-            captured_at=datetime.datetime.now().isoformat(),
-        )
+            self._prepare_capture(retrigger)
+            record_points = int(float(self._query(":WAVeform:POINts?")))
+            if record_points > points:
+                raise ScopeError(
+                    f"目前記錄 {record_points} 點，超過設定的 {points} 點；"
+                    "請調高點數或在示波器降低記憶體深度。"
+                )
+            return self._capture_disk(channels, points, retrigger)
 
     def _capture_disk(
         self, channels: list[str], points: int, retrigger: bool
     ) -> CaptureResult:
-        """存檔轉取路線：>= 100k 點。
+        """存檔轉取完整記錄，已在 MXR254B 驗證。
 
         三步驟：
         1. :DISK:SAVE:WAVeform ALL → 示波器本機寫檔 + *OPC?
@@ -154,12 +125,9 @@ class InfiniiumDriver(SCPIDriver):
         該 group 的 attrs：NumPoints, XInc, XOrg, YInc, YOrg, YReference
 
         H5INt 格式為 int16，需用公式轉成電壓：
-        V = (RawValue - YRef) * YInc + YOrg
-
-        # 待真機驗證：H5INt 電壓還原與群組名稱規則
+        V = RawValue * YInc + YOrg
+        MXR254B 實測：即使 YReference = 1 也不讀取或扣除，否則會差 1 LSB。
         """
-        from scope_tool.contracts import ScopeError
-
         try:
             with h5py.File(BytesIO(data), "r") as h5:
                 waveforms: list[Waveform] = []
@@ -172,7 +140,6 @@ class InfiniiumDriver(SCPIDriver):
                     x_inc = float(ch_group.attrs["XInc"])
                     y_org = float(ch_group.attrs["YOrg"])
                     y_inc = float(ch_group.attrs["YInc"])
-                    y_ref = float(ch_group.attrs["YReference"])
 
                     time_axis = x_org + np.arange(len(raw), dtype=np.float64) * x_inc
 
@@ -180,7 +147,7 @@ class InfiniiumDriver(SCPIDriver):
                         voltage_axis = raw.astype(np.float64)
                     else:
                         voltage_axis = (
-                            (raw.astype(np.float64) - y_ref) * y_inc + y_org
+                            raw.astype(np.float64) * y_inc + y_org
                         )
 
                     wf = Waveform(channel=ch, time=time_axis, voltage=voltage_axis)
@@ -192,6 +159,18 @@ class InfiniiumDriver(SCPIDriver):
 
 
 if __name__ == "__main__":
+    # 原生 H5INt：YReference = 1 仍應直接乘比例再加偏移。
+    raw = np.array([-2, 0, 2], dtype=np.int16)
+    h5_buffer = BytesIO()
+    with h5py.File(h5_buffer, "w") as hf:
+        hf.create_dataset("FileType", data=b"Keysight Waveform")
+        hf.create_group("Frame")
+        group = hf.create_group("Waveforms/Channel 1")
+        group.create_dataset("Channel 1Data", data=raw)
+        group.attrs.update({"XOrg": 0.0, "XInc": 1e-9, "YOrg": 1.0,
+                            "YInc": 0.1, "YReference": 1})
+    native_bytes = h5_buffer.getvalue()
+
     class _StubResource:
         """測試用假 resource，記錄所有命令。"""
 
@@ -201,6 +180,7 @@ if __name__ == "__main__":
 
         def write(self, cmd: str) -> None:
             self.commands.append(cmd)
+            self.block = _binary_block(native_bytes)
 
         def query(self, cmd: str) -> str:
             self.commands.append(cmd)
@@ -209,44 +189,77 @@ if __name__ == "__main__":
             if cmd == ":SYSTem:ERRor?":
                 return "+0,\"No error\""
             if cmd == ":OPERegister:CONDition?":
-                return "8"
+                return "0"
             if cmd.startswith(":CHANnel"):
                 return "1" if cmd in (":CHANnel1:DISPlay?", ":CHANnel2:DISPlay?") else "0"
-            if cmd == ":WAVeform:PREamble?":
-                return "0,2,1000,1,1e-9,-5e-7,500,0.01,0.0,128"
+            if cmd == ":TIMebase:SCALe?":
+                return "0.5"
+            if cmd == ":WAVeform:POINts?":
+                return "3"
             return "0"
 
-        def query_binary_values(self, cmd: str, datatype: str, container):
-            self.commands.append(cmd)
-            return [128] * 1000
+        def read_bytes(self, count: int) -> bytes:
+            data, self.block = self.block[:count], self.block[count:]
+            return data
 
-    # 驗收 1：points=1000 走直讀，沒有 :DISK: 命令
+    # 驗收 1：超過上限時拒絕擷取，不能先存檔。
     res = _StubResource()
-    d = InfiniiumDriver(res, "TEST-EXR")
-    res.commands.clear()
+    d = InfiniiumDriver(res, "TEST-MXR")
     try:
-        d.capture(["CHAN1"], 1000, False)
-    except Exception:
-        pass
-    disk_cmds = [c for c in res.commands if ":DISK:" in c]
-    assert len(disk_cmds) == 0, f"直讀不應有 DISK 命令，實際：{disk_cmds}"
-    print("✓ 驗收 1：points=1000 走直讀，無 :DISK: 命令")
+        d.capture(["CHAN1"], 2, False)
+    except ScopeError as exc:
+        assert "3 點" in str(exc) and "2 點" in str(exc)
+        assert "請調高點數或在示波器降低記憶體深度" in str(exc)
+    else:
+        raise AssertionError("超過上限應拋 ScopeError")
+    assert not any(":DISK:SAVE" in c for c in res.commands)
+    assert res.timeout == 5000
 
-    # 驗收 2 & 3：points=200000 走存檔，順序正確，GETFILE 失敗時 DELETE 仍執行
+    # 驗收 2：低點數也走存檔轉取，並正確解析原生整數波形。
+    result = d.capture(["CHAN1"], 3, False)
+    assert result.native_file == native_bytes
+    assert np.array_equal(result.waveforms[0].voltage, raw * 0.1 + 1.0)
+    assert not any(c in res.commands for c in (":STOP", ":RUN", ":TIMebase:SCALe?"))
+    disk_cmds = [c for c in res.commands if ":DISK:" in c]
+    assert len(disk_cmds) == 3
+    assert ":DISK:SAVE" in disk_cmds[0] and ":DISK:GETFILE?" in disk_cmds[1]
+    assert ":DISK:DELete" in disk_cmds[2]
+    save_idx = res.commands.index(disk_cmds[0])
+    assert res.commands[save_idx + 1] == "*OPC?"
+
+    # 驗收 3：RUN 中等待後 STOP，再存檔，且不送 RUN。
+    from unittest.mock import patch
+    class _RunningResource(_StubResource):
+        def query(self, cmd: str) -> str:
+            if cmd == ":OPERegister:CONDition?":
+                self.commands.append(cmd)
+                return "8"
+            return super().query(cmd)
+    running = _RunningResource()
+    with patch("scope_tool.instruments.base.time.sleep") as sleep:
+        InfiniiumDriver(running, "TEST").capture(["CHAN1"], 1000, False)
+    sleep.assert_called_once_with(6.0)
+    assert running.commands.index(":TIMebase:SCALe?") < running.commands.index(":STOP")
+    assert ":RUN" not in running.commands
+    assert running.commands.index(":STOP") < running.commands.index(":WAVeform:POINts?")
+    assert any(":DISK:SAVE" in c for c in running.commands)
+
+    # 驗收 4：GETFILE 失敗時 DELETE 仍執行，順序正確。
     class _FailingStubResource(_StubResource):
-        def query_binary_values(self, cmd: str, datatype: str, container):
-            self.commands.append(cmd)
+        def write(self, cmd: str) -> None:
+            super().write(cmd)
             if ":DISK:GETFILE?" in cmd:
-                raise Exception("模擬 GETFILE 失敗")
-            return [128] * 1000
+                raise RuntimeError("模擬 GETFILE 失敗")
 
     res2 = _FailingStubResource()
     d2 = InfiniiumDriver(res2, "TEST-EXR")
 
     try:
         d2.capture(["CHAN1"], 200_000, False)
-    except Exception:
-        pass
+    except ScopeError as exc:
+        assert "模擬 GETFILE 失敗" in str(exc)
+    else:
+        raise AssertionError("GETFILE 失敗應拋 ScopeError")
 
     save_idx = next((i for i, c in enumerate(res2.commands) if ":DISK:SAVE" in c), -1)
     get_idx = next((i for i, c in enumerate(res2.commands) if ":DISK:GETFILE?" in c), -1)
@@ -258,9 +271,8 @@ if __name__ == "__main__":
     assert save_idx < get_idx < del_idx, (
         f"命令順序錯誤：SAVE={save_idx}, GET={get_idx}, DEL={del_idx}"
     )
-    print("✓ 驗收 2 & 3：points=200000 走存檔，順序正確，GETFILE 失敗時 DELETE 仍執行")
 
-    # 驗收 4：Error 273 轉成 RemoteDesktopError
+    # 驗收 5：Error 273 轉成 RemoteDesktopError
     from scope_tool.contracts import RemoteDesktopError
 
     class _Error273Resource(_StubResource):
@@ -277,19 +289,8 @@ if __name__ == "__main__":
         d3.screenshot(ScreenshotOptions())
         assert False, "應該拋 RemoteDesktopError"
     except RemoteDesktopError:
-        print("✓ 驗收 4：Error 273 轉成 RemoteDesktopError")
-
-    # 驗收 5：路徑字串是 raw string（含單個反斜線，未被跳脫）
-    res4 = _StubResource()
-    d4 = InfiniiumDriver(res4, "TEST-EXR")
-
-    try:
-        d4.capture(["CHAN1"], 200_000, False)
-    except Exception:
         pass
-
-    save_cmd = next((c for c in res4.commands if ":DISK:SAVE" in c), "")
-    assert "\\" in save_cmd, f"路徑字串應含單個反斜線：{save_cmd}"
-    print("✓ 驗收 5：路徑字串使用 raw string（含單個反斜線）")
+    # 驗收 6：路徑字串含單個反斜線，未被跳脫。
+    assert "\\" in disk_cmds[0], f"路徑字串應含單個反斜線：{disk_cmds[0]}"
 
     print("\ninfiniium self-check OK")

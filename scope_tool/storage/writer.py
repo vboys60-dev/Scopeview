@@ -148,7 +148,7 @@ def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
     """寫 HDF5：Keysight 原生格式相容。
 
     結構：
-      /Waveforms/Channel 1/Channel 1Data   ← 波形值 float64 一維陣列
+      /Waveforms/Channel 1/Channel 1Data   ← 原始整數 uint16；無法還原整數時存 float64 電壓
         attrs: NumPoints, XInc, XOrg, YInc, YOrg, YReference
       /ScopeTool                           ← 本工具自訂
         attrs: Model, Series, CapturedAt, SCPI (JSON 字串)
@@ -160,12 +160,15 @@ def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
             ch_name = _channel_to_hdf5_name(wf.channel)
             ch_group = waveforms_group.create_group(ch_name)
 
-            # 寫波形數據
-            ch_group.create_dataset(
-                f"{ch_name}Data",
-                data=wf.voltage,
-                dtype=np.float64
-            )
+            # 有前導參數且能還原原始碼值時，存 uint16 節省空間
+            data = wf.voltage.astype(np.float64, copy=False)
+            if wf.preamble and data.size:
+                pre = wf.preamble
+                raw = (data - pre.y_origin) / pre.y_increment + pre.y_reference
+                rounded = np.rint(raw)
+                if np.max(np.abs(raw - rounded)) < 1e-3 and np.min(rounded) >= 0 and np.max(rounded) <= 65535:
+                    data = rounded.astype(np.uint16)
+            ch_group.create_dataset(f"{ch_name}Data", data=data)
 
             # 寫 attrs（六個必要欄位）
             if wf.preamble:
@@ -217,6 +220,7 @@ if __name__ == "__main__":
             assert "/Waveforms/Channel 1/Channel 1Data" in f, \
                 "HDF5 路徑 /Waveforms/Channel 1/Channel 1Data 不存在"
             data = f["/Waveforms/Channel 1/Channel 1Data"][:]
+            assert data.dtype == np.float64  # 模擬波形不是整數碼值，保留電壓
             assert len(data) == 50, \
                 f"波形長度應為 50，實際 {len(data)}"
 
@@ -225,6 +229,23 @@ if __name__ == "__main__":
                             'YReference']
             for attr in required_attrs:
                 assert attr in attrs, f"HDF5 attrs 缺少 {attr}"
+
+        # 整數碼值寫入後，讀回電壓不得損失精度
+        from scope_tool.contracts import Preamble, Waveform
+        from scope_tool.storage.reader import read_waveform_file
+        pre = Preamble.parse("1,2,5,1,1e-9,0,0,0.01,0.125,128")
+        raw = np.array([0, 1, 128, 32768, 65535], dtype=np.uint16)
+        result3.waveforms = [Waveform.from_raw("CHAN1", pre, raw)]
+        integer_file = write_waveform(tmpdir, "integer", result3, WaveformFormat.HDF5)
+        with h5py.File(integer_file, "r") as f:
+            stored = f["Waveforms/Channel 1/Channel 1Data"]
+            assert stored.dtype == np.uint16 and np.array_equal(stored[:], raw)
+        restored = read_waveform_file(integer_file)[0]
+        assert np.max(np.abs(restored.voltage - result3.waveforms[0].voltage)) < 1e-12
+        result3.waveforms = [Waveform("CHAN1", restored.time, restored.voltage)]
+        float_file = write_waveform(tmpdir, "float", result3, WaveformFormat.HDF5)
+        with h5py.File(float_file, "r") as f:
+            assert f["Waveforms/Channel 1/Channel 1Data"].dtype == np.float64
 
         # 驗收條件 4: native_file 有值時，寫出來的位元組與傳入的完全相同
         result4 = driver.capture(["CHAN1"], 10, retrigger=False)

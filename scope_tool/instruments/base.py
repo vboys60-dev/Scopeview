@@ -1,6 +1,6 @@
 """SCPI 共用邏輯：InfiniiVision 與 Infiniium 都繼承的中介類別。
 
-實際與真機互動的路徑（_write/_query/_query_binary/_check_error/_run_state）
+實際與真機互動的路徑（_write/_query/_query_binary/_check_error）
 沒有真機無法驗證，行為只在 docstring 標註處寫明假設。
 # 待真機驗證
 """
@@ -14,14 +14,30 @@ from typing import Iterator
 import numpy as np
 import pyvisa
 
-from scope_tool.contracts import RemoteDesktopError, ScopeDriver, ScopeError, ScopeTimeoutError
+from scope_tool.contracts import Preamble, RemoteDesktopError, ScopeDriver, ScopeError, ScopeTimeoutError, Waveform
+
+
+def _binary_block(data: bytes) -> bytes:
+    """自我檢查共用：產生含結尾換行的 IEEE488.2 block。"""
+    length = str(len(data)).encode("ascii")
+    return b"#" + str(len(length)).encode("ascii") + length + data + b"\n"
+
+
+def _waveform_from_raw(channel: str, pre: Preamble, raw: np.ndarray,
+                       previous: Waveform | None) -> Waveform:
+    """相鄰通道的時間參數與點數相同時，共用時間陣列。"""
+    old = previous.preamble if previous is not None else None
+    if old is not None and (pre.x_increment, pre.x_origin, pre.x_reference, pre.points) == (
+            old.x_increment, old.x_origin, old.x_reference, old.points) and len(raw) == len(previous.time):
+        return Waveform(channel=channel, time=previous.time, voltage=pre.volts(raw), preamble=pre)
+    return Waveform.from_raw(channel, pre, raw)
 
 
 class SCPIDriver(ScopeDriver):
     """InfiniiVision 與 Infiniium 共用的 SCPI 存取層。
 
     子類別只需要處理兩家系列在命令字面上的差異，共用的錯誤轉換、
-    逾時、RUN/STOP 還原都放在這裡。
+    逾時與擷取前等待都放在這裡。
     """
 
     def _write(self, cmd: str) -> None:
@@ -56,9 +72,24 @@ class SCPIDriver(ScopeDriver):
     def _query_binary(self, cmd: str, datatype: str) -> np.ndarray:
         """送出回傳 IEEE488.2 binary block 的查詢，回傳 numpy 陣列。"""
         try:
-            return np.array(
-                self.res.query_binary_values(cmd, datatype=datatype, container=list)
-            )
+            dtype = {"B": np.dtype("uint8"), "H": np.dtype("<u2")}[datatype]
+            self.res.write(cmd)
+            header = self.res.read_bytes(2)
+            if len(header) != 2 or header[:1] != b"#" or not b"1" <= header[1:] <= b"9":
+                raise ValueError("不是 definite-length block")
+            total = int(self.res.read_bytes(int(header[1:])))
+            data = bytearray(total)
+            offset = 0
+            while offset < total:
+                size = min(4 * 1024 * 1024, total - offset)
+                chunk = self.res.read_bytes(size)
+                if len(chunk) != size:
+                    raise ValueError("binary block 資料不足")
+                data[offset:offset + size] = chunk
+                offset += size
+            if self.res.read_bytes(1) != b"\n":
+                raise ValueError("binary block 缺少結尾換行")
+            return np.frombuffer(data, dtype=dtype)
         except Exception as exc:
             raise self._wrap(exc, cmd) from exc
 
@@ -92,39 +123,18 @@ class SCPIDriver(ScopeDriver):
         finally:
             self.res.timeout = original
 
-    #: 本 driver 上次寫 :RUN 的 time.monotonic()；未知（使用者手動按的）為 None
-    _run_started: float | None = None
-
     def _is_running(self) -> bool:
         """用操作暫存器的 RUN 位元（bit3，值8）判斷是否在跑。"""
         return bool(int(self._query(":OPERegister:CONDition?")) & 0x8)
 
-    @contextmanager
-    def _run_state(self) -> Iterator[None]:
-        """記住 RUN/STOP，離開時（含例外）還原成呼叫前的樣子。
-
-        # 待真機驗證：預設用操作暫存器 bit3，子類別可覆寫 _is_running。
-        # 查不到就保守假設原本在跑，離開時還原成 RUN。
-        """
-        try:
-            was_running = self._is_running()
-        except (ScopeError, ValueError):
-            was_running = True
-        failed = False
-        try:
-            yield
-        except BaseException:
-            failed = True
-            raise
-        finally:
-            # 真機驗證：還原用 _write（含 *OPC?）會在 Single 等待觸發時逾時，並蓋掉原始例外
-            try:
-                self._write_nowait(":RUN" if was_running else ":STOP")
-                if was_running:
-                    self._run_started = time.monotonic()
-            except ScopeError:
-                if not failed:
-                    raise
+    def _prepare_capture(self, retrigger: bool) -> None:
+        """RUN 中先等完整記錄再 STOP；擷取後維持 STOP。Infiniium 待真機驗證。"""
+        if retrigger:
+            self._write(":DIGitize")
+        elif self._is_running():
+            scale = float(self._query(":TIMebase:SCALe?"))
+            time.sleep(10 * scale + 1)
+            self._write(":STOP")
 
     def channels(self) -> list[str]:
         """查 `:CHANnel<n>:DISPlay?` 找出目前開啟中的通道，兩家系列命令相同。
@@ -153,9 +163,12 @@ if __name__ == "__main__":
         def __init__(self) -> None:
             self.timeout = 5000
             self.commands: list[str] = []
+            self.payload = bytes([1, 2, 3])
+            self.read_sizes: list[int] = []
 
         def write(self, cmd: str) -> None:
             self.commands.append(cmd)
+            self.block = _binary_block(self.payload)
 
         def query(self, cmd: str) -> str:
             self.commands.append(cmd)
@@ -169,9 +182,10 @@ if __name__ == "__main__":
                 return "1" if cmd in (":CHANnel1:DISPlay?", ":CHANnel2:DISPlay?") else "0"
             return "0"
 
-        def query_binary_values(self, cmd, datatype, container):
-            self.commands.append(cmd)
-            return [1, 2, 3]
+        def read_bytes(self, count: int) -> bytes:
+            self.read_sizes.append(count)
+            data, self.block = self.block[:count], self.block[count:]
+            return data
 
     class _StubDriver(SCPIDriver):
         series = None
@@ -200,29 +214,26 @@ if __name__ == "__main__":
         assert res.timeout == 15000
     assert res.timeout == 5000
 
-    with d._run_state():
-        pass
-    assert res.commands[-1] == ":RUN"  # OPERegister 回 8，bit3 有值 → 還原成 RUN（不等 *OPC?）
-
-    # 還原失敗不可蓋掉原始例外
-    class _BadRun(_StubResource):
-        def write(self, cmd: str) -> None:
-            if cmd == ":RUN":
-                raise RuntimeError("restore failed")
-            super().write(cmd)
-
-    try:
-        with _StubDriver(_BadRun(), "STUB")._run_state():
-            raise ValueError("原始錯誤")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("原始 ValueError 被還原失敗蓋掉")
-
     assert d.channels() == ["CHAN1", "CHAN2"]
 
     arr = d._query_binary(":WAVeform:DATA?", "B")
-    assert list(arr) == [1, 2, 3]
+    assert arr.dtype == np.uint8 and list(arr) == [1, 2, 3]
+    assert res.block == b"" and res.read_sizes[-1] == 1
+    res.payload = np.arange(2_100_000, dtype="<u2").tobytes()
+    arr = d._query_binary(":WAVeform:DATA?", "H")
+    assert arr.dtype == np.dtype("<u2") and len(arr) == 2_100_000
+    assert arr[-1] == 2_099_999 % 65536
+    assert res.read_sizes[-3:] == [4 * 1024 * 1024, 5696, 1] and res.block == b""
+
+    class _TimeoutResource(_StubResource):
+        def read_bytes(self, count: int) -> bytes:
+            raise pyvisa.errors.VisaIOError(pyvisa.constants.StatusCode.error_timeout)
+    try:
+        _StubDriver(_TimeoutResource(), "STUB")._query_binary("DATA?", "B")
+    except ScopeTimeoutError:
+        pass
+    else:
+        raise AssertionError("binary block 逾時應轉成 ScopeTimeoutError")
 
     # Error 273 要轉成 RemoteDesktopError
     class _ErrResource(_StubResource):

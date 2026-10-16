@@ -11,7 +11,7 @@ CSV：UTF-8，第一列為欄位名，之後每列一筆取樣。
     同一次擷取的所有通道共用時間軸。除此之外不寫任何註解列或 metadata。
 
 HDF5：沿用 Keysight 原生結構（見 docs/adr/0003）
-    /Waveforms/Channel 1/Channel 1Data   ← 電壓值 float64 一維陣列
+    /Waveforms/Channel 1/Channel 1Data   ← 原始整數 uint16 一維陣列，以 attrs 換算電壓；無 preamble 時才存 float64 電壓
         該 group 的 attrs：NumPoints, XInc, XOrg, YInc, YOrg, YReference
     /ScopeTool                            ← 本工具自訂 group（原生檔沒有，讀取時要容忍缺席）
         attrs：Model, Series, CapturedAt, SCPI
