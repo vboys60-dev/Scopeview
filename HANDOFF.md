@@ -35,6 +35,7 @@
 - Keysight 原生 H5INt：`YReference=1` **不能扣**，V = raw×YInc+YOrg。本工具寫的檔（有 `/ScopeTool`）才扣。
 - HD3：沒有 `:OPERegister:CONDition?`（用 `:RSTate?`）、沒有 INKSaver（程式端 `invertPixels()`）、截圖波形區隨面板變動（偵測 `#282828` 外框）。
 - MXR：沒有 `:WAVeform:POINts <n>`/`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
+- 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`。
 
 ## 已知小問題（未處理）
 
@@ -43,7 +44,7 @@
 - 4 通道 × 100M 記憶體約 7 GB 以上，再大要改契約（凍結）。
 - CSV 時間欄 `.6e` 精度略損；CSV 通道名 `CH1` vs HDF5 `CHAN1` 不一致（待 CSV 規則一起處理）。
 - 截圖頁區域選項仍標「(待驗證)」。
-- 4154G：送 `INKSaver 1` 後畫面跳「Remote operation completed.」，反轉截圖會拍到（格線區上緣）。
+- InfiniiVision 截圖前送的 `:DISPlay:MESSage:CLEar` 只在 4154G 驗證；3014G 未測（推測：不支援的話只會在錯誤佇列留 -113，截圖照常；擷取開頭有 `*CLS`）。
 - InfiniiVision `:DISPlay:DATA?` 的調色盤參數（COLor/GRAYscale）會保留在儀器上；driver 不帶，若被設成灰階，截圖就一直是灰階（4154G 實測）。
 
 ## 先讀

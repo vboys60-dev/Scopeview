@@ -105,10 +105,10 @@ class InfiniiVisionDriver(SCPIDriver):
             # 設定墨粉節省（INKSaver）
             mode = "ON" if opts.inverted else "OFF"
             self._write(f":HARDcopy:INKSaver {mode}")
-
+            # 4154G 實測：清除上次截圖後約 5 秒的遠端操作完成提示，避免連續截圖拍到提示框。
+            self._write(":DISPlay:MESSage:CLEar")
             # 真機驗證（DSO-X 3014G）：:HARDcopy:AREA GRAT 回 -221 Settings conflict，
             # 一律回整個螢幕，格線區在這裡裁切。
-
             # 擷取影像二進位資料
             fmt = opts.image_format.value
             data = self._query_binary(f":DISPlay:DATA? {fmt}", datatype="B")
@@ -201,7 +201,6 @@ class HD3Driver(InfiniiVisionDriver):
 register(InfiniiVisionDriver)
 register(HD3Driver)
 
-
 if __name__ == "__main__":
     from PySide6.QtCore import QBuffer, QIODevice, QSize
     from PySide6.QtGui import QColor, QPainter, QPen
@@ -230,6 +229,7 @@ if __name__ == "__main__":
     driver.screenshot(ScreenshotOptions(inverted=True))
     assert ":HARDcopy:INKSaver ON" in res.commands
     assert any(":DISPlay:DATA?" in cmd for cmd in res.commands)
+    assert res.commands.index(":DISPlay:MESSage:CLEar") < res.commands.index(":DISPlay:DATA? PNG")
     res.commands.clear()
     from unittest.mock import patch
     with patch("scope_tool.instruments.base.time.sleep") as sleep:
