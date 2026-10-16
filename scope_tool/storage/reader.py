@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from pathlib import Path
 
 import h5py
@@ -64,7 +65,7 @@ def _read_csv(path: Path) -> list[Waveform]:
 
             time = np.array(time_list, dtype=np.float64)
             return [Waveform(
-                channel=col[:col.rfind("(")],
+                channel=f"CHAN{col[2:-3]}" if re.fullmatch(r"CH[0-9]+\(V\)", col) else col[:-3],
                 time=time,
                 voltage=np.array(volt_dict[col], dtype=np.float64),
                 preamble=None
@@ -142,6 +143,7 @@ def _self_check() -> None:
 
         wf = read_waveform_file(csv_file)
         assert len(wf) == 2, f"CSV：通道數錯誤 {len(wf)}"
+        assert [waveform.channel for waveform in wf] == ["CHAN1", "CHAN2"]
         assert len(wf[0].time) == 3, f"CSV：點數錯誤"
         assert abs(wf[0].time[0] - 0.0) < 1e-12 and abs(wf[0].time[-1] - 2e-6) < 1e-12
         assert abs(wf[0].voltage[0] - 1.0) < 1e-12

@@ -138,7 +138,7 @@ def _write_csv(filepath: Path, result: CaptureResult) -> None:
 
         # 數據行
         for i in range(len(time_axis)):
-            row = [f"{time_axis[i]:.6e}"]
+            row = [f"{time_axis[i]}"]
             for wf in result.waveforms:
                 row.append(f"{wf.voltage[i]}")
             writer.writerow(row)
@@ -233,6 +233,14 @@ if __name__ == "__main__":
         # 整數碼值寫入後，讀回電壓不得損失精度
         from scope_tool.contracts import Preamble, Waveform
         from scope_tool.storage.reader import read_waveform_file
+
+        # CSV 時間軸在大偏移與小間隔下仍須完整還原
+        precision_pre = Preamble.parse("1,2,100,1,1e-11,-5e-4,0,0.01,0,0")
+        precision_waveform = Waveform.from_raw("CHAN1", precision_pre, np.arange(100))
+        result1.waveforms = [precision_waveform]
+        precision_file = write_waveform(tmpdir, "precision", result1, WaveformFormat.CSV)
+        assert np.array_equal(read_waveform_file(precision_file)[0].time, precision_waveform.time)
+
         pre = Preamble.parse("1,2,5,1,1e-9,0,0,0.01,0.125,128")
         raw = np.array([0, 1, 128, 32768, 65535], dtype=np.uint16)
         result3.waveforms = [Waveform.from_raw("CHAN1", pre, raw)]
