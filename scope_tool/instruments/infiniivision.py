@@ -4,9 +4,7 @@
 """
 
 from __future__ import annotations
-
 import datetime as _dt
-
 import numpy as np
 from PySide6.QtGui import QImage
 
@@ -109,9 +107,9 @@ class InfiniiVisionDriver(SCPIDriver):
             self._write(":DISPlay:MESSage:CLEar")
             # 真機驗證（DSO-X 3014G）：:HARDcopy:AREA GRAT 回 -221 Settings conflict，
             # 一律回整個螢幕，格線區在這裡裁切。
-            # 擷取影像二進位資料
+            # 4154G 實測調色盤參數會保留，每次截圖明確指定彩色，避免沿用灰階。
             fmt = opts.image_format.value
-            data = self._query_binary(f":DISPlay:DATA? {fmt}", datatype="B")
+            data = self._query_binary(f":DISPlay:DATA? {fmt},COLor", datatype="B")
             img = data.astype(np.uint8).tobytes()
             if opts.area is CaptureArea.GRATICULE:
                 img = _crop_graticule(img, fmt)
@@ -229,7 +227,7 @@ if __name__ == "__main__":
     driver.screenshot(ScreenshotOptions(inverted=True))
     assert ":HARDcopy:INKSaver ON" in res.commands
     assert any(":DISPlay:DATA?" in cmd for cmd in res.commands)
-    assert res.commands.index(":DISPlay:MESSage:CLEar") < res.commands.index(":DISPlay:DATA? PNG")
+    assert res.commands.index(":DISPlay:MESSage:CLEar") < res.commands.index(":DISPlay:DATA? PNG,COLor")
     res.commands.clear()
     from unittest.mock import patch
     with patch("scope_tool.instruments.base.time.sleep") as sleep:
@@ -240,6 +238,8 @@ if __name__ == "__main__":
     assert result.waveforms[0].time is result.waveforms[1].time
     stopped = _StubResource()
     hd3 = HD3Driver(stopped, "HD304MSO")
+    hd3.screenshot(ScreenshotOptions())
+    assert all("," not in cmd for cmd in stopped.commands if cmd.startswith(":DISPlay:DATA?"))
     assert hd3.max_points() == 100_000_000
     hd3.capture(["CHAN1"], 100, False)
     assert not any(c in stopped.commands for c in (":STOP", ":RUN", ":TIMebase:SCALe?", ":DIGitize"))

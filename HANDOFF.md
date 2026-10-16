@@ -4,14 +4,14 @@
 
 ## 現況（2026-10-16）
 
-- 已 commit（`8d80d84`），工作區乾淨。
-- 已上機：DSO-X 3014G（**舊擷取規則**下驗證）、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
+- 最新 commit `cdcbc50`；調色盤修正與 3014G 第八輪紀錄尚未 commit。
+- 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
 - 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader ui.tab_capture ui.tab_screenshot ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
 
 ## 下一步
 
-1. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；3014G 在新規則下重驗擷取；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
+1. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
 2. CSV 匯出規則與使用者討論。
 
 ## 擷取規則（使用者定案，已寫入 RULES.md 第 5、9 條）
@@ -35,7 +35,8 @@
 - Keysight 原生 H5INt：`YReference=1` **不能扣**，V = raw×YInc+YOrg。本工具寫的檔（有 `/ScopeTool`）才扣。
 - HD3：沒有 `:OPERegister:CONDition?`（用 `:RSTate?`）、沒有 INKSaver（程式端 `invertPixels()`）、截圖波形區隨面板變動（偵測 `#282828` 外框）。
 - MXR：沒有 `:WAVeform:POINts <n>`/`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
-- 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`。
+- 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`（3014G 也接受）。
+- InfiniiVision `:DISPlay:DATA?` 的調色盤參數會保留在儀器上（`:HARDcopy:PALette?` 看不出來），被設成灰階後截圖一直是灰階 → 每次送 `<fmt>,COLor`（問題在 4154G 發現，修正在 3014G 驗證；HD3 帶第二參數會逾時，不帶）。
 
 ## 已知小問題（未處理）
 
@@ -44,8 +45,8 @@
 - 4 通道 × 100M 記憶體約 7 GB 以上，再大要改契約（凍結）。
 - CSV 時間欄 `.6e` 精度略損；CSV 通道名 `CH1` vs HDF5 `CHAN1` 不一致（待 CSV 規則一起處理）。
 - 截圖頁區域選項仍標「(待驗證)」。
-- InfiniiVision 截圖前送的 `:DISPlay:MESSage:CLEar` 只在 4154G 驗證；3014G 未測（推測：不支援的話只會在錯誤佇列留 -113，截圖照常；擷取開頭有 `*CLS`）。
-- InfiniiVision `:DISPlay:DATA?` 的調色盤參數（COLor/GRAYscale）會保留在儀器上；driver 不帶，若被設成灰階，截圖就一直是灰階（4154G 實測）。
+- 調色盤修正（`,COLor`）4154G 未重測。
+- Normal 無觸發時勾「重新觸發」：`:DIGitize` 等不到觸發，60 秒後逾時，示波器要 device clear 才恢復（3014G 實測，未處理）。
 
 ## 先讀
 
@@ -65,7 +66,7 @@
 | 機台 | VISA | 使用者設定 |
 |---|---|---|
 | HD304MSO | `USB0::0x2A8D::0x4704::MY66190300::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div |
-| DSO-X 3014G | `USB0::0x2A8D::0x1768::MY65520038::INSTR` | 5 ms/div、AUTO、RUN（輸入平 DC，測 Single 用 LINE 觸發） |
+| DSO-X 3014G | `USB0::0x2A8D::0x1768::MY65520038::INSTR` | RUN、5 ms/div、AUTO、4 通道全開、1 V/div、INKSaver 1（輸入平 DC，Single/Normal 不會觸發） |
 | MXR254B | `USB0::0x2A8D::0x9007::MY63310109::INSTR` | RUN、100 ns/div、AUTO、RTIM、記憶體深度 AUTO、只開 CH1、5 V/div |
 | MSO-X 4154G | `USB0::0x2A8D::0x17BC::MY65060120::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div、INKSaver 1 |
 
