@@ -10,6 +10,12 @@ import os
 os.environ["QT_API"] = "pyside6"  # 必須在任何 pyqtgraph / Qt import 之前
 
 import sys
+from pathlib import Path
+
+if __package__ in (None, ""):
+    # 允許直接 `python main.py` 執行：把上層目錄加入 sys.path，
+    # 讓 `scope_tool.*` 這種絕對 import 找得到自己。
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication

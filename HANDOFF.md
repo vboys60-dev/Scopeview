@@ -12,6 +12,8 @@
 （Qt 相關模組要加 `QT_QPA_PLATFORM=offscreen` 環境變數才能在無頭環境跑）。
 `QT_QPA_PLATFORM=offscreen python3 -m scope_tool.main` 也驗證過：主視窗開得起來、三個分頁都在、未連線時截圖/擷取頁 disable、分析頁 enable。
 
+`main.py` 現在直接 `python main.py`（在 `scope_tool/` 目錄下）就能跑，不用再靠 `-m`（內部會自動把上層目錄塞進 `sys.path`）。連線列多了「測試儀器（模擬）」按鈕，點一下直接掛 `FakeDriver`，不用搜尋/連線就能玩截圖/擷取/分析三個分頁；再點一次斷線。
+
 **`docs/真機驗證清單.md` 已產出**（T11），彙整了程式碼裡所有 `# 待真機驗證` 標記，13 列表格（含 PLAN.md 要求的六項高風險核心項目 + 7 項其他細節），每列都有檔案:行號、驗證方法、預期結果。
 
 ## 下一步：只剩真機驗證

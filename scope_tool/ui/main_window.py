@@ -107,18 +107,21 @@ class MainWindow(QMainWindow):
         self.combo.setMinimumWidth(280)
         self.btn_manual = QPushButton("手動輸入 IP")
         self.btn_connect = QPushButton("連線")
+        self.btn_fake = QPushButton("測試儀器（模擬）")
         self.status_label = QLabel("未連線")
 
         bar.addWidget(self.btn_search)
         bar.addWidget(self.combo, stretch=1)
         bar.addWidget(self.btn_manual)
         bar.addWidget(self.btn_connect)
+        bar.addWidget(self.btn_fake)
         bar.addWidget(self.status_label)
         outer.addLayout(bar)
 
         self.btn_search.clicked.connect(self._on_search_clicked)
         self.btn_manual.clicked.connect(self._on_manual_clicked)
         self.btn_connect.clicked.connect(self._on_connect_clicked)
+        self.btn_fake.clicked.connect(self._on_fake_clicked)
 
         self.tabs = QTabWidget()
         self._build_tabs()
@@ -214,6 +217,16 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"已連線：{driver.model}")
         self.btn_connect.setEnabled(True)
         self.driver_changed.emit(self.driver)
+
+    def _on_fake_clicked(self) -> None:
+        """不接真機、不搜尋，直接掛上模擬儀器，方便畫面與功能測試。"""
+        if self.driver is not None:
+            self._disconnect()
+            return
+
+        from scope_tool.instruments.fake import FakeDriver
+
+        self._on_connect_done(FakeDriver())
 
     def _on_connect_failed(self, message: str) -> None:
         self.btn_connect.setEnabled(True)
