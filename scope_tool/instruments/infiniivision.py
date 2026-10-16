@@ -1,4 +1,4 @@
-"""Keysight InfiniiVision 3000G/3000X 與 HD3 系列驅動。
+"""Keysight InfiniiVision 3000G/3000X/4000X 與 HD3 系列驅動。
 
 只支援波形直讀，不支援存檔轉取（檔案只能寫面板USB，PC無法取回）。
 """
@@ -26,9 +26,9 @@ from scope_tool.instruments.registry import register
 
 
 # 真機量測（DSO-X 3014G，800×512 截圖）：格線 10×8 格，x 16..657、y 52..451。
-# ponytail: 只在 800×512 才裁，其他解析度（3000T 等）回全圖，要支援得重量。
-_SCREEN_SIZE = (800, 512)
-_GRAT_BOX = (16, 52, 642, 400)  # x, y, w, h
+# 真機量測（MSO-X 4154G，800×632 截圖）：x 16..657、y 92..571。
+# ponytail: 僅裁實測的 3014G（800×512）與 4154G（800×632）；其他尺寸回全圖，支援前須重測。
+_GRAT_BOX = {(800, 512): (16, 52, 642, 400), (800, 632): (16, 92, 642, 480)}  # x, y, w, h
 _NO_ACQUISITION = (
     "儀器目前沒有完整的採集可讀（可能在等待觸發 Single/Normal，"
     "或剛 RUN 就 STOP）。請先觸發一次，或切到 Auto 觸發再試。"
@@ -40,12 +40,13 @@ def _crop_graticule(img: bytes, fmt: str) -> bytes:
     from PySide6.QtGui import QImage
 
     qimg = QImage.fromData(img)
-    if qimg.isNull() or (qimg.width(), qimg.height()) != _SCREEN_SIZE:
+    box = _GRAT_BOX.get((qimg.width(), qimg.height()))
+    if qimg.isNull() or box is None:
         return img
     ba = QByteArray()  # 必須持有參照，否則 QBuffer 指到已釋放的記憶體 → segfault
     buf = QBuffer(ba)
     buf.open(QIODevice.OpenModeFlag.WriteOnly)
-    qimg.copy(QRect(*_GRAT_BOX)).save(buf, fmt)
+    qimg.copy(QRect(*box)).save(buf, fmt)
     buf.close()
     return bytes(ba)
 
@@ -87,13 +88,13 @@ def _transform_hd3(img: bytes, fmt: str, opts: ScreenshotOptions) -> bytes:
 
 
 class InfiniiVisionDriver(SCPIDriver):
-    """InfiniiVision 3000G/3000X 示波器的 SCPI 驅動。
+    """InfiniiVision 3000G/3000X/4000X 示波器的 SCPI 驅動。
 
     實作接口：screenshot、capture、max_points。
     """
 
     series = Series.INFINIIVISION
-    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3")
+    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3", "MSO-X 4", "DSO-X 4", "MSOX4", "DSOX4")
 
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕。timeout 15 秒。
@@ -202,20 +203,17 @@ register(HD3Driver)
 
 
 if __name__ == "__main__":
+    from PySide6.QtCore import QBuffer, QIODevice, QSize
     from PySide6.QtGui import QColor, QPainter, QPen
     from scope_tool.instruments.registry import driver_for
-
     class _StubResource:
         """記錄收到的所有命令，OPERegister 照舊回 8。"""
-
         def __init__(self) -> None:
             self.timeout = 5000
             self.commands: list[str] = []
-
         def write(self, cmd: str) -> None:
             self.commands.append(cmd)
             self.block = _binary_block(np.full(100, 128, dtype="<u2").tobytes() if cmd == ":WAVeform:DATA?" else b"PNG")
-
         def query(self, cmd: str) -> str:
             self.commands.append(cmd)
             return {
@@ -224,11 +222,9 @@ if __name__ == "__main__":
                 ":WAVeform:PREamble?": "1,2,100,1,1e-9,-5e-7,0,0.01,0.0,128",
                 ":ACQuire:POINts?": "4000000", ":TIMebase:SCALe?": "0.5",
             }.get(cmd, "1" if cmd.startswith(":CHANnel") else "0")
-
         def read_bytes(self, count: int) -> bytes:
             data, self.block = self.block[:count], self.block[count:]
             return data
-
     res = _StubResource()
     driver = InfiniiVisionDriver(res, "TEST-3000G")
     driver.screenshot(ScreenshotOptions(inverted=True))
@@ -268,7 +264,15 @@ if __name__ == "__main__":
     assert len(result.waveforms) == 2 and len(result.waveforms[0].voltage) == 100
     assert all(":DISK:" not in cmd and ":SAVE:" not in cmd for cmd in res.commands)
     assert driver.max_points() == 4_000_000
-
+    # 兩款實測尺寸依表裁切，未知尺寸保留全圖；PNG/BMP 都適用。
+    for height, expected in ((512, (642, 400)), (632, (642, 480)), (600, (800, 600))):
+        image = QImage(800, height, QImage.Format.Format_RGB32)
+        image.fill(0)
+        for fmt in ImageFormat:
+            buf = QBuffer()
+            buf.open(QIODevice.OpenModeFlag.ReadWrite)
+            assert image.save(buf, fmt.value)
+            assert QImage.fromData(_crop_graticule(bytes(buf.data()), fmt.value)).size() == QSize(*expected)
     # HD3 外框含端點；沒有外框時保留全圖
     image = QImage(1280, 800, QImage.Format.Format_RGB32)
     image.fill(0)
@@ -280,11 +284,10 @@ if __name__ == "__main__":
     assert _hd3_graticule_box(image) == (52, 60, 1148, 472)
     assert isinstance(driver_for(None, "KEYSIGHT TECHNOLOGIES,HD304MSO,MY1,1"), HD3Driver)
     assert type(driver_for(None, "KEYSIGHT TECHNOLOGIES,DSO-X 3014G,MY1,1")) is InfiniiVisionDriver
-
+    assert type(driver_for(None, "KEYSIGHT TECHNOLOGIES,MSO-X 4154G,MY65060120,07.65.2024120521")) is InfiniiVisionDriver
     class _EmptyPreamble(_StubResource):
         def query(self, cmd: str) -> str:
             return " , , , , , , , , , " if cmd == ":WAVeform:PREamble?" else super().query(cmd)
-
     for cls in (InfiniiVisionDriver, HD3Driver):
         res = _EmptyPreamble()
         try:

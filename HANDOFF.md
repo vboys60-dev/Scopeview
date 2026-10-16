@@ -5,17 +5,16 @@
 ## 現況（2026-10-16）
 
 - 已 commit（`8d80d84`），工作區乾淨。
-- 已上機：DSO-X 3014G（**舊擷取規則**下驗證）、HD304MSO、MXR254B（Infiniium 首次）。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
+- 已上機：DSO-X 3014G（**舊擷取規則**下驗證）、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
 - 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader ui.tab_capture ui.tab_screenshot ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
 
 ## 下一步
 
-1. 同步文件：`RULES.md` 第 5 條（CSV 對話框）、第 9 條（RUN/STOP 還原）已被下方定案取代但**尚未改**；`docs/adr/0003` 補「存原始整數」與「Infiniium 原生檔不扣 YReference」。
-2. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；3014G 在新規則下重驗擷取；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
-3. CSV 匯出規則與使用者討論。
+1. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；3014G 在新規則下重驗擷取；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
+2. CSV 匯出規則與使用者討論。
 
-## 擷取規則（使用者定案，覆蓋舊規則）
+## 擷取規則（使用者定案，已寫入 RULES.md 第 5、9 條）
 
 - **示波器只因「使用者手動」或「按下擷取」而停止。** 擷取時若在 RUN：等 `10×時基+1` 秒再 `:STOP`，讀完**維持 STOP**。原本 STOP 直接讀。`retrigger` → `:DIGitize`。
 - **一律存 HDF5**；CSV 匯出之後再議（reader 仍讀 CSV，writer 的 CSV 函式保留）。
@@ -26,7 +25,7 @@
 ## 真機踩到的坑（已修，勿回退）
 
 - pyvisa `query_binary_values` 傳輸 > 約 64 MiB 會卡死：`_query_binary` 手動分段讀 IEEE 488.2 block（每段 4 MiB）。
-- InfiniiVision `:HARDcopy:AREA GRAT` 回 `-221`，**不要送**。3014G 格線區由 driver 用 QImage 裁 (16,52,642×400)，只在 800×512 時裁。
+- InfiniiVision `:HARDcopy:AREA GRAT` 回 `-221`，**不要送**。格線區由 driver 依截圖尺寸查表裁：800×512（3014G）(16,52,642×400)、800×632（4154G）(16,92,642×480)，其他尺寸回全圖。
 - `:ACQuire:POINts:MAXimum?` 在 InfiniiVision/HD3 不存在（-113 + 逾時）。
 - `bytes(np.array)` 會把每個位元組展開成 8 倍 → 檔案損壞。
 - `channels()` 探測不存在通道會逾時並留 `-113`：探測期間 timeout 1 秒，之後 `*CLS`。
@@ -44,16 +43,18 @@
 - 4 通道 × 100M 記憶體約 7 GB 以上，再大要改契約（凍結）。
 - CSV 時間欄 `.6e` 精度略損；CSV 通道名 `CH1` vs HDF5 `CHAN1` 不一致（待 CSV 規則一起處理）。
 - 截圖頁區域選項仍標「(待驗證)」。
+- 4154G：送 `INKSaver 1` 後畫面跳「Remote operation completed.」，反轉截圖會拍到（格線區上緣）。
+- InfiniiVision `:DISPlay:DATA?` 的調色盤參數（COLor/GRAYscale）會保留在儀器上；driver 不帶，若被設成灰階，截圖就一直是灰階（4154G 實測）。
 
 ## 先讀
 
 | 檔案 | 內容 |
 |---|---|
-| `RULES.md` | 硬規則（第 5、9 條已被上方定案取代）：`contracts.py` 不准改、不准裝新套件（**沒有 Pillow**）、只用 PySide6 |
+| `RULES.md` | 硬規則：`contracts.py` 不准改、不准裝新套件（**沒有 Pillow**）、只用 PySide6 |
 | `scope_tool/contracts.py` | 凍結契約，含 CSV/HDF5 格式 |
 | `docs/真機驗證清單.md` | 逐輪實測紀錄 |
 | `docs/示波器命令規格書.md`、`docs/reference/` | SCPI 規格與原廠文件 |
-| `docs/adr/` | 0001 PySide6；0002 搜尋；0003 HDF5 沿用 Keysight 結構 |
+| `docs/adr/` | 0001 PySide6；0002 搜尋；0003 HDF5 沿用 Keysight 結構、存原始整數 |
 
 ## 環境
 
@@ -65,6 +66,7 @@
 | HD304MSO | `USB0::0x2A8D::0x4704::MY66190300::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div |
 | DSO-X 3014G | `USB0::0x2A8D::0x1768::MY65520038::INSTR` | 5 ms/div、AUTO、RUN（輸入平 DC，測 Single 用 LINE 觸發） |
 | MXR254B | `USB0::0x2A8D::0x9007::MY63310109::INSTR` | RUN、100 ns/div、AUTO、RTIM、記憶體深度 AUTO、只開 CH1、5 V/div |
+| MSO-X 4154G | `USB0::0x2A8D::0x17BC::MY65060120::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div、INKSaver 1 |
 
 - Codex：`codex exec --sandbox workspace-write ... </dev/null`（**一定要 `</dev/null`**）。Codex 沙箱連不到 VISA，實機測試由 Claude 執行。
 
