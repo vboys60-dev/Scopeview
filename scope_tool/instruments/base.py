@@ -95,16 +95,19 @@ class SCPIDriver(ScopeDriver):
     #: 本 driver 上次寫 :RUN 的 time.monotonic()；未知（使用者手動按的）為 None
     _run_started: float | None = None
 
+    def _is_running(self) -> bool:
+        """用操作暫存器的 RUN 位元（bit3，值8）判斷是否在跑。"""
+        return bool(int(self._query(":OPERegister:CONDition?")) & 0x8)
+
     @contextmanager
     def _run_state(self) -> Iterator[None]:
         """記住 RUN/STOP，離開時（含例外）還原成呼叫前的樣子。
 
-        # 待真機驗證：用 `:OPERegister:CONDition?` 的 RUN 位元（bit3，值8）
-        # 判斷目前是否在跑。查不到就保守假設原本在跑，離開時還原成 RUN。
+        # 待真機驗證：預設用操作暫存器 bit3，子類別可覆寫 _is_running。
+        # 查不到就保守假設原本在跑，離開時還原成 RUN。
         """
         try:
-            cond = int(self._query(":OPERegister:CONDition?"))
-            was_running = bool(cond & 0x8)
+            was_running = self._is_running()
         except (ScopeError, ValueError):
             was_running = True
         failed = False

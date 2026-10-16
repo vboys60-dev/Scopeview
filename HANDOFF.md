@@ -7,6 +7,7 @@
 - T0–T11 全部完成，15 個模組自我檢查全過（Qt 模組加 `QT_QPA_PLATFORM=offscreen`；直接 `python3 -m scope_tool.<模組>`，不要加 `-I`）。
 - 啟動：`python main.py`（在 `scope_tool/`）。連線列有「測試儀器（模擬）」按鈕，不接真機也能玩三個分頁。
 - **InfiniiVision 已在真機驗證**：DSO-X 3014G，USB。截圖、直讀、CSV/HDF5、GUI 全流程都通過。
+- **HD304MSO 已在真機驗證**（第五輪）：獨立 `HD3Driver`，截圖（含反相、格線偵測）、擷取、CSV/HDF5 通過。
 - **Infiniium 完全沒上機**。還剩的項目見 `docs/真機驗證清單.md`（附逐輪實測紀錄）。
 
 ## 下一步
@@ -25,6 +26,14 @@
 - 沒有完整採集（Single/Normal 等觸發、剛 RUN 就手動 STOP）→ PREamble 5 秒逾時，device clear，丟明確 ScopeError。
 - `*OPC?` 在 Single 等待觸發時不回應：`*CLS` 與 `_run_state` 還原一律用 `_write_nowait`，還原失敗不蓋掉原始例外。
 - HDF5 attrs（XInc/XOrg…）在 **group** 上（契約 + Infiniium 轉取皆如此）。reader 先讀 group，退回 dataset。
+
+## HD3（HD304MSO）與 3000G 的差異（已處理，勿回退）
+
+- 沒有 `:OPERegister:CONDition?` → 用 `:RSTate?`（`_is_running()` 覆寫）。
+- 沒有 INKSaver 與任何反轉指令 → 程式端 `invertPixels()`（使用者選定）。
+- 截圖 1280×800，波形區隨結果面板變動 → 偵測 `#282828` 外框裁切，找不到回全圖。
+- 沒有完整採集時 PREamble 回 `,,,,,,,,,`（不卡）→ 空 preamble 直接丟 ScopeError。
+- `DATA?` 連 1000 點也要約 4 秒，擷取每次約 5.5 秒。`max_points()` 仍 4M（HD3 有 100M，未開放）。
 
 ## 已知小問題（未處理）
 
@@ -48,7 +57,7 @@
 
 - Python 3.13、pyvisa（macOS `/Library/Frameworks/visa.framework`）、pyqtgraph、numpy、h5py；pyvisa-py 沒裝。
 - PyQt5/PyQt6/PySide6 並存，進入點必須先 `os.environ["QT_API"]="pyside6"`。
-- 實機：`USB0::0x2A8D::0x1768::MY65520038::INSTR`（DSO-X 3014G，輸入是平的 DC，邊緣觸發不會發生；測 Single 用 `:TRIGger:EDGE:SOURce LINE`）。**測試改設定要記下並還原**（時基、觸發、模式、RUN）。
+- 實機：HD304MSO `USB0::0x2A8D::0x4704::MY66190300::INSTR`（輸入接地雜訊，50 ms/div、AUTO、只開 CH1）；`USB0::0x2A8D::0x1768::MY65520038::INSTR`（DSO-X 3014G，輸入是平的 DC，邊緣觸發不會發生；測 Single 用 `:TRIGger:EDGE:SOURce LINE`）。**測試改設定要記下並還原**（時基、觸發、模式、RUN）。
 
 ## 兩家系列差異
 

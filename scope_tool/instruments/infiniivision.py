@@ -1,4 +1,4 @@
-"""Keysight InfiniiVision 3000G/3000X 系列驅動。
+"""Keysight InfiniiVision 3000G/3000X 與 HD3 系列驅動。
 
 只支援波形直讀，不支援存檔轉取（檔案只能寫面板USB，PC無法取回）。
 """
@@ -9,6 +9,7 @@ import datetime as _dt
 import time
 
 import numpy as np
+from PySide6.QtGui import QImage
 
 from scope_tool.contracts import (
     CaptureArea,
@@ -29,6 +30,10 @@ from scope_tool.instruments.registry import register
 # ponytail: 只在 800×512 才裁，其他解析度（3000T 等）回全圖，要支援得重量。
 _SCREEN_SIZE = (800, 512)
 _GRAT_BOX = (16, 52, 642, 400)  # x, y, w, h
+_NO_ACQUISITION = (
+    "儀器目前沒有完整的採集可讀（可能在等待觸發 Single/Normal，"
+    "或剛 RUN 就 STOP）。請先觸發一次，或切到 Auto 觸發再試。"
+)
 
 
 def _crop_graticule(img: bytes, fmt: str) -> bytes:
@@ -53,6 +58,42 @@ def _settle_wait(scale: float, run_started: float | None, now: float) -> float:
     return max(0.0, 10 * scale + 1.0 - (now - run_started))
 
 
+def _hd3_graticule_box(qimg: QImage) -> tuple[int, int, int, int]:
+    """依 #282828 外框偵測格線區；找不到可靠的上下邊就回全圖。"""
+    full = (0, 0, qimg.width(), qimg.height())
+    if qimg.isNull():
+        return full
+    rgb = qimg.convertToFormat(QImage.Format.Format_RGB888)
+    pixels = np.frombuffer(rgb.constBits(), dtype=np.uint8).reshape(rgb.height(), rgb.bytesPerLine())
+    pixels = pixels[:, :rgb.width() * 3].reshape(rgb.height(), rgb.width(), 3)
+    border = np.all(pixels == 40, axis=2)
+    rows = np.flatnonzero(border.sum(axis=1) >= rgb.width() / 2)
+    if len(rows) < 2 or rows[-1] - rows[0] < 10:
+        return full
+    top, bottom = int(rows[0]), int(rows[-1])
+    xs = np.flatnonzero(border[top])
+    return (int(xs[0]), top, int(xs[-1] - xs[0] + 1), bottom - top + 1)
+
+
+def _transform_hd3(img: bytes, fmt: str, opts: ScreenshotOptions) -> bytes:
+    """先依原色裁切，再反相，共用一次影像編碼。"""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+    qimg = QImage.fromData(img)
+    if qimg.isNull() or (opts.area is CaptureArea.FULL and not opts.inverted):
+        return img
+    if opts.area is CaptureArea.GRATICULE:
+        qimg = qimg.copy(*_hd3_graticule_box(qimg))
+    if opts.inverted:
+        qimg.invertPixels()
+    ba = QByteArray()  # 必須持有參照，否則 QBuffer 指到已釋放的記憶體 → segfault
+    buf = QBuffer(ba)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    qimg.save(buf, fmt)
+    buf.close()
+    return bytes(ba)
+
+
 class InfiniiVisionDriver(SCPIDriver):
     """InfiniiVision 3000G/3000X 示波器的 SCPI 驅動。
 
@@ -60,7 +101,7 @@ class InfiniiVisionDriver(SCPIDriver):
     """
 
     series = Series.INFINIIVISION
-    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3", "HD3")
+    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3")
 
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕。timeout 15 秒。
@@ -97,7 +138,7 @@ class InfiniiVisionDriver(SCPIDriver):
                     # 真機驗證：從 STOP 重新 RUN 後要等一整筆記錄（10×時基）採完才能 :STOP，
                     # 否則 :WAVeform:PREamble? 卡死（已在執行中的畫面 STOP 則無妨）。
                     # ponytail: 只量過 Auto 觸發；Normal/Single/Roll 未測。
-                    if int(self._query(":OPERegister:CONDition?")) & 0x8:
+                    if self._is_running():
                         scale = float(self._query(":TIMebase:SCALe?"))
                         time.sleep(_settle_wait(scale, self._run_started, time.monotonic()))
                     self._write(":STOP")
@@ -114,16 +155,15 @@ class InfiniiVisionDriver(SCPIDriver):
                     self._write(f":WAVeform:POINts {points}")
 
                     # 讀取前導參數與波形資料
-                    # 真機驗證：沒有完整採集（Single/Normal 等觸發、剛 RUN 就 STOP）時這裡會卡死
+                    # 真機驗證：沒有完整採集時，3000G 可能逾時，HD3 回十個空欄位
                     with self._timeout(5000):
                         try:
                             pre_str = self._query(":WAVeform:PREamble?")
                         except ScopeTimeoutError as exc:
                             self._clear()
-                            raise ScopeError(
-                                "儀器目前沒有完整的採集可讀（可能在等待觸發 Single/Normal，"
-                                "或剛 RUN 就 STOP）。請先觸發一次，或切到 Auto 觸發再試。"
-                            ) from exc
+                            raise ScopeError(_NO_ACQUISITION) from exc
+                    if not "".join(pre_str.replace(",", "").split()):
+                        raise ScopeError(_NO_ACQUISITION)
                     pre = Preamble.parse(pre_str)
 
                     raw_data = self._query_binary(":WAVeform:DATA?", datatype="H")
@@ -152,17 +192,40 @@ class InfiniiVisionDriver(SCPIDriver):
         return 4_000_000
 
 
+class HD3Driver(InfiniiVisionDriver):
+    """HD3 使用 RSTate 查狀態，截圖裁切與反相由本機處理。
+
+    # 待真機驗證：整合後的擷取流程；命令依 HD304MSO USB 實測結果。
+    """
+
+    model_prefixes = ("HD3",)
+
+    def _is_running(self) -> bool:
+        return self._query(":RSTate?") != "STOP"
+
+    def screenshot(self, opts: ScreenshotOptions) -> bytes:
+        """擷取全圖後裁切、反相；HD3 不支援 INKSaver。"""
+        with self._timeout(15000):
+            fmt = opts.image_format.value
+            data = self._query_binary(f":DISPlay:DATA? {fmt}", datatype="B")
+            return _transform_hd3(data.astype(np.uint8).tobytes(), fmt, opts)
+
+
 # 註冊此驅動
 register(InfiniiVisionDriver)
+register(HD3Driver)
 
 
 if __name__ == "__main__":
+    from PySide6.QtGui import QColor, QPainter, QPen
+    from scope_tool.instruments.registry import driver_for
+
     assert _settle_wait(0.5, None, 100) == 1.5
     assert abs(_settle_wait(0.5, 100, 100.2) - 5.8) < 1e-9  # 5s 記錄 + 1s - 已過 0.2s
     assert _settle_wait(0.5, 100, 200) == 0.0
-    # 自我檢查：用假的 resource stub 驗證命令順序與行為
+
     class _StubResource:
-        """記錄收到的所有命令。"""
+        """記錄收到的所有命令，OPERegister 照舊回 8。"""
 
         def __init__(self) -> None:
             self.timeout = 5000
@@ -173,74 +236,57 @@ if __name__ == "__main__":
 
         def query(self, cmd: str) -> str:
             self.commands.append(cmd)
-            if cmd == "*OPC?":
-                return "1"
-            if cmd == ":SYSTem:ERRor?":
-                return "+0,\"No error\""
-            if cmd == ":OPERegister:CONDition?":
-                return "8"
-            if cmd == ":WAVeform:PREamble?":
-                # 回傳合法的 preamble：10 個欄位
-                return "1,2,100,1,1e-9,-5e-7,0,0.01,0.0,128"
-            if cmd.startswith(":CHANnel"):
-                return "1"
-            if cmd == ":ACQuire:POINts?":
-                return "4000000"
-            return "0"
+            return {
+                "*OPC?": "1", ":SYSTem:ERRor?": '+0,"No error"',
+                ":OPERegister:CONDition?": "8", ":RSTate?": "STOP",
+                ":WAVeform:PREamble?": "1,2,100,1,1e-9,-5e-7,0,0.01,0.0,128",
+                ":ACQuire:POINts?": "4000000",
+            }.get(cmd, "1" if cmd.startswith(":CHANnel") else "0")
 
         def query_binary_values(self, cmd, datatype, container):
             self.commands.append(cmd)
-            # 回傳 100 個值（與 preamble 裡的 points 相符）
-            if datatype == "H":  # WORD = 16-bit
-                return [128] * 100
-            return [128] * 100
+            return [128] * 100  # 與 preamble 裡的 points 相符
 
     res = _StubResource()
     driver = InfiniiVisionDriver(res, "TEST-3000G")
-
-    # 驗證 1: screenshot 送出正確的命令
-    opts = ScreenshotOptions(inverted=True)
-    driver.screenshot(opts)
-    assert any(":HARDcopy:INKSaver ON" in cmd for cmd in res.commands), \
-        "screenshot(inverted=True) 應該送 INKSaver ON"
-    assert any(":DISPlay:DATA?" in cmd for cmd in res.commands), \
-        "screenshot 應該送 DISPlay:DATA?"
-
-    # 清空命令記錄用於下一個測試
+    driver.screenshot(ScreenshotOptions(inverted=True))
+    assert ":HARDcopy:INKSaver ON" in res.commands
+    assert any(":DISPlay:DATA?" in cmd for cmd in res.commands)
     res.commands.clear()
-
-    # 驗證 2: capture 送出的命令順序
     result = driver.capture(["CHAN1", "CHAN2"], 100, retrigger=False)
-
-    # 檢查 points mode 在 points 之前
-    points_mode_idx = None
-    points_idx = None
+    # 每個通道的 points mode 都要在 points 之前
     for i, cmd in enumerate(res.commands):
-        if ":POINts:MODE RAW" in cmd:
-            points_mode_idx = i
         if ":POINts 100" in cmd:
-            points_idx = i
-    assert points_mode_idx is not None and points_idx is not None, \
-        "應該有 :POINts:MODE 和 :POINts 命令"
-    assert points_mode_idx < points_idx, \
-        ":POINts:MODE 應該在 :POINts 之前"
+            assert res.commands[i - 2] == ":WAVeform:POINts:MODE RAW"
+    assert ":WAVeform:POINts:MODE RAW" in res.commands and ":WAVeform:POINts 100" in res.commands
+    assert result.series == Series.INFINIIVISION
+    assert len(result.waveforms) == 2 and len(result.waveforms[0].voltage) == 100
+    assert all(":DISK:" not in cmd and ":SAVE:" not in cmd for cmd in res.commands)
+    assert driver.max_points() == 4_000_000
 
-    # 驗證 3: capture 的回傳值
-    assert result.series == Series.INFINIIVISION, \
-        "CaptureResult.series 應該是 INFINIIVISION"
-    assert len(result.waveforms) == 2, \
-        "應該有 2 個通道的波形"
-    assert len(result.waveforms[0].voltage) == 100, \
-        "波形點數應該是 100"
+    # HD3 外框含端點；沒有外框時保留全圖
+    image = QImage(1280, 800, QImage.Format.Format_RGB32)
+    image.fill(0)
+    assert _hd3_graticule_box(image) == (0, 0, 1280, 800)
+    painter = QPainter(image)
+    painter.setPen(QPen(QColor(40, 40, 40)))
+    painter.drawRect(52, 60, 1147, 471)
+    painter.end()
+    assert _hd3_graticule_box(image) == (52, 60, 1148, 472)
+    assert isinstance(driver_for(None, "KEYSIGHT TECHNOLOGIES,HD304MSO,MY1,1"), HD3Driver)
+    assert type(driver_for(None, "KEYSIGHT TECHNOLOGIES,DSO-X 3014G,MY1,1")) is InfiniiVisionDriver
 
-    # 驗證 4: 全程沒有 :DISK: 或 :SAVE: 命令
-    for cmd in res.commands:
-        assert ":DISK:" not in cmd and ":SAVE:" not in cmd, \
-            f"InfiniiVision 不支援存檔轉取，但發現命令: {cmd}"
+    class _EmptyPreamble(_StubResource):
+        def query(self, cmd: str) -> str:
+            return " , , , , , , , , , " if cmd == ":WAVeform:PREamble?" else super().query(cmd)
 
-    # 驗證 5: max_points
-    max_pts = driver.max_points()
-    assert max_pts == 4_000_000, \
-        "max_points 應該回傳 4000000"
-
+    for cls in (InfiniiVisionDriver, HD3Driver):
+        res = _EmptyPreamble()
+        try:
+            cls(res, "STUB").capture(["CHAN1"], 100, retrigger=True)
+        except ScopeError as exc:
+            assert str(exc) == _NO_ACQUISITION
+            assert ":WAVeform:DATA?" not in res.commands
+        else:
+            raise AssertionError("空 PREamble 應該拋出沒有完整採集的 ScopeError")
     print("infiniivision self-check OK")
