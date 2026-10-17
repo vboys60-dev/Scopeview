@@ -1,42 +1,29 @@
-"""波形分析頁：開啟波形檔、多通道繪圖、雙游標量測。
-
-只做「畫出來 + 讀值」，不做自動量測（Vpp／頻率／上升時間），那是明確不做的範圍。
-"""
-
+"""波形分析頁（Infiniium 風格）：工具列、左側量測圖示、通道列、主波形格、FFT 格、下方結果區。"""
 from __future__ import annotations
 
 import os
 
-# 本模組是可能的程式進入點（`python3 -m scope_tool.ui.tab_analysis`），
-# 依 RULES.md 第 3 條，import pyqtgraph 之前一定要先指定 Qt 綁定。
-# 開發機上 PyQt5/PyQt6/PySide6 三套並存：pyqtgraph 會依 PYQTGRAPH_QT_LIB
-# 或「哪一套先被 import」自動選，兩者都設，並確保 PySide6 先 import，
-# 不讓 pyqtgraph 誤挑到 PyQt6。
-os.environ.setdefault("QT_API", "pyside6")
-os.environ.setdefault("PYQTGRAPH_QT_LIB", "PySide6")
+# 必須在匯入 pyqtgraph 前指定 Qt 綁定。
+os.environ["QT_API"] = "pyside6"
+os.environ["PYQTGRAPH_QT_LIB"] = "PySide6"
 
 from pathlib import Path
 
-from PySide6.QtWidgets import (
-    QCheckBox,
-    QComboBox,
-    QSpinBox,
-    QFileDialog,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QMessageBox,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
-
 import numpy as np
-import pyqtgraph as pg
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QMessageBox, QSplitter,
+                               QVBoxLayout, QWidget)
 
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_waveform_file
-from scope_tool.storage.csv_export import export_csv
+from scope_tool.ui.analysis_chanbar import ChannelBar, HorizontalBar
+from scope_tool.ui.analysis_export import export_results
+from scope_tool.ui.analysis_controls import AnalysisToolBar, MeasureBar, MeasureRunner
+from scope_tool.ui.analysis_fftplot import FFTPane
+from scope_tool.ui.analysis_math import run_math
+from scope_tool.ui.analysis_overview import OverviewPlot
+from scope_tool.ui.analysis_plot import AnalysisPlot
+from scope_tool.ui.analysis_results import ResultsPane, file_info_rows, fmt
 from scope_tool.ui.worker import Job
 
 # 通道顏色循環，數量夠多不必為固定值另外做設定。
@@ -44,254 +31,268 @@ _CHANNEL_COLORS = ["#ffcc00", "#00d0ff", "#ff5b5b", "#7cff5b", "#c58bff", "#ff9d
 
 
 class AnalysisTab(QWidget):
-    """波形分析頁：開檔、繪圖、雙游標（垂直=時間、水平=電壓）量測。"""
-
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._waveforms: list[Waveform] = []
+        self._waveforms: list[Waveform] = []  # 原始通道在前，衍生波形 F1、F2… 在後
+        self._units: dict[str, str] = {}
+        self._colors: list[str] = []
+        self._n_raw = 0
         self._source_path: Path | None = None
-        self._export_job: Job | None = None
-        self._base_time: np.ndarray | None = None  # 游標吸附用的原始時間軸（取第一個通道）
-        self._base_voltage: np.ndarray | None = None
-
+        self._jobs: set[Job] = set()
+        self._gen, self._next_f = 0, 1  # 開檔世代（丟棄舊檔的數學結果）；F 編號不重用，量測來源才不會被頂替
         self._build_ui()
-        self._build_cursors()
 
-    # UI 建構
     def _build_ui(self) -> None:
-        root = QHBoxLayout(self)
+        self.toolbar = AnalysisToolBar(lambda: (self.vline1.value(), self.vline2.value()))
+        self.export_bar = self.toolbar.export_bar
+        self.measbar, self.chanbar, self.hbar = MeasureBar(), ChannelBar(), HorizontalBar()
+        self.plot_widget = AnalysisPlot()
+        self.vline1, self.vline2 = self.plot_widget.vline1, self.plot_widget.vline2
+        self.hline1, self.hline2 = self.plot_widget.hline1, self.plot_widget.hline2
+        self.overview = OverviewPlot()
+        self.overview.link(self.plot_widget)
+        self.overview.hide()
+        self.fft = FFTPane(self._source)
+        self.fft.hide()
+        self.results = ResultsPane()
+        grids = QSplitter(Qt.Vertical)
+        for w in (self.overview, self.plot_widget, self.fft):
+            grids.addWidget(w)
+        grids.setStretchFactor(1, 3)
+        grids.setStretchFactor(2, 2)
+        center = QWidget()
+        col = QVBoxLayout(center)
+        col.setContentsMargins(0, 0, 0, 0)
+        for w in (self.chanbar, grids, self.hbar):
+            col.addWidget(w, stretch=1 if w is grids else 0)
+        top = QWidget()
+        row = QHBoxLayout(top)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(self.measbar)
+        row.addWidget(center, stretch=1)
+        main = QSplitter(Qt.Vertical)
+        main.addWidget(top)
+        main.addWidget(self.results)
+        main.setSizes([640, 260])
+        root = QVBoxLayout(self)
+        root.addWidget(self.toolbar)
+        root.addWidget(main, stretch=1)
+        self.runner = MeasureRunner(self.results, self._source, self.toolbar.pct)
+        self._wire()
 
-        left = QVBoxLayout()
-        self.open_button = QPushButton("開啟波形檔")
-        self.open_button.clicked.connect(self._on_open_clicked)
-        left.addWidget(self.open_button)
-        controls = QHBoxLayout()
-        controls.addWidget(QLabel("範圍"))
-        self.export_range = QComboBox()
-        self.export_range.addItems(["全部", "游標區間"])
-        self.reduce_points = QCheckBox("縮點")
-        self.point_limit = QSpinBox()
-        self.point_limit.setRange(1, 2_000_000_000)
-        self.point_limit.setValue(10_000_000)
-        self.point_limit.setGroupSeparatorShown(True)
-        self.point_limit.setEnabled(False)
-        self.reduce_points.toggled.connect(self.point_limit.setEnabled)
-        self.export_button = QPushButton("匯出 CSV")
-        self.export_button.setEnabled(False)
-        self.export_button.clicked.connect(self._on_export_clicked)
-        for widget in (self.export_range, self.reduce_points, self.point_limit, self.export_button):
-            controls.addWidget(widget)
-        left.addLayout(controls)
+    def _wire(self) -> None:
+        tb, plot, bar = self.toolbar, self.plot_widget, self.chanbar
+        tb.open_action.triggered.connect(self._on_open_clicked)
+        tb.info_action.triggered.connect(self._show_file_info)
+        tb.reset_action.triggered.connect(plot.reset_view)
+        tb.channels_action.triggered.connect(plot.reset_channels)
+        tb.cursors_action.triggered.connect(plot.recenter_cursors)
+        tb.math_action.triggered.connect(self._open_math)
+        tb.fft_action.toggled.connect(self.fft.setVisible)  # 顯示時 FFT 格自己重算
+        tb.fft_action.toggled.connect(self.results.set_fft_visible)
+        tb.preview_action.toggled.connect(self.overview.setVisible)
+        tb.threshold.currentIndexChanged.connect(self._range_changed)
+        tb.range.currentIndexChanged.connect(self._range_changed)
+        self.measbar.measure_requested.connect(self._add_measurement)
+        bar.visibility_changed.connect(plot.set_visible)
+        bar.visibility_changed.connect(lambda i, on: i < self._n_raw and self.overview.set_visible(i, on))
+        bar.color_changed.connect(self._set_color)
+        bar.selected_changed.connect(self._update_readout)
+        bar.scale_chosen.connect(plot.set_scale)
+        bar.position_chosen.connect(plot.set_position)
+        bar.remove_requested.connect(self._remove_channel)
+        self.hbar.range_chosen.connect(lambda lo, hi: plot.setXRange(lo, hi, padding=0))
+        plot.getViewBox().sigXRangeChanged.connect(lambda _box, r: self.hbar.set_range(*r))
+        plot.cursors_moved.connect(self._update_readout)
+        plot.cursors_moved.connect(self._range_changed)
+        plot.offsets_changed.connect(self._offsets_changed)
+        self.results.export_requested.connect(self._export_results)
+        self.fft.result_ready.connect(self.results.set_fft)
 
-        self.plot_widget = pg.PlotWidget()
-        self.plot_widget.addLegend()
-        self.plot_widget.setLabel("bottom", "時間", units="s")
-        self.plot_widget.setLabel("left", "電壓", units="V")
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        left.addWidget(self.plot_widget)
-        root.addLayout(left, stretch=4)
-
-        # 右側即時數值面板
-        panel = QGridLayout()
-        self._value_labels: dict[str, QLabel] = {}
-        for row, key in enumerate(["t1", "t2", "ΔT", "1/ΔT", "v1", "v2", "ΔV"]):
-            panel.addWidget(QLabel(key), row, 0)
-            value_label = QLabel("--")
-            panel.addWidget(value_label, row, 1)
-            self._value_labels[key] = value_label
-        panel_widget = QWidget()
-        panel_widget.setLayout(panel)
-        root.addWidget(panel_widget, stretch=1)
-
-    def _build_cursors(self) -> None:
-        """建立兩條垂直（時間）+ 兩條水平（電壓）可拖曳游標。"""
-        self.vline1 = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen("#ffffff", width=1))
-        self.vline2 = pg.InfiniteLine(angle=90, movable=True, pen=pg.mkPen("#aaaaaa", width=1))
-        self.hline1 = pg.InfiniteLine(angle=0, movable=True, pen=pg.mkPen("#ffffff", style=pg.QtCore.Qt.DashLine))
-        self.hline2 = pg.InfiniteLine(angle=0, movable=True, pen=pg.mkPen("#aaaaaa", style=pg.QtCore.Qt.DashLine))
-        for line in (self.vline1, self.vline2, self.hline1, self.hline2):
-            self.plot_widget.addItem(line)
-        self.vline1.sigDragged.connect(self._update_readout)
-        self.vline2.sigDragged.connect(self._update_readout)
-        self.hline1.sigDragged.connect(self._update_readout)
-        self.hline2.sigDragged.connect(self._update_readout)
-
-    # 開檔
+    # ---- 開檔與通道 ----
     def _on_open_clicked(self) -> None:
-        path_str, _ = QFileDialog.getOpenFileName(
-            self, "開啟波形檔", "", "波形檔 (*.csv *.h5 *.hdf5)"
-        )
-        if not path_str:
-            return
+        path_str, _ = QFileDialog.getOpenFileName(self, "開啟波形檔", "", "波形檔 (*.csv *.h5 *.hdf5)")
         try:
-            waveforms = read_waveform_file(Path(path_str))
+            if path_str:
+                self._open_file(Path(path_str))
         except ScopeError as e:
             QMessageBox.critical(self, "開檔失敗", str(e))
-            return
-        self.load_waveforms(waveforms)
-        self._source_path = Path(path_str)
 
-    def _export_args(self, directory: Path) -> dict:
-        """在 UI 執行緒擷取匯出參數，不開對話框也不啟動工作。"""
-        return dict(directory=directory,
-                    name=self._source_path.stem if self._source_path else "waveform",
-                    waveforms=list(self._waveforms),
-                    t_range=(self.vline1.value(), self.vline2.value())
-                    if self.export_range.currentIndex() == 1 else None,
-                    max_points=self.point_limit.value() if self.reduce_points.isChecked() else None)
+    def _open_file(self, path: Path) -> None:
+        self.load_waveforms(read_waveform_file(path), source_path=path)
 
-    def _on_export_clicked(self) -> None:
-        if self._export_job is not None and self._export_job.isRunning():
-            return
-        if self._source_path is not None:
-            directory = self._source_path.parent
-        else:
-            chosen = QFileDialog.getExistingDirectory(self, "選擇 CSV 輸出資料夾")
-            if not chosen:
-                return
-            directory = Path(chosen)
-        self._export_job = Job(export_csv, **self._export_args(directory))
-        self._export_job.done.connect(self._export_done)
-        self._export_job.failed.connect(self._export_failed)
-        self._export_job.finished.connect(self._export_finished)
-        self.export_button.setEnabled(False)
-        self.export_button.setText("匯出中…")
-        self._export_job.start()
-
-    def _export_finished(self) -> None:
-        self.export_button.setText("匯出 CSV")
-        self.export_button.setEnabled(bool(self._waveforms))
-
-    def _export_done(self, path: Path) -> None:
-        QMessageBox.information(self, "匯出完成", str(path))
-
-    def _export_failed(self, message: str) -> None:
-        QMessageBox.critical(self, "匯出失敗", message)
-
-    # 繪圖
-    def load_waveforms(self, waveforms: list[Waveform]) -> None:
-        """把一組 Waveform 畫到圖上。可直接餵物件（不經檔案），供自我檢查與其他頁面呼叫。"""
+    def load_waveforms(self, waveforms: list[Waveform], source_path: Path | None = None) -> None:
+        """畫一組原始波形（衍生波形清空，量測清單保留、依通道名對應）。"""
         if not waveforms:
             raise ScopeError("沒有波形資料可畫。")
+        self._source_path, self._gen = source_path, self._gen + 1
+        self._waveforms, self._n_raw = list(waveforms), len(waveforms)
+        self._units = {wf.channel: "V" for wf in waveforms}
+        self._colors = [_CHANNEL_COLORS[i % len(_CHANNEL_COLORS)] for i in range(len(waveforms))]
+        self.export_bar.set_data(list(waveforms), source_path)  # 只匯出原始通道
+        self.plot_widget.set_waveforms(waveforms, self._colors, ["V"] * len(waveforms))
+        self.overview.set_waveforms(waveforms, self._colors)
+        self.toolbar.set_loaded(True)
+        self.measbar.setEnabled(True)
+        t = waveforms[0].time
+        rate = fmt(1 / float(t[1] - t[0]), "Sa/s") if len(t) > 1 and t[1] > t[0] else "—"
+        self.toolbar.summary.setText(f"{len(t):,} 點｜{rate}")
+        span = t[-1] - t[0]
+        self.vline1.setValue(t[0] + span * 0.25)
+        self.vline2.setValue(t[0] + span * 0.75)
+        self.hline1.setValue(-2)
+        self.hline2.setValue(2)
+        self._refresh_channels()
 
-        self.plot_widget.getPlotItem().clear()
-        for line in (self.vline1, self.vline2, self.hline1, self.hline2):
-            self.plot_widget.addItem(line)
+    def _names(self) -> list[str]:
+        return [wf.channel for wf in self._waveforms]
 
-        self._source_path = None
-        self._waveforms = waveforms
-        self.export_button.setEnabled(self._export_job is None or not self._export_job.isRunning())
-        for idx, wf in enumerate(waveforms):
-            color = _CHANNEL_COLORS[idx % len(_CHANNEL_COLORS)]
-            curve = self.plot_widget.plot(wf.time, wf.voltage, pen=pg.mkPen(color, width=1), name=wf.channel)
-            curve.setDownsampling(auto=True, method="peak")
-            curve.setClipToView(True)
+    def _refresh_channels(self) -> None:
+        names = self._names()
+        self.chanbar.set_channels(names, self._colors, [self._units[n] for n in names],
+                                  [i >= self._n_raw for i in range(len(names))],
+                                  [c.isVisible() for c in self.plot_widget.curves])
+        self.fft.set_sources(names)
+        self._offsets_changed()
 
-        # 游標吸附用的原始資料一律取第一個通道，不做跨通道對齊的花俏邏輯。
-        self._base_time = waveforms[0].time
-        self._base_voltage = waveforms[0].voltage
-
-        t_span = self._base_time[-1] - self._base_time[0]
-        v_min, v_max = float(np.min(self._base_voltage)), float(np.max(self._base_voltage))
-        self.vline1.setValue(self._base_time[0] + t_span * 0.25)
-        self.vline2.setValue(self._base_time[0] + t_span * 0.75)
-        self.hline1.setValue(v_min)
-        self.hline2.setValue(v_max)
+    def _offsets_changed(self) -> None:
+        for i, (scale, (_, pos)) in enumerate(zip(self.plot_widget.scales, self.plot_widget.offsets)):
+            self.chanbar.set_state(i, scale, pos)
         self._update_readout()
+        self._range_changed()
 
-    # 游標讀值
-    def _nearest_sample(self, t: float) -> tuple[float, float]:
-        """在原始（未 downsample）時間陣列上找最近取樣點，回傳 (snapped_t, v)。"""
-        time_arr, volt_arr = self._base_time, self._base_voltage
-        idx = int(np.searchsorted(time_arr, t))
-        idx = min(max(idx, 0), len(time_arr) - 1)
-        if idx > 0 and abs(time_arr[idx - 1] - t) < abs(time_arr[idx] - t):
-            idx -= 1
-        return float(time_arr[idx]), float(volt_arr[idx])
+    def _set_color(self, i: int, color: str) -> None:
+        self._colors[i] = color
+        self.plot_widget.set_color(i, color)
+        if i < self._n_raw:
+            self.overview.set_color(i, color)
+        self._update_readout()
+        self.runner.run()
 
-    def _update_readout(self, *_args) -> None:
-        if self._base_time is None:
+    def _remove_channel(self, i: int) -> None:
+        if i < self._n_raw:
             return
+        name = self._waveforms.pop(i).channel
+        self._colors.pop(i)
+        del self._units[name]
+        self.plot_widget.remove_waveform(i)
+        self._refresh_channels()
 
-        t1, v1 = self._nearest_sample(self.vline1.value())
-        t2, v2 = self._nearest_sample(self.vline2.value())
-        self.vline1.setValue(t1)  # 吸附到真實取樣點
+    def _show_file_info(self) -> None:
+        QMessageBox.information(self, "檔案資訊", "\n".join(
+            f"{k}：{v}" for k, v in file_info_rows(self._source_path, self._waveforms[:self._n_raw])))
+
+    # ---- 游標 ----
+    @staticmethod
+    def _nearest(time: np.ndarray, voltage: np.ndarray, t: float) -> tuple[float, float]:
+        idx = min(max(int(np.searchsorted(time, t)), 0), len(time) - 1)
+        if idx > 0 and abs(time[idx - 1] - t) < abs(time[idx] - t):
+            idx -= 1
+        return float(time[idx]), float(voltage[idx])
+
+    def _update_readout(self, *_: object) -> None:
+        src = self.chanbar.selected()
+        if not 0 <= src < len(self._waveforms):  # 刪通道時通道列還沒重建
+            return
+        first, offsets = self._waveforms[0], self.plot_widget.offsets
+        dx0 = offsets[0][0]
+        # 垂直游標吸附第一通道的取樣點。
+        t1 = self._nearest(first.time, first.voltage, self.vline1.value() - dx0)[0] + dx0
+        t2 = self._nearest(first.time, first.voltage, self.vline2.value() - dx0)[0] + dx0
+        self.vline1.setValue(t1)
         self.vline2.setValue(t2)
-        dt = t2 - t1
-        inv_dt = 1.0 / dt if dt != 0 else float("inf")
+        scale, pos, name = self.plot_widget.scales[src], offsets[src][1], self._waveforms[src].channel
+        unit = self._units[name]
+        v1, v2 = (self.hline1.value() - pos) * scale, (self.hline2.value() - pos) * scale
+        channels = [(wf.channel, color, self._units[wf.channel], self._nearest(wf.time, wf.voltage, t1 - dx)[1],
+                     self._nearest(wf.time, wf.voltage, t2 - dx)[1])
+                    for wf, color, (dx, _) in zip(self._waveforms, self._colors, offsets)]
+        self.results.set_cursor_values(t1, t2, v1, v2, unit, name, channels)
 
-        vh1 = self.hline1.value()
-        vh2 = self.hline2.value()
-        dv = vh2 - vh1
+    # ---- 量測與 FFT ----
+    def _slice(self, i: int) -> tuple[np.ndarray, np.ndarray]:
+        """量測範圍：游標區間（扣掉該通道的顯示平移）或全部，回傳原始資料的 view。"""
+        wf = self._waveforms[i]
+        if not self.toolbar.use_cursors():
+            return wf.time, wf.voltage
+        dx = self.plot_widget.offsets[i][0]
+        lo, hi = sorted((self.vline1.value() - dx, self.vline2.value() - dx))
+        a, b = np.searchsorted(wf.time, lo, "left"), np.searchsorted(wf.time, hi, "right")
+        return wf.time[a:b], wf.voltage[a:b]
 
-        self._value_labels["t1"].setText(f"{t1:.6e} s")
-        self._value_labels["t2"].setText(f"{t2:.6e} s")
-        self._value_labels["ΔT"].setText(f"{dt:.6e} s")
-        self._value_labels["1/ΔT"].setText(f"{inv_dt:.6e} Hz")
-        self._value_labels["v1"].setText(f"{vh1:.6e} V")
-        self._value_labels["v2"].setText(f"{vh2:.6e} V")
-        self._value_labels["ΔV"].setText(f"{dv:.6e} V")
+    def _source(self, name: str) -> tuple[np.ndarray, np.ndarray, str, str] | None:
+        """量測／FFT 的資料來源：(範圍內時間, 數值, 單位, 顏色)；通道已不存在回傳 None。"""
+        names = self._names()
+        if name not in names:
+            return None
+        i = names.index(name)
+        return (*self._slice(i), self._units[name], self._colors[i])
 
-        # 附帶紀錄游標時間對應的原始電壓值（第一通道），供除錯與潛在延伸使用。
-        self._last_v_at_t1 = v1
-        self._last_v_at_t2 = v2
+    def _range_changed(self, *_: object) -> None:
+        self.runner.schedule()
+        self.fft.refresh()
 
+    def _add_measurement(self, name: str) -> None:
+        i = self.chanbar.selected()
+        if i >= 0:
+            self.runner.add(name, self._waveforms[i].channel, self.measbar.rising())
 
-# 自我檢查
+    def _export_results(self) -> None:
+        span = (f"游標區間 t1={self.vline1.value()!r} s, t2={self.vline2.value()!r} s"
+                if self.toolbar.use_cursors() else "全部")
+        export_results(self, self.results, self._source_path,
+                       [("量測範圍", span), ("閾值", self.toolbar.threshold.currentText())])
+
+    # ---- 數學 ----
+    def _open_math(self) -> None:
+        job = run_math(self, self._waveforms, self._units, max(self.chanbar.selected(), 0),
+                       lambda *res, g=self._gen: g == self._gen and self._add_derived(*res))
+        if job is not None:
+            job.finished.connect(lambda: self._jobs.discard(job))
+            self._jobs.add(job)
+
+    def _add_derived(self, t: np.ndarray, v: np.ndarray, unit: str) -> str:
+        """衍生波形接在最後，不重載原始通道，游標與各通道顯示設定都保留。"""
+        wf = Waveform(f"F{self._next_f}", t, v)
+        self._next_f += 1
+        color = _CHANNEL_COLORS[len(self._waveforms) % len(_CHANNEL_COLORS)]
+        self._waveforms.append(wf)
+        self._colors.append(color)
+        self._units[wf.channel] = unit
+        self.plot_widget.add_waveform(wf, color, unit)
+        self._refresh_channels()
+        return wf.channel
+
 
 def _self_check() -> None:
+    import time
     from PySide6.QtWidgets import QApplication
-
     app = QApplication.instance() or QApplication([])
-
     tab = AnalysisTab()
-    assert not tab.export_button.isEnabled()
-
-    # 1. 直接餵 Waveform 物件，驗證畫得出來（不經檔案）。
-    n = 1000
-    dt = 1e-6
-    time = np.arange(n, dtype=np.float64) * dt
-    voltage1 = np.sin(2 * np.pi * 1e3 * time)
-    voltage2 = np.cos(2 * np.pi * 1e3 * time)
-    wf1 = Waveform(channel="CHAN1", time=time, voltage=voltage1)
-    wf2 = Waveform(channel="CHAN2", time=time, voltage=voltage2)
-    tab.load_waveforms([wf1, wf2])
-    assert len(tab.plot_widget.getPlotItem().listDataItems()) == 2, "應該畫出兩條曲線"
-
-    # 2. 游標移到已知位置，驗算 ΔT 與預期值差 < 一個取樣週期。
-    target_t1 = time[100]
-    target_t2 = time[900]
-    tab.vline1.setValue(target_t1 + dt * 0.3)  # 故意偏移一點，考驗吸附
-    tab.vline2.setValue(target_t2 - dt * 0.3)
+    assert not tab.toolbar.math_action.isEnabled() and not tab.measbar.isEnabled()
+    t = np.arange(5000) * 1e-6
+    sq = np.interp(t % 1e-3, [0, 10e-6, 500e-6, 510e-6, 1e-3], [0, 2, 2, 0, 0])
+    tab.load_waveforms([Waveform("CHAN1", t, sq), Waveform("CHAN2", t + 0.5e-6, np.sin(2e3 * np.pi * t))])
+    tab.resize(1400, 900)
+    tab.show()
+    tab.toolbar.range.setCurrentIndex(1)
+    tab.vline1.setValue(t[100] + 0.3e-6)
     tab._update_readout()
-    expected_dt = target_t2 - target_t1
-    actual_dt = tab.vline2.value() - tab.vline1.value()
-    assert abs(actual_dt - expected_dt) < dt, f"ΔT 誤差過大：{actual_dt} vs {expected_dt}"
-    assert abs(tab._last_v_at_t1 - voltage1[100]) < 1e-9
-
-    import tempfile
-
-    assert tab._source_path is None and tab.export_button.isEnabled()
-    tab.export_range.setCurrentIndex(1)
-    tab.vline1.setValue(time[100])
-    tab.vline2.setValue(time[199])
-    with tempfile.TemporaryDirectory() as tmp:
-        path = export_csv(**tab._export_args(Path(tmp)))
-        assert len(read_waveform_file(path)[0].time) == 100
-        tab.reduce_points.setChecked(True)
-        assert tab.point_limit.isEnabled()
-        tab.point_limit.setValue(30)
-        path = export_csv(**tab._export_args(Path(tmp)))
-        assert len(read_waveform_file(path)[0].time) == 25
-
-    # 3. 100 萬點資料載入不拋例外。
-    big_n = 1_000_000
-    big_time = np.arange(big_n, dtype=np.float64) * dt
-    big_voltage = np.sin(2 * np.pi * 1e3 * big_time)
-    wf_big = Waveform(channel="CHAN1", time=big_time, voltage=big_voltage)
-    tab.load_waveforms([wf_big])
-    assert len(tab.plot_widget.getPlotItem().listDataItems()) == 1
-
+    assert tab.vline1.value() == t[100] and len(tab.chanbar.chips) == 2  # 游標吸附第一通道取樣點
+    tab.measbar.buttons["頻率"].click()
+    assert tab._add_derived(t, sq ** 2, "V²") == "F1" and tab.chanbar.chips[2].unit == "V²"
+    assert len(tab.plot_widget.curves) == 3 and len(tab.export_bar._waveforms) == 2  # 衍生波形不匯出
+    tab.chanbar.set_selected(2)
+    tab._remove_channel(2)
+    assert len(tab.plot_widget.curves) == 2 and tab.chanbar.selected() == 1
+    assert tab._add_derived(t, sq, "V") == "F2"  # 刪掉的 F1 不重用
+    tab._remove_channel(2)
+    tab.toolbar.fft_action.setChecked(True)
+    for _ in range(300):
+        app.processEvents()
+        time.sleep(0.01)
+    assert tab.results.fft_table.rowCount() == 5 and tab.results.meas_table.item(0, 2).text() == "1 kHz"
+    tab.load_waveforms([Waveform("CHAN1", np.arange(1_000_000) * 1e-6, np.zeros(1_000_000))])
     print("tab_analysis self-check OK")
 
 

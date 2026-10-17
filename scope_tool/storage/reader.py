@@ -13,6 +13,21 @@ import numpy as np
 from scope_tool.contracts import ScopeError, Waveform
 
 
+def read_file_info(path: Path) -> dict[str, str]:
+    """直接讀取 HDF5 的工具資訊，不載入波形或整個檔案。"""
+    if path.suffix.lower() not in (".h5", ".hdf5"):
+        return {}
+    try:
+        with h5py.File(path, "r") as hf:
+            if "ScopeTool" not in hf:
+                return {}
+            attrs = hf["ScopeTool"].attrs
+            return {key: attrs[key].decode() if isinstance(attrs[key], bytes) else str(attrs[key])
+                    for key in ("Model", "Series", "CapturedAt") if key in attrs}
+    except Exception as e:
+        raise ScopeError(f"讀取 HDF5 檔案資訊時發生錯誤：{e}") from e
+
+
 def read_waveform_file(path: Path) -> list[Waveform]:
     """從檔案讀取波形。支援 .csv、.h5、.hdf5 格式。"""
     suffix = path.suffix.lower()
@@ -151,7 +166,7 @@ def _self_check() -> None:
         # 測試 2：HDF5（含 /ScopeTool）
         h5_file = tmpdir / "test.h5"
         with h5py.File(h5_file, "w") as hf:
-            hf.create_group("ScopeTool")  # 可能不存在，應容忍
+            hf.create_group("ScopeTool").attrs["Model"] = "DSO-X 3014G"
             wf_group = hf.create_group("Waveforms")
 
             for ch_num in [1, 2]:
@@ -167,6 +182,7 @@ def _self_check() -> None:
                 data.attrs["YReference"] = 0
                 data.attrs["NumPoints"] = 3
 
+        assert read_file_info(h5_file)["Model"] == "DSO-X 3014G"
         wf = read_waveform_file(h5_file)
         assert len(wf) == 2
         assert len(wf[0].time) == 3
@@ -180,6 +196,8 @@ def _self_check() -> None:
             data = ch_group.create_dataset("Channel 1Data", data=np.array([1.0, 1.1, 1.2], dtype=np.float64))
             data.attrs.update({"XInc": 1e-6, "XOrg": 0.0, "YInc": 0.1, "YOrg": 1.0, "YReference": 0, "NumPoints": 3})
 
+        assert read_file_info(h5_no_scope) == {}
+        assert read_file_info(csv_file) == {}
         wf = read_waveform_file(h5_no_scope)
         assert len(wf) == 1, "應能容忍缺 /ScopeTool"
 

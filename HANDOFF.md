@@ -2,18 +2,35 @@
 
 目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
 
-## 現況（2026-10-16）
+## 離線分析＋新版面：已實作、使用者 GUI 實測無問題、已 commit
 
-- 已全部 commit（最新見 `git log`）。
+- **GUI 測試流程（使用者定）**：使用者一步步手動測試，每步回報一個問題；Claude **只記錄、編號、簡短確認，不改程式**，直到使用者說「沒有其他問題」才規劃（給版面／做法表，等使用者回「照這樣做」）→ 實作 → 審查＋自我檢查 → 重開 GUI。
+- 2026-10-17：Claude 與 Codex（唯讀）讀 Infiniium Offline 手冊討論定案，規格在 `docs/離線分析功能規格.md`，使用者說「可以編碼」後實作完成；上一輪 GUI 改善三項（10 格、V/格查表、縮放判斷）已併入。全部自我檢查通過；Codex 唯讀審查 5 項已修；使用者 GUI 實測「目前暫無問題」後 commit。
+
+## 現況（2026-10-17）
+
+- 最新 commit 9c15896。分析頁改進已 commit：新增 `scope_tool/analysis/`（measure、edge、filter、fft、mathfn）與 `ui/analysis_{chanbar,controls,plot,fftplot,results,math,overview,export}.py`；改 `ui/tab_analysis.py`、`storage/reader.py`（`read_file_info`）、`RULES.md`（第 11 條離線分析、刪「不做自動量測」、擁有權表）、本檔。`analysis_readout.py` 已刪（併入 `analysis_results.py`）。
 - 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
-- 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader ui.tab_capture ui.tab_screenshot ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
+- 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_fftplot ui.analysis_math ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
 
 ## 下一步
 
-1. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
-2. （CSV 匯出已在 GUI 實測：3014G 4M 檔，全部 1M 點與游標區間縮點 1 萬點，與原檔逐點比對正確。縮點時時間位數依縮點後間隔，觸發次取樣偏移會被捨去，使用者確認不改。）
-3. 資料分析功能改進：下次與使用者討論。
+1. 真機比對：量測數值與示波器面板讀數、Bessel 低通是否與原廠一樣補償群延遲。
+2. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
+3. （CSV 匯出已在 GUI 實測：3014G 4M 檔，全部 1M 點與游標區間縮點 1 萬點，與原檔逐點比對正確。縮點時時間位數依縮點後間隔，觸發次取樣偏移會被捨去，使用者確認不改。）
+4. 分析頁後續階段（使用者先前已定需求）：
+   - ~~第 2 階段 游標區間統計~~：已被離線分析功能取代（量測範圍＝游標區間／全部）。
+   - 延後項目見 `docs/離線分析功能規格.md`「延後」。
+   - **第 3 階段**：疊圖／分開堆疊兩種模式可切換（現在每通道可獨立 V/格與位置，可能已部分涵蓋，做之前跟使用者確認）。
+   - **第 4 階段**：多檔疊圖比較（曲線名「檔名 CH1」、各用自己時間軸）；多檔時 CSV 選一個檔匯出。
+
+## 分析頁現況（Infiniium 風格版面，2026-10-17 實作，使用者 GUI 實測無問題）
+
+- 版面：上方工具列（開啟、檔案資訊、重設視圖、通道歸位、游標歸位、匯出 CSV 選單、數學…、FFT、閾值、量測範圍、預覽、點數／取樣率）；左側直立分頁「時間量測／電壓量測」＋邊緣方向；通道列色塊（勾選、V/格查表、位置格數、雙擊換色、點選＝量測與游標換算來源、F 通道有 ×）；中央分隔：預覽→主波形 10×10 格→FFT 格；水平列（時間/格、中心）＋操作說明；下方結果區（量測表／游標表／FFT 峰值，寬並排、窄於 900 px 改分頁）。
+- 游標、示波器模式互動同前（四條游標、吸附第一通道取樣點、滾輪換 V/格、拖曳位移）；滾輪放大前判斷會不會超出 ±5 格，縮放以波形中心為準。
+- 量測／FFT／數學在背景執行（`worker.Job`），過期結果丟棄；CSV 匯出只含原始通道。
+- 只有紙上驗證：真人滑鼠手感、大檔拖曳流暢度、原生 QColorDialog／QMessageBox、量測數值與真機面板比對、Bessel 低通是否與原廠一樣補償群延遲。
 
 ## 擷取規則（使用者定案，已寫入 RULES.md 第 5、9 條）
 
@@ -76,7 +93,7 @@
 - 搜尋：VISA 列表 + zeroconf + 手動 IP；`*IDN?` 判不出系列讓使用者手選一次。
 - 截圖頁：檔名自動接時間戳，永不覆蓋；BMP/PNG、正常/反轉、全螢幕/格線區。HD3 反轉為程式端反相、格線區自動偵測。
 - 擷取頁：通道多選，單位是點數，只存 HDF5。「重新觸發」預設關。
-- 分析頁：離線；兩條垂直、兩條水平游標，讀值取原始資料；不做自動量測。
+- 分析頁：離線；示波器式每通道 V/格＋位置（只改顯示）；讀值取原始資料；CSV 從分析頁匯出原始資料。自動量測只會開放「游標區間統計」（第 2 階段），其餘不做。
 - I/O 全在 QThread；逾時截圖 15s、擷取每個 VISA 操作 60s；Error 273 → 「請關閉遠端桌面」；不做取消。
 
 ## 不做

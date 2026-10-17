@@ -18,6 +18,7 @@
 8. **寫入型 SCPI 命令後要 `*OPC?`。** 逾時：截圖 15 秒、大檔傳輸 60 秒。逾時或失敗前，要清掉自己在儀器上留下的暫存檔（`:DISK:DELete`）。
 9. **示波器只因「使用者手動」或「按下擷取」而停止。** 擷取時若在 RUN：先等一整筆（`10×時基+1` 秒）再 `:STOP`；勾「重新觸發」則 `:DIGitize`。擷取後**維持 STOP**，不准自動 `:RUN`。除此之外不准改使用者的採集設定（例如記憶體深度）。
 10. **每個模組留一個 `if __name__ == "__main__":` 自我檢查**，用 `assert`。不要 pytest、不要 fixture、不要測試框架。執行方式一律 `python3 -m scope_tool.<模組路徑>`，必須印出 `xxx self-check OK` 且 exit code 0。
+11. **離線分析只作用於已開啟的檔案，不碰儀器。** 量測、FFT、數學／濾波的定義照 `docs/離線分析功能規格.md`（依 Infiniium 手冊）；與 Infiniium 有差異的地方要在畫面或註解標明。衍生波形（F1、F2…）不進 CSV 匯出。只用 numpy，不准用 scipy。
 
 ## 二、風格規則
 
@@ -29,7 +30,7 @@
 
 ## 三、明確不做（別自作主張加回去）
 
-掃網段搜尋、自動量測（Vpp／頻率／上升時間）、傳輸中途取消、示波器面板存到 USB 的 CSV 解析、自訂的 HDF5 結構、非 Keysight 機型、多語系、深色主題、打包成 exe。
+掃網段搜尋、傳輸中途取消、示波器面板存到 USB 的 CSV 解析、自訂的 HDF5 結構、非 Keysight 機型、多語系、深色主題、打包成 exe。
 
 ## 四、檔案擁有權（並行的關鍵）
 
@@ -46,7 +47,7 @@
 | `scope_tool/storage/writer.py`、`csv_export.py` | T4 |
 | `scope_tool/storage/reader.py` | T5 |
 | `scope_tool/ui/main_window.py`、`ui/worker.py` | T6 |
-| `scope_tool/ui/tab_analysis.py` | T7 |
+| `scope_tool/ui/tab_analysis.py`、`analysis_*.py`、`scope_tool/analysis/*.py` | T7 |
 | `scope_tool/ui/tab_screenshot.py` | T8 |
 | `scope_tool/ui/tab_capture.py` | T9 |
 | `scope_tool/main.py` | T10 |
