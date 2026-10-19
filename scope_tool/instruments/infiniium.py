@@ -15,6 +15,7 @@ from scope_tool.contracts import (
     Waveform,
 )
 from scope_tool.instruments.base import SCPIDriver, _binary_block
+from scope_tool.instruments.registry import register
 
 
 class InfiniiumDriver(SCPIDriver):
@@ -25,7 +26,8 @@ class InfiniiumDriver(SCPIDriver):
     """
 
     series: ClassVar[Series] = Series.INFINIIUM
-    model_prefixes: ClassVar[tuple[str, ...]] = ("EXR", "MXR", "DSOS", "MSOS")
+    # MSO9/DSO9 = 9000A 系列，沿用 EXR 命令（待真機驗證）
+    model_prefixes: ClassVar[tuple[str, ...]] = ("EXR", "MXR", "DSOS", "MSOS", "MSO9", "DSO9")
 
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕，直接回傳 PNG/BMP 位元組。
@@ -156,6 +158,10 @@ class InfiniiumDriver(SCPIDriver):
                 return waveforms
         except Exception as exc:
             raise ScopeError(f"解析 HDF5 檔案失敗：{exc}") from exc
+
+
+# 註冊此驅動
+register(InfiniiumDriver)
 
 
 if __name__ == "__main__":

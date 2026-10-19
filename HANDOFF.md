@@ -2,17 +2,33 @@
 
 目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
 
+## 2026-10-19 本輪：MSO9254A（9000A）加入、已 commit
+
+- **9000A 系列**：`instruments/infiniium.py` 的 `model_prefixes` 加 `MSO9`、`DSO9`，沿用 EXR 命令（待真機驗證）。
+- **漏註冊 bug 已修**：`infiniium.py` 原本沒有 `register(InfiniiumDriver)`，GUI 搜尋到 MSO9254A 仍跳「無法辨識型號」。現已在類別後補上。
+- **已連線（GUI，USB）**：`USB0::0x2A8D::0x900E::MY53130146::INSTR`，`*IDN?` → `KEYSIGHT TECHNOLOGIES,MSO9254A,MY53130146,05.50.0006`；`:SYSTem:ERRor?` → 0；`:ACQuire:POINts:MAXimum?` → 41000000。只做讀取，示波器狀態未動。
+- **未測**：截圖（`:DISPlay:DATA?`）、擷取（`:DISK:SAVE`／GETFILE）、分析頁讀真實波形。
+- 新增 `啟動示波器截圖.command`（專案根目錄，雙擊執行 `scope_tool/main.py`；未實際雙擊測試，第一次可能要在隱私權設定放行）。
+- 自我檢查注意：`registry.py` 自檢不會 import `infiniium`，所以它抓不到「忘了註冊」；要靠 GUI 載入路徑或 `import scope_tool.ui.main_window` 後 `driver_for` 驗證。
+- `docs/真機驗證清單.md` 尚未補這輪紀錄。
+
 ## 離線分析＋新版面：已實作、使用者 GUI 實測無問題、已 commit
 
 - **GUI 測試流程（使用者定）**：使用者一步步手動測試，每步回報一個問題；Claude **只記錄、編號、簡短確認，不改程式**，直到使用者說「沒有其他問題」才規劃（給版面／做法表，等使用者回「照這樣做」）→ 實作 → 審查＋自我檢查 → 重開 GUI。
 - 2026-10-17：Claude 與 Codex（唯讀）讀 Infiniium Offline 手冊討論定案，規格在 `docs/離線分析功能規格.md`，使用者說「可以編碼」後實作完成；上一輪 GUI 改善三項（10 格、V/格查表、縮放判斷）已併入。全部自我檢查通過；Codex 唯讀審查 5 項已修；使用者 GUI 實測「目前暫無問題」後 commit。
 
+## Jitter／眼圖：已實作、尚未 GUI 實測、尚未 commit
+
+- 2026-10-17：使用者問單檔能否做 Jitter、眼圖 → Claude × Codex 兩輪討論定案（規格 `docs/離線分析功能規格.md`「Jitter／眼圖」節），使用者說「可以編碼」後實作。
+- 新增 `analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye,runner,layout}.py`；MeasureRunner 從 controls 搬到 runner（並修：重算／防抖期間表上顯示「…」不留舊值、舊結果不回填、計算中不可匯出；Jitter／眼圖有警告時量測列加 ⚠、提示寫入 CSV 備註），版面／接線從 tab_analysis 搬到 layout。
+- pyqtgraph 0.14 自動降採樣在 x 為秒時會丟光資料：TIE 趨勢圖不開降採樣。
+
 ## 現況（2026-10-17）
 
 - 最新 commit 9c15896。分析頁改進已 commit：新增 `scope_tool/analysis/`（measure、edge、filter、fft、mathfn）與 `ui/analysis_{chanbar,controls,plot,fftplot,results,math,overview,export}.py`；改 `ui/tab_analysis.py`、`storage/reader.py`（`read_file_info`）、`RULES.md`（第 11 條離線分析、刪「不做自動量測」、擁有權表）、本檔。`analysis_readout.py` 已刪（併入 `analysis_results.py`）。
 - 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
-- 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_fftplot ui.analysis_math ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
-- 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。
+- 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn analysis.clock analysis.jitter analysis.eye ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_runner ui.analysis_fftplot ui.analysis_jitter ui.analysis_eye ui.analysis_math ui.analysis_layout ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
+- 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。或雙擊根目錄 `啟動示波器截圖.command`。
 
 ## 下一步
 
@@ -55,6 +71,7 @@
 - MXR：沒有 `:WAVeform:POINts <n>`/`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
 - 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`（3014G 也接受）。
 - InfiniiVision `:DISPlay:DATA?` 的調色盤參數會保留在儀器上（`:HARDcopy:PALette?` 看不出來），被設成灰階後截圖一直是灰階 → 每次送 `<fmt>,COLor`（問題在 4154G 發現，修正在 3014G 驗證；HD3 帶第二參數會逾時，不帶）。
+- 新 driver 模組底部必須 `register(...)`。`ui/main_window.py` 載入 driver 模組時用 `try/except: pass` 包住，漏註冊或 import 失敗都會靜默，只表現為「無法辨識型號」。
 - 等不到觸發時 `:DIGitize` 的 `*OPC?` 會 60 秒逾時，之後示波器不回應 → `_prepare_capture` 逾時後 device clear 並丟明確 ScopeError（3014G 實測；Infiniium 未測）。
 
 ## 已知小問題（未處理）
@@ -85,6 +102,7 @@
 | DSO-X 3014G | `USB0::0x2A8D::0x1768::MY65520038::INSTR` | RUN、5 ms/div、AUTO、4 通道全開、1 V/div、INKSaver 1（輸入平 DC，Single/Normal 不會觸發） |
 | MXR254B | `USB0::0x2A8D::0x9007::MY63310109::INSTR` | RUN、100 ns/div、AUTO、RTIM、記憶體深度 AUTO、只開 CH1、5 V/div |
 | MSO-X 4154G | `USB0::0x2A8D::0x17BC::MY65060120::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div、INKSaver 1 |
+| MSO9254A（9000A） | `USB0::0x2A8D::0x900E::MY53130146::INSTR` | 2026-10-19 GUI 已連線，僅讀取查詢；設定未記錄，測試前先確認 |
 
 - Codex：`codex exec --sandbox workspace-write ... </dev/null`（**一定要 `</dev/null`**）。Codex 沙箱連不到 VISA，實機測試由 Claude 執行。
 
