@@ -69,7 +69,7 @@
 |---|---|
 | L0 契約 | `docs/web-api契約.md`、`web/static/api_contract.json`、`static/index.html`、`static/js/{bridge,mock_backend,mock_catalog,mock_dsp,ui,fmt,main}.js`、`static/js/{l0_check,l0_util,l0_sem}.mjs`、`static/js/analysis/{store,scales}.js` |
 | L1a 後端橋接 | `web/{__init__,app,server,jobs,api}.py` |
-| L1b 分析服務 | `web/analysis_api.py`、`web/decimate.py` |
+| L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,decimate}.py` |
 | L2 連線列＋截圖頁 | `static/js/{connbar,tab_screenshot}.js` |
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane}.js`、`static/css/analysis.css` |
