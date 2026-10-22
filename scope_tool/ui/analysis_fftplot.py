@@ -12,9 +12,11 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QSizePolicy,
-                               QVBoxLayout, QWidget)
+                               QSpinBox, QVBoxLayout, QWidget)
 
 from scope_tool.analysis import fft
+from scope_tool.analysis.peaks import SORTS
+from scope_tool.ui.analysis_marker import RFMarkerController
 from scope_tool.ui.analysis_results import fmt
 from scope_tool.ui.worker import Job
 
@@ -22,9 +24,13 @@ from scope_tool.ui.worker import Job
 Provider = Callable[[str], "tuple[np.ndarray, np.ndarray, str, str] | None"]
 
 
-def _compute(t: np.ndarray, v: np.ndarray, window: str, unit: str, r_ohm: float, source_unit: str) -> dict:
+def _compute(t: np.ndarray, v: np.ndarray, window: str, unit: str, r_ohm: float, source_unit: str,
+             count: int = 5, level: float = -40, sort: str = SORTS[0]) -> dict:
     res = fft.spectrum(t, v, window, unit, r_ohm, source_unit)
-    res["peaks"] = fft.peaks(res["freq"], res["mag"], 5, res["lobe"])
+    # 補零會解析出窗旁瓣局部峰；手冊未載明壓旁瓣方法，保留列峰待真機比對。
+    res["peaks"] = ([] if res['unit'] == "°" else fft.peaks(
+        res['freq'], res['mag'], count, res['lobe'], level=level, sort=sort,
+        interpolate=True, amplitude=res['rms']))
     return res
 
 
@@ -41,14 +47,19 @@ class FFTPane(QWidget):
         row = QHBoxLayout()
         self.source, self.window, self.unit = QComboBox(), QComboBox(), QComboBox()
         self.window.addItems(list(fft.WINDOWS))
-        self.unit.addItems(list(fft.UNITS))
+        self.unit.addItems([unit for unit in fft.UNITS if unit != "W"])  # W 僅留純函式別名
         self.r_ohm = QDoubleSpinBox()
-        self.r_ohm.setRange(1, 1e6)
+        self.impedance = QComboBox()
+        self.impedance.addItems(["Auto：其他／未知 50Ω", "Auto：單端 50Ω", "Auto：差動 100Ω",
+                                 "Auto：共模 25Ω", "手動"])
+        self.impedance.setToolTip("檔案未含探棒／通道型態；Auto 型態由使用者指定，未知來源假設 50Ω")
+        self.r_ohm.setRange(10, 200)
+        self.r_ohm.setEnabled(False)
         self.r_ohm.setValue(50)
         self.r_ohm.setSuffix(" Ω")
         self.r_ohm.setToolTip("參考阻抗（dBm、W 用）")
         self.log_x = QCheckBox("對數頻率")
-        for label, w in (("FFT 來源", self.source), ("視窗", self.window), ("單位", self.unit), ("", self.r_ohm),
+        for label, w in (("FFT 來源", self.source), ("視窗", self.window), ("單位", self.unit), ("", self.impedance), ("", self.r_ohm),
                          ("", self.log_x)):
             if label:
                 row.addWidget(QLabel(label))
@@ -58,6 +69,23 @@ class FFTPane(QWidget):
         self.status.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)  # 太長就截斷，完整資訊在結果區
         row.addWidget(self.status, stretch=1)
         lay.addLayout(row)
+        controls = QHBoxLayout()
+        self.peak_sort = QComboBox()
+        self.peak_sort.addItems(SORTS)
+        self.peak_level = QDoubleSpinBox()
+        self.peak_level.setRange(-1e12, 1e12)
+        self.peak_level.setDecimals(6)
+        self.peak_level.setValue(-40)
+        self.peak_level.setSuffix(" dBm")
+        self.peak_count = QSpinBox()
+        self.peak_count.setRange(0, 1000)
+        self.peak_count.setValue(5)
+        for title, widget in (("Peak Sort", self.peak_sort), ("Peak Level", self.peak_level),
+                              ("最大峰數", self.peak_count)):
+            controls.addWidget(QLabel(title))
+            controls.addWidget(widget)
+        controls.addStretch()
+        lay.addLayout(controls)
         self.plot = pg.PlotWidget()
         self.plot.setLabel("bottom", "頻率", units="Hz")
         self.plot.showGrid(x=True, y=True, alpha=0.3)
@@ -67,13 +95,32 @@ class FFTPane(QWidget):
         self.marks = pg.ScatterPlotItem(symbol="t", size=10, brush="#ff5b5b")
         self.plot.addItem(self.marks)
         lay.addWidget(self.plot)
+        rf_row = QHBoxLayout()
+        self.rf = RFMarkerController(self.plot, rf_row)
+        lay.addLayout(rf_row)
         self._timer = QTimer(self, singleShot=True, interval=200)
         self._timer.timeout.connect(self._run)
         for w in (self.source, self.window, self.unit):
             w.currentIndexChanged.connect(self.refresh)
         self.r_ohm.valueChanged.connect(self.refresh)
+        self.impedance.currentIndexChanged.connect(self._impedance_changed)
+        self.peak_sort.currentIndexChanged.connect(self.refresh)
+        self.peak_level.valueChanged.connect(self.refresh)
+        self.peak_count.valueChanged.connect(self.refresh)
+        self.unit.currentTextChanged.connect(self._unit_changed)
         self.log_x.toggled.connect(self.refresh)
         self._last: dict | None = None
+
+    def _impedance_changed(self, index: int) -> None:
+        self.r_ohm.setEnabled(index == 4)
+        self.refresh()
+
+    def _unit_changed(self, unit: str) -> None:
+        # 門檻沿用畫面數字，明示新單位；不猜使用者跨單位的門檻意圖。
+        self.peak_level.setSuffix(" " + ("°" if unit == "Phase" else unit))
+        for control in (self.peak_sort, self.peak_level, self.peak_count):
+            control.setEnabled(unit != "Phase")
+        self.refresh()
 
     def set_sources(self, names: list[str]) -> None:
         current = self.source.currentText()
@@ -91,19 +138,23 @@ class FFTPane(QWidget):
     def refresh(self, *_: object) -> None:
         """防抖：游標拖曳時只在停下 200 ms 後重算。"""
         self._seq += 1  # 舊工作回來時序號不符就丟掉
+        self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
         if self.isVisible() and self.source.count():
             self._timer.start()
 
     def _run(self) -> None:
         seq, name = self._seq, self.source.currentText()
+        self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
         src = self._provider(name)
         if src is None:
             self._fail("沒有 FFT 來源。")
             return
         t, v, source_unit, _ = src
         self.status.setText("計算中…")
-        job = Job(_compute, t, v, self.window.currentText(), self.unit.currentText(), self.r_ohm.value(),
-                  source_unit)
+        resistance = ([50., 50., 100., 25.][self.impedance.currentIndex()]
+                      if self.impedance.currentIndex() < 4 else self.r_ohm.value())
+        job = Job(_compute, t, v, self.window.currentText(), self.unit.currentText(), resistance,
+                  source_unit, self.peak_count.value(), self.peak_level.value(), self.peak_sort.currentText())
         job.done.connect(lambda res, s=seq, n=name: self._done(s, n, res))
         job.failed.connect(lambda msg, s=seq: s == self._seq and self._fail(msg))
         job.finished.connect(lambda j=job: self._jobs.discard(j))
@@ -111,6 +162,8 @@ class FFTPane(QWidget):
         job.start()
 
     def _fail(self, message: str) -> None:
+        self._last = None
+        self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
         self.status.setText(message)
         self.curve.setData([], [])
         self.marks.setData([], [])
@@ -124,11 +177,17 @@ class FFTPane(QWidget):
         k = 1 if log else 0  # 對數軸不能畫 0 Hz
         self.plot.setLogMode(x=log)
         self.curve.setData(res["freq"][k:], res["mag"][k:])
-        pk = res["peaks"]
+        pk = res['peaks']
+        self.peak_level.setSuffix(" " + res['unit'])
+        for control in (self.peak_sort, self.peak_level, self.peak_count):
+            control.setEnabled(res['unit'] != "°")
+        self.rf.set_data(res, log, self.peak_level.value())
         self.marks.setData([np.log10(f) if log else f for f, _ in pk], [m for _, m in pk])
         self.plot.setLabel("left", res["unit"])
         info = (f"{name}｜{self.window.currentText()}｜Δf = {fmt(res['df'], 'Hz')}｜"
-                f"ENBW = {fmt(res['enbw'], 'Hz')}｜{res['n']:,} 點｜未補零（Infiniium 會補到 2 的次方）")
+                f"RBW = {fmt(res['rbw'], 'Hz')}｜窗 ENBW = {fmt(res['enbw'], 'Hz')} "
+                f"({res['enbw_bins']:.4g} 原始 bin)｜{res['n']:,} → {res['effective_n']:,} 點（前後補零）｜"
+                f"{res['r_ohm']:g} Ω｜峰頻為本工具拋物線內插")
         self.status.setText(info)
         self.result_ready.emit(info, pk, res["unit"])
 
@@ -155,7 +214,7 @@ def _self_check() -> None:
 
     wait()
     info, pk, unit = got[-1]
-    assert unit == "dBm" and abs(pk[0][0] - 10e3) < 300 and "未補零" in info
+    assert unit == "dBm" and abs(pk[0][0] - 10e3) < 300 and "前後補零" in info
     assert abs(pk[0][1] - 10) < 1.5  # 1 V 峰值弦波 ≈ 10 dBm（Hanning 掃到格間會略低）
     got.clear()
     pane.source.setCurrentIndex(1)
@@ -171,6 +230,36 @@ def _self_check() -> None:
     pane.log_x.setChecked(True)
     wait()
     assert pane.curve.xData[0] > 0
+    got.clear()
+    pane.peak_level.setValue(.1)
+    wait()
+    pane.rf.enabled.setChecked(True)
+    pane.rf.x.setValue(10e3)
+    assert pane.rf.line.isVisible() and "Hz" in pane.rf.readout.text()
+    pane.rf.x.setValue(0)
+    pane.rf.update(1)
+    assert abs(pane.rf.x.value() - 10e3) < 300
+    pane.impedance.setCurrentIndex(4)
+    assert pane.r_ohm.isEnabled() and pane.r_ohm.minimum() == 10 and pane.r_ohm.maximum() == 200
+    got.clear()
+    pane.r_ohm.setValue(100)
+    pane.unit.setCurrentText("Phase")
+    wait()
+    assert got[-1][2] == "°" and not got[-1][1] and not pane.rf.line.isVisible()
+    assert pane._last['r_ohm'] == 100
+    assert "原始 bin" in got[-1][0]
+    controls = (pane.peak_sort, pane.peak_level, pane.peak_count)
+    assert not any(w.isEnabled() for w in controls)
+    assert pane.unit.findText("W") == -1 and pane.unit.findText("Watt") >= 0
+    # Phase 成功後換到失敗來源，再切 dBm；即使仍失敗，也要恢復峰值控制。
+    got.clear()
+    pane.source.setCurrentIndex(1)
+    wait()
+    assert pane._last is None and not any(w.isEnabled() for w in controls)
+    got.clear()
+    pane.unit.setCurrentText("dBm")
+    wait()
+    assert pane._last is None and all(w.isEnabled() for w in controls)
     print("analysis_fftplot self-check OK")
 
 

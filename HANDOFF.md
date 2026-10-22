@@ -2,6 +2,18 @@
 
 目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
 
+## 2026-10-22 階段 3：FFT（未 commit）
+
+- Opus 審查修正：Phase 失敗來源切回 dBm 恢復峰值控制；Track RF 缺 x1 回不可用與原因，成功／不可用皆維持 versus；等值譜不列假 DC 峰，保留有下降的端點峰與平台最左格規則。UI 僅列 Watt、W 留純函式別名；ENBW 倍率明示「原始 bin」。
+- 強化自我檢查：10000 點／1MHz 的 df=61.03515625Hz、RBW=91.552734375Hz、實際 ENBW=150Hz；端點峰、內插夾限／凸向拒絕／零鄰格、MAX_POINTS、補零主瓣倍率、NaN 相位參考拒絕、1001／1023 點非整數週期左補零相位與 RF versus 均有斷言。
+- 旁瓣列峰不改算法：已重現 10000 點 1030Hz 純正弦出現 1259.55Hz／−22.52dBm 旁瓣峰；數據與預設輸出影響列於真機清單。RBW 分母、RF 與峰表共用門檻（手冊 RF 自有門檻）、門檻相等採嚴格大於皆註明，待真機比對。
+- 本輪修正後指定 20 模組以 `QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.<模組>` 皆印 OK、exit 0；另以記憶體暫改驗證 13 種改壞情境全被攔截（不寫入原始檔）。`git diff --check` 通過；沒有真機驗證，沒有 commit。
+
+- FFT 改為前後補零至 2 冪次，保留五窗標準週期係數與 CG 校正，分別顯示 df／手冊 RBW／實際窗 ENBW；補 Auto 50／100／25Ω 與手動10–200Ω、Watt 別名、° Phase（Trigger 參考，純函式可設參考時間／delay／unwrap）。
+- 新增 `analysis/peaks.py`：局部峰、Peak Level、最大峰數、四種手冊排序、穩定同值左至右、log 振幅拋物線峰頻內插；FFT 沿用既有 Results 峰表。`analysis/marker.py` 加 Track RF 純函式與 evaluate 接口；`ui/analysis_marker.py` 的獨立 RF 控制接 FFT 格，預設關閉，支援頻率讀值／拖曳／門檻左右跳峰。
+- 無探棒／通道型態 metadata，UI Auto 型態由使用者指定、未知50Ω；未做 Phase 參考／delay／unwrap UI、RF 右鍵選單／多組 Marker、Channel Power／PSD／THD／Occupied BW 量測。手冊未載明之係數、ENBW、scalloping、旁瓣、同值次序、Phase 定義與未做項目均列 `docs/真機驗證清單.md` 階段3區段。
+- 指定20模組（含新增 peaks）offscreen 自我檢查皆 OK；五窗整／半bin、解析 ENBW、單位／阻抗、含補零 Parseval、分離多音 <RBW/10、RF 門檻／左右邊界有斷言。預設變更逐項見真機清單：非2冪次頻格／幅度、內插峰頻、−40dBm門檻、同值峰排序與狀態文字；2冪次預設 dBm 譜對 HEAD 最大差約5.7e-14dB。`git diff --check` 通過；已看 offscreen FFT 截圖，尚未真機／真人滑鼠驗證。未動 jitter/clock/eye 五檔，未 commit。
+
 ## 2026-10-22 階段 2：Marker（B 級，未 commit）
 
 - 新增純 numpy `analysis/marker.py`（五種模式、觸發參考範圍、差值與 Delta To、數位限制）；UI 沿用四游標，由 `ui/analysis_marker.py` 接線，預設「現行 X1/X2」保留舊行為。預設 Results 保留 HEAD 的 t1/t2/Δt/1/Δt/v1/v2/ΔV 列名與 @t1/@t2 通道欄名，不加 Delta To；非預設模式才顯示 X1/X2/ΔX/1/ΔX/Y1/Y2/ΔY 與 Delta To，並清空通道表。

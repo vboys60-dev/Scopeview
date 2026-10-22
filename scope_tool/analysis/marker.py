@@ -60,7 +60,8 @@ class MarkerResult:
 def evaluate(mode: str, position: Position = Position(), source: Source | None = None, *,
              digital: bool = False, screen_width: float = 0.0, trigger_t: float = 0.0,
              measurements: list[tuple[float, float, str]] | None = None,
-             versus: bool = False) -> MarkerResult:
+             versus: bool = False, peak_level: float = -np.inf,
+             direction: int = 0) -> MarkerResult:
     """傳入來源座標；Manual 保留使用者位置，不量化也不吸附。
 
     measurements 是呼叫端提供的「最近新增量測」位置，順序照輸入；前兩點形成差值。
@@ -69,6 +70,12 @@ def evaluate(mode: str, position: Position = Position(), source: Source | None =
     數位來源的 Manual Y only／X and Y 整組不可用是本工具取捨；
     手冊只說 Y markers will not be displayed，未要求連 X 也隱藏。
     """
+    if mode == "Track RF":
+        if source is None:
+            return MarkerResult(Position(), False, "尚未提供 FFT 來源", versus=True)
+        if position.x1 is None or not np.isfinite(position.x1):
+            return MarkerResult(Position(), False, "尚未提供有限的 Track RF 位置", versus=True)
+        return track_rf(source.t, source.v, position.x1, level=peak_level, direction=direction)
     if mode not in MODES:
         raise ValueError(f"未知 Marker 模式：{mode}")
     if digital and mode in MODES[1:3]:
@@ -113,6 +120,45 @@ def evaluate(mode: str, position: Position = Position(), source: Source | None =
     x1, y1 = snap(position.x1)
     x2, y2 = snap(position.x2)
     return MarkerResult(Position(x1, x2, y1, y2), versus=versus)
+
+
+# Track RF 獨立掛於 FFT 格，時間域工具列仍維持原五種模式。
+RF_MODE = "Track RF"
+
+
+def track_rf(freq: np.ndarray, mag: np.ndarray, x: float, *, level: float = -np.inf,
+             direction: int = 0) -> MarkerResult:
+    """FFT 上讀取最近頻格，或跳至左／右下一個高於 Peak Level 的局部峰。
+
+    手冊未載明吸附與邊界規則；本工具同距取右格，無下一峰回不可用且保留位置，
+    不環繞、不套主瓣略過範圍；左右跳峰使用原始頻格，不使用峰值表頻率內插。
+    UI 暫與峰值表共用 Peak Level；手冊 Add Marker 的 RF 有自己的 Peak Level。
+    等於門檻是否列峰手冊未載明，本工具採嚴格大於。整條等值譜不算峰，
+    DC 有實際下降時仍可為端點峰；以上均待真機比對。
+    """
+    from scope_tool.analysis.peaks import SORTS, peaks
+
+    f, y = np.asarray(freq), np.asarray(mag)
+    if direction not in (-1, 0, 1) or not np.isfinite(x):
+        raise ValueError("Track RF 位置與方向無效")
+    if f.ndim != 1 or y.shape != f.shape or not np.isfinite(f).all() or not np.isfinite(y).all():
+        raise ValueError("Track RF 來源必須為等長有限一維陣列")
+    if np.any(np.diff(f) <= 0) or np.isnan(level):
+        raise ValueError("Track RF 頻率或門檻無效")
+    if not len(f):
+        return MarkerResult(Position(), False, "尚未提供 FFT 來源", versus=True)
+    i = min(int(np.searchsorted(f, x)), len(f) - 1)
+    if i > 0 and abs(f[i - 1] - x) < abs(f[i] - x):
+        i -= 1
+    if direction:
+        candidates = peaks(f, y, len(f), start=0, level=level, sort=SORTS[1])
+        eligible = [(a, b) for a, b in candidates if (a - x) * direction > 0]
+        if not eligible:
+            return MarkerResult(Position(float(f[i]), y1=float(y[i])), False, "該方向沒有高於門檻的峰", versus=True)
+        a, b = eligible[0] if direction > 0 else eligible[-1]
+    else:
+        a, b = float(f[i]), float(y[i])
+    return MarkerResult(Position(a, y1=b), points=((a, b, RF_MODE),), versus=True)
 
 
 def _self_check() -> None:
@@ -164,6 +210,25 @@ def _self_check() -> None:
     r = evaluate(MODES[4], measurements=[(np.nan, 1, "無效 X"), (0, 1, "起點"),
                  (1, np.inf, "無效 Y"), (-np.inf, 2, "無效 X"), (2, 4, "終點"), (3, np.nan, "無效 Y")])
     assert r.points == ((0., 1., "起點"), (2., 4., "終點")) and r.position == Position(0, 2, 1, 4)
+    f, y = np.arange(9.), np.array([0., 3., 0., 5., 0., 2., 0., 4., 0.])
+    assert track_rf(f, y, 2.5).position == Position(3., y1=5.)
+    assert track_rf(f, y, 3, level=2, direction=1).position == Position(7., y1=4.)
+    assert track_rf(f, y, 7, level=2, direction=-1).position == Position(3., y1=5.)
+    assert not track_rf(f, y, 7, level=2, direction=1).available
+    assert not track_rf(np.array([]), np.array([]), 0).available
+    assert evaluate(RF_MODE, Position(3), Source(f, y), peak_level=2, direction=1).position.x1 == 7
+    assert track_rf(f, y, 2).position.y1 == 0  # 一般追蹤不受 Peak Level 限制
+    r = evaluate(RF_MODE, Position(), Source(f, y))
+    assert not r.available and r.reason and r.versus and r.position == Position()
+    # RF 為頻率／振幅座標，成功及各種不可用結果皆維持 versus。
+    for r in (track_rf(f, y, 3), track_rf(f, y, 7, direction=1),
+              track_rf(np.array([]), np.array([]), 0), evaluate(RF_MODE)):
+        assert r.versus and r.inverse_delta_x is None
+    r = track_rf(f, np.zeros(len(f)), 3, direction=-1)
+    assert not r.available and r.reason and r.position.x1 == 3 and r.versus
+    # 有下降的 DC 仍可跳入；等值譜才不可把 DC 當峰，端點規則不變。
+    r = track_rf(np.arange(3.), np.array([3., 0., 2.]), 1, direction=-1)
+    assert r.available and r.position.x1 == 0 and r.versus
     print("marker self-check OK")
 
 

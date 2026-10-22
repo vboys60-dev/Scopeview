@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import math
 
 os.environ["QT_API"] = "pyside6"
 os.environ["PYQTGRAPH_QT_LIB"] = "PySide6"
@@ -78,6 +79,73 @@ class MarkerController:
         tab.results.set_cursor_values(p.x1, p.x2, p.y1, p.y2, tab._units[wf.channel], wf.channel,
                                       [], marker=result)
         return False, result
+
+
+class RFMarkerController:
+    """FFT 格獨立的 Track RF；預設關閉，沿用純函式與來源座標讀值慣例。"""
+
+    def __init__(self, plot: pg.PlotWidget, row: object) -> None:
+        from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QLabel, QPushButton
+
+        self.enabled = QCheckBox("Track RF")
+        self.x = QDoubleSpinBox()
+        self.x.setRange(0, 1e15)
+        self.x.setDecimals(6)
+        self.x.setSuffix(" Hz")
+        self.readout = QLabel("—")
+        self.line = pg.InfiniteLine(angle=90, movable=True, pen="#66ddff")
+        self.point = pg.ScatterPlotItem(size=9, brush="#66ddff")
+        plot.addItem(self.line, ignoreBounds=True)
+        plot.addItem(self.point, ignoreBounds=True)
+        self.line.hide()
+        self.data: dict | None = None
+        self.log = False
+        self.level = -float('inf')
+        for w in (self.enabled, self.x):
+            row.addWidget(w)
+        for title, direction in (("← 下一峰", -1), ("下一峰 →", 1)):
+            button = QPushButton(title)
+            button.clicked.connect(lambda _, d=direction: self.update(d))
+            row.addWidget(button)
+        row.addWidget(self.readout)
+        row.addStretch()
+        self.enabled.toggled.connect(lambda _: self.update())
+        self.x.valueChanged.connect(lambda _: self.update())
+        self.line.sigPositionChangeFinished.connect(self._dragged)
+
+    def _dragged(self) -> None:
+        self.x.setValue(10 ** self.line.value() if self.log else self.line.value())
+
+    def set_data(self, data: dict | None, log: bool, level: float) -> None:
+        self.data, self.log, self.level = data, log, level
+        self.update()
+
+    def update(self, direction: int = 0) -> None:
+        from scope_tool.analysis.marker import track_rf
+        from scope_tool.ui.analysis_results import fmt
+
+        on = self.enabled.isChecked() and self.data is not None and self.data['unit'] != "°"
+        self.line.setVisible(on)
+        self.point.setVisible(on)
+        self.x.setEnabled(on)
+        if not on:
+            self.readout.setText("—")
+            return
+        result = track_rf(self.data['freq'], self.data['mag'], self.x.value(),
+                          level=self.level, direction=direction)
+        p = result.position
+        self.x.blockSignals(True)
+        self.x.setValue(p.x1)
+        self.x.blockSignals(False)
+        visible = not self.log or p.x1 > 0
+        self.line.setVisible(visible)
+        self.point.setVisible(visible)
+        if visible:
+            x = math.log10(p.x1) if self.log else p.x1
+            self.line.setValue(x)
+            self.point.setData([x], [p.y1])
+        self.readout.setText(f"{fmt(p.x1, 'Hz')}｜{fmt(p.y1, self.data['unit'])}" +
+                             (f"｜{result.reason}" if not result.available else ""))
 
 
 def _self_check() -> None:
