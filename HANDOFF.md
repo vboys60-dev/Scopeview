@@ -2,6 +2,13 @@
 
 目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
 
+## 2026-10-22 本輪：DSO-X 6004A（X6000A）上機、已 commit 16240ff
+
+- 註冊前綴 `DSO-X 6`／`MSO-X 6`（`infiniivision.py`）；截圖、擷取、離線分析讀檔實測通過，細節在 `docs/真機驗證清單.md` 第九輪。
+- **點數由時基決定**：20 ns/div 只有 2000 點，200 µs/div 為 1M；`:ACQuire:POINts` 設了無效。擷取頁在實際點數少於要求時狀態列提示。`max_points()` 的 4M 仍是固定值（未量到上限）。
+- 測試後示波器維持 STOP、20 ns/div、記憶體深度 AUTO。
+- 未測：GUI 全流程、Single／Normal、`:DIGitize`、LAN。
+
 ## 2026-10-19 本輪：MSO9254A（9000A）加入、已 commit
 
 - **9000A 系列**：`instruments/infiniium.py` 的 `model_prefixes` 加 `MSO9`、`DSO9`，沿用 EXR 命令（待真機驗證）。
@@ -26,7 +33,7 @@
 ## 現況（2026-10-17）
 
 - 最新 commit 9c15896。分析頁改進已 commit：新增 `scope_tool/analysis/`（measure、edge、filter、fft、mathfn）與 `ui/analysis_{chanbar,controls,plot,fftplot,results,math,overview,export}.py`；改 `ui/tab_analysis.py`、`storage/reader.py`（`read_file_info`）、`RULES.md`（第 11 條離線分析、刪「不做自動量測」、擁有權表）、本檔。`analysis_readout.py` 已刪（併入 `analysis_results.py`）。
-- 已上機：DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
+- 已上機：DSO-X 6004A、DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
 - 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn analysis.clock analysis.jitter analysis.eye ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_runner ui.analysis_fftplot ui.analysis_jitter ui.analysis_eye ui.analysis_math ui.analysis_layout ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
 - 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。或雙擊根目錄 `啟動示波器截圖.command`。
 
