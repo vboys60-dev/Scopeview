@@ -24,7 +24,7 @@ class Edge(NamedTuple):
 
 
 def _cross(t: np.ndarray, v: np.ndarray, a: int, b: int, thr: float, rising: bool) -> float:
-    """在 [a,b] 內第一個越過 thr 的取樣點，與前一點線性內插出時間。"""
+    """在 [a,b] 內第一個越過 thr 的點，與前一點內插；方法手冊未載明，保留線性。"""
     seg = v[a:b + 1]
     j = max(int(np.argmax(seg >= thr if rising else seg <= thr)), 1)
     i0, i1 = a + j - 1, a + j
@@ -82,7 +82,8 @@ def duty(es: list[Edge], rising: bool) -> np.ndarray:
     return _need(d, "範圍內沒有完整週期")
 
 
-def shoot(v: np.ndarray, es: list[Edge], rising: bool, top: float, base: float, pre: bool) -> np.ndarray:
+def shoot(t: np.ndarray, v: np.ndarray, es: list[Edge], rising: bool,
+          top: float, base: float, pre: bool) -> np.ndarray:
     """過衝（pre=False）：越過遠端閾值後到平台中點的局部極值；
     前衝（pre=True）：平台中點到越過近端閾值前的局部極值。皆以 top−base 的百分比表示。"""
     amp = top - base
@@ -91,15 +92,26 @@ def shoot(v: np.ndarray, es: list[Edge], rising: bool, top: float, base: float, 
         if e.rising != rising:
             continue
         if pre:
-            start = (es[k - 1].b + e.a) // 2 if k else 0
-            seg = v[start:e.a + 1]
+            end = e.t_lo if rising else e.t_hi
+            prev = es[k - 1] if k else None
+            if prev is None:
+                continue  # 缺前鄰緣，無法定出平台中心。
+            start = ((prev.t_lo if rising else prev.t_hi) + end) / 2
         else:
-            end = (e.b + es[k + 1].a) // 2 if k + 1 < len(es) else len(v) - 1
-            seg = v[e.b:end + 1]
+            start = e.t_hi if rising else e.t_lo
+            nxt = es[k + 1] if k + 1 < len(es) else None
+            if nxt is None:
+                continue  # 缺後鄰緣，無法定出平台中心。
+            end = (start + (nxt.t_hi if rising else nxt.t_lo)) / 2
+        # 平台中心依閾值交越時間計算是本程式假設，手冊未載明中心算法。
+        a, b = np.searchsorted(t, start), np.searchsorted(t, end, side="right")
+        # 將內插端點納入極值搜尋，手冊未載明，保留現法。
+        seg = np.r_[np.interp(start, t, v), v[a:b], np.interp(end, t, v)]
         # 上升緣：過衝看高於 top、前衝看低於 base；下降緣相反。
+        # 負值截零規則手冊未載明，保留公式原值。
         high_side = rising != pre
         out.append((seg.max() - top if high_side else base - seg.min()) / amp * 100)
-    return _need(out, "範圍內沒有" + ("上升緣" if rising else "下降緣"))
+    return _need(out, "範圍內沒有前後都有鄰緣的" + ("上升緣" if rising else "下降緣") + "（無法定平台中心）")
 
 
 def _self_check() -> None:
@@ -125,11 +137,33 @@ def _self_check() -> None:
     w[1012] += 0.2
     w[995] -= 0.1
     es2 = edges(t, w, 0.2, 1.0, 1.8)
-    ov = shoot(w, es2, True, 2.0, 0.0, False)
+    ov = shoot(t, w, es2, True, 2.0, 0.0, False)
     assert np.isclose(ov[1], 10) and np.isclose(ov[0], 0) and np.isclose(ov[2], 0)
-    pre = shoot(w, es2, True, 2.0, 0.0, True)
-    assert np.isclose(pre[1], 5) and np.isclose(pre[0], 0)
-    assert np.allclose(shoot(w, es2, False, 2.0, 0.0, False), 0)
+    pre = shoot(t, w, es2, True, 2.0, 0.0, True)
+    assert np.isclose(pre[0], 5) and np.isclose(pre[1], 0)
+    assert np.allclose(shoot(t, w, es2, False, 2.0, 0.0, False), 0)
+    # 從下降緣中途切入，前一緣的 15% 下衝振鈴不能算成第一個上升緣的前衝。
+    ring = v.copy()
+    ring[520:550] -= 0.3
+    ct, cv = t[505:], ring[505:]
+    ce = edges(ct, cv, 0.2, 1.0, 1.8)
+    assert ce[0].rising
+    pre = shoot(ct, cv, ce, True, 2.0, 0.0, True)
+    assert len(pre) == 3 and np.allclose(pre, 0, rtol=0, atol=1e-10)
+    # 時間反轉後同樣驗證缺後鄰緣的過衝；僅剩單一邊緣時須回報量測失敗。
+    rt, rv = ct[-1] - ct[::-1], cv[::-1]
+    re = edges(rt, rv, 0.2, 1.0, 1.8)
+    ov = shoot(rt, rv, re, False, 2.0, 0.0, False)
+    assert len(ov) == 3 and np.allclose(ov, 0, rtol=0, atol=1e-10)
+    for pre, times, signal, single in ((True, ct, cv, ce[:1]), (False, rt, rv, re[-1:])):
+        for invert in (False, True):
+            es_single = [single[0]._replace(rising=not single[0].rising)] if invert else single
+            try:
+                shoot(times, 2 - signal if invert else signal, es_single,
+                      es_single[0].rising, 2.0, 0.0, pre)
+                raise AssertionError("缺鄰緣應該丟出 ScopeError")
+            except ScopeError as exc:
+                assert str(exc) == "範圍內沒有前後都有鄰緣的" + ("上升緣" if es_single[0].rising else "下降緣") + "（無法定平台中心）"
     # 毛刺（沒過上閾值）不算邊緣；沒有邊緣時丟出原因
     g = np.zeros(100)
     g[50] = 1.0
