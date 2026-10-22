@@ -176,7 +176,11 @@ class CaptureTab(QWidget):
             self.status_label.setText("寫檔失敗")
             QMessageBox.critical(self, "寫檔失敗", str(exc))
             return
-        self.status_label.setText(f"已存檔：{path}")
+        got = min(len(w.time) for w in result.waveforms)
+        hint = ""
+        if got < self.points_spin.value():
+            hint = f"（示波器實際只有 {got} 點，時基調慢可增加）"
+        self.status_label.setText(f"已存檔：{path}{hint}")
 
     def _on_capture_failed(self, message: str) -> None:
         self.start_button.setEnabled(True)

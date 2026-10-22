@@ -92,7 +92,8 @@ class InfiniiVisionDriver(SCPIDriver):
     """
 
     series = Series.INFINIIVISION
-    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3", "MSO-X 4", "DSO-X 4", "MSOX4", "DSOX4")
+    model_prefixes = ("MSO-X 3", "DSO-X 3", "MSOX3", "DSOX3", "MSO-X 4", "DSO-X 4", "MSOX4", "DSOX4",
+                      "MSO-X 6", "DSO-X 6", "MSOX6", "DSOX6")
 
     def screenshot(self, opts: ScreenshotOptions) -> bytes:
         """擷取示波器螢幕。timeout 15 秒。
