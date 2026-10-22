@@ -34,21 +34,25 @@ export function fftParams(st, p, catalog) {
 }
 
 /** FFT 控制器（不碰 DOM）：參數或範圍變動 → 防抖 → bridge.job("fft")；過期結果丟棄；結果帶 peak_level 供 cursors.js 的 RF 使用。 */
-export function createFft({ store, bridge }, catalog, p, { delay = 150, onError = () => {} } = {}) {
-  let token = 0, timer = null;
-  async function run() {
+export function createFft({ store, bridge }, catalog, p, { delay = 150, onError = () => {}, onReset = () => {} } = {}) {
+  let token = 0, timer = null, lastGen = store.get().file?.gen;
+  /** manual＝使用者手動觸發（可用 modal）；自動重跑失敗只 toast 並在 FFT 窗格顯示原因，不擋畫面。 */
+  async function run(manual = false) {
     const my = token, st = store.get(), gen = st.file?.gen, args = p.on ? fftParams(st, p, catalog) : null;
     if (!args) return store.set({ fftResult: null, rfPos: null }, "program");
     try {
       const r = await bridge.job("fft", args);
       if (my !== token || store.get().file?.gen !== gen || (r.gen !== undefined && r.gen !== gen)) return;
       store.set({ fftResult: { ...r, peak_level: args.peak_level }, ...(r.unit === "°" ? { rfPos: null } : {}) }, "program"); // Phase 無 RF
-    } catch (e) { if (my === token) { onError(e); store.set({ fftResult: null }, "program"); } }
+    } catch (e) { if (my === token) { onError(e, manual); store.set({ fftResult: { ok: false, reason: e.message, spectrum_id: null, peaks: [] } }, "program"); } }
   }
   const invalidate = () => { token++; clearTimeout(timer); }; // 取消勾選時使進行中的 job 失效
-  const schedule = () => { token++; clearTimeout(timer); timer = setTimeout(run, delay); };
+  const schedule = () => { token++; clearTimeout(timer); timer = setTimeout(() => run(false), delay); };
   let sig = "";
   store.on(["file", "rangeMode", "cursors", "channels"], (st, keys) => {
+    if ((st.file?.gen) !== lastGen) { // 開新檔或關檔：FFT 勾選重置為關閉，進行中的 job 失效
+      lastGen = st.file?.gen; p.on = false; invalidate(); onReset();
+    }
     const s = JSON.stringify([st.file?.gen, rangeOf(st), dxOf(st.channels)]);
     if (s === sig) return;
     sig = s;
@@ -136,7 +140,8 @@ export function mount(el, ctx) {
 
   // ── FFT ──
   const p = { on: false, source: null, window: "Hanning", unit: "dBm", imp: 0, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? [""])[0] };
-  const fft = createFft(ctx, catalog, p, { onError: (e) => fail(e, "FFT 失敗") });
+  const fft = createFft(ctx, catalog, p, { onError: (e, manual) => (manual ? fail(e, "FFT 失敗") : ui.toast(`FFT 失敗：${e.message}`, "error", 6000)),
+    onReset: () => { on.checked = false; store.command("fft.visible", false); syncFft(); } });
   const on = h("input", "check"); on.type = "checkbox";
   const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map((k) => [k, k])), unit = select((catalog.fft_units ?? []).map((k) => [k, k]));
   const imp = select((catalog.fft_impedances ?? []).map(([t], i) => [i, t])), man = h("input", "input"), sort = select((catalog.peak_sorts ?? []).map((k) => [k, k]));
@@ -145,7 +150,7 @@ export function mount(el, ctx) {
   nums(man, "manualR", (v) => v > 0); nums(lvl, "peakLevel", Number.isFinite); nums(cnt, "peakCount", (v) => Number.isInteger(v) && v >= 1);
   const sel = (s, key, conv = (x) => x) => { s.onchange = () => { p[key] = conv(s.value); syncFft(); fft.schedule(); }; };
   sel(src, "source"); sel(win, "window"); sel(unit, "unit"); sel(imp, "imp", Number); sel(sort, "peakSort");
-  on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(); else { fft.invalidate(); store.set({ fftResult: null, rfPos: null }, "program"); } syncFft(); };
+  on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(true); else { fft.invalidate(); store.set({ fftResult: null, rfPos: null }, "program"); } syncFft(); };
   function syncFft() {
     man.disabled = (catalog.fft_impedances ?? [])[p.imp]?.[1] !== null;
     const ph = p.unit === "Phase"; [sort, lvl, cnt].forEach((c) => { c.disabled = ph; });

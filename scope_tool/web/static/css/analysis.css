@@ -1,20 +1,28 @@
-/* 分析頁（L4）。使用 L6 的 token，均附備援值；圖區黑底。 */
-.analysis { display: flex; flex-direction: column; gap: var(--sp-2, 8px); height: 100%; min-height: 560px; }
-.analysis__toolbar { flex: 0 0 auto; }
-.analysis__body { display: flex; gap: var(--sp-2, 8px); flex: 1 1 auto; min-height: 360px; }
-.analysis__side { flex: 0 0 auto; }
-.analysis__plot { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.analysis__results { flex: 0 0 auto; max-height: 40vh; overflow: auto; }
-.analysis__overview { flex: 0 0 90px; position: relative; background: var(--c-plot-bg, #000); }
-.analysis__main { flex: 3 1 0; min-height: 240px; position: relative; background: var(--c-plot-bg, #000); }
-.analysis__fft { flex: 2 1 0; min-height: 160px; display: flex; flex-direction: column; background: var(--c-surface, #fff); }
+/* 分析頁（L4）。外層 grid（tool／side／plot／results 區域）由 app.css 的 .analysis 定義，這裡只補內部版面。
+   原則：所有捲動區 min-height:0 + overflow:auto；canvas 只在自己的 position:relative 容器內 absolute，絕不蓋到別區。 */
+.analysis { overflow: hidden; }
+.analysis__toolbar, .analysis__side { min-height: 0; }
+.analysis__plot { display: flex; flex-direction: column; gap: 2px; overflow-x: hidden; overflow-y: auto; }
+.analysis__chanbar { flex: 0 0 auto; background: var(--c-surface, #fff); }
+.analysis__overview { flex: 0 0 56px; position: relative; background: var(--c-plot-bg, #000); }
+.analysis__main { flex: 2 1 0; min-height: 130px; position: relative; background: var(--c-plot-bg, #000); }
+.analysis__fft { flex: 3 1 0; min-height: 240px; display: flex; flex-direction: column; background: var(--c-surface, #fff); overflow: hidden; }
+.analysis__fftbar { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1, 4px) var(--sp-2, 8px); font-size: var(--fs-sm, 12px); padding: 2px 4px; }
+.analysis__fftbar .row { flex-wrap: wrap; }
+.analysis__fftplot { flex: 1 1 0; min-height: 70px; position: relative; background: var(--c-plot-bg, #000); }
 .analysis__fft[hidden], .analysis__overview[hidden] { display: none; }
-.analysis__fftbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2, 8px); font-size: var(--fs-sm, 12px); }
-.analysis__fftplot { flex: 1 1 auto; position: relative; background: var(--c-plot-bg, #000); min-height: 120px; }
 .analysis__placeholder { color: var(--c-text-dim, #888); font-size: var(--fs-sm, 12px); padding: var(--sp-1, 4px); }
+/* 下方：量測結果（含 FFT 峰值表）與游標讀值並排，各自捲動 */
+.analysis__lower { grid-area: results; display: flex; gap: var(--sp-2, 8px); height: 28vh; min-height: 110px; min-width: 0; }
+.analysis__lower .analysis__results { grid-area: auto; flex: 1 1 0; min-width: 0; max-height: none; overflow: auto; }
+.analysis__cursorbox { flex: 0 1 38%; min-width: 220px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; font-size: var(--fs-sm, 12px);
+  background: var(--c-surface, #fff); border: 1px solid var(--c-border, #ddd); border-radius: var(--radius, 4px); padding: 0 var(--sp-2, 8px); }
+.analysis__cursorbox > summary { flex: 0 0 auto; cursor: pointer; padding: 2px 0; color: var(--c-text-dim, #888); }
+.analysis__cursors { flex: 1 1 0; min-height: 0; overflow: auto; }
 .plot__canvas { position: absolute; inset: 0; display: block; touch-action: none; user-select: none; }
 .plot__overlay { position: absolute; right: 6px; top: 4px; color: var(--c-plot-text, #ccc); font-size: 11px; pointer-events: none; }
-@media (max-width: 900px) { .analysis__body { flex-direction: column; } }
-.analysis__cursorbox { flex: 0 0 auto; font-size: var(--fs-sm, 12px); }
-.analysis__cursorbox > summary { cursor: pointer; padding: 2px 0; color: var(--c-text-dim, #888); }
-.analysis__cursors { max-height: 28vh; overflow: auto; }
+/* FFT 開啟時下方結果區縮小、縮圖變矮，把高度讓給圖；仍不夠時 .analysis__plot 內部捲動（整頁不捲） */
+.analysis--fft .analysis__lower { height: 22vh; }
+.analysis--fft .analysis__overview { flex-basis: 40px; }
+@media (max-height: 800px) { .analysis--fft .analysis__overview { display: none; } .analysis--fft .analysis__lower { height: 18vh; min-height: 90px; } }
+@media (max-width: 900px) { .analysis__lower { grid-area: results; flex-direction: column; height: auto; max-height: 45vh; overflow: auto; } }

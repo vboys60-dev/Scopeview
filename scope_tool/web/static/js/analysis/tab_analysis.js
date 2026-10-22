@@ -29,19 +29,20 @@ const L5 = [["toolbar", "./toolbar.js", "analysis__toolbar"], ["measure", "./mea
 
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
+  // 版面骨架（grid 區域由 app.css 的 .analysis 定義：tool／side／plot／results；細節見 analysis.css）
   el.innerHTML = `<div class="analysis">
     <div class="analysis__toolbar"></div>
-    <div class="analysis__body">
-      <div class="analysis__side"></div>
-      <div class="analysis__plot">
-        <div class="analysis__chanbar chanbar"></div>
-        <div class="analysis__overview"></div>
-        <div class="analysis__main plot"></div>
-        <div class="analysis__fft" hidden></div>
-        <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details>
-      </div>
+    <div class="analysis__side"></div>
+    <div class="analysis__plot">
+      <div class="analysis__chanbar chanbar"></div>
+      <div class="analysis__overview"></div>
+      <div class="analysis__main plot"></div>
+      <div class="analysis__fft" hidden></div>
     </div>
-    <div class="analysis__results"></div>
+    <div class="analysis__lower">
+      <div class="analysis__results"></div>
+      <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details>
+    </div>
   </div>`;
   const q = (c) => el.querySelector("." + c);
   const fft = q("analysis__fft"), overview = q("analysis__overview");
@@ -70,8 +71,13 @@ export function mount(el, ctx) {
 
   // 顯示控制：縮圖由 L5 以 command("preview.visible", bool)、FFT 以 command("fft.visible", bool) 切換；FFT 有結果時自動顯示
   store.onCommand("preview.visible", (on) => { overview.hidden = !on; });
-  store.onCommand("fft.visible", (on) => { fft.hidden = !on; });
-  store.on(["fftResult"], (s) => { if (s.fftResult?.ok) fft.hidden = false; });
+  const showFft = (on) => {
+    fft.hidden = !on;
+    q("analysis").classList.toggle("analysis--fft", on);
+    if (on) requestAnimationFrame(() => fft.scrollIntoView({ block: "nearest" })); // 空間不足時讓 FFT 參數列進入可視範圍
+  };
+  store.onCommand("fft.visible", showFft);
+  store.on(["fftResult"], (s) => { if (s.fftResult?.ok && fft.hidden) showFft(true); });
 
   // viewport.intent 的唯一處理者
   store.onCommand("viewport.intent", (p) => { const v = cleanView(p); if (v) store.set({ view: v }, "user"); });

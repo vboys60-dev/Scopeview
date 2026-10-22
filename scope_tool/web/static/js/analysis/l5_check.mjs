@@ -240,4 +240,23 @@ async function setup(hook) {
   assert.equal(ctl.readout.kind, "unsupported"); assert.match(ctl.readout.reason, /尚未支援/);
   assert.ok(!bridge.calls.some(([c, q]) => c === "marker_eval" && q.mode === "Track Measurements"), "不靜默送空陣列");
 }
+
+// 10. 自動 FFT 失敗不用 modal；換檔重置 FFT 勾選
+{
+  const { bridge, store, sum, channels } = await setup();
+  store.set({ file: sum, channels, selected: "CHAN1" }, "program");
+  const p = { on: true, source: "CHAN1", window: "Hanning", unit: "dBm", imp: 0, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: "Decreasing Magnitude" };
+  const errs = []; let resets = 0;
+  const bad = { ...bridge, job: async () => { throw Object.assign(new Error("資料含 NaN 或無限大。"), { code: "SCOPE_ERROR" }); } };
+  const f = createFft({ store, bridge: bad }, CATALOG, p, { delay: 5, onError: (e, manual) => errs.push(manual), onReset: () => { resets++; } });
+  f.schedule(); await sleep(30);
+  assert.deepEqual(errs, [false], "自動重跑標記為非手動（toast，不開 modal）");
+  assert.equal(store.get().fftResult.ok, false); assert.match(store.get().fftResult.reason, /NaN/, "錯誤文字留在 fftResult 供窗格顯示");
+  await f.run(true); assert.deepEqual(errs, [false, true], "手動才標記 manual");
+  store.set({ file: { ...sum, gen: sum.gen + 1 } }, "program");
+  assert.equal(p.on, false); assert.equal(resets, 1, "換檔重置勾選");
+  await sleep(30); assert.equal(errs.length, 2, "換檔後不自動重跑");
+  p.on = true; store.set({ file: null }, "program");
+  assert.equal(p.on, false); assert.equal(resets, 2, "關檔也重置");
+}
 console.log("l5 self-check OK");
