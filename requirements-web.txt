@@ -1,0 +1,18 @@
+# Web 版（pywebview）相依；版本取自開發機 /opt/anaconda3 實測，zeroconf 未安裝故不鎖下限
+numpy>=2.0
+pyvisa>=1.14
+pyvisa-py>=0.7
+h5py>=3.10
+zeroconf
+pyqtgraph>=0.13
+PySide6>=6.6
+pywebview==6.2.1
+bottle
+proxy_tools
+typing_extensions
+# 平台相依（pywebview 會自帶，這裡明列以利 PyInstaller）
+pyobjc-core; sys_platform == "darwin"
+pyobjc-framework-Cocoa; sys_platform == "darwin"
+pyobjc-framework-WebKit; sys_platform == "darwin"
+pythonnet; sys_platform == "win32"
+clr_loader; sys_platform == "win32"

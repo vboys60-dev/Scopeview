@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>JS 自檢</title>
+<style>body{font:14px/1.6 system-ui,sans-serif;margin:16px}.ok{color:#0a7a2f}.ng{color:#b00020}pre{white-space:pre-wrap}</style>
+<!-- 以 import map 把 node:assert 換成本機替身；l0 需 node:fs，瀏覽器版略過（由 selfcheck_node.js 跑） -->
+<script type="importmap">{"imports":{"node:assert/strict":"./js/selfcheck_shim.js"}}</script>
+</head><body>
+<h1>JS 自檢（瀏覽器）</h1><div id="out"></div><p id="sum"></p>
+<script type="module">
+const out = document.getElementById("out");
+let bad = 0;
+for (const f of ["l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs"]) {
+  const d = document.createElement("div");
+  try {
+    const log = console.log; let last = "";
+    console.log = (...a) => { last = a.join(" "); };
+    try { await import(`./js/${f}`); } finally { console.log = log; }
+    d.className = "ok"; d.textContent = `OK  ${f}：${last}`;
+  } catch (e) { bad++; d.className = "ng"; d.innerHTML = ""; const p = document.createElement("pre"); p.textContent = `NG  ${f}：${e.stack || e}`; d.append(p); }
+  out.append(d);
+}
+document.getElementById("sum").textContent = bad ? `失敗 ${bad} 項` : "web js self-check OK（l0 需 node，略過）";
+document.title = bad ? "JS 自檢 NG" : "JS 自檢 OK";
+</script></body></html>

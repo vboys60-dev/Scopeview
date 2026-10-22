@@ -39,16 +39,16 @@ def main() -> None:
         except urllib.error.HTTPError as e:
             return e.code, e.read()
 
-    def rpc(name: str, body: dict | None = None, **kw):
+    def rpc(name: str, body: dict | None = None, /, **kw):
         s, b = http(f"/rpc/{name}?k=tok", {**(body or {}), **kw})
         return json.loads(b)  # 信封
 
-    def ok(name, body=None, **kw):
+    def ok(name, body=None, /, **kw):
         r = rpc(name, body, **kw)
         assert r["ok"], (name, r)
         return r["result"]
 
-    def job(name, body=None, **kw):
+    def job(name, body=None, /, **kw):
         """送出工作型方法並等 job 事件；回事件 dict（含 ok／result／error）。"""
         j = ok(name, body, **kw)["job"]
         for _ in range(20):
@@ -60,7 +60,7 @@ def main() -> None:
             seen["seq"] = o["seq"]
         raise AssertionError(f"job 逾時：{name}")
 
-    def job_ok(name, body=None, **kw):
+    def job_ok(name, body=None, /, **kw):
         e = job(name, body, **kw)
         assert e["ok"], (name, e)
         return e["result"]
@@ -123,7 +123,8 @@ def main() -> None:
         assert m_rev["results"][0]["stats"]["current"] == m["results"][0]["stats"]["current"]
         m_dx = job_ok("measure", entries=ent[:1], range=[t0, mid], dx={"CHAN1": (t1 - t0) / 4}, threshold="20/50/80 %")
         assert m_dx["results"][0]["ok"] and m_dx["revision"] > m["revision"]
-        bad = rpc("measure", entries=[{"channel": "CHAN1", "name": "不存在"}], range=None, dx={}, threshold="10/50/90 %")
+        # 註：Analysis 工作型方法的參數錯誤經 job 事件回報（非同步 RPC 信封），見問題清單
+        bad = job("measure", entries=[{"channel": "CHAN1", "name": "不存在"}], range=None, dx={}, threshold="10/50/90 %")
         assert bad["ok"] is False and bad["error"]["code"] == "BAD_REQUEST", bad
         empty = job_ok("measure", entries=ent[:1], range=[t1 + 1, t1 + 2], dx={}, threshold="10/50/90 %")
         assert empty["results"][0]["ok"] is False and empty["results"][0]["reason"]
@@ -138,9 +139,9 @@ def main() -> None:
         assert fr["ok"] and fr["spectrum_id"] and fr["peaks"], fr
         assert abs(fr["peaks"][0]["x"] - 1e6) / 1e6 < 0.05, fr["peaks"][0]
         sid = fr["spectrum_id"]
-        s, b = http(f"/fft?k=tok&id={sid}&f0={fr['f_min']!r}&f1={fr['f_max']!r}&px=64&log=0")
+        s, b = http(f"/fft?k=tok&id={sid}&f0=0&f1=5e6&px=64&log=0")
         fn_, fmode, fx, flo, fhi = dec(b)
-        assert s == 200 and fn_ > 0 and abs(fx[np.argmax(fhi)] - 1e6) / 1e6 < 0.1
+        assert s == 200 and fn_ > 0 and abs(fx[np.argmax(fhi)] - 1e6) < 1e5
         s, b = http(f"/fft?k=tok&id={sid}&f0=1e5&f1={fr['f_max']!r}&px=64&log=1")
         assert s == 200 and dec(b)[2].min() > 0
         assert http(f"/fft?k=tok&id=zz&f0=0&f1=1&px=64&log=0")[0] == 409
