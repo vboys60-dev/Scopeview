@@ -11,22 +11,21 @@
 - 分析核心 `scope_tool/analysis/` 為純 numpy；UI 為 PySide6 + pyqtgraph（`scope_tool/ui/analysis_*.py`、`tab_analysis.py`）。規格 `docs/離線分析功能規格.md`。
 - **只有 offscreen 自我檢查，沒有真機／真人滑鼠驗證。** 待真機比對項目累積在 `docs/真機驗證清單.md`（階段 1~3 區段）。
 - 已上機：DSO-X 6004A、DSO-X 3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）。3000T、EXR、S 系列未上機。
-- 啟動：Mac 雙擊 `啟動示波器截圖.command` 或 `python scope_tool/main.py`；有「測試儀器（模擬）」按鈕。
+- 啟動：Mac 雙擊 `啟動示波器截圖.command`（Web 版）；Qt 版 `啟動示波器截圖_qt.command`；有「測試儀器（模擬）」按鈕。
 
-## 進行中的決策
+## Web 版（pywebview）現況（2026-10-22，已切為預設入口）
 
-**1. HTML 化 GUI（未開工，嚴禁動程式碼，等使用者說「開工」）**
-- 選項：A QWebEngine+QWebChannel；B 本機伺服器+瀏覽器；C 留 Qt 只改 QSS／pyqtgraph 外觀；D 混合（pyqtgraph 畫波形，HTML 做表格／側欄）；pywebview；靜態 HTML 報告匯出。圖表庫候選 uPlot／Plotly／ECharts／Canvas。
-- Codex 傾向 D；Opus 建議先做 C（約 50~150 行）＋ stdlib 靜態 HTML 報告，不夠再 D。
-- pywebview 自帶視窗與事件迴圈，無法嵌入 Qt，等於整個 GUI 重寫並失去 pyqtgraph；Win10 需 WebView2；為新增第三方套件（需改 RULES）。
-- 使用者未決定方向與最困擾之處；「無深色主題」規則是否解除也未決。
+- 啟動：`啟動示波器截圖.command`（= `python -m scope_tool.web.app`）；舊 Qt 版保留為 `啟動示波器截圖_qt.command`，git tag `qt-final`（`bfba82c`）為純 Qt 最終狀態。`scope_tool/ui/`、`main.py` 未刪（PySide6 仍因 `QImage` 為執行期相依）。
+- 權威規格：`docs/pywebview-GUI規劃建議書.html`（決策 D1–D6 皆採建議值）、`docs/web-api契約.md`＋`scope_tool/web/static/api_contract.json`（凍結契約，只有 lead 能改；附錄記錄審查後裁決）。檔案擁有權表在 `RULES.md` 末段。
+- 架構：pywebview 只當視窗；daemon 執行緒跑 stdlib HTTP server（127.0.0.1＋token）；RPC／long-poll 事件／二進位 `/wave` `/fft`；前端為 ES modules＋自繪 Canvas，傳輸全藏在 `bridge.js`，`?mock=1` 可離線開發。VISA 一律經 `web/jobs.py` 儀器執行緒＋全域儀器鎖。
+- 驗證指令：後端 `QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.web.{decimate,analysis_api,jobs,server,api,e2e_check,browser_check}`；前端 `node scope_tool/web/static/js/selfcheck_node.js`（或開 `static/selfcheck.html`）。`browser_check` 用 headless Chrome＋CDP 實跑連線→擷取→開檔→游標→量測→FFT（已通過、console 無錯誤）。
+- **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/web版驗收清單.md`。
+- 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
-**2. Windows 打包（未開工）**
-- `RULES.md` 已允許 Windows 版用 PyInstaller 打 exe（使用者同意，Win10 上打包，須同時支援 Win10／Win11）；Mac 維持 `.command`。
-- 使用者 Win10 是一般 Python、尚未裝 PyInstaller。Windows 版仍須連儀器（截圖、擷取）：目標機要自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包 VISA）。
-- 已向使用者說明 onedir（資料夾）與 onefile：建議 onedir 先行，穩定後再切 onefile；介面外觀無差，差在啟動速度與資源路徑。若用 QWebEngine（150~300 MB）務必 onedir。
-- 打包要點：前端資源路徑用 `Path(__file__)`／`sys._MEIPASS`；截圖與 HDF5 不可存程式資料夾，要存使用者指定位置。
-- 待辦（開工後）：掃 Mac 專屬硬寫路徑與 VISA 載入方式（目前只記 macOS `/Library/Frameworks/visa.framework`）、產 `requirements.txt`（PySide6、pyqtgraph、numpy、h5py、pyvisa、zeroconf）與 PyInstaller spec 草稿。
+## Windows 打包
+
+- `RULES.md` 允許 Windows 版 PyInstaller（Win10／Win11，onedir）；目標機自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包）。
+- 草稿已備：`packaging/scope_tool_web.spec`、`packaging/build_win.bat`、`requirements-web.txt`（PySide6 不可排除）。凍結後 static 路徑已用 `sys._MEIPASS`。**全部待 Win10 實機驗證。**
 
 ## 後續待辦
 

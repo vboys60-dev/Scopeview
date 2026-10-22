@@ -1,4 +1,11 @@
 #!/bin/bash
-# 雙擊啟動示波器截圖工具
-cd "$(dirname "$0")/scope_tool" || exit 1
-exec /opt/anaconda3/bin/python3 main.py
+# 雙擊啟動示波器截圖工具（pywebview 版；舊 Qt 版請用 啟動示波器截圖_qt.command）
+PY=/opt/anaconda3/bin/python3
+cd "$(dirname "$0")" || exit 1
+if ! "$PY" -c "import webview" 2>/dev/null; then
+  echo "找不到 pywebview。請先執行："
+  echo "  $PY -m pip install -r requirements-web.txt"
+  read -r -p "按 Enter 關閉..." _
+  exit 1
+fi
+exec "$PY" -m scope_tool.web.app
