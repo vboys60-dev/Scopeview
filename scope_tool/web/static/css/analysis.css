@@ -1,0 +1,17 @@
+/* 分析頁（L4）。使用 L6 的 token，均附備援值；圖區黑底。 */
+.analysis { display: flex; flex-direction: column; gap: var(--sp-2, 8px); height: 100%; min-height: 560px; }
+.analysis__toolbar { flex: 0 0 auto; }
+.analysis__body { display: flex; gap: var(--sp-2, 8px); flex: 1 1 auto; min-height: 360px; }
+.analysis__side { flex: 0 0 auto; }
+.analysis__plot { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.analysis__results { flex: 0 0 auto; max-height: 40vh; overflow: auto; }
+.analysis__overview { flex: 0 0 90px; position: relative; background: var(--c-plot-bg, #000); }
+.analysis__main { flex: 3 1 0; min-height: 240px; position: relative; background: var(--c-plot-bg, #000); }
+.analysis__fft { flex: 2 1 0; min-height: 160px; display: flex; flex-direction: column; background: var(--c-surface, #fff); }
+.analysis__fft[hidden], .analysis__overview[hidden] { display: none; }
+.analysis__fftbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2, 8px); font-size: var(--fs-sm, 12px); }
+.analysis__fftplot { flex: 1 1 auto; position: relative; background: var(--c-plot-bg, #000); min-height: 120px; }
+.analysis__placeholder { color: var(--c-text-dim, #888); font-size: var(--fs-sm, 12px); padding: var(--sp-1, 4px); }
+.plot__canvas { position: absolute; inset: 0; display: block; touch-action: none; user-select: none; }
+.plot__overlay { position: absolute; right: 6px; top: 4px; color: var(--c-plot-text, #ccc); font-size: 11px; pointer-events: none; }
+@media (max-width: 900px) { .analysis__body { flex-direction: column; } }

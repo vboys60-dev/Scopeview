@@ -1,0 +1,112 @@
+/* 示波器工具 App 樣式（L6）。淺色主題；僅圖區為黑底。無外部字型／URL。 */
+:root {
+  --c-bg: #f3f4f6; --c-surface: #fff; --c-border: #d0d4da;
+  --c-text: #1f2328; --c-text-dim: #6b7280;
+  --c-accent: #1f6feb; --c-accent-text: #fff;
+  --c-danger: #cf222e; --c-ok: #1a7f37; --c-warn: #9a6700; --c-focus: #4493f8;
+  --c-plot-bg: #000; --c-plot-grid: #2a2a2a; --c-plot-axis: #888; --c-plot-text: #ddd;
+  --c-ch1: #ffcc00; --c-ch2: #00d0ff; --c-ch3: #ff5fbf; --c-ch4: #7be36b; --c-ch5: #ff8a3d; --c-ch6: #b79cff;
+  --c-cursor1: #ffffff; --c-cursor2: #ff6b6b;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --font-ui: "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  --fs-sm: 12px; --fs-base: 14px; --fs-lg: 16px;
+  --radius: 4px; --shadow-dlg: 0 8px 28px rgba(0,0,0,.28); --h-control: 30px;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow-x: hidden; }
+body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 var(--font-ui); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 1px; }
+
+/* 外框：連線列／分頁／頁面 */
+.app { display: flex; flex-direction: column; height: 100vh; min-width: 0; }
+.connbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: var(--c-surface); border-bottom: 1px solid var(--c-border); }
+.tabs { display: flex; gap: 2px; padding: 0 var(--sp-3); background: var(--c-surface); border-bottom: 1px solid var(--c-border); }
+.tab { font: inherit; padding: var(--sp-2) var(--sp-4); border: 0; border-bottom: 2px solid transparent;
+  background: none; color: var(--c-text-dim); cursor: pointer; }
+.tab:hover { color: var(--c-text); }
+.tab--active { color: var(--c-accent); border-bottom-color: var(--c-accent); font-weight: 600; }
+.pages { flex: 1; min-height: 0; position: relative; }
+.page { position: absolute; inset: 0; overflow: auto; padding: var(--sp-3); }
+.legacy-warning { padding: var(--sp-4); background: #fff8c5; color: var(--c-warn); border-bottom: 1px solid var(--c-warn); }
+
+/* 控制項 */
+.btn, .input, .select { font: inherit; height: var(--h-control); border-radius: var(--radius); border: 1px solid var(--c-border);
+  background: var(--c-surface); color: var(--c-text); }
+.btn { padding: 0 var(--sp-3); cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--c-accent); }
+.btn--primary { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-accent-text); }
+.btn--primary:hover { filter: brightness(1.1); }
+.btn--danger { background: var(--c-danger); border-color: var(--c-danger); color: #fff; }
+.btn--small { height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-sm); }
+.input, .select { padding: 0 var(--sp-2); min-width: 0; }
+.input:focus, .select:focus { border-color: var(--c-focus); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-focus) 35%, transparent); }
+.check { display: inline-flex; align-items: center; gap: var(--sp-1); cursor: pointer; }
+.field { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.field__label { font-size: var(--fs-sm); color: var(--c-text-dim); }
+.field__hint { font-size: var(--fs-sm); color: var(--c-text-dim); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.grow { flex: 1 1 0; min-width: 0; }
+.muted { color: var(--c-text-dim); }
+
+/* 狀態（任何元素可加） */
+.is-disabled, :disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+.is-busy { cursor: progress; opacity: .7; pointer-events: none; }
+.is-error { border-color: var(--c-danger) !important; color: var(--c-danger); }
+.is-selected { background: color-mix(in srgb, var(--c-accent) 14%, transparent); border-color: var(--c-accent); }
+
+/* 對話框／toast */
+.dlg { border: 1px solid var(--c-border); border-radius: 8px; padding: 0; min-width: 320px; max-width: min(560px, 92vw);
+  background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-dlg); }
+.dlg::backdrop { background: rgba(0,0,0,.4); }
+.dlg__title { margin: 0; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-lg); font-weight: 600; border-bottom: 1px solid var(--c-border); }
+.dlg__body { padding: var(--sp-4); }
+.dlg__msg { margin: 0 0 var(--sp-3); white-space: pre-wrap; word-break: break-word; }
+.dlg__actions { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--c-border); }
+.toast-host { position: fixed; right: var(--sp-4); bottom: var(--sp-4); z-index: 1000; display: flex; flex-direction: column; gap: var(--sp-2); max-width: min(380px, 90vw); }
+.toast { padding: var(--sp-2) var(--sp-3); border-radius: var(--radius); background: var(--c-surface); border: 1px solid var(--c-border);
+  border-left: 4px solid var(--c-accent); box-shadow: var(--shadow-dlg); word-break: break-word; }
+.toast--info { border-left-color: var(--c-accent); }
+.toast--ok { border-left-color: var(--c-ok); }
+.toast--error { border-left-color: var(--c-danger); }
+
+/* 表格 */
+.table { width: 100%; border-collapse: collapse; background: var(--c-surface); font-size: var(--fs-sm); }
+.table th, .table td { padding: var(--sp-1) var(--sp-2); border-bottom: 1px solid var(--c-border); text-align: left; }
+.table th { background: var(--c-bg); font-weight: 600; position: sticky; top: 0; }
+.table--num td, .table--num th { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.table--num td:first-child, .table--num th:first-child { text-align: left; font-family: var(--font-ui); }
+.table__empty { text-align: center !important; color: var(--c-text-dim); padding: var(--sp-4) !important; }
+.table tr.is-selected td { background: color-mix(in srgb, var(--c-accent) 14%, transparent); }
+
+/* tooltip：任何元素加 data-tip="文字" */
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 900;
+  padding: var(--sp-1) var(--sp-2); background: #222; color: #fff; font-size: var(--fs-sm); border-radius: var(--radius);
+  white-space: nowrap; pointer-events: none; }
+
+/* 離線分析頁骨架。圖表類別 plot plot__canvas plot__overlay split split__handle 由 L4 analysis.css 定義，此處不重複 */
+.analysis { display: grid; grid-template-columns: 240px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "tool tool" "side plot" "side results"; gap: var(--sp-2); height: 100%; min-height: 0; }
+.analysis__toolbar { grid-area: tool; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
+.analysis__side { grid-area: side; overflow: auto; padding: var(--sp-2); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
+.analysis__plot { grid-area: plot; min-width: 0; min-height: 0; background: var(--c-plot-bg); border-radius: var(--radius); }
+.analysis__results { grid-area: results; max-height: 30vh; overflow: auto; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
+.chanbar { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.chip { display: inline-flex; align-items: center; gap: var(--sp-1); height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-sm);
+  border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-surface); cursor: pointer; }
+.chip--selected { border-color: var(--c-accent); background: color-mix(in srgb, var(--c-accent) 14%, transparent); }
+.chip__name { max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip__remove { border: 0; background: none; color: var(--c-text-dim); cursor: pointer; padding: 0 2px; font: inherit; }
+.chip__remove:hover { color: var(--c-danger); }
+
+/* 窄版（約 900 px 以下）：側欄移到圖上方 */
+@media (max-width: 900px) {
+  .analysis { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(240px, 1fr) auto;
+    grid-template-areas: "tool" "side" "plot" "results"; }
+  .analysis__side { max-height: 30vh; }
+  .dlg { min-width: 0; }
+}

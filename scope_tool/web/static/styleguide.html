@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>樣式指南</title><link rel="stylesheet" href="css/app.css"><link rel="stylesheet" href="css/analysis.css">
+<style>body{overflow:auto;padding:16px}section{margin-bottom:24px}h2{font-size:16px;margin:0 0 8px}</style></head>
+<body>
+<section><h2>連線列／分頁</h2>
+<div class="connbar"><select class="select"><option>USB0::...</option></select><input class="input grow" value="192.168.0.10"><button class="btn btn--primary">連線</button><span class="muted">未連線</span></div>
+<div class="tabs"><button class="tab tab--active">截圖</button><button class="tab">波形擷取</button><button class="tab">離線分析</button></div></section>
+<section><h2>按鈕／狀態</h2><div class="row">
+<button class="btn">一般</button><button class="btn btn--primary">主要</button><button class="btn btn--danger">危險</button><button class="btn btn--small">小</button>
+<button class="btn is-disabled">停用</button><button class="btn is-busy">忙碌</button><button class="btn is-selected">選取</button><button class="btn" data-tip="這是 tooltip">懸停看提示</button></div></section>
+<section><h2>表單</h2>
+<div class="field"><label class="field__label">標籤</label><input class="input" value="文字"><span class="field__hint">提示文字</span></div>
+<div class="field"><label class="field__label">錯誤</label><input class="input is-error" value="壞值"></div>
+<div class="row"><select class="select"><option>選項</option></select><label class="check"><input type="checkbox" checked>勾選</label></div></section>
+<section><h2>對話框（dialog）</h2><button class="btn" onclick="document.getElementById('d').showModal()">開啟</button>
+<dialog id="d" class="dlg"><h3 class="dlg__title">標題</h3><div class="dlg__body"><p class="dlg__msg">訊息內容</p></div>
+<div class="dlg__actions"><button class="btn" onclick="d.close()">取消</button><button class="btn btn--primary" onclick="d.close()">確定</button></div></dialog></section>
+<section><h2>Toast</h2><div class="toast-host" style="position:static"><div class="toast toast--info">資訊</div><div class="toast toast--ok">成功</div><div class="toast toast--error">錯誤</div></div></section>
+<section><h2>表格</h2><table class="table table--num"><thead><tr><th>通道</th><th>Vpp</th><th>頻率</th></tr></thead>
+<tbody><tr><td>CH1</td><td>3.30</td><td>1.000 kHz</td></tr><tr class="is-selected"><td>CH2</td><td>1.20</td><td>2.500 kHz</td></tr><tr><td colspan="3" class="table__empty">無資料</td></tr></tbody></table></section>
+<section><h2>分析頁工具列／通道列</h2><div class="analysis__toolbar"><button class="btn btn--small">載入</button><span class="muted">toolbar</span></div>
+<div class="chanbar" style="margin-top:8px"><span class="chip chip--selected"><span class="chip__name" style="color:var(--c-ch1)">CH1</span><button class="chip__remove">×</button></span>
+<span class="chip"><span class="chip__name" style="color:var(--c-ch2)">CH2</span><button class="chip__remove">×</button></span></div></section>
+<section><h2>通道色</h2><div class="row" style="background:var(--c-plot-bg);padding:8px">
+<b style="color:var(--c-ch1)">CH1</b><b style="color:var(--c-ch2)">CH2</b><b style="color:var(--c-ch3)">CH3</b><b style="color:var(--c-ch4)">CH4</b><b style="color:var(--c-ch5)">CH5</b><b style="color:var(--c-ch6)">CH6</b></div></section>
+</body></html>

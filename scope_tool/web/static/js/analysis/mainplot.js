@@ -1,0 +1,156 @@
+// 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
+// 意圖：viewport.intent／channel.shift_intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
+import { DIVS, linear, divTicks, tickLabel, envPixels, drawPixels, nearestDist, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
+import { stepScale, rescale } from "./scales.js";
+
+export const MARGIN = { l: 44, t: 8, r: 10, b: 22 };
+export const layoutRect = (w, h) => ({ l: MARGIN.l, t: MARGIN.t, w: Math.max(1, w - MARGIN.l - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
+/** 顯示格數 → 像素 y（置頂為 +5 格）。 */
+export const divY = (rect, d) => rect.t + (DIVS - d) * rect.h / (2 * DIVS);
+export const yToDiv = (rect, py) => DIVS - (py - rect.t) * (2 * DIVS) / rect.h;
+/** 通道數值 → 像素 y：value/scale + position。 */
+export const valueY = (rect, scale, pos) => (v) => divY(rect, v / scale + pos);
+/** 拖曳平移：像素位移 → 新 view。 */
+export const panView = (v, dpx, rectW) => { const dt = -dpx * (v.t1 - v.t0) / rectW; return { t0: v.t0 + dt, t1: v.t1 + dt }; };
+/** 以 anchor 為中心縮放（factor>1 縮小視野）。 */
+export const zoomView = (v, anchor, f) => ({ t0: anchor - (anchor - v.t0) * f, t1: anchor + (v.t1 - anchor) * f });
+/** Marker 點 → 像素：store.markerResult={mode,points:[{x(顯示時間),y(顯示格數),label}]}；缺值（非有限數）就略過。 */
+export function markerPixels(mr, X, rect) {
+  const out = [];
+  for (const p of mr?.points ?? []) {
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    out.push({ px: X(p.x), py: divY(rect, p.y), label: p.label ?? "" });
+  }
+  return out;
+}
+/** /wave 請求鍵（來源時間 = 顯示時間 − dx）；相同鍵不重抓。 */
+export const waveKey = (name, v, dx, px, gen) => [name, v.t0 - dx, v.t1 - dx, px, gen].join("|");
+
+export function mount(el, ctx) {
+  const { store, bridge, ui } = ctx;
+  const cache = new Map(); // name → {env, key, px}
+  const latest = new Map();
+  let rect = layoutRect(1, 1), drag = null, warned = 0;
+  const cv = createCanvas(el, (w, h) => { rect = layoutRect(w, h); draw(); fetchSoon(); });
+  const { canvas, ctx: g } = cv;
+
+  const Xmap = (v) => linear(v.t0, v.t1, rect.l, rect.l + rect.w);
+
+  function draw() {
+    const [w, h] = cv.size();
+    if (!w || !h) return;
+    const s = store.get(), X = Xmap(s.view), col = plotColors();
+    g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
+    drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v) => ({ p: X(v), label: tickLabel(v, "s") })),
+      Array.from({ length: 2 * DIVS + 1 }, (_, i) => ({ p: divY(rect, DIVS - i), label: String(DIVS - i) })), col);
+    g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
+    for (const c of s.channels) {
+      const e = cache.get(c.name);
+      if (!c.visible || !e) continue;
+      e.px = envPixels(e.env, (t) => X(t + c.time_offset), valueY(rect, c.scale, c.position));
+      drawPixels(g, e.px, c.color);
+    }
+    const cu = s.cursors;
+    g.lineWidth = 1; g.font = "11px sans-serif"; g.textBaseline = "top";
+    for (const [k, color] of [["x1", col.c1], ["x2", col.c2], ["y1", col.c1], ["y2", col.c2]]) {
+      const v = cu[k];
+      if (v === null || v === undefined) continue;
+      g.strokeStyle = g.fillStyle = color; g.setLineDash(k[0] === "y" ? [5, 4] : []);
+      g.beginPath();
+      if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); g.fillText("t" + k[1], x + 3, rect.t + 2); }
+      else { const y = Math.round(divY(rect, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText("v" + k[1], rect.l + 3, y + 2); }
+    }
+    g.fillStyle = g.strokeStyle = col.c1; g.setLineDash([]); g.textBaseline = "bottom";
+    for (const k of markerPixels(s.markerResult, X, rect)) {
+      g.beginPath(); g.arc(k.px, k.py, 4, 0, 2 * Math.PI); g.stroke();
+      if (k.label) g.fillText(k.label, k.px + 6, k.py - 3);
+    }
+    g.restore();
+  }
+
+  function fetchNow() {
+    const s = store.get(), gen = s.file?.gen, px = Math.min(16384, Math.max(2, Math.round(rect.w)));
+    if (gen === undefined || rect.w < 2) return;
+    for (const c of s.channels) {
+      if (!c.visible) continue;
+      const key = waveKey(c.name, s.view, c.time_offset, px, gen);
+      if (cache.get(c.name)?.key === key) continue;
+      if (!latest.has(c.name)) latest.set(c.name, makeLatest());
+      const req = latest.get(c.name).begin();
+      bridge.fetchWave({ ch: c.name, t0: s.view.t0 - c.time_offset, t1: s.view.t1 - c.time_offset, px, gen, signal: req.signal })
+        .then((env) => { if (req.ok()) { cache.set(c.name, { env, key }); draw(); } })
+        .catch((e) => {
+          if (e?.name === "AbortError" || e?.code === "STALE" || !req.ok()) return; // 過期／換檔：正常流程
+          if (Date.now() - warned > 5000) { warned = Date.now(); ui.toast(`讀取波形失敗：${e.message}`, "error"); }
+        });
+    }
+  }
+  const fetchSoon = debounce(fetchNow, 150);
+
+  store.on(["view", "channels", "cursors", "selected", "file", "markerResult"], (_s, keys) => {
+    if (keys.includes("file")) { cache.clear(); latest.forEach((l) => l.cancel()); latest.clear(); }
+    const names = new Set(store.get().channels.map((c) => c.name));
+    for (const k of [...cache.keys()]) if (!names.has(k)) cache.delete(k);
+    draw();
+    if (keys.includes("file")) fetchNow(); else fetchSoon();
+  });
+
+  // ---- 互動 ----
+  const local = (e) => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  function hitCursor(x, y) {
+    const s = store.get(), X = Xmap(s.view);
+    for (const k of ["x1", "x2", "y1", "y2"]) {
+      const v = s.cursors[k];
+      if (v === null || v === undefined) continue;
+      if (Math.abs((k[0] === "x" ? X(v) - x : divY(rect, v) - y)) <= 5) return k;
+    }
+    return null;
+  }
+  function hitChannel(x, y) {
+    const cs = store.get().channels;
+    for (let i = cs.length - 1; i >= 0; i--) {
+      const e = cache.get(cs[i].name);
+      if (cs[i].visible && e?.px && nearestDist(e.px, x, y, 8) < Infinity) return cs[i];
+    }
+    return null;
+  }
+  const inside = (x, y) => x >= rect.l && x <= rect.l + rect.w && y >= rect.t && y <= rect.t + rect.h;
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    const [x, y] = local(e), s = store.get();
+    const base = { x, y, view: s.view };
+    const which = hitCursor(x, y), ch = which ? null : hitChannel(x, y);
+    drag = which ? { ...base, type: "cursor", which }
+      : ch ? { ...base, type: "chan", ch, shift: e.shiftKey }
+      : inside(x, y) ? { ...base, type: "pan" } : null;
+    if (drag) canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    const [x, y] = local(e);
+    if (!drag) { canvas.style.cursor = hitCursor(x, y) ? "grab" : hitChannel(x, y) ? "move" : "default"; return; }
+    const d = drag, span = d.view.t1 - d.view.t0;
+    if (d.type === "pan") store.command("viewport.intent", panView(d.view, x - d.x, rect.w));
+    else if (d.type === "chan" && d.shift) store.command("channel.shift_intent", { name: d.ch.name, time_offset: d.ch.time_offset + (x - d.x) * span / rect.w });
+    else if (d.type === "chan") store.command("channel.scale_intent", { name: d.ch.name, position: d.ch.position - (y - d.y) * 2 * DIVS / rect.h });
+    else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? Xmap(d.view).inv(x) : yToDiv(rect, y) });
+  });
+  const end = () => { drag = null; };
+  canvas.addEventListener("pointerup", end);
+  canvas.addEventListener("pointercancel", end);
+  canvas.addEventListener("dblclick", () => store.command("view.reset"));
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const [x, y] = local(e), up = e.deltaY > 0, s = store.get(), ch = hitChannel(x, y);
+    if (ch) { // 命中曲線：換 V/格（縮小一律可以；放大前確認不超出畫面，同 Qt）
+      const next = stepScale(ch.scale, ch.unit, up);
+      if (next === ch.scale) return;
+      const [pos, fits] = rescale(ch.vmin ?? 0, ch.vmax ?? 0, ch.scale, ch.position, next);
+      if (up || fits || ch.vmin == null) store.command("channel.scale_intent", { name: ch.name, scale: next, position: pos });
+      return;
+    }
+    store.command("viewport.intent", zoomView(s.view, Xmap(s.view).inv(Math.min(Math.max(x, rect.l), rect.l + rect.w)), up ? 1.25 : 0.8));
+  }, { passive: false });
+  draw();
+  return { draw, dispose() { cv.dispose(); fetchSoon.cancel(); } };
+}
