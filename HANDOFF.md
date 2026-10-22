@@ -148,3 +148,7 @@
 ## 溝通
 
 繁體中文，直白，不長篇大論。沒真機的路徑要說清楚只有紙上驗證。改程式交 Codex，Opus 審。
+
+## 資料夾整理（2026-10-22）
+- `N8900A/InfScopeDLL_decompiled/` 與 `N8900A/Keysight Infiniium Offline Oscilloscope Analysis Software Help/` 已壓成同名 `.tar.gz`（N8900A 被 gitignore，無版本備份）；文件中引用這兩個路徑時，需先 `tar -xzf` 解開。
+- 開發計畫 `PLAN.md`（T1~T11 皆完成）移至 `docs/archive/PLAN.md.gz`；`zcat` 可讀。
