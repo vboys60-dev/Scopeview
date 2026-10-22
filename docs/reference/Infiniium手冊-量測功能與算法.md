@@ -3,7 +3,7 @@
 - 來源：`N8900A/Keysight Infiniium Offline Oscilloscope Analysis Software Help/contents/`（檔名即主題）
 - 欄位：名稱｜分類｜定義／公式｜前提或限制｜來源檔名（皆為 `.htm`，省略副檔名以外的路徑前綴）
 - 公式來源：手冊中多數公式以 GIF／JPG／PNG 圖片呈現（位於 contents/images/），已逐一以影像讀取並轉寫；轉寫結果註明「（圖）」。
-- 已複查（2026-10-22）：Phase、Vrms、Overshoot、Preshoot 等公式圖已逐張核對；錯誤與補充見文末「十、修訂紀錄」。
+- 已複查（2026-10-22）：Phase、Vrms、Overshoot、Preshoot 等公式圖已核對；另完成 Codex 26 項複查，逐項結果與公式圖疑義見文末「十、修訂紀錄／Codex 複查」。
 - 「手冊未載明」表示手冊文字與公式圖都沒有寫出，不做推測。
 - 手冊為 Offline 版說明，部分選項（如 PAM、EZJIT、Optical）依授權而定。
 
@@ -36,10 +36,10 @@
 | Burst Interval | 時間 | 兩次「穿越上或下閾值」的 burst 活動之間的閒置區（idle region）；idle time 指定被視為一個 interval 所需的最小閒置時間 | 手冊僅此一段文字，無公式與圖；與 Burst Width 搭配 | Burst_Interval |
 | Burst Period | 時間 | 第一個 burst 起點至下一個 burst 起點之間的時間 | 可指定 idle time 以確保兩 burst 最小間距 | Burst_Period |
 | Burst Width | 時間 | 第一個穿越下或上閾值的邊緣 → 最後一個穿越閾值的邊緣之間的時間 | burst 需前後各有至少 idle time 的「不超過上下閾值」區段才被判定 | Burst_Width |
-| Hold Time | 時間（資料） | 時脈來源中閾值 → 資料來源中閾值的時間 | 同樣依 Measure All Edges（自動開啟） | Hold_Time |
-| Setup Time | 時間（資料） | 資料來源中閾值 → 時脈來源中閾值的時間 | 同上 | Setup_Time |
+| Hold Time | 時間（資料） | 時脈來源中閾值 → 資料來源中閾值的時間 | 需 Measure All Edges（自動開啟）；非 zoom 時涵蓋兩來源所有週期（含視窗外）。Hold_Time 的 zoom 句寫作 setup time（疑為筆誤），其是否同樣限定 delayed window：待確認；image94.gif 標出時脈邊緣前 Setup 與後 Hold | Hold_Time（圖 image94.gif） |
+| Setup Time | 時間（資料） | 資料來源中閾值 → 時脈來源中閾值的時間 | 需 Measure All Edges（自動開啟）；非 zoom 時涵蓋兩來源所有週期（含視窗外），zoom 時限 delayed window 內週期；image94.gif 為時序示意，沒有正式代數式 | Setup_Time（圖 image94.gif） |
 | Slew Rate | 時間／電壓（混合） | Slew Rate = ΔV / ΔT；ΔV = 上閾值電壓 − 下閾值電壓；ΔT = 上閾值時刻 − 下閾值時刻（圖：ΔV 與 ΔT 定義） | 至少 4 個取樣點；Measure All Edges 開啟時選 Rising／Falling／Both | Slew_Rate（圖 image113） |
-| Area | 時間／電壓（混合） | 波形（或選定的一個週期）與波形接地（waveform ground）之間的面積；公式與積分方式手冊未載明（已複查 Area.htm、Measurements_Mixed.htm，皆無公式圖） | 可選單一週期或整個螢幕；可用 Subtract 運算子先去除偏移；均勻次取樣 | Area |
+| Area | 時間／電壓（混合） | 波形（或選定的一個週期）與波形接地（waveform ground）之間的面積；公式與積分方式手冊未載明（已複查 Area.htm、Measurements_Mixed.htm，皆無公式圖）；Integrate 數學函數（Integrate.htm）有累加式 F(0)=0、F(i)=F(i)+d(i)（原文如此，疑為 F(i−1) 筆誤）與 volt-seconds 單位，但屬 math function，手冊未說 Area 量測是否同一算法 | 可選單一週期或整個螢幕；可用 Subtract 運算子先去除偏移；均勻次取樣 | Area |
 
 ---
 
@@ -50,14 +50,14 @@
 | Vmax (V max) | 電壓 | 螢幕上的絕對最大電壓（由量測直方圖／資料記錄決定） | 位置無關，使用整個螢幕；Color Grade 來源精度較低 | Maximum_Voltage；Calculating_Min_and_Max |
 | Vmin (V min) | 電壓 | 螢幕上的絕對最小電壓 | 同 Vmax | Minimum_Voltage；Calculating_Min_and_Max |
 | Vp-p (Peak-to-Peak Voltage) | 電壓 | Vp-p = Vmax − Vmin | 位置無關 | Peak-to-Peak_Voltage |
-| Vtop (Top Voltage) | 電壓 | 量測直方圖上半部（最高 40%）的峰值；演算法依波形型態在「Vmax」與「直方圖峰值」間選擇 | 位置無關；方形波取直方圖峰、三角波取 Vmax（判斷準則細節見 A-3） | Top_Voltage |
-| Vbase (Base Voltage) | 電壓 | 量測直方圖下半部（最低 40%）的峰值；同 Vtop 的選擇邏輯 | 位置無關 | Base_Voltage |
+| Vtop (Top Voltage) | 電壓 | 量測直方圖最高 40% 區段內出現次數最多的電壓；該峰出現次數若 < 總次數 5%，則取絕對 Vmax（5% 門檻僅見 Calculating_Top_and_Base，Top_Voltage 本頁無；該頁計數句寫「top half of the histogram」，與「top 40 percent」措辭不一致） | 位置無關；方形波取直方圖峰、三角波取 Vmax（判斷準則細節見 A-3） | Top_Voltage；Calculating_Top_and_Base |
+| Vbase (Base Voltage) | 電壓 | 量測直方圖最低 40% 區段內出現次數最多的電壓；該峰出現次數若 < 總次數 5%，則取絕對 Vmin | 位置無關 | Base_Voltage；Calculating_Top_and_Base |
 | Vamp (Amplitude, V amptd) | 電壓 | Vamp = Vtop − Vbase（手冊逐字載明；Vtop＝統計最高電平，Vbase＝統計最低電平） | 受閾值（Top/Base 定義）設定影響；Amplitude.htm 本身僅「波形顯示的振幅」＋圖（image95：Vamp 標於 Top 與 Base 之間） | Making_Voltage_Measurements；Calculating_Top_and_Base；Amplitude |
 | Vavg (Average Voltage) | 電壓 | 波形資料的平均電壓；Making_Voltage_Measurements 寫「Vavg = average voltage of the first cycle of the signal」；數學式手冊未載明（無公式圖） | 可選單一週期（自最近邊緣或觸發參考點起算）或整個螢幕；採「均勻次取樣」以加速 | Average_Voltage；Making_Voltage_Measurements |
 | V RMS | 電壓 | DC：DCVrms = √( Σᵢ₌₁ⁿ v(i)² / n )（圖）；AC：ACVrms = √( Σᵢ₌₁ⁿ [v(i) − Vavg]² / n )（圖）；已核對 image100、image101 無誤 | n＝螢幕上的取樣點數（非記憶體深度）；可選單一週期或整個螢幕；可選單位 Volts 或 dBm；均勻次取樣 | RMS_Voltage（公式圖 image100、image101） |
 | Overshoot | 電壓（百分比） | 上升邊緣：Overshoot = 100 × (local maximum − top) / (top − base)（圖）；下降邊緣：Overshoot = 100 × (base − local minimum) / (top − base)（圖） | 公式圖 image109、image111 已核對無誤；Making_Voltage_Measurements 另有未乘 100／(top−base) 的簡式：首邊緣為上升 → overshoot = local max − top，否則 base − local min。過衝區間：上升邊緣左界＝上升邊緣穿越上閾值處、右界＝頂部中心點；下降邊緣左界＝穿越下閾值處、右界＝底部中心點；依 Measure All Edges 設定上升／下降 | Overshoot |
 | Preshoot | 電壓（百分比） | 上升邊緣：Preshoot = 100 × (base − local minimum) / (top − base)（圖）；下降邊緣：Preshoot = 100 × (local maximum − top) / (top − base)（圖） | 公式圖 image105、image107 已核對無誤（Making_Voltage_Measurements 簡式：首邊緣下降 → base − local min，否則 local max − top）。區間：上升邊緣左界＝底部中心點、右界＝穿越下閾值處；下降邊緣左界＝頂部中心點、右界＝穿越上閾值處 | Preshoot |
-| Undershoot | 電壓（百分比） | 正脈波：Undershoot(%) = (Top − localMinimum) / (Top − Base)，若 localMinimum < Top；否則 0。負脈波：Undershoot(%) = (localMaximum − Base) / (Top − Base)，若 localMaximum > Base；否則 0（圖 eqn_Undershoot_Positive_Pulse.jpg、eqn_Undershoot_Negative_Pulse.jpg；圖中式子無 ×100，單位標示為 %，是否已乘 100：待確認）。localMinimum 取於上升邊緣遠端（distal，上）與下降邊緣遠端（上）之間；localMaximum 取於下降邊緣近端（mesial，下）與上升邊緣近端（下）之間 | 只有在波形已達 ≥Top（正脈波）或 ≤Base（負脈波）後才量測；需至少兩個邊緣；多個時取最大幅度；以脈波極性而非單一邊緣量測 | Undershoot（圖 eqn_Undershoot_*.jpg） |
+| Undershoot | 電壓（百分比） | 正脈波：Undershoot(%) = (Top − localMinimum) / (Top − Base)，若 localMinimum < Top；否則 0。負脈波：Undershoot(%) = (localMaximum − Base) / (Top − Base)，若 localMaximum > Base；否則 0（圖 eqn_Undershoot_Positive_Pulse.jpg、eqn_Undershoot_Negative_Pulse.jpg；圖中式子無 ×100，單位標示為 %，是否已乘 100：待確認）。localMinimum 取於上升邊緣遠端（distal，上）與下降邊緣遠端（上）之間；localMaximum 取於下降邊緣近端（mesial，下）與上升邊緣近端（下）之間 | 只有在波形已達 ≥Top（正脈波）或 ≤Base（負脈波）後才量測；需至少兩個邊緣；多個時取最大幅度；以脈波極性而非單一邊緣量測 | Undershoot（圖 eqn_Undershoot_Positive_Pulse.jpg、eqn_Undershoot_Negative_Pulse.jpg） |
 | Vovershoot | 電壓 | 同 Overshoot 的定義，但回傳 overshoot 的「局部電壓」而非百分比 | 同 Overshoot | Vovershoot |
 | Vpreshoot | 電壓 | 同 Preshoot 的定義，但回傳 preshoot 的「局部電壓」而非百分比 | 同 Preshoot | Vpreshoot |
 | Vundershoot | 電壓 | 同 Undershoot 的定義，但回傳 undershoot 的 localMinimum 或 localMaximum 電壓值 | 同 Undershoot | Vundershoot |
@@ -78,8 +78,8 @@
 | Manual (X only) | Marker 模式 | 一對可自由拖曳的水平 marker（X 方向） | 解析度＝顯示解析度；不追蹤內部取樣點 | dlg_MarkerSetup；GS_Markers |
 | Manual (Y only) | Marker 模式 | 一對可自由拖曳的垂直 marker（Y 方向） | 數位訊號不可用 | dlg_MarkerSetup |
 | Manual (X and Y) | Marker 模式 | X、Y 各一對 marker | 數位訊號不可用 | dlg_MarkerSetup |
-| Track Waveforms | Marker 模式 | 一對可拖曳的水平 marker；每個水平 marker 同時標示波形在該時刻的垂直值（不可拖曳垂直方向） | 可偏移到螢幕外 ±1 秒或一個螢幕寬（取較大者）以量測長時延 | dlg_MarkerSetup |
-| Track Measurements | Marker 模式 | 顯示自動量測實際使用的位置（不可移動） | 未選自動量測時不顯示 | dlg_MarkerSetup；GS_Markers |
+| Track Waveforms | Marker 模式 | 一對可拖曳的水平 marker；每個水平 marker 同時標示波形在該時刻的垂直值（不可拖曳垂直方向） | 以觸發點為基準，可放置於 ±1 秒或一個完整螢幕寬（取較大者）範圍；兩 marker 即使都在螢幕外仍可量測差值 | dlg_MarkerSetup |
+| Track Measurements | Marker 模式 | 顯示自動量測實際使用的位置（不可移動） | 追蹤最近新增的自動量測；未選自動量測時不顯示 | dlg_MarkerSetup；GS_Markers |
 | Track RF | Marker 模式 | 在 FFT 波形上顯示頻率與該點振幅；可設 Peak Level 作為左右跳到下一峰值的門檻 | 低於 Peak Level 的峰不計入 | dlg_MarkerSetup |
 | ΔX | 結果欄位 | 水平 marker 與其配對 marker 的差 | 配對由 "Delta To" 欄指定 | Marker_Results |
 | 1/ΔX | 結果欄位 | ΔX 的倒數（用於兩 marker 間的頻率）；Versus 波形不計算 | — | Marker_Results |
@@ -97,15 +97,16 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 |---|---|---|---|---|
 | FFT 計算點數 | FFT | 取「不小於波形視窗取樣點數的最小 2 的冪次」；例：1000 點 → 1024 點；不足時於前後補零 | 只計算視窗內點，除非 Measure All Edges／Analyze All Data | FFT_Theory；FFT_Magnitude；Measurements_FFT |
 | FFT 頻率範圍 | FFT | 0 Hz 到 Fs/2（Fs＝取樣率）；N 個時域點產生 N/2 個頻域點（bin） | Nyquist＝Fs/2；高於 Nyquist 會混疊（aliasing） | FFT_Theory（圖 image115–117） |
-| FFT Resolution（RBW） | FFT | Rectangular 窗：RBW ＝ 取樣率 / 記憶體深度（＝Fs/N）；其他窗需乘上 Normalized Equivalent Noise Bandwidth（ENBW）係數 | ENBW 數值：手冊未載明 | FFT_Magnitude；Measurements_FFT；FFT_Spectrum_Control |
-| FFT Magnitude | FFT | 時域 → 頻域的振幅譜，單位可選 dBm、dBmV、dBµV、Vrms、Watt | 對數單位時零參考在頂部，線性單位時零參考在底部；可設 Reference Impedance（Auto：單端 50 Ω、差動 100 Ω、共模 25 Ω；手動 10–200 Ω） | FFT_Magnitude；FFT_Magnitude_Vertical_Units |
-| FFT Phase | FFT | 頻域相位譜；相位參考為 Trigger（T=0）或螢幕水平零點（Entire Display），可設 Reference Time Delay | 相位公式：手冊未載明 | FFT_Phase |
+| FFT Resolution（RBW） | FFT | Rectangular 窗：RBW ＝ 取樣率 / 記憶體深度（＝Fs/N）；其他窗需乘上 Normalized Equivalent Noise Bandwidth（ENBW）係數；補零後點數稱 Effective Memory Depth（Measurements_FFT）；Measurements_FFT 圖 image114.gif 為 FFT Resolution = Sample Rate / Effective Memory Depth；FFT_Theory 圖 image120.gif 為 Fs/N | ENBW 數值：手冊未載明 | FFT_Magnitude；Measurements_FFT；FFT_Spectrum_Control；FFT_Theory（圖 image120.gif） |
+| FFT Magnitude | FFT | 時域 → 頻域的振幅譜，單位可選 dBm、dBmV、dBµV、Vrms、Watt | 對數單位時零參考在頂部，線性單位時零參考在底部；可設 Reference Impedance（Auto：單端 50 Ω、差動 100 Ω、共模 25 Ω；手動 10–200 Ω）；通道 Differential／Common Mode 設定優先於偵測到的探棒類型，高阻抗探棒不支援共模；math／memory 等其他來源於 Auto 時假設 50 Ω | FFT_Magnitude；FFT_Magnitude_Vertical_Units |
+| FFT Phase | FFT | 頻域相位譜；相位參考為 Trigger（T=0）或螢幕水平零點（Entire Display），可設 Reference Time Delay | 相位公式與解纏繞方式：手冊未載明；控制圖顯示垂直刻度為度（°），Reference Time Delay 為秒（s），圖示設定值不視為預設值 | FFT_Phase（圖 FFT_Phase_controls.png） |
 | Power Spectral Density (PSD，數學函數) | FFT | 每 Hz 功率：FFT bin 功率 ÷ RBW；單位 dBm/Hz、Watt/Hz、或 V/√Hz（V/√Hz 為其平方根，稱 ASD） | 適合看雜訊底噪；FFT Magnitude 的雜訊功率與 bin 寬度有關 | Power_Spectral_Density；FFT_Power_Spectral_Density |
 | FFT Power Spectral Density（量測） | FFT 量測 | 量測指定頻帶內的 FFT 功率並歸一化到 1 Hz；可同時用多個量測量不同頻帶 | 參數：Center Frequency、Measurement Bandwidth；與上列 PSD 數學函數是不同項目（原稿曾混為一談） | FFT_Power_Spectral_Density |
 | FFT Freq | FFT 量測 | 量測 FFT 上某峰的頻率 | 峰定義：Peak Level（預設 −40 dBm）與 Peak 1（從左數第幾個峰）；只計高於 Peak Level 的峰 | FFT_Freq |
+| FFT Peak Annotation | FFT 顯示 | 標註高於 Peak Level 的前 N 個峰，N 由 Max Peak Count 指定；Peak Sort 可選 Decreasing Magnitude、Increasing Frequency、Decreasing Frequency、Increasing Magnitude，依所選排序編號 | 結果顯示於 FFT Peaks 視窗；同值峰的次序：手冊未載明 | FFT_Magnitude |
 | FFT Δfreq | FFT 量測 | 兩個峰之間的頻率差（Peak 1、Peak 2） | 同上 | FFT_Delta_Freq |
 | FFT Δmag | FFT 量測 | 兩個峰之間的振幅差 | 同上 | FFT_Delta_Mag |
-| FFT Channel Power | FFT 量測 | dBm/dBmV/dBµV 單位：P_ch = 10·log₁₀( (B_s / RBW)·(1/N)·Σᵢ₌₁ᴺ 10^(P_i/10) )（圖）；Watt 單位：P_ch = (B_s / RBW)·(1/N)·Σᵢ₌₁ᴺ P_i（圖）；Vrms 先換算為 Watt | B_s＝頻帶寬度（Hz）；頻帶邊界不對齊 bin，首末點以線性內插 | FFT_Channel_Power（圖 eqn_power_in_the_channel*.jpg） |
+| FFT Channel Power | FFT 量測 | dBm/dBmV/dBµV 單位：P_ch = 10·log₁₀( (B_s / RBW)·(1/N)·Σᵢ₌₁ᴺ 10^(P_i/10) )（圖）；Watt 單位：P_ch = (B_s / RBW)·(1/N)·Σᵢ₌₁ᴺ P_i（圖）；Vrms 先換算為 Watt；對數單位式中的 P_i 依手冊為 dBm 的功率樣本，P_ch 為 dBm | B_s＝頻帶寬度（Hz）；頻帶邊界不對齊 bin，首末點以線性內插 | FFT_Channel_Power（圖 eqn_power_in_the_channel.jpg、eqn_power_in_the_channel_W.jpg） |
 | FFT Occupied Bandwidth | FFT 量測 | 量測包含螢幕上 FFT 指定百分比功率的頻率範圍 | 百分比由 Occupied Bandwidth Percent 設定；計算方法（累加方式、邊界內插）：手冊未載明 | FFT_Occupied_Bandwidth |
 | Total Harmonic Distortion (THD) | FFT 量測 | THD = 100 × √(X₂² + X₃² + Xₙ² + …) / X₁（圖）；Xₙ＝第 n 次諧波電壓或電流，X₁＝基頻值 | 基頻可 Find Peak（依 Peak Level 與 Peak 1）或手動輸入；僅量測螢幕上可見的諧波 | Total_Harmonic_Distortion（圖 THD.png） |
 | Spectrum Control | FFT 設定 | 以「data to analyze」方塊選取部分波形做 FFT；RBW 模式 Automatic 時以 Span:RBW 比值設定；調整 RBW 會自動改變記憶體深度 | 僅適用類比輸入通道（不適用 waveform memory 或 math 來源）；需 Analog Memory Depth 為 Automatic；Fast Plot 強制關閉 | FFT_Spectrum_Control |
@@ -115,7 +116,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 | 視窗：Hamming | 視窗函數 | 「升餘弦（raised cosine）」函數，與 Hanning 同型但係數不同；頻率解析度佳，適合近距離正弦；振幅精度較差 | 係數數值：手冊未載明（FFT_Theory 僅一句話，無圖無式） | FFT_Theory；FFT_Magnitude；FFT_Phase |
 | 視窗：Flattop | 視窗函數 | 頻域主瓣較寬且平坦；振幅精度佳，頻率解析度較差 | 手冊建議用於最佳振幅精度 | FFT_Theory；FFT_Magnitude |
 | 視窗：Blackman-Harris | 視窗函數 | 主瓣不太寬（尚可辨頻）、旁瓣下降 90 dB；適合含遠處強干擾的訊號，可當通用窗 | 缺點：peak 寬；係數：手冊未載明 | FFT_Theory |
-| FFT 單位換算（dBm↔V↔P） | 單位 | dBm = 10·log(P_in / 1 mW)（圖）；dBm（50 Ω）= 20·log(V_peak / 0.316228 V)（圖）；V_peak = V_rms/0.707107 = √(P·R)/0.707107（圖）；1 mW@50 Ω 之 V_peak＝0.316228 V（圖）；dBV = dBm 值 − 13.01 dB（圖） | 使用手冊指定之 Reference Impedance 取代 50 Ω；電壓量測不強制需要 Reference Impedance | FFT_Theory_Computation_of_dBm（image132–134）；FFT_Theory_Computation_of_dBV（image135） |
+| FFT 單位換算（dBm↔V↔P） | 單位 | dBm = 10·log(P_in / 1 mW)（圖）；dBm（50 Ω）= 20·log(V_peak / 0.316228 V)（圖）；V_peak = V_rms/0.707107 = √(P·R)/0.707107（圖）；1 mW@50 Ω 之 V_peak＝0.316228 V（圖）；dBV = dBm 值 − 13.01 dB（手冊未附阻抗條件；依 image135 內 0.316228 V＝50 Ω 下 1 mW 推得僅適用 50 Ω，屬推論） | 使用手冊指定之 Reference Impedance 取代 50 Ω；電壓量測不強制需要 Reference Impedance | FFT_Theory_Computation_of_dBm（image132–134）；FFT_Theory_Computation_of_dBV（image135） |
 | 單位換算表 | 單位 | 見下方「FFT 單位換算表（完整）」（已回原 htm 與 eqn_*.png 逐格核對） | Z＝參考阻抗；忽略失配與插入損耗；dB 只表示功率比 | FFT_Magnitude_Vertical_Units |
 | 阻抗換算 | 單位 | dBmV 在 Z₁ 轉換至 Z₂ 之修正量 ＝ 10·log(Z₂/Z₁)（圖）；例：42 dBmV（50 Ω）→ 75 Ω 為 +1.76 dB，得 43.76 dBmV（75 Ω） | 僅適用於同一系統內功率與電壓間的換算 | FFT_Magnitude_Vertical_Units（圖 eqn_dBmV_impedance_conversion.png） |
 
@@ -126,11 +127,11 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 |---|---|---|---|---|---|
 | Volts, V | V | V²/Z（圖 eqn_V_to_P） | 10·log[V²/(10⁻³·Z)]（圖 eqn_V_to_dBm） | 20·log[V/10⁻³]（圖 eqn_V_to_dBmV） | 20·log[V/10⁻⁶]（圖 eqn_V_to_dBuV） |
 | Watts, P | √(P·Z)（圖 eqn_P_to_V） | P | 10·log[P/10⁻³]（圖 eqn_P_to_dBm） | 20·log[√(Z·P)/10⁻³]（圖 eqn_P_to_dBmV） | 20·log[√(Z·P)/10⁻⁶]（圖 eqn_P_to_dBuV） |
-| dBm | √( log⁻¹(dBm/10) · Z · 10⁻³ )（圖 eqn_dBm_to_V） | log⁻¹(dBm/10) · Z · 10⁻³（圖 eqn_dBm_to_P；式中 Z 照圖，手冊未解釋，與 P=10⁻³·10^(dBm/10) 不一致處待確認） | dBm | dBm + 30 + 10·log Z | dBm + 90 + 10·log Z |
+| dBm | √( log⁻¹(dBm/10) · Z · 10⁻³ )（圖 eqn_dBm_to_V） | log⁻¹(dBm/10) · Z · 10⁻³（圖 eqn_dBm_to_P.png；式中 Z 照圖，手冊未解釋，與 P=10⁻³·10^(dBm/10) 不一致處待確認） | dBm | dBm + 30 + 10·log Z | dBm + 90 + 10·log Z |
 | dBmV | log⁻¹[dBmV/20 − 3]（圖 eqn_dBmV_to_V） | (1/Z)·log⁻¹[dBmV/10 − 6]（圖 eqn_dBmV_to_P） | dBmV − 30 − 10·log Z | dBmV | dBmV + 60 |
 | dBµV | log⁻¹[dBµV/20 − 6]（圖 eqn_dBuV_to_V） | (1/Z)·log⁻¹[dBµV/10 − 12]（圖 eqn_dBuV_to_P） | dBµV − 90 − 10·log Z | dBµV − 60 | dBµV |
 
-- 備註：dBm 列之 P 欄（圖 eqn_dBm_to_P）圖中為「log⁻¹(dBm/10)·Z·10⁻³」，物理上應為 10⁻³·log⁻¹(dBm/10)（不含 Z）；此處照圖轉寫，疑似手冊筆誤，標「待確認」，未自行更正。
+- 備註：dBm 列之 P 欄（圖 eqn_dBm_to_P）圖中為「log⁻¹(dBm/10)·Z·10⁻³」，與同頁 eqn_P_to_dBm.png 的 P→dBm 式及 FFT_Theory_Computation_of_dBm.htm 的 image132.gif 定義不一致；白底合成讀圖已確認 Z 確實存在，並非透明背景造成誤讀。照圖保留；是否為手冊筆誤、軟體實際採何式：待確認。
 - 文字說明：3 dB 增減＝功率加倍／減半；dBm、dBµV 分別為高於 1 mW、1 µV 之 dB 數（FFT_Magnitude_Vertical_Units）。
 - 預設垂直單位為 dBm。對數單位（dBm、dBmV、dBµV）零參考在格線頂端；線性單位（Vrms、Watt）在底端（FFT_Magnitude）。
 
@@ -138,7 +139,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 - 手冊文字：Hanning＝「平滑歸零」；Flattop＝振幅精度；Rectangular＝無窗；Blackman-Harris＝旁瓣約 −90 dB；Hamming＝升餘弦、係數不同。
 - 已複查 FFT_Theory.htm（含 image115–131）、FFT_Magnitude.htm、FFT_Phase.htm、FFT_Spectrum_Control.htm、Measurements_FFT.htm、Power_Spectral_Density.htm，並全檔搜尋 ENBW／equivalent noise／scalloping／coefficient：
   - 手冊**未載明**各視窗的係數或數學式、ENBW 數值、scalloping loss、最高旁瓣位準（僅 Blackman-Harris「旁瓣下降 90 dB」）；僅在 RBW 敘述中寫「其他視窗要套用 Normalized Equivalent Noise Bandwidth factor」（FFT_Magnitude、FFT_Spectrum_Control、Measurements_FFT、FFT_Phase、Power_Spectral_Density）。
-  - FFT_Theory 的 image120–131 為時域／頻域示意圖，非公式（已讀 image115、117、122、127 確認：image115＝傅立葉積分式 V(f)=∫v(t)e^(−j2πft)dt；image117＝「0 Hz to Fs/2」）。
+  - FFT_Theory.htm 圖 image120.gif 為矩形窗解析度 Fs/N，image121.gif 為 Nyquist 頻率 Fs/2；image122–131.gif 為重複記錄、洩漏與加窗的時域／頻域示意圖，不含視窗係數式。image115.gif 為傅立葉積分式 V(f)=∫v(t)e^(−j2πft)dt；image117.gif 為「0 Hz to Fs/2」。
   - 選窗建議（FFT_Theory 表）：Hanning＝頻率解析度佳、適合正弦、振幅精度較差；Hamming＝頻率解析度佳、適合鄰近正弦、振幅精度較差；Flattop＝振幅精度佳、頻率解析度較差；Rectangular＝頻率解析度佳、自窗波形振幅精度佳、可能洩漏；Blackman-Harris＝適合遠處強干擾、通用、主峰寬。Hanning 或 Hamming 求最佳頻率精度、Flattop 求最佳振幅精度、Rectangular 用於單次暫態或整數週期訊號（FFT_Magnitude）。
   - FFT 頻率精度＝(1) bin 數限制：量測精度為 ±半個 bin（bin 間距＝時間記錄長度的倒數）＋(2) 取樣時脈振盪器精度（Measurements_FFT）。
   - 擷取建議：Real Time 取樣模式、關閉 sin(x)/x 內插、垂直靈敏度使訊號近滿幅但不截波（Measurements_FFT）。
@@ -156,7 +157,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 | Custom: threshold ± hysteresis | 閾值 | Upper ＝ Mid + Hysteresis；Lower ＝ Mid − Hysteresis（伏特） | Rise/Fall 不可用；抖動量測建議 Mid 在來源 50%、Hysteresis 約為振幅 5% | dlg_MeasurementThreshold |
 | Auto set thresholds | 閾值 | Mid ＝ (Vmax + Vmin) / 2；Hysteresis ＝ ±0.05 × (Vmax − Vmin) | 按鈕自動設定 | dlg_MeasurementThreshold |
 | Snap to 0 | 閾值 | 閾值在 ±10 mV 內時移到 0 V | 差動訊號適用 | dlg_MeasurementThreshold |
-| Top/Base：Standard（預設） | Top/Base | 直方圖最高 40% 找 Top、最低 40% 找 Base；中央 20% 不掃描；若某一端出現次數 < 總數 5% 則取絕對 Max／Min | 統計上資訊不足時自動改用 Min、Max | Calculating_Top_and_Base；dlg_MeasurementThreshold |
+| Top/Base：Standard（預設） | Top/Base | 直方圖最高 40% 找 Top、最低 40% 找 Base；中央 20% 不掃描；若該端直方圖峰的出現次數 < 總數 5% 則取絕對 Max／Min | 統計上資訊不足時自動改用 Min、Max | Calculating_Top_and_Base；dlg_MeasurementThreshold |
 | Top/Base：Histogram | Top/Base | 依直方圖峰值（不考慮統計有效性） | 適用於雙峰直方圖；中央 20% 仍不掃描 | dlg_MeasurementThreshold |
 | Top/Base：Min, Max | Top/Base | Top ＝ 最大值，Base ＝ 最小值 | 資訊不足時的預設 | dlg_MeasurementThreshold |
 | Top/Base：Custom | Top/Base | 以伏特指定 Top／Base（不允許 Base 高於 Top） | — | dlg_MeasurementThreshold |
@@ -227,7 +228,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 |---|---|---|---|
 | Eye Q-Factor | Q = (V_top − V_base) / (σ_top + σ_base)（圖 image214.gif）；噪聲越大 Q 越低 | Vtop／Vbase／σ 取自眼圖資料中間 20% 垂直切片（40%–60% 位置）的垂直直方圖；資料量不足時數值變動大 | Eye_Q-Factor |
 | Eye Crossing % | Crossing % = 100 × (V_crossing − V_base) / (V_top − V_base)（圖 image207.gif）；理想為 50% | V_crossing＝交越點最常出現的垂直位置：先以整個畫面的水平直方圖定交越時間，再以窄垂直直方圖定 V_crossing；Vtop／Vbase 同樣取 40–60% 切片 | Eye_Crossing |
-| Eye Height | 兩種演算法：Use Measured Data（在 Eye Window 內量測，回報最小眼高）；Extrapolate Using Standard Deviation：Eye Height = (V_top − 3σ_top) − (V_base + 3σ_base)（圖 image210.gif） | Eye Window Start／Stop 預設 40%／60%（中間 20%）；另有 Eye Height Location（含 Find Eye Opening 等；其他選項細節未讀） | Eye_Height |
+| Eye Height | 兩種演算法：Use Measured Data（在 Eye Window 內量測，回報最小眼高）；Extrapolate Using Standard Deviation：Eye Height = (V_top − 3σ_top) − (V_base + 3σ_base)（圖 image210.gif） | Eye Window Start／Stop 預設 40%／60%（中間 20%）；Eye Height Location：Find Eye Opening 使用 Start／Stop 視窗；At Recovered Clock Location 在復原時脈邊緣位置量測，Eye Window Width 指定以該位置為中心的 UI 百分比寬度，0% 僅量該位置 | Eye_Height（圖 image210.gif；Location 依文字控制說明） |
 | Eye Width | Use Measured Data（在交越點之間量測，回報最小眼寬）；Extrapolate：Eye Width = (t_crossing2 − 3σ_crossing2) − (t_crossing1 + 3σ_crossing1)（圖 image211.gif） | 水平直方圖取自 Vtop 與 Vbase 之間的資料；Eye Width Threshold：Automatic（交越處最寬）或 Use Measurement Threshold | Eye_Width |
 | Eye Jitter | RMS：Jitter RMS = 1·σ_crossing（圖 image212.gif）；p-p：Jitter p-p = 6·σ_crossing（圖 image213.gif） | 以水平時間直方圖迭代縮窄視窗定交越點；單位可選秒或 UI（非 Real-Time Eye 不能用 UI） | Eye_Jitter |
 | Eye Duty Cycle Distortion | 時間：DCD = \|t_rising50% − t_falling50%\|（圖 image208.gif）；百分比：DCD% = 100 × \|t_rising50% − t_falling50%\| / (t_crossing2 − t_crossing1)（圖 image209.gif） | t_rising50%／t_falling50%＝上升／下降邊緣達 Vtop 與 Vbase 之間 50% 的時間；中閾值預設 50%；以交越點與中閾值的直方圖分析 | Eye_Duty_Cycle_Distortion |
@@ -260,9 +261,9 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 | Jitter／Noise 結果（EZJIT Complete） | Noise 分頁：TJ／DJ／RN 等統計；Eye height = (one level − 0.5·TI_b) − (zero level + 0.5·TI_t)，TI 由雜訊直方圖與 dual-dirac 模型計算 | Noise_Tab_Measurements；Jitter_Meas_Data_noise |
 | Phase Noise（相位雜訊） | 短期頻率穩定度；SSB 相位雜訊 ℒ(f)＝偏移頻率處功率密度與載波總功率之比（NIST 定義） | Phase_Noise_Analysis_Overview；Phase_Noise_Analysis |
 | Crosstalk（串擾） | 不需關閉他路通道即可分離、量化多通道序列資料與電源的串擾與 SSN | Crosstalk_Overview；Crosstalk |
-| Power Integrity（電源完整性） | 電源供應 Aggressor／Victim 相關雜訊與抖動分析 | Power_Integrity_Overview；PI_Overview_* |
-| PAM（授權） | PAM Eye／Level／Rise-Fall／Noise／Jitter／BER-SER／SNDR／PAM-4 12 Edge Jitter 等結果 | PAM_Measurements；PAM_*_Meas_Results |
-| Optical（需光學探棒） | Optical Average Power、OMA、Eye One／Zero Level、Extinction Ratio、Outer OMA、Outer ER、TDECQ（FlexRT） | Measurements_Optical；Optical_* |
+| Power Integrity（電源完整性） | 電源供應 Aggressor／Victim 相關雜訊與抖動分析 | Power_Integrity_Overview；PI_Overview_Power_Supply_Aggressor；PI_Overview_Power_Supply_Victim |
+| PAM（授權） | PAM Eye／Level／Rise-Fall／Noise／Jitter／BER-SER／SNDR／PAM-4 12 Edge Jitter 等結果 | PAM_Measurements；PAM_Eye_Meas_Results；PAM_Level_Meas_Results；PAM_Rise_and_Fall_Time_Meas_Results；PAM_Noise_Meas_Results；PAM_Jitter_Meas_Results |
+| Optical（需光學探棒） | Optical Average Power、OMA、Eye One／Zero Level、Extinction Ratio、Outer OMA、Outer ER、TDECQ（FlexRT） | Measurements_Optical；Optical_Power；Optical_Mod_Amp；Optical_Eye_One_Level；Optical_Eye_Zero_Level；Optical_Extinction_Ratio；Optical_Outer_OMA；Optical_Outer_ER；Optical_TDECQ_Using_FlexRT |
 | Three-Phase Power | 三相功率分析：Vrms／Irms／Vdc／Idc／Vcf／Icf／V-I Phase／P／S／Q／PF 等結果欄位 | Three_Phase_Power_Measurement_Results；Three-Phase_Power_Analysis |
 | InfiniiSim | 量測／模擬電路模型（S 參數、傳遞函數、FIR）；僅列名稱 | InfiniiSim_What_Is；InfiniiSim_Transfer_Functions |
 
@@ -286,8 +287,8 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 **A-3. Top／Base 與 Vtop／Vbase 判定**（Calculating_Top_and_Base、Top_Voltage、Base_Voltage）
 1. 建立量測直方圖（8 位元資料）。
 2. Top：直方圖最高 40% 區段中出現次數最多的電壓；Base：最低 40% 區段中出現次數最多的電壓；中央 20% 不掃描。
-3. 若該端的出現次數 < 總次數的 5%，Top 取絕對 Max、Base 取絕對 Min。
-4. Vtop／Vbase（Standard 定義）：在「直方圖峰值」與「Vmax／Vmin」之間依波形型態擇一（方形波取直方圖峰；三角波取 Vmax／Vmin），以防三角波時 Top 跳動；**具體判準：手冊未載明**。
+3. 若最高 40% 內之峰的出現次數 < 總次數的 5%，Top 取絕對 Max；最低 40% 內之峰依相同準則決定 Base 是否取絕對 Min（Calculating_Top_and_Base.htm）。
+4. Vtop／Vbase（Standard 定義）：方形波與三角波是選擇直方圖峰或 Max／Min 的例子；可得的數值回退準則即第 3 點的「該峰出現次數 < 總次數 5%」，不是整個最高／最低 40% 區段的累計次數。其他判準：手冊未載明（Calculating_Top_and_Base.htm、Top_Voltage.htm、Base_Voltage.htm、dlg_MeasurementThreshold.htm）。
 5. 統計上資訊不足時，Standard 自動退回 Min、Max。
 
 **A-4. 閾值計算**（Calculating_Thresholds、dlg_MeasurementThreshold）
@@ -323,7 +324,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 1. 取螢幕上 n 個取樣點（非記憶體深度）。
 2. DC Vrms ＝ √( Σ v(i)² / n )。
 3. AC Vrms ＝ √( Σ (v(i) − Vavg)² / n )，Vavg 為同一區間的平均。
-4. dBm 單位時以參考阻抗換算功率（Auto：單端 50 Ω、差動 100 Ω、共模 25 Ω；其他來源預設 50 Ω）。
+4. dBm 單位時以參考阻抗換算功率（Auto：單端 50 Ω、差動 100 Ω、共模 25 Ω；其他來源於 Auto 時假設 50 Ω）。
 
 **A-9. Pulse Top／Base／Amplitude**（Pulse_Top、Pulse_Base、Pulse_Amplitude）
 1. 以中閾值界定脈波的起點與終點。
@@ -338,7 +339,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 **A-11. FFT 處理流程**（FFT_Theory、FFT_Magnitude、Measurements_FFT）
 1. 取視窗內樣本（或 Analyze All Data／Measure All Edges 時取全部），補零至 2 的冪次。
 2. 套用視窗函數（Rectangular、Hanning、Flattop、Blackman-Harris、Hamming）。
-3. FFT 得 N/2 個頻域點（bin），頻率間隔 ＝ Fs/N（Rectangular）。
+3. FFT 得 N/2 個頻域點（bin）；矩形窗解析度／頻率間隔 ＝ Fs/N（FFT_Theory.htm，image116.gif、image120.gif）。
 4. 依選定單位輸出（dBm、dBmV、dBµV、Vrms、Watt），dBm 之換算見第四節。
 5. 峰值偵測：依 Peak Level（預設 −40 dBm）與 Peak 1、Peak 2 計數。
 6. Detector：Off／Sample／Positive Peak／Negative Peak／Normal／Average（僅顯示用的分桶處理）。
@@ -361,46 +362,46 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 2. 須先達到 ≥ Top（正脈波）／≤ Base（負脈波）之後才量測。
 3. 正脈波 ＝ (Top − localMinimum)/(Top − Base)，localMinimum < Top 時；否則 0。
 4. 負脈波 ＝ (localMaximum − Base)/(Top − Base)，localMaximum > Base 時；否則 0。
-5. 圖中標示 (%)，但式中無 ×100：是否乘 100 待確認。
+5. 已直接讀取兩張 JPG：左側確實標 (%)，分式與分支式均沒有 ×100；不是漏讀。照圖保留，軟體結果是否乘 100：待確認（Undershoot.htm；eqn_Undershoot_Positive_Pulse.jpg、eqn_Undershoot_Negative_Pulse.jpg）。
 
 **A-16. Eye Q-Factor／Crossing %／Height／Width／Jitter／DCD**（見第六節眼圖表）
-1. 資料：Color Grade 資料庫；Vtop／Vbase／σ 由眼圖中間 20%（40%–60%）切片的垂直直方圖求得。
+1. 資料：Color Grade 資料庫；Vtop／Vbase／σ 由眼圖中間 20%（40%–60%）切片的垂直直方圖求得。Eye Height 則依所選 Location 與 Eye Window 取資料，不能將 40%–60% 視為唯一取樣窗（Eye_Height.htm；見第六節）。
 2. Q = (Vtop − Vbase)/(σtop + σbase)；Crossing % = 100·(Vcrossing − Vbase)/(Vtop − Vbase)。
 3. Eye Height（外推）= (Vtop − 3σtop) − (Vbase + 3σbase)；Eye Width（外推）= (t_c2 − 3σ_c2) − (t_c1 + 3σ_c1)。
 4. Eye Jitter：RMS = 1σ_crossing；p-p = 6σ_crossing。
 
-**A-17. FFT 單位換算**（FFT_Magnitude_Vertical_Units；FFT_Theory_Computation_of_dBm／dBV）
+**A-17. FFT 單位換算**（FFT_Magnitude_Vertical_Units；FFT_Theory_Computation_of_dBm.htm／FFT_Theory_Computation_of_dBV.htm）
 1. dBm = 10·log(P_in / 1 mW)（image132）；50 Ω 時 dBm = 20·log(Vpeak / 0.316228 V)（image133）；Vpeak = Vrms/0.707107 = √(P·R)/0.707107，1 mW@50 Ω → 0.316228 V（image134）。
-2. dBV = 20·log(Vpeak/0.316228) + 20·log(0.707107×0.316228) = dBm − 13.01 dB（image135）。
-3. 手冊指定的 Reference Impedance 取代上式的 50 Ω；僅量測電壓時不需參考阻抗。
+2. dBV = 20·log(Vpeak/0.316228) + 20·log(0.707107×0.316228) = dBm − 13.01 dB（FFT_Theory_Computation_of_dBV.htm，image135.gif；原文僅寫「subtracting 13.01 dB」、未附阻抗條件；僅適用 50 Ω 係依 image135 的 0.316228 V 推得，屬推論）。
+3. 手冊指定的 Reference Impedance 取代 dBm 計算中的 50 Ω；僅量測電壓時不需參考阻抗。上項固定 −13.01 dB 不擴張到其他阻抗，亦屬推論（FFT_Theory_Computation_of_dBm.htm、FFT_Theory_Computation_of_dBV.htm；一般阻抗換算見 FFT_Magnitude_Vertical_Units.htm）。
 4. 其他單位對應見第四節「FFT 單位換算表（完整）」。
 
 ---
 
 ## 八、手冊未寫明、需真機驗證的項目
 
-1. **Vtop／Vbase（Standard）在「直方圖峰」與「Vmax／Vmin」之間的選擇判準**：手冊只說明「decides whether …」，未給數值門檻（Top_Voltage、Calculating_Top_and_Base）。
+1. **Vtop／Vbase（Standard）的其他判準**：已查明回退門檻為該端直方圖峰出現次數 < 總次數 5%，改列 A-3；除該準則外的其他判斷細節，手冊未載明（Calculating_Top_and_Base.htm、Top_Voltage.htm、Base_Voltage.htm、dlg_MeasurementThreshold.htm）。
 2. **Vavg 的數學式與「first cycle」判定細節**：Making_Voltage_Measurements 僅寫「average voltage of the first cycle」；Average_Voltage 為整個螢幕或一個週期；無公式圖。（Vamp = Vtop − Vbase 已查明，移出本清單。）
 3. **Vavg、Vrms、Area、Pulse Top／Base、Pulse Amplitude 的「均勻次取樣」**：手冊未說明比例，精度影響未量化。
 4. **Undershoot 公式是否乘 100**：公式圖有、單位標 (%)，但式中無 ×100（待確認）。
 5. **邊緣內插方式**：手冊僅寫 interpolates。
-6. **Area 的積分方法與單位**：未載明（已複查 Area.htm、Measurements_Mixed.htm）。
+6. **Area 的積分方法與單位**：未載明（已複查 Area.htm、Measurements_Mixed.htm）；僅 Integrate.htm（math function）有累加式與 volt-seconds，是否適用於 Area 量測未說明。
 7. **Crossing 的電壓計算公式**：未載明（Crossing_Point_Measurement.htm 僅文字與範例截圖）。
-8. **Hold Time／Setup Time 的正式公式**：只有文字定義（中閾值到中閾值）。
+8. **Hold Time／Setup Time 的正式代數式與邊緣配對細節**：手冊未載明；只有中閾值到中閾值的文字定義與時序示意 image94.gif。Hold_Time.htm 的 zoom 句寫成 setup time，適用性待確認（Hold_Time.htm、Setup_Time.htm）。
 9. **Pulse Amplitude 的符號慣例**：未載明。
 10. **Phase 的「Period of Source 1」**：週期定義與平均方式未載明。
 11. **FFT 各視窗係數、ENBW 數值、scalloping loss、旁瓣位準（除 Blackman-Harris 之 90 dB）**：手冊未載明（已全文搜尋，見第四節）。
 12. **FFT Occupied Bandwidth 的計算方法**（累加方式、邊界內插）：未載明。
 13. **FFT Phase 的解纏繞與相位定義細節**：未載明。
 14. **Measure All Edges 與 Analyze All Data 在深記憶體資料縮減後的精度損失**：僅說「保形」。
-15. **Reference Impedance Auto 判定與實際探棒對應**：手冊僅列單端 50 Ω／差動 100 Ω／共模 25 Ω 三種，實際探棒型號需真機確認。
-16. **Track RF 與 FFT Peak Annotation 的峰值排序細節**：只列 Decreasing Magnitude 等選項。
+15. **Reference Impedance Auto 的逐型號探棒對照**：手冊未載明；已補通道 Differential／Common Mode 設定優先、高阻抗探棒不支援共模、其他來源預設 50 Ω；三種 Auto 阻抗見第四節（FFT_Magnitude.htm、RMS_Voltage.htm、Power_Spectral_Density.htm）。
+16. **Track RF 的峰值排序與同值峰處理**：手冊未載明；只說可移到左／右下一個高於門檻的峰。FFT Peak Annotation 已載明四種排序與依排序編號（見第四節），同值峰的次序仍未載明（dlg_MarkerSetup.htm、FFT_Magnitude.htm）。
 17. **N-Period、Edge to All Edges 的末端不足 N 的群組之統計處理**：僅說「也量測」。
 18. **Level Qualification 在邊緣上的判定時點**：取樣點層級未載明。
 19. **直方圖 8 位元量化誤差**：未給數值。
-20. **Burst Interval／Burst Width 的 idle time 預設值與判定演算法**：Burst_Interval 僅一段文字；預設值未載明。
-21. **dBm→W 換算圖 eqn_dBm_to_P 的 Z 因子**：圖中含 Z，物理上不應有，疑手冊筆誤，需真機對照（待確認）。
-22. **Eye Height Location 的其他選項**、**Eye 量測 Eye Window 外之細節**：未逐項讀。
+20. **Burst idle time 的預設值與更細的判定演算法**：手冊未載明；已知 Interval 以交越間最小時間判定，Width 要求 burst 前後各至少 idle time 的閒置區，Period 可指定兩 burst 最小間隔；不可把 Burst Trigger 的設定值當成這些量測的預設值（Burst_Interval.htm、Burst_Width.htm、Burst_Period.htm）。
+21. **dBm→W 換算圖的 Z 因子**：已讀圖確認 eqn_dBm_to_P.png 確實含 Z；與同頁 eqn_P_to_dBm.png 及 image132.gif 定義不一致。是否筆誤及軟體實際行為：待確認（FFT_Magnitude_Vertical_Units.htm、FFT_Theory_Computation_of_dBm.htm）。
+22. **其他 Eye 量測在 Eye Window 外之細節**：未逐項複查；Eye Height Location 兩選項已查明並補至第六節，移出未讀清單（Eye_Height.htm）。
 23. **功率類（Crest Factor 等）的實際取樣範圍（整數週期？整螢幕？）**：Crest_Factor_meas 僅寫比值，未載明。
 
 ---
@@ -411,7 +412,7 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 - **功率類**：已於第六節列出公式（文字式）；各量測的 UI 與 Auto Setup 細節未讀。
 - **EZJIT 各量測的數學式**（如 TIE、Period-Period）：僅名稱與一句話。
 - **Histogram 章節的 Waveform Histogram 操作細節**（Histograms、Histogram_Results）：僅讀摘要。
-- **圖片檔**：僅讀取與公式有關者；FFT_Theory 內 image116、120、121、123–126、128–131 為示意圖，未逐一解讀。
+- **圖片檔**：尚未逐張讀完整本手冊；Codex 本次已逐張檢視 FFT_Theory.htm 的 image116.gif、image117.gif、image120–131.gif，其中 image120／121 為公式，其餘為 FFT、洩漏與加窗示意；不得再列為未讀。
 
 ---
 
@@ -421,10 +422,10 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 
 | 類別 | 已核對項目 | 結果 |
 |---|---|---|
-| 時間 | Rise_Time、Fall_Time、Period、Duty_Cycle、Negative_Pulse_Width、Delta_Time、Burst_Width、Hold_Time、Setup_Time、Slew_Rate、Phase（image88/89）、Pulse_Counting、N-Period、Edge_Time、T_Max、Timing_Definitions、Determining_Rising_and_Falling_Edges | 皆正確；Phase 公式圖 image89 核對無誤 |
+| 時間 | Rise_Time、Fall_Time、Period、Duty_Cycle、Negative_Pulse_Width、Delta_Time、Burst_Width、Hold_Time、Setup_Time、Slew_Rate、Phase（image88/89）、Pulse_Counting_Measurements、N-Period、Edge_Time、T_Max、Timing_Definitions、Determining_Rising_and_Falling_Edges | 皆正確；Phase 公式圖 image89 核對無誤 |
 | 電壓 | RMS_Voltage（image100/101）、Overshoot（image109/111）、Preshoot（image105/107）、Top_Voltage、Maximum_Voltage、Pulse_Top、Pulse_Amplitude、Calculating_Top_and_Base、Calculating_Thresholds | 皆正確；Vamp、Undershoot 原標「未載明」→ 實際手冊有（見下） |
 | Marker | dlg_MarkerSetup、Marker_Results | 正確 |
-| FFT | FFT_Theory、FFT_Magnitude、FFT_Spectrum_Control、FFT_Channel_Power（eqn_power_in_the_channel*.jpg）、Total_Harmonic_Distortion（THD.png）、FFT_Theory_Computation_of_dBm／dBV（image132–135）、FFT_Magnitude_Vertical_Units、FFT_Occupied_Bandwidth、FFT_Freq、Power_Spectral_Density | 兩處錯誤（見下），其餘正確 |
+| FFT | FFT_Theory、FFT_Magnitude、FFT_Spectrum_Control、FFT_Channel_Power（eqn_power_in_the_channel.jpg、eqn_power_in_the_channel_W.jpg）、Total_Harmonic_Distortion（THD.png）、FFT_Theory_Computation_of_dBm.htm／FFT_Theory_Computation_of_dBV.htm（image132–135）、FFT_Magnitude_Vertical_Units、FFT_Occupied_Bandwidth、FFT_Freq、Power_Spectral_Density | 兩處錯誤（見下），其餘正確 |
 
 **修正與補充**
 1. 錯誤修正：Auto 參考阻抗「共模 225 Ω」→ **25 Ω**（原誤將註腳上標「2」與 25 Ω 連讀成 225）。依據 FFT_Magnitude.htm、Power_Spectral_Density.htm、RMS_Voltage.htm（HTML 為 `<sup>2</sup>`＋`25 Ω`）。已改第四節、A-8、第八節。
@@ -434,3 +435,65 @@ Marker 來源與單位：marker 需綁定來源波形，單位與刻度由來源
 5. 新增：Burst Interval（Burst_Interval）、Eye Q-Factor（image214）、Eye Crossing %（image207）、Eye Height／Width／Jitter／DCD 公式（image208–213）、功率類（含 Crest Factor＝Vpeak/VRMS、Ipeak/IRMS）、Noise／Phase Noise／Crosstalk／PAM／Optical／Three-Phase／InfiniiSim 名稱與一句話、FFT 頻率精度（±半 bin）說明、A-15～A-17。
 6. 查明仍未載明：FFT 視窗係數／ENBW／scalloping loss（已搜尋 FFT_Theory 全部圖片與全檔關鍵字）、Area 公式、Crossing 公式（僅範例截圖 meas_V_Crossing.png）。
 
+
+### Codex 複查（2026-10-22）
+
+本次以原文件的量測／設定項目為單位計數（同一項的表格、算法與未載明清單合併計一次），共 **26 項：21 項原敘述正確，5 項有錯誤、條件缺漏或前後矛盾並已修正**。正確項仍可補充手冊已載明的限制；公式轉寫正確但手冊自身有疑義者，維持待確認。以下為本次逐項紀錄，不併入上方先前複查的 33 項。
+
+| 類別 | 已核對項目 | 結果 |
+|---|---|---|
+| 時間 | 1. Rise Time | 正確：上閾時刻減下閾時刻；至少四點，需完整穿越三閾值（Rise_Time.htm；image92.gif） |
+| 時間 | 2. Fall Time | 正確：下閾時刻減上閾時刻；至少四點，展開邊緣可減少內插影響（Fall_Time.htm；image93.gif） |
+| 時間 | 3. Hold Time | 正確：時脈中閾至資料中閾；補所有週期與 image94.gif 時序示意。原手冊 zoom 句稱 setup time，已標待確認（Hold_Time.htm；image94.gif） |
+| 時間 | 4. Setup Time | 正確：資料中閾至時脈中閾；補非 zoom 包含視窗外週期、zoom 限 delayed window；圖只有時序箭頭，沒有代數式（Setup_Time.htm；image94.gif） |
+| 時間 | 5. Burst Interval | 正確：交越間閒置區與最小 idle time；本頁僅文字及量測圖示，沒有預設值或公式（Burst_Interval.htm） |
+| 時間 | 6. Burst Width | 正確：首／末閾值交越間時間，前後均需至少 idle time；兩圖分別呈現上閾起／下閾迄與下閾起／上閾迄（Burst_Width.htm；image76.jpg、image77.jpg） |
+| 時間 | 7. Area | 正確：對 waveform ground 的面積，可選週期／整螢幕，均勻次取樣；公式、積分法及單位維持手冊未載明（Area.htm、Measurements_Mixed.htm；Area 頁無公式圖） |
+| 時間 | 8. 邊緣判定／內插 | 正確：相鄰兩點間內插，須完成三閾值過渡；沒有指定線性或其他內插法（Determining_Rising_and_Falling_Edges.htm；fig07.png、fig08.png、54542m03.png） |
+| 電壓 | 9. Vtop | 已修正：最高 40% 內找直方圖峰；該峰出現次數 < 總次數 5% 則回退 Vmax。撤銷 A-3 與第八節「未給數值門檻」的矛盾敘述（Top_Voltage.htm、Calculating_Top_and_Base.htm、dlg_MeasurementThreshold.htm；fig05.png） |
+| 電壓 | 10. Vbase | 已修正：最低 40% 內找峰；該峰出現次數 < 總次數 5% 則回退 Vmin，不能將整個最低 40% 的累計次數當門檻（Base_Voltage.htm、Calculating_Top_and_Base.htm；fig05.png） |
+| 電壓 | 11. Pulse Amplitude | 正確：邊緣前後兩脈波電平之差，以中閾值定邊緣並平均脈波中央 X%；正負號慣例仍未載明（Pulse_Amplitude.htm；本頁無公式圖） |
+| 電壓 | 12. V RMS | 正確：DC 為平方平均開根，AC 先減 Vavg；n 為螢幕波形點數，非記憶體深度（RMS_Voltage.htm；image100.gif、image101.gif） |
+| 電壓 | 13. Undershoot | 正確轉寫、疑義保留：兩張分支式均有 (%) 而無 ×100，軟體是否輸出百分比倍率仍待確認（Undershoot.htm；eqn_Undershoot_Positive_Pulse.jpg、eqn_Undershoot_Negative_Pulse.jpg） |
+| 電壓 | 14. Crossing | 正確：兩波形交越電壓，使用最接近螢幕中央的邊緣；圖片僅範例截圖，不能補出計算公式（Crossing_Point_Measurement.htm；meas_V_Crossing.png） |
+| Marker | 15. Manual (X only) | 正確：X 方向自由移動，依顯示解析度、不追蹤內部取樣資料（dlg_MarkerSetup.htm、GS_Markers.htm） |
+| Marker | 16. Manual (Y only) | 正確：Y 方向自由移動，數位來源不顯示 Y marker（dlg_MarkerSetup.htm） |
+| Marker | 17. Track Waveforms | 已修正：±1 秒或一個完整螢幕寬（取較大者）是相對觸發點的位置範圍，原「螢幕外可偏移」說法基準不清（dlg_MarkerSetup.htm） |
+| Marker | 18. Track RF | 正確：FFT 頻率／振幅追蹤，Peak Level 過濾左右下一峰；未載明同值峰排序（dlg_MarkerSetup.htm；Track_RF_marker_Peak_Level.png、Track_RF_marker_Peak_Next.png） |
+| Marker | 19. 1/ΔX | 正確：配對水平位置差的倒數，Versus 波形不計算（Marker_Results.htm；Results_pane_Markers.png） |
+| FFT | 20. Resolution／RBW 與視窗圖 | 已修正：Fs/N 與 ENBW 文字原本正確，但 image120／121 被誤歸為非公式；實際為 Fs/N、Fs/2。補 Effective Memory Depth，仍無視窗係數或 ENBW 數值（FFT_Theory.htm、Measurements_FFT.htm、FFT_Spectrum_Control.htm；image120.gif、image121.gif） |
+| FFT | 21. FFT Phase | 正確：Trigger／Entire Display 參考與 Reference Time Delay；補圖中單位 °／s，圖中設定值不當作預設；公式、解纏繞仍未載明（FFT_Phase.htm；FFT_Phase_controls.png） |
+| FFT | 22. Occupied Bandwidth | 正確：螢幕 FFT 指定功率百分比所涵蓋頻率範圍；控制圖只示範 90.0%，不據此宣稱預設值，也無累加或邊界內插式（FFT_Occupied_Bandwidth.htm；FFT_Occupied_Bandwidth.png） |
+| FFT | 23. Channel Power | 正確：兩張公式的 B_s/RBW、1/N、總和與對數一致，首末點線性內插；補對數公式 P_i 為 dBm 的文字定義（FFT_Channel_Power.htm；eqn_power_in_the_channel.jpg、eqn_power_in_the_channel_W.jpg） |
+| FFT | 24. dBm→P 圖 | 正確轉寫、疑義保留：白底合成後確認圖確有 Z，與同頁 P→dBm 圖及 1 mW 參考定義不一致；未自行刪 Z（FFT_Magnitude_Vertical_Units.htm、FFT_Theory_Computation_of_dBm.htm；eqn_dBm_to_P.png、eqn_P_to_dBm.png、image132.gif） |
+| FFT | 25. dBm→dBV 固定差值 | 已修正：第四節與 A-17 的 −13.01 dB 明列為承接 50 Ω 的情境，避免被後句 Reference Impedance 可替換誤解為任意阻抗通用（FFT_Theory_Computation_of_dBm.htm、FFT_Theory_Computation_of_dBV.htm；image133–135.gif） |
+| FFT | 26. FFT Magnitude／Auto 阻抗 | 正確：單端 50 Ω、差動 100 Ω、共模 25 Ω；補通道設定優先於探棒偵測、高阻抗探棒無共模與其他來源預設 50 Ω（FFT_Magnitude.htm；RMS_Voltage.htm、Power_Spectral_Density.htm 亦同） |
+
+**另補已載明項目與來源整理**
+
+1. 新增 FFT Peak Annotation 一列：四種 Peak Sort、依排序編號、Max Peak Count 與 FFT Peaks 結果窗；同值峰次序維持未載明（FFT_Magnitude.htm）。
+2. 補 Track Measurements 追蹤「最近新增」的自動量測（GS_Markers.htm、dlg_MarkerSetup.htm）。
+3. 補齊 Eye Height Location 兩選項、Eye Window Width 的 UI 百分比與 0% 意義，並同步 A-16 的取樣窗限制；不再列為未讀（Eye_Height.htm；另核對 image210.gif）。
+4. 將來源欄的 PI／PAM／Optical 萬用樣式與 Undershoot／Channel Power 圖樣式改為實際檔名；舊修訂表的 Pulse_Counting 改為 Pulse_Counting_Measurements.htm，dBm／dBV 合寫改為兩個完整檔名（對應檔名均已檢查存在）。
+
+**重搜仍未載明／待確認**
+
+已用 `grep` 搜尋本地 contents 下的 `.htm`：`ENBW|equivalent noise|scalloping|coefficient`、`area|crossing|hold time|setup time`、`interpolat`、`five percent|5 percent|5%`、`idle time|burst.*idle|idle.*burst`、`occupied bandwidth`，並回讀相關主題及其圖片；其他 FIR／通訊協定的係數、內插或 idle 設定不移植成此處量測算法。
+
+- FFT 視窗係數、ENBW 數值與 scalloping loss：手冊未載明；Blackman-Harris 只有旁瓣下降 90 dB 的敘述。image120／121 為解析度與 Nyquist 公式，不是視窗係數（FFT_Theory.htm、FFT_Magnitude.htm、FFT_Phase.htm、FFT_Spectrum_Control.htm、Measurements_FFT.htm、Power_Spectral_Density.htm）。
+- Area 積分法／單位、Crossing 計算式、邊緣內插方法：手冊未載明（Area.htm、Measurements_Mixed.htm、Crossing_Point_Measurement.htm、Determining_Rising_and_Falling_Edges.htm）。
+- Hold／Setup 正式代數式與更細的邊緣配對、Occupied BW 累加及邊界處理、FFT Phase 相位公式及解纏繞、Burst idle time 預設值與更細算法：手冊未載明（Hold_Time.htm、Setup_Time.htm、FFT_Occupied_Bandwidth.htm、FFT_Phase.htm、Burst_Interval.htm、Burst_Width.htm、Burst_Period.htm）。
+- Undershoot 的 % 倍率、dBm→P 圖 Z 的原因與軟體實際算法、Hold_Time.htm 的 zoom 句適用性：待確認；以上均保留手冊證據，未以推測補公式（來源同逐項紀錄第 3、13、24 項）。
+
+**內部一致性檢查**
+
+- 算法標題 A-1～A-17 連續、無重複；新增內容沿用既有章節與表格欄位。
+- 逐表檢查未跳脫分隔線的欄位數，含公式中的 `\|`，各列均與表頭一致。
+- 來源欄與明列 `.htm`／圖片的檔名已對本地目錄檢查；來源欄既有「同上」沿用該表上一個明列來源。圖片範圍寫法（如 image133–135.gif）表示連續存在的三個檔案，不是單一檔名。
+
+### Opus 審查後修正
+- dBm→dBV 的 −13.01 dB：手冊原文未附阻抗條件，「僅適用 50 Ω」改標為推論。
+- Area：補註 Integrate.htm（math function）的累加式與 volt-seconds，Area 本身仍維持未載明。
+- Vtop／Vbase 5% 門檻：註明僅見 Calculating_Top_and_Base，並記下該頁 half／40% 措辭不一致。
+- FFT Resolution：來源補 image114.gif。
+- 用詞：Hold Time zoom 句改「疑為筆誤」；其他來源阻抗改「Auto 時假設 50 Ω」。
