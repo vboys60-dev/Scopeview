@@ -26,8 +26,9 @@
 
 ## Jitter／眼圖：已實作、尚未 GUI 實測、尚未 commit
 
+- 2026-10-22 已移出 GUI，clock/jitter/eye 與 analysis_jitter/analysis_eye 保留未接線。
 - 2026-10-17：使用者問單檔能否做 Jitter、眼圖 → Claude × Codex 兩輪討論定案（規格 `docs/離線分析功能規格.md`「Jitter／眼圖」節），使用者說「可以編碼」後實作。
-- 新增 `analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye,runner,layout}.py`；MeasureRunner 從 controls 搬到 runner（並修：重算／防抖期間表上顯示「…」不留舊值、舊結果不回填、計算中不可匯出；Jitter／眼圖有警告時量測列加 ⚠、提示寫入 CSV 備註），版面／接線從 tab_analysis 搬到 layout。
+- 新增 `analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye,runner,layout}.py`；MeasureRunner 從 controls 搬到 runner（並修：重算／防抖期間表上顯示「…」不留舊值、舊結果不回填、計算中不可匯出），版面／接線從 tab_analysis 搬到 layout。
 - pyqtgraph 0.14 自動降採樣在 x 為秒時會丟光資料：TIE 趨勢圖不開降採樣。
 
 ## 現況（2026-10-17）

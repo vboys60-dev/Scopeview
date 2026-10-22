@@ -1,4 +1,4 @@
-"""波形分析頁（Infiniium 風格）：工具列、左側量測圖示、通道列、主波形格、FFT 格、下方結果區。"""
+"""波形分析頁（Infiniium 風格）：開檔、通道、游標、量測、數學的行為；版面與接線在 analysis_layout.py。"""
 from __future__ import annotations
 
 import os
@@ -10,20 +10,14 @@ os.environ["PYQTGRAPH_QT_LIB"] = "PySide6"
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QMessageBox, QSplitter,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
 
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_waveform_file
-from scope_tool.ui.analysis_chanbar import ChannelBar, HorizontalBar
 from scope_tool.ui.analysis_export import export_results
-from scope_tool.ui.analysis_controls import AnalysisToolBar, MeasureBar, MeasureRunner
-from scope_tool.ui.analysis_fftplot import FFTPane
+from scope_tool.ui.analysis_layout import setup_ui, wire
 from scope_tool.ui.analysis_math import run_math
-from scope_tool.ui.analysis_overview import OverviewPlot
-from scope_tool.ui.analysis_plot import AnalysisPlot
-from scope_tool.ui.analysis_results import ResultsPane, file_info_rows, fmt
+from scope_tool.ui.analysis_results import file_info_rows, fmt
 from scope_tool.ui.worker import Job
 
 # 通道顏色循環，數量夠多不必為固定值另外做設定。
@@ -40,74 +34,8 @@ class AnalysisTab(QWidget):
         self._source_path: Path | None = None
         self._jobs: set[Job] = set()
         self._gen, self._next_f = 0, 1  # 開檔世代（丟棄舊檔的數學結果）；F 編號不重用，量測來源才不會被頂替
-        self._build_ui()
-
-    def _build_ui(self) -> None:
-        self.toolbar = AnalysisToolBar(lambda: (self.vline1.value(), self.vline2.value()))
-        self.export_bar = self.toolbar.export_bar
-        self.measbar, self.chanbar, self.hbar = MeasureBar(), ChannelBar(), HorizontalBar()
-        self.plot_widget = AnalysisPlot()
-        self.vline1, self.vline2 = self.plot_widget.vline1, self.plot_widget.vline2
-        self.hline1, self.hline2 = self.plot_widget.hline1, self.plot_widget.hline2
-        self.overview = OverviewPlot()
-        self.overview.link(self.plot_widget)
-        self.overview.hide()
-        self.fft = FFTPane(self._source)
-        self.fft.hide()
-        self.results = ResultsPane()
-        grids = QSplitter(Qt.Vertical)
-        for w in (self.overview, self.plot_widget, self.fft):
-            grids.addWidget(w)
-        grids.setStretchFactor(1, 3)
-        grids.setStretchFactor(2, 2)
-        center = QWidget()
-        col = QVBoxLayout(center)
-        col.setContentsMargins(0, 0, 0, 0)
-        for w in (self.chanbar, grids, self.hbar):
-            col.addWidget(w, stretch=1 if w is grids else 0)
-        top = QWidget()
-        row = QHBoxLayout(top)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.measbar)
-        row.addWidget(center, stretch=1)
-        main = QSplitter(Qt.Vertical)
-        main.addWidget(top)
-        main.addWidget(self.results)
-        main.setSizes([640, 260])
-        root = QVBoxLayout(self)
-        root.addWidget(self.toolbar)
-        root.addWidget(main, stretch=1)
-        self.runner = MeasureRunner(self.results, self._source, self.toolbar.pct)
-        self._wire()
-
-    def _wire(self) -> None:
-        tb, plot, bar = self.toolbar, self.plot_widget, self.chanbar
-        tb.open_action.triggered.connect(self._on_open_clicked)
-        tb.info_action.triggered.connect(self._show_file_info)
-        tb.reset_action.triggered.connect(plot.reset_view)
-        tb.channels_action.triggered.connect(plot.reset_channels)
-        tb.cursors_action.triggered.connect(plot.recenter_cursors)
-        tb.math_action.triggered.connect(self._open_math)
-        tb.fft_action.toggled.connect(self.fft.setVisible)  # 顯示時 FFT 格自己重算
-        tb.fft_action.toggled.connect(self.results.set_fft_visible)
-        tb.preview_action.toggled.connect(self.overview.setVisible)
-        tb.threshold.currentIndexChanged.connect(self._range_changed)
-        tb.range.currentIndexChanged.connect(self._range_changed)
-        self.measbar.measure_requested.connect(self._add_measurement)
-        bar.visibility_changed.connect(plot.set_visible)
-        bar.visibility_changed.connect(lambda i, on: i < self._n_raw and self.overview.set_visible(i, on))
-        bar.color_changed.connect(self._set_color)
-        bar.selected_changed.connect(self._update_readout)
-        bar.scale_chosen.connect(plot.set_scale)
-        bar.position_chosen.connect(plot.set_position)
-        bar.remove_requested.connect(self._remove_channel)
-        self.hbar.range_chosen.connect(lambda lo, hi: plot.setXRange(lo, hi, padding=0))
-        plot.getViewBox().sigXRangeChanged.connect(lambda _box, r: self.hbar.set_range(*r))
-        plot.cursors_moved.connect(self._update_readout)
-        plot.cursors_moved.connect(self._range_changed)
-        plot.offsets_changed.connect(self._offsets_changed)
-        self.results.export_requested.connect(self._export_results)
-        self.fft.result_ready.connect(self.results.set_fft)
+        setup_ui(self)
+        wire(self)
 
     # ---- 開檔與通道 ----
     def _on_open_clicked(self) -> None:
@@ -209,7 +137,7 @@ class AnalysisTab(QWidget):
                     for wf, color, (dx, _) in zip(self._waveforms, self._colors, offsets)]
         self.results.set_cursor_values(t1, t2, v1, v2, unit, name, channels)
 
-    # ---- 量測與 FFT ----
+    # ---- 量測、FFT ----
     def _slice(self, i: int) -> tuple[np.ndarray, np.ndarray]:
         """量測範圍：游標區間（扣掉該通道的顯示平移）或全部，回傳原始資料的 view。"""
         wf = self._waveforms[i]
@@ -238,6 +166,9 @@ class AnalysisTab(QWidget):
             self.runner.add(name, self._waveforms[i].channel, self.measbar.rising())
 
     def _export_results(self) -> None:
+        if self.runner.busy():
+            QMessageBox.information(self, "匯出結果", "量測還在計算，完成後再匯出。")
+            return
         span = (f"游標區間 t1={self.vline1.value()!r} s, t2={self.vline2.value()!r} s"
                 if self.toolbar.use_cursors() else "全部")
         export_results(self, self.results, self._source_path,
