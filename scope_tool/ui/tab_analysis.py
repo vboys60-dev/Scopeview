@@ -34,6 +34,7 @@ class AnalysisTab(QWidget):
         self._source_path: Path | None = None
         self._jobs: set[Job] = set()
         self._gen, self._next_f = 0, 1  # 開檔世代（丟棄舊檔的數學結果）；F 編號不重用，量測來源才不會被頂替
+        self._in_readout = False
         setup_ui(self)
         wire(self)
 
@@ -120,6 +121,22 @@ class AnalysisTab(QWidget):
         return float(time[idx]), float(voltage[idx])
 
     def _update_readout(self, *_: object) -> None:
+        """更新讀值；吸附若實際移動了垂直游標且量測採游標區間，就讓量測／FFT 失效重算。
+
+        程式 setValue 不發 sigDragged，縮放或換來源造成的 Track Waveforms 重新吸附只能在此偵測。
+        """
+        if self._in_readout:  # setValue 可能經自動範圍再觸發 sigXRangeChanged
+            return
+        before = (self.vline1.value(), self.vline2.value())
+        self._in_readout = True
+        try:
+            self._snap_readout()
+        finally:
+            self._in_readout = False
+        if (self.vline1.value(), self.vline2.value()) != before and self.toolbar.use_cursors():
+            self._range_changed()
+
+    def _snap_readout(self) -> None:
         src = self.chanbar.selected()
         if not 0 <= src < len(self._waveforms):  # 刪通道時通道列還沒重建
             return

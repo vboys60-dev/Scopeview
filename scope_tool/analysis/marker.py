@@ -136,7 +136,7 @@ def track_rf(freq: np.ndarray, mag: np.ndarray, x: float, *, level: float = -np.
     等於門檻是否列峰手冊未載明，本工具採嚴格大於。整條等值譜不算峰，
     DC 有實際下降時仍可為端點峰；以上均待真機比對。
     """
-    from scope_tool.analysis.peaks import SORTS, peaks
+    from scope_tool.analysis.peaks import peak_indices
 
     f, y = np.asarray(freq), np.asarray(mag)
     if direction not in (-1, 0, 1) or not np.isfinite(x):
@@ -151,11 +151,12 @@ def track_rf(freq: np.ndarray, mag: np.ndarray, x: float, *, level: float = -np.
     if i > 0 and abs(f[i - 1] - x) < abs(f[i] - x):
         i -= 1
     if direction:
-        candidates = peaks(f, y, len(f), start=0, level=level, sort=SORTS[1])
-        eligible = [(a, b) for a, b in candidates if (a - x) * direction > 0]
-        if not eligible:
+        # 峰格由左至右即頻率遞增；以 searchsorted 取嚴格在 x 右／左側的最近峰，不建全峰清單。
+        idx = peak_indices(y, level)
+        j = int(np.searchsorted(f[idx], x, side="right" if direction > 0 else "left")) - (direction < 0)
+        if not 0 <= j < len(idx):
             return MarkerResult(Position(float(f[i]), y1=float(y[i])), False, "該方向沒有高於門檻的峰", versus=True)
-        a, b = eligible[0] if direction > 0 else eligible[-1]
+        a, b = float(f[idx[j]]), float(y[idx[j]])
     else:
         a, b = float(f[i]), float(y[i])
     return MarkerResult(Position(a, y1=b), points=((a, b, RF_MODE),), versus=True)
@@ -229,6 +230,27 @@ def _self_check() -> None:
     # 有下降的 DC 仍可跳入；等值譜才不可把 DC 當峰，端點規則不變。
     r = track_rf(np.arange(3.), np.array([3., 0., 2.]), 1, direction=-1)
     assert r.available and r.position.x1 == 0 and r.versus
+    # 跳峰不得經由 peaks() 建全峰 tuple 清單（8M 格高峰密度曾阻塞 GUI 約 0.86 s）。
+    from scope_tool.analysis import peaks as peaks_mod
+    ref_peaks = peaks_mod.peaks
+
+    def ref(f: np.ndarray, y: np.ndarray, x: float, level: float, d: int) -> tuple:
+        ok = [p for p in ref_peaks(f, y, len(f), start=0, level=level, sort=peaks_mod.SORTS[1])
+              if (p[0] - x) * d > 0]
+        return ok[0 if d > 0 else -1] if ok else None
+
+    peaks_mod.peaks = None
+    try:
+        rng = np.random.default_rng(1)
+        for _ in range(300):  # 與舊演算法逐一比對：含平台、等值、DC 端點、門檻與格上／格間位置
+            n = int(rng.integers(1, 12))
+            f, y = np.cumsum(rng.uniform(.1, 1, n)), rng.integers(0, 4, n).astype(float)
+            x, level, d = float(rng.choice(np.r_[f, rng.uniform(-1, f[-1] + 1, 3)])), float(rng.integers(-1, 3)), int(rng.choice([-1, 1]))
+            r, want, near = track_rf(f, y, x, level=level, direction=d), ref(f, y, x, level, d), track_rf(f, y, x)
+            assert r.available == (want is not None) and r.versus
+            assert (r.position.x1, r.position.y1) == (want or (near.position.x1, near.position.y1))
+    finally:
+        peaks_mod.peaks = ref_peaks
     print("marker self-check OK")
 
 

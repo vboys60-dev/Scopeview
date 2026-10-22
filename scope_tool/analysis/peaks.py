@@ -6,6 +6,17 @@ import numpy as np
 SORTS = ("Decreasing Magnitude", "Increasing Frequency", "Decreasing Frequency", "Increasing Magnitude")
 
 
+def peak_indices(y: np.ndarray, level: float) -> np.ndarray:
+    """嚴格高於 level 的局部峰格索引，由左至右；規則見 peaks()，呼叫端負責驗證。"""
+    if not len(y) or np.all(y == y[0]):
+        return np.zeros(0, dtype=np.intp)
+    starts = np.r_[0, np.flatnonzero(y[1:] != y[:-1]) + 1]
+    heights = y[starts]
+    # 平台必須比兩側都高；平台後還在上升時不算局部峰。
+    return starts[(heights > np.r_[-np.inf, heights[:-1]]) &
+                  (heights > np.r_[heights[1:], -np.inf]) & (heights > level)]
+
+
 def peaks(freq: np.ndarray, mag: np.ndarray, n: int = 5, start: int = 1, *,
           level: float = -np.inf, sort: str = SORTS[0],
           interpolate: bool = False, amplitude: np.ndarray | None = None) -> list[tuple[float, float]]:
@@ -25,13 +36,9 @@ def peaks(freq: np.ndarray, mag: np.ndarray, n: int = 5, start: int = 1, *,
     a = y if amplitude is None else np.asarray(amplitude)
     if interpolate and (a.shape != y.shape or not np.isfinite(a).all() or np.any(a < 0)):
         raise ValueError("內插需要等長非負線性振幅")
-    if not len(y) or n == 0 or np.all(y == y[0]):
+    if n == 0:
         return []
-    starts = np.r_[0, np.flatnonzero(y[1:] != y[:-1]) + 1]
-    heights = y[starts]
-    # 平台必須比兩側都高；平台後還在上升時不算局部峰。
-    idx = starts[(heights > np.r_[-np.inf, heights[:-1]]) &
-                 (heights > np.r_[heights[1:], -np.inf]) & (heights > level)]
+    idx = peak_indices(y, level)
     idx = idx[idx >= max(0, start)]
     # 穩定排序確保同值峰仍由左至右，不將完整頻譜轉成 Python 物件排序。
     values = {SORTS[0]: -y[idx], SORTS[1]: f[idx], SORTS[2]: -f[idx], SORTS[3]: y[idx]}[sort]

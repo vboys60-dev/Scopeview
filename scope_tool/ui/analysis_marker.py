@@ -101,6 +101,7 @@ class RFMarkerController:
         self.data: dict | None = None
         self.log = False
         self.level = -float('inf')
+        self.pos = 0.0  # 完整精度位置；spin box 只到六位小數，僅供顯示與輸入
         for w in (self.enabled, self.x):
             row.addWidget(w)
         for title, direction in (("← 下一峰", -1), ("下一峰 →", 1)):
@@ -110,11 +111,16 @@ class RFMarkerController:
         row.addWidget(self.readout)
         row.addStretch()
         self.enabled.toggled.connect(lambda _: self.update())
-        self.x.valueChanged.connect(lambda _: self.update())
+        self.x.valueChanged.connect(self._typed)
         self.line.sigPositionChangeFinished.connect(self._dragged)
 
+    def _typed(self, value: float) -> None:
+        self.pos = value
+        self.update()
+
     def _dragged(self) -> None:
-        self.x.setValue(10 ** self.line.value() if self.log else self.line.value())
+        self.pos = 10 ** self.line.value() if self.log else self.line.value()
+        self.update()
 
     def set_data(self, data: dict | None, log: bool, level: float) -> None:
         self.data, self.log, self.level = data, log, level
@@ -131,9 +137,10 @@ class RFMarkerController:
         if not on:
             self.readout.setText("—")
             return
-        result = track_rf(self.data['freq'], self.data['mag'], self.x.value(),
+        result = track_rf(self.data['freq'], self.data['mag'], self.pos,
                           level=self.level, direction=direction)
         p = result.position
+        self.pos = p.x1
         self.x.blockSignals(True)
         self.x.setValue(p.x1)
         self.x.blockSignals(False)
@@ -179,6 +186,19 @@ def _self_check() -> None:
     assert tab.results.cursor_table.item(2, 1).text() == "2 s"
     assert tab.results.cursor_table.item(0, 0).text() == "X1" and tab.results.cursor_table.rowCount() == 9
     assert tab.results.cursor_table.item(8, 0).text() == "Delta To" and tab.results.channel_table.rowCount() == 0
+    # 縮放使 Track Waveforms 重新吸附移動游標時，量測與 FFT 必須失效重算（setValue 不發 sigDragged）。
+    plot.setXRange(-3, 3, padding=0)
+    plot.vline1.setValue(-2)
+    plot.vline2.setValue(2)
+    tab._update_readout()
+    tab.runner._timer.stop()
+    seq, fft_seq = tab.runner._seq, tab.fft._seq
+    plot.setXRange(-.2, .2, padding=0)
+    assert plot.vline1.value() == -1 and plot.vline2.value() == 1
+    assert tab.runner._seq > seq and tab.runner.busy() and tab.fft._seq > fft_seq
+    seq = tab.runner._seq
+    plot.setXRange(-.3, .3, padding=0)  # 吸附位置不變就不重算
+    assert tab.runner._seq == seq
     plot.set_scale(0, 2.)
     plot.shift_channel(0, 0.5, 1.)
     tab.markers.set_measurements("CHAN1", [(0, 1, "起點"), (0.3, 2, "終點")])
@@ -190,6 +210,21 @@ def _self_check() -> None:
     assert len(tab.markers.points.points()) == 0 and tab.results.cursor_table.item(2, 1).text() == "—"
     combo.setCurrentIndex(0)
     assert plot.vline1.isVisible() and plot.hline1.isVisible() and plot.hline1.movable
+    # 峰頻 1.0000004 在六位小數 spin box 會捨成 1.0；狀態須保留完整精度，否則下一峰卡在同一峰。
+    from PySide6.QtWidgets import QHBoxLayout
+    rf_plot, rf_row = pg.PlotWidget(), QHBoxLayout()  # 保留參照，免得 Qt 物件被回收
+    rf = RFMarkerController(rf_plot, rf_row)
+    rf.set_data({"freq": np.array([0., 1.0000004, 2., 3.]), "mag": np.array([0., 3., 0., 2.]),
+                 "unit": "Vrms"}, False, 0)
+    rf.enabled.setChecked(True)
+    rf.update(1)
+    assert rf.pos == 1.0000004 and rf.line.value() == 1.0000004
+    rf.update(1)
+    assert rf.pos == 3 and rf.line.value() == 3
+    rf.update(-1)
+    assert rf.pos == 1.0000004
+    rf.x.setValue(2.4)  # 使用者輸入仍生效
+    assert rf.pos == 2 and rf.x.value() == 2
     print("analysis_marker self-check OK")
 
 

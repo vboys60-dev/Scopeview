@@ -60,6 +60,7 @@ class MeasureRunner(QObject):
         return rows, colors, tasks, slots
 
     def run(self) -> None:
+        self._timer.stop()  # 立即重算取代待執行的防抖，否則計時器到期會再算一次
         self._seq += 1
         seq = self._seq
         rows, colors, tasks, slots = self._pending()
@@ -92,7 +93,8 @@ def _self_check() -> None:
     t = np.arange(5000) * 1e-6
     sq = np.interp(t % 1e-3, [0, 10e-6, 500e-6, 510e-6, 1e-3], [0, 2, 2, 0, 0])
     data = {"CHAN1": (t, sq, "V", "#ffcc00")}
-    runner = MeasureRunner(pane, data.get, lambda: (10, 50, 90))
+    jobs: list[int] = []  # pct() 每啟動一個背景工作呼叫一次，用來數工作次數
+    runner = MeasureRunner(pane, data.get, lambda: jobs.append(1) or (10, 50, 90))
 
     def wait() -> None:
         for _ in range(100):
@@ -112,10 +114,13 @@ def _self_check() -> None:
     assert runner.entries == [("頻率", "CHAN1", True)] and pane.meas_table.rowCount() == 1
     runner.schedule()
     assert runner.busy() and pane.meas_table.item(0, 2).text() == "…"  # 防抖等待中也不留舊值
+    n_jobs = len(jobs)
     runner.run()
     assert runner.busy() and pane.meas_table.item(0, 2).text() == "…"  # 重算中不留舊值
     wait()
-    assert not runner.busy()
+    time.sleep(0.2)  # 超過防抖 150 ms：被取代的計時器不得再跑一次
+    app.processEvents()
+    assert not runner.busy() and len(jobs) == n_jobs + 1
     # 防抖等待期間，舊工作回來也不會蓋上去
     data["CHAN1"] = (t, np.ones_like(t), "V", "#ffcc00")
     runner.run()  # 舊工作：沒有振幅 → 失敗

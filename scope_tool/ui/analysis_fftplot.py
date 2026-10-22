@@ -25,8 +25,9 @@ Provider = Callable[[str], "tuple[np.ndarray, np.ndarray, str, str] | None"]
 
 
 def _compute(t: np.ndarray, v: np.ndarray, window: str, unit: str, r_ohm: float, source_unit: str,
-             count: int = 5, level: float = -40, sort: str = SORTS[0]) -> dict:
-    res = fft.spectrum(t, v, window, unit, r_ohm, source_unit)
+             count: int = 5, level: float = -40, sort: str = SORTS[0], spec: dict | None = None) -> dict:
+    """spec 為同設定的快取頻譜時只重做峰表，不重跑 FFT。"""
+    res = fft.spectrum(t, v, window, unit, r_ohm, source_unit) if spec is None else dict(spec)
     # 補零會解析出窗旁瓣局部峰；手冊未載明壓旁瓣方法，保留列峰待真機比對。
     res["peaks"] = ([] if res['unit'] == "°" else fft.peaks(
         res['freq'], res['mag'], count, res['lobe'], level=level, sort=sort,
@@ -104,12 +105,13 @@ class FFTPane(QWidget):
             w.currentIndexChanged.connect(self.refresh)
         self.r_ohm.valueChanged.connect(self.refresh)
         self.impedance.currentIndexChanged.connect(self._impedance_changed)
-        self.peak_sort.currentIndexChanged.connect(self.refresh)
-        self.peak_level.valueChanged.connect(self.refresh)
-        self.peak_count.valueChanged.connect(self.refresh)
+        self.peak_sort.currentIndexChanged.connect(self._schedule)  # 峰值控制只重做峰表
+        self.peak_level.valueChanged.connect(self._schedule)
+        self.peak_count.valueChanged.connect(self._schedule)
         self.unit.currentTextChanged.connect(self._unit_changed)
         self.log_x.toggled.connect(self.refresh)
         self._last: dict | None = None
+        self._cache: tuple[tuple, dict] | None = None  # (來源與頻譜設定, 頻譜)；refresh() 即作廢
 
     def _impedance_changed(self, index: int) -> None:
         self.r_ohm.setEnabled(index == 4)
@@ -136,6 +138,11 @@ class FFTPane(QWidget):
         self.refresh()
 
     def refresh(self, *_: object) -> None:
+        """來源資料（範圍、游標、通道）或頻譜設定可能變了：作廢頻譜快取再重算。"""
+        self._cache = None
+        self._schedule()
+
+    def _schedule(self, *_: object) -> None:
         """防抖：游標拖曳時只在停下 200 ms 後重算。"""
         self._seq += 1  # 舊工作回來時序號不符就丟掉
         self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
@@ -145,34 +152,38 @@ class FFTPane(QWidget):
     def _run(self) -> None:
         seq, name = self._seq, self.source.currentText()
         self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
-        src = self._provider(name)
-        if src is None:
-            self._fail("沒有 FFT 來源。")
-            return
-        t, v, source_unit, _ = src
-        self.status.setText("計算中…")
         resistance = ([50., 50., 100., 25.][self.impedance.currentIndex()]
                       if self.impedance.currentIndex() < 4 else self.r_ohm.value())
-        job = Job(_compute, t, v, self.window.currentText(), self.unit.currentText(), resistance,
-                  source_unit, self.peak_count.value(), self.peak_level.value(), self.peak_sort.currentText())
-        job.done.connect(lambda res, s=seq, n=name: self._done(s, n, res))
+        key = (name, self.window.currentText(), self.unit.currentText(), resistance)
+        peak_args = (self.peak_count.value(), self.peak_level.value(), self.peak_sort.currentText())
+        if self._cache is not None and self._cache[0] == key:
+            job = Job(_compute, None, None, *key[1:], None, *peak_args, spec=self._cache[1])
+        else:
+            src = self._provider(name)
+            if src is None:
+                self._fail("沒有 FFT 來源。")
+                return
+            t, v, source_unit, _ = src
+            job = Job(_compute, t, v, *key[1:], source_unit, *peak_args)
+        self.status.setText("計算中…")
+        job.done.connect(lambda res, s=seq, n=name, k=key: self._done(s, n, res, k))
         job.failed.connect(lambda msg, s=seq: s == self._seq and self._fail(msg))
         job.finished.connect(lambda j=job: self._jobs.discard(j))
         self._jobs.add(job)
         job.start()
 
     def _fail(self, message: str) -> None:
-        self._last = None
+        self._last = self._cache = None
         self.rf.set_data(None, self.log_x.isChecked(), self.peak_level.value())
         self.status.setText(message)
         self.curve.setData([], [])
         self.marks.setData([], [])
         self.result_ready.emit(message, [], "")
 
-    def _done(self, seq: int, name: str, res: dict) -> None:
+    def _done(self, seq: int, name: str, res: dict, key: tuple) -> None:
         if seq != self._seq:
             return
-        self._last = res
+        self._last, self._cache = res, (key, res)
         log = self.log_x.isChecked()
         k = 1 if log else 0  # 對數軸不能畫 0 Hz
         self.plot.setLogMode(x=log)
@@ -239,6 +250,28 @@ def _self_check() -> None:
     pane.rf.x.setValue(0)
     pane.rf.update(1)
     assert abs(pane.rf.x.value() - 10e3) < 300
+    # 只改 Peak Sort／Level／最大峰數不得重跑 FFT；頻譜設定或來源資料一變就必須重算。
+    spectrum, calls = fft.spectrum, []
+    fft.spectrum = lambda *a, **k: calls.append(1) or spectrum(*a, **k)
+    try:
+        got.clear()
+        pane.peak_sort.setCurrentIndex(1)
+        pane.peak_count.setValue(2)
+        pane.peak_level.setValue(.05)
+        wait()
+        f_peaks = [f for f, _ in got[-1][1]]
+        assert not calls and 0 < len(f_peaks) <= 2 and f_peaks == sorted(f_peaks)
+        got.clear()
+        pane.window.setCurrentText("Hanning")
+        wait()
+        assert len(calls) == 1
+        got.clear()  # 換資料但不換任何設定：快取不得沿用
+        data["CHAN1"] = (t, np.sin(2 * np.pi * 20e3 * t), "V", "#ffcc00")
+        pane.refresh()  # 分析頁在範圍／游標／通道變動時呼叫
+        wait()
+        assert len(calls) == 2 and abs(got[-1][1][0][0] - 20e3) < 300
+    finally:
+        fft.spectrum = spectrum
     pane.impedance.setCurrentIndex(4)
     assert pane.r_ohm.isEnabled() and pane.r_ohm.minimum() == 10 and pane.r_ohm.maximum() == 200
     got.clear()
