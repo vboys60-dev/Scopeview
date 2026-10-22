@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QGroupBox, QHBoxLayout, QHeade
                                QPushButton, QSizePolicy, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
+from scope_tool.analysis.marker import MarkerResult
 from scope_tool.analysis.measure import STAT_COLUMNS
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info
@@ -23,8 +24,8 @@ from scope_tool.storage.reader import read_file_info
 _NARROW = 900  # 視窗寬度低於此值改成分頁
 
 
-def fmt(value: float, unit: str) -> str:
-    if not np.isfinite(value):
+def fmt(value: float | None, unit: str) -> str:
+    if value is None or not np.isfinite(value):
         return "—"
     if unit in ("", "%") or unit.startswith("dB"):  # 無單位、百分比、dB 不加 SI 字首
         return f"{value:.6g} {unit}".strip()
@@ -195,13 +196,23 @@ class ResultsPane(QWidget):
                            else [label, unit, *[""] * len(STAT_COLUMNS), res or ""])
         return path
 
-    def set_cursor_values(self, t1: float, t2: float, v1: float, v2: float, unit: str, source: str,
-                          channels: list[tuple[str, str, str, float, float]]) -> None:
+    def set_cursor_values(self, t1: float | None, t2: float | None, v1: float | None, v2: float | None,
+                          unit: str, source: str, channels: list[tuple[str, str, str, float, float]],
+                          marker: MarkerResult | None = None) -> None:
         """v1/v2 以 source 通道換算；channels：(名稱, 顏色, 單位, @t1, @t2)。"""
-        d = t2 - t1
-        _fill(self.cursor_table, [["t1", fmt(t1, "s")], ["t2", fmt(t2, "s")], ["Δt", fmt(d, "s")],
-                                  ["1/Δt", fmt(1 / d if d else float("inf"), "Hz")], ["v1", fmt(v1, unit)],
-                                  ["v2", fmt(v2, unit)], ["ΔV", fmt(v2 - v1, unit)], ["換算來源", source]])
+        d = marker.delta_x if marker else t2 - t1
+        inv = marker.inverse_delta_x if marker else (1 / d if d else None)
+        dy = marker.delta_y if marker else v2 - v1
+        labels = ("X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY") if marker else (
+                  "t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV")
+        values = ((t1, "s"), (t2, "s"), (d, "s"), (inv, "Hz"), (v1, unit), (v2, unit), (dy, unit))
+        rows = [[label, fmt(v, u)] for label, (v, u) in zip(labels, values)]
+        rows.append(["換算來源", source])
+        if marker:
+            rows.append(["Delta To", "X1↔X2；Y1↔Y2"])
+        _fill(self.cursor_table, rows)
+        self.cursor_table.setToolTip(marker.reason if marker and not marker.available else
+                                     "Track Measurements 為唯讀位置" if marker and marker.read_only else "")
         _fill(self.channel_table, [[n, fmt(a, u), fmt(b, u), fmt(b - a, u)] for n, _, u, a, b in channels],
               [c for _, c, _, _, _ in channels])
 
@@ -246,6 +257,9 @@ def _self_check() -> None:
     pane.set_cursor_values(0.0, 1e-3, -1.0, 1.0, "V", "CHAN1", [("CHAN1", "#ffcc00", "V", 0.1, 0.3)])
     assert pane.channel_table.item(0, 3).text() == fmt(0.3 - 0.1, "V")
     assert pane.cursor_table.item(3, 1).text() == "1 kHz" and pane.cursor_table.item(7, 1).text() == "CHAN1"
+    assert pane.cursor_table.rowCount() == 8
+    assert [pane.cursor_table.item(i, 0).text() for i in range(7)] == ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"]
+    assert [pane.channel_table.horizontalHeaderItem(i).text() for i in range(4)] == ["通道", "@t1", "@t2", "Δ(t2−t1)"]
     pane.set_fft("Δf = 1 Hz", [(1e3, -3.0)], "dBm")
     assert pane.fft_table.item(0, 1).text() == "1 kHz" and pane.fft_table.item(0, 2).text() == "-3 dBm"
     pane.resize(1200, 300)

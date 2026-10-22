@@ -53,6 +53,7 @@ class AnalysisTab(QWidget):
         """畫一組原始波形（衍生波形清空，量測清單保留、依通道名對應）。"""
         if not waveforms:
             raise ScopeError("沒有波形資料可畫。")
+        self.markers.measurements, self.markers.measurement_source = [], ""
         self._source_path, self._gen = source_path, self._gen + 1
         self._waveforms, self._n_raw = list(waveforms), len(waveforms)
         self._units = {wf.channel: "V" for wf in waveforms}
@@ -121,6 +122,9 @@ class AnalysisTab(QWidget):
     def _update_readout(self, *_: object) -> None:
         src = self.chanbar.selected()
         if not 0 <= src < len(self._waveforms):  # 刪通道時通道列還沒重建
+            return
+        legacy, _ = self.markers.update(src)
+        if not legacy:
             return
         first, offsets = self._waveforms[0], self.plot_widget.offsets
         dx0 = offsets[0][0]

@@ -12,6 +12,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (QComboBox, QLabel, QMenu, QTabWidget, QToolBar, QToolButton,
                                QVBoxLayout, QWidget, QWidgetAction)
 
+from scope_tool.analysis.marker import MODES
 from scope_tool.analysis.measure import MEASUREMENTS, SLOPED, THRESHOLDS
 from scope_tool.ui.analysis_export import ExportBar
 
@@ -42,6 +43,13 @@ class AnalysisToolBar(QToolBar):
         self.reset_action = self.addAction("重設視圖")
         self.channels_action = self.addAction("通道歸位")
         self.cursors_action = self.addAction("游標歸位")
+        self.addWidget(QLabel(" Marker "))
+        self.marker_mode = QComboBox()
+        self.marker_mode.addItem("現行 X1/X2", None)
+        for mode in MODES:
+            self.marker_mode.addItem(mode, mode)
+        self.marker_mode.setToolTip("現行：保留四游標與第一通道吸附。Track Measurements 需呼叫端提供量測位置；目前引擎未提供。")
+        self.addWidget(self.marker_mode)
         self.addSeparator()
         self.export_bar = ExportBar(cursor_range)
         menu = QMenu(self)
@@ -77,6 +85,7 @@ class AnalysisToolBar(QToolBar):
                        self.math_action, self.fft_action):
             action.setEnabled(loaded)
         self.export_button.setEnabled(loaded)
+        self.marker_mode.setEnabled(loaded)
 
     def pct(self) -> tuple[float, float, float]:
         return THRESHOLDS[self.threshold.currentText()]
@@ -137,6 +146,7 @@ def _self_check() -> None:
     bar.range.setCurrentIndex(1)
     assert bar.pct() == (20.0, 50.0, 80.0) and not bar.use_cursors()
     assert bar.export_bar.export_range.count() == 2
+    assert bar.marker_mode.currentData() is None and bar.marker_mode.count() == 6
     mb = MeasureBar()
     got: list[str] = []
     mb.measure_requested.connect(got.append)

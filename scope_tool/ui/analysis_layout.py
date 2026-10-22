@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QHBoxLayout, QSplitter, QVBoxLayout, QWidget
 from scope_tool.ui.analysis_chanbar import ChannelBar, HorizontalBar
 from scope_tool.ui.analysis_controls import AnalysisToolBar, MeasureBar
 from scope_tool.ui.analysis_fftplot import FFTPane
+from scope_tool.ui.analysis_marker import MarkerController
 from scope_tool.ui.analysis_overview import OverviewPlot
 from scope_tool.ui.analysis_plot import AnalysisPlot
 from scope_tool.ui.analysis_results import ResultsPane
@@ -37,6 +38,7 @@ def setup_ui(tab: AnalysisTab) -> None:
     tab.overview.link(tab.plot_widget)
     tab.fft = FFTPane(tab._source)
     tab.results = ResultsPane()
+    tab.markers = MarkerController(tab)
     grids = QSplitter(Qt.Vertical)
     for w in (tab.overview, tab.plot_widget, tab.fft):
         grids.addWidget(w)
@@ -70,6 +72,8 @@ def wire(tab: AnalysisTab) -> None:
     tb.reset_action.triggered.connect(plot.reset_view)
     tb.channels_action.triggered.connect(plot.reset_channels)
     tb.cursors_action.triggered.connect(plot.recenter_cursors)
+    tb.marker_mode.currentIndexChanged.connect(tab._update_readout)
+    tb.marker_mode.currentIndexChanged.connect(tab._range_changed)  # 先吸附，再依新游標區間重算
     tb.math_action.triggered.connect(tab._open_math)
     tb.fft_action.toggled.connect(tab.fft.setVisible)  # FFT 格顯示時自己重算
     tb.fft_action.toggled.connect(tab.results.set_fft_visible)
@@ -86,6 +90,7 @@ def wire(tab: AnalysisTab) -> None:
     bar.remove_requested.connect(tab._remove_channel)
     tab.hbar.range_chosen.connect(lambda lo, hi: plot.setXRange(lo, hi, padding=0))
     plot.getViewBox().sigXRangeChanged.connect(lambda _box, r: tab.hbar.set_range(*r))
+    plot.getViewBox().sigXRangeChanged.connect(tab._update_readout)
     plot.cursors_moved.connect(tab._update_readout)
     plot.cursors_moved.connect(tab._range_changed)
     plot.offsets_changed.connect(tab._offsets_changed)

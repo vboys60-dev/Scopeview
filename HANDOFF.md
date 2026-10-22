@@ -2,6 +2,13 @@
 
 目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
 
+## 2026-10-22 階段 2：Marker（B 級，未 commit）
+
+- 新增純 numpy `analysis/marker.py`（五種模式、觸發參考範圍、差值與 Delta To、數位限制）；UI 沿用四游標，由 `ui/analysis_marker.py` 接線，預設「現行 X1/X2」保留舊行為。預設 Results 保留 HEAD 的 t1/t2/Δt/1/Δt/v1/v2/ΔV 列名與 @t1/@t2 通道欄名，不加 Delta To；非預設模式才顯示 X1/X2/ΔX/1/ΔX/Y1/Y2/ΔY 與 Delta To，並清空通道表。
+- Track Measurements 接口接受呼叫端位置並唯讀顯示；量測引擎尚無位置輸出，因此尚未自動追蹤最近新增量測。不得從統計值猜位置。真機比對項目已補至 `docs/真機驗證清單.md`；C 級同值峰次序留階段 3。
+- Opus 意見修正：追蹤波形允許重複時間戳，遞減／非有限時間軸回不可用與原因；吸附限定窗內資料點，量測位置過濾 NaN／inf，切換模式後重算量測與讀值。手冊未載明的差值符號、數位來源整組不可用取捨已註明；未實作項目與效能限制只記錄於真機清單。
+- 指定 19 個模組 offscreen 自我檢查皆印 OK，預設模式與 git HEAD 版對照 5 組情境輸出逐字相同，`git diff --check` 通過；未做真機／真人滑鼠驗證，未動 jitter/clock/eye 五檔，未 commit。
+
 ## 2026-10-22 本輪：DSO-X 6004A（X6000A）上機、已 commit 16240ff
 
 - 註冊前綴 `DSO-X 6`／`MSO-X 6`（`infiniivision.py`）；截圖、擷取、離線分析讀檔實測通過，細節在 `docs/真機驗證清單.md` 第九輪。
