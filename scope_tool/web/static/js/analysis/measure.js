@@ -13,7 +13,7 @@ export const unitFor = (tpl, chUnit) => String(tpl ?? "").replace("{u}", chUnit)
 export const failure = (reason, gen = 0, revision = 0) => ({ ok: false, stats: null, reason, gen, revision, channel: "", name: "", unit: "" });
 
 export function createMeasure({ store, bridge }, { delay = 150, onError = () => {} } = {}) {
-  let token = 0, timer = null, nextId = 1;
+  let token = 0, timer = null, nextId = 1, lastRev = 0;
   const ctl = {};
   const setEntries = (list) => store.set({ measurements: list }, "program");
 
@@ -34,15 +34,16 @@ export function createMeasure({ store, bridge }, { delay = 150, onError = () => 
       if (live.length) {
         const r = await bridge.job("measure", { entries: live.map(({ channel, name, rising }) => ({ channel, name, rising })), range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
         if (my !== token || store.get().file?.gen !== gen || r.gen !== gen) return; // 過期丟棄
-        results = r.results;
+        results = r.results; lastRev = r.revision;
       }
     } catch (e) {
       if (my !== token) return;
       onError(e);
-      results = live.map(() => failure(e.message));
+      results = live.map(() => failure(e.message, gen, lastRev));
     }
-    const byId = new Map(live.map((e, i) => [e.id, results[i] ?? failure("沒有結果")]));
-    setEntries(store.get().measurements.map((e) => ({ ...e, result: byId.get(e.id) ?? failure("來源通道已刪除") })));
+    // 前端自產的失敗列帶目前 gen／revision，rowState 才會視為「失敗」而非計算中，匯出也不被鎖
+    const byId = new Map(live.map((e, i) => [e.id, results[i] ?? failure("沒有結果", gen, lastRev)]));
+    setEntries(store.get().measurements.map((e) => ({ ...e, result: byId.get(e.id) ?? failure("來源通道已刪除", gen, lastRev) })));
   }
   function add(name, channel, rising) {
     if (!channel) return;

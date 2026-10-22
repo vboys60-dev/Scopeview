@@ -50,14 +50,14 @@ def main(argv: list[str] | None = None) -> None:
         api._attach_window(window)
 
         def on_closing() -> bool:
-            """儀器工作進行中或仍連線時先確認；回 False 取消關閉。 # 待桌面環境驗證"""
-            if jobs.busy:
-                return bool(window.create_confirmation_dialog("確認離開", "儀器工作進行中，確定要關閉嗎？"))
-            if api._drv is not None:
-                return bool(window.create_confirmation_dialog("確認離開", "仍連線著儀器，確定要關閉嗎？"))
-            return True
+            """不可在此呼叫對話框（macOS 處理函式在主執行緒，會死鎖）。
+            改設 window.confirm_close，由 pywebview 在 closing 事件之後自己確認
+            （cocoa／winforms／qt／gtk 皆在事件後才讀此旗標）。 # 待桌面環境驗證"""
+            window.confirm_close = jobs.busy or api._drv is not None
+            return True  # 不是 False（False＝取消關閉）
 
         window.events.closing += on_closing
+        webview.settings["ALLOW_DOWNLOADS"] = True  # 截圖頁「另存」需要
         webview.start()
     except KeyboardInterrupt:
         pass

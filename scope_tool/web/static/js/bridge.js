@@ -80,7 +80,7 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
   const lost = new Set(); // 早到暫存超限而被擠出的工作代號：job() 遇到就失敗，不得永遠等待
   const done = new Map(); // requestId → Promise（進行中與已完成皆保留，最近 dedupeMax 筆）
   const held = new Map(); // seq → 尚未輪到的事件（亂序緩衝）
-  let next = 1, gapTimer = null, ready = null;
+  let next = 1, gapTimer = null, ready = null, epoch = 0; // epoch：每次 desync 加 1，RPC 發出後遇到 desync 的工作不可再等
 
   const settle = (ev, w) => (ev.ok ? w.resolve(ev.result) : w.reject(failEv(ev)));
   function emitLocal(ev) { // 派送給訂閱者；單一 listener 丟例外不影響其他
@@ -106,7 +106,7 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     while (held.size) { next = Math.min(...held.keys()); drain(true); }
     const err = () => new BridgeError("NETWORK", "事件連線序號中斷，工作結果未知，請重新整理頁面確認", true);
     for (const [id, w] of [...waiters]) { waiters.delete(id); w.reject(err()); }
-    early.clear();
+    early.clear(); epoch++;
     emitLocal({ type: "desync", message: err().message });
   }
   function drain(force = false) {
@@ -136,10 +136,11 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     return r.result;
   }
   async function run(method, params, requestId) {
-    const res = await rpc(method, params, requestId);
+    const ep = epoch, res = await rpc(method, params, requestId);
     if (res?.done) return new Promise((resolve, reject) => settle(res.done, { resolve, reject })); // 重送已完成的工作
     const id = res?.job;
     if (!id) throw new BridgeError("UNEXPECTED", `${method} 未回傳工作代號`);
+    if (ep !== epoch) throw new BridgeError("NETWORK", "事件連線序號中斷，工作結果未知，請重新整理頁面確認", true); // RPC 期間發生 desync：事件可能已被清掉，不可永遠等待
     if (lost.delete(id)) throw new BridgeError("NETWORK", "工作結果事件遺失，請重新整理頁面確認", true);
     if (early.has(id)) { const ev = early.get(id); early.delete(id); return new Promise((resolve, reject) => settle(ev, { resolve, reject })); }
     return new Promise((resolve, reject) => waiters.set(id, { resolve, reject }));

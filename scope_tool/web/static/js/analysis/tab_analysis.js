@@ -12,6 +12,11 @@ export function channelsFromFile(info, colors = FALLBACK_COLORS) {
     return { name: c.name, unit: c.unit, derived: !!c.derived, color: colors[i % colors.length], visible: true, scale, position, vmin: c.vmin, vmax: c.vmax, t0: c.t0, t1: c.t1, time_offset: 0 };
   });
 }
+/** 開檔結果 → 單一 store patch（file、channels、selected、view 一起換）。 */
+export function openPatch(info, colors = FALLBACK_COLORS) {
+  const channels = channelsFromFile(info, colors);
+  return { file: info, channels, selected: channels[0]?.name ?? null, fftResult: null, rfPos: null, view: fullRange(info) ?? { t0: 0, t1: 1 } };
+}
 /** 驗證 viewport.intent：兩端為有限數且 t0<t1，否則回 null。 */
 /** 開檔指令名稱（等同處理）。 */
 export const OPEN_COMMANDS = ["file.open", "open_waveform"];
@@ -33,10 +38,10 @@ export function mount(el, ctx) {
         <div class="analysis__overview"></div>
         <div class="analysis__main plot"></div>
         <div class="analysis__fft" hidden></div>
+        <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details>
       </div>
     </div>
     <div class="analysis__results"></div>
-    <div class="analysis__cursors" hidden></div>
   </div>`;
   const q = (c) => el.querySelector("." + c);
   const fft = q("analysis__fft"), overview = q("analysis__overview");
@@ -72,25 +77,24 @@ export function mount(el, ctx) {
   store.onCommand("viewport.intent", (p) => { const v = cleanView(p); if (v) store.set({ view: v }, "user"); });
   store.onCommand("view.reset", () => { const f = fullRange(store.get().file); if (f && f.t1 > f.t0) store.set({ view: f }, "user"); });
 
-  // 開檔流程：file.open {path?}；未給路徑則用 ui.pickPath
-  let opening = 0;
+  // 開檔流程：file.open {path?}；未給路徑則用 ui.pickPath。序列化：進行中再開檔一律忽略並提示；
+  // store.opening 在開檔期間為 true（toolbar 據此禁用關檔／開檔）。
+  let busy = false;
   bindOpen(store, async (p) => {
-    const token = ++opening;
+    if (busy) { ui.toast("正在開檔，請稍候", "info"); return; }
+    busy = true; store.set({ opening: true }, "program");
     try {
       const path = p?.path ?? await ui.pickPath(ctx, "file", ctx.appState?.config?.waveform_dir ?? null);
-      if (!path) return;
-      const info = await bridge.job("open_waveform", { path });
-      if (token !== opening) return; // 使用者又開了別的檔：丟棄舊結果
-      applyFile(info);
+      if (path) applyFile(await bridge.job("open_waveform", { path }));
     } catch (e) {
-      if (token === opening) ui.showError(e, "開檔失敗");
+      ui.showError(e, "開檔失敗");
+    } finally {
+      busy = false; store.set({ opening: false }, "program");
     }
   });
   function applyFile(info) {
     const colors = ctx.appState?.catalog?.channel_colors ?? FALLBACK_COLORS;
-    const f = fullRange(info) ?? { t0: 0, t1: 1 };
-    store.set({ file: info, fftResult: null, rfPos: null, view: f }, "program");
-    store.setChannels(channelsFromFile(info, colors));
+    store.set(openPatch(info, colors), "program"); // file 與 channels／selected 同一次 set，監聽者不會看到新檔配舊通道
     // 游標初值由 L5 cursors.js 依檔案範圍自設（唯一寫入者）
   }
   if (new URLSearchParams(location.search).get("mock") === "1" && new URLSearchParams(location.search).get("autoopen") === "1") store.command("file.open", { path: "/mock/demo.h5" });

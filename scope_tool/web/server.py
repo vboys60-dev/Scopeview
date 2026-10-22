@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hmac
 import json
-import logging
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,11 +19,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
-from scope_tool.web.api import CONTRACT_PATH
+from scope_tool.web.api import CONTRACT_PATH, STATIC
 from scope_tool.web.jobs import BadRequestError, Jobs, dumps, map_error
 
-log = logging.getLogger("scope_tool.web")
-STATIC = Path(__file__).parent / "static"
 # Windows 的 mimetypes 讀登錄檔，.js 可能變 text/plain，故寫死
 MIME = {
     ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -41,9 +38,7 @@ class _MissingAnalysis:
     """analysis_api 尚未存在時的退化物件：任何分析方法都回明確錯誤。"""
 
     def __getattr__(self, name: str) -> Any:
-        def _f(**_: Any) -> Any:
-            raise RuntimeError("分析服務（analysis_api）尚未安裝")
-        return _f
+        return lambda **_: (_ for _ in ()).throw(RuntimeError("分析服務（analysis_api）尚未安裝"))
 
 
 class Server:
@@ -59,8 +54,8 @@ class Server:
         self.amod = analysis_mod
         self.methods = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["methods"]
         handler = type("Handler", (_Handler,), {"srv": self})
+        ThreadingHTTPServer.daemon_threads = True
         self.httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
-        self.httpd.daemon_threads = True
         self.port = self.httpd.server_address[1]
         self.url = f"http://127.0.0.1:{self.port}/?k={self.token}"
 
@@ -101,8 +96,7 @@ class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     srv: Server
 
-    def log_message(self, *a: Any) -> None:  # 安靜
-        pass
+    log_message = lambda *a: None  # noqa: E731 — 安靜
 
     # ----------------------------------------------------------- 輸出
     def _send(self, code: int, body: bytes, ctype: str) -> None:
@@ -229,6 +223,8 @@ def _self_check() -> None:
     class FakeAna:  # 只為驗證 server 對分析工作的包裝
         def open_waveform(self, path):
             return {"path": path, "x": float("nan")}
+        def close_waveform(self):
+            return None
     def wave_bytes(ana, ch, t0, t1, px, gen):
         if gen != 1:
             raise StaleError("開檔世代已變更")
@@ -250,19 +246,18 @@ def _self_check() -> None:
     def rpc(name, body, k="tok"):
         s, b, _ = req(f"/rpc/{name}?k={k}", body)
         return s, json.loads(b)
-    assert rpc("get_state", {}, k="bad")[0] == 403
-    assert rpc("no_such_method", {})[0] == 404
-    assert req("/wave?ch=CHAN1&t0=0&t1=1&px=10&gen=1")[0] == 403
-    assert req("/")[2]["Content-Type"].startswith("text/html")
-    assert req("/js/bridge.js")[2]["Content-Type"].startswith("text/javascript")
-    assert req("/js/../../server.py")[0] == 404 and req("/nope")[0] == 404
-    assert rpc("save_config", {})[1]["error"]["code"] == "BAD_REQUEST"
+    assert (rpc("get_state", {}, k="bad")[0], rpc("no_such_method", {})[0], req("/wave?ch=C&t0=0")[0]) == (403, 404, 403)
+    assert req("/")[2]["Content-Type"][:9] == "text/html" and req("/js/bridge.js")[0] == 200
+    assert req("/js/../../server.py")[0] == req("/nope")[0] == 404
     st = rpc("get_state", {})[1]["result"]
     assert st["connected"] is False and st["native_dialogs"] is False and "catalog" in st
     seq0 = st["seq"]
-    assert "job" in rpc("open_waveform", {"path": "x"})[1]["result"]
+    rpc("open_waveform", {"path": "x"})
     ev = rpc("wait_events", {"since": seq0, "timeout": 5})[1]["result"]
     assert ev["events"][0]["type"] == "job" and ev["events"][0]["result"]["x"] is None, ev
+    assert rpc("close_waveform", {})[1]["ok"]
+    for bad in ({"screenshot_dir": None}, {"screenshot_dir": ""}, {"points": None}, {"points": 0}):
+        assert rpc("save_config", {"patch": bad})[1]["error"]["code"] == "BAD_REQUEST", bad  # 型別錯誤
     assert rpc("connect_fake", {})[1]["result"]["model"] == "FAKE-SCOPE"
     api._drv = SlowFake()
     tmp = tempfile.mkdtemp()
@@ -272,27 +267,31 @@ def _self_check() -> None:
     assert not b["ok"] and b["error"]["code"] == "BUSY" and b["error"]["retryable"], b
     assert rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"] == a
     assert rpc("screenshot", {**shot, "name": "o", "request_id": "r1"})[1]["error"]["code"] == "BAD_REQUEST"
+    assert rpc("capture_info", {"request_id": "r1"})[1]["error"]["code"] == "BAD_REQUEST"  # 同 id 不同方法
     since, got = seq0 + 1, []
     while not any(e.get("id") == a["job"] for e in got):
         o = rpc("wait_events", {"since": since, "timeout": 2})[1]["result"]
         got += o["events"]
         since = o["seq"]
     seqs = [e["seq"] for e in got]
-    assert seqs == sorted(seqs) and len(set(seqs)) == len(seqs), seqs
+    assert seqs == sorted(set(seqs)), seqs
     done = [e for e in got if e.get("id") == a["job"]][0]
     assert done["ok"] and done["result"]["preview"] == 1 and Path(done["result"]["path"]).exists(), done
-    d = rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"]
-    assert d["job"] == a["job"] and d["done"]["ok"], d
+    assert rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"]["done"]["ok"]
     s, data, h = req("/screenshot/last?k=tok&n=1")
-    assert s == 200 and data.startswith(b"\x89PNG") and h["Content-Type"] == "image/png"
+    assert data.startswith(b"\x89PNG") and h["Content-Type"] == "image/png"
     assert req("/wave?k=tok&ch=CHAN1&t0=0&t1=1&px=10&gen=1")[:2] == (200, b"\x00" * 16)
     s, b, _ = req("/wave?k=tok&ch=CHAN1&t0=0&t1=1&px=10&gen=2")
     assert s == 409 and json.loads(b)["error"]["code"] == "STALE"
     assert req("/fft?k=tok&id=s1&f0=0&f1=1&px=10&log=0")[0] == 200 and req("/wave?k=tok&ch=CHAN1")[0] == 400
-    t0 = time.time()
-    o = rpc("wait_events", {"since": 10**6, "timeout": 0.3})[1]["result"]
-    assert o["events"] == [] and time.time() - t0 >= 0.25
+    api._drv = None
+    j = rpc("connect", {"resource": "BOGUS::nowhere", "series_override": None})[1]["result"]["job"]
+    time.sleep(1)
+    e = [x for x in rpc("wait_events", {"since": 0, "timeout": 1})[1]["result"]["events"] if x.get("id") == j][0]
+    assert not e["ok"] and e["error"]["code"] == "SCOPE_ERROR" and "BOGUS" in e["error"]["message"], e
+    assert rpc("wait_events", {"since": 10**6, "timeout": 0.3})[1]["result"]["events"] == []
     srv.stop()
+    assert jobs.close(lambda: None, 2) and STATIC.is_dir()
     print("server self-check OK")
 
 

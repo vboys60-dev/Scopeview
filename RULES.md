@@ -17,7 +17,7 @@
 7. **VISA 例外一律轉成 `ScopeError` 子類別再往外丟。** UI 只 catch `ScopeError`。SCPI Error 273 必須轉成 `RemoteDesktopError`。
 8. **寫入型 SCPI 命令後要 `*OPC?`。** 逾時：截圖 15 秒、大檔傳輸 60 秒。逾時或失敗前，要清掉自己在儀器上留下的暫存檔（`:DISK:DELete`）。
 9. **示波器只因「使用者手動」或「按下擷取」而停止。** 擷取時若在 RUN：先等一整筆（`10×時基+1` 秒）再 `:STOP`；勾「重新觸發」則 `:DIGitize`。擷取後**維持 STOP**，不准自動 `:RUN`。除此之外不准改使用者的採集設定（例如記憶體深度）。
-10. **每個模組留一個 `if __name__ == "__main__":` 自我檢查**，用 `assert`。不要 pytest、不要 fixture、不要測試框架。執行方式一律 `python3 -m scope_tool.<模組路徑>`，必須印出 `xxx self-check OK` 且 exit code 0。前端 JS 例外：用 `node --experimental-default-type=module scope_tool/web/static/js/selfcheck_node.js` 或 `static/selfcheck.html`，同樣印 `xxx self-check OK`（Node 僅開發機輔助，不進產品）。
+10. **每個模組留一個 `if __name__ == "__main__":` 自我檢查**，用 `assert`。不要 pytest、不要 fixture、不要測試框架。執行方式一律 `python3 -m scope_tool.<模組路徑>`，必須印出 `xxx self-check OK` 且 exit code 0。前端 JS 例外：用 `node scope_tool/web/static/js/selfcheck_node.js` 或 `static/selfcheck.html`，同樣印 `xxx self-check OK`（Node 僅開發機輔助，不進產品）。
 11. **離線分析只作用於已開啟的檔案，不碰儀器。** 量測、FFT、數學／濾波的定義照 `docs/離線分析功能規格.md`（依 Infiniium 手冊）；與 Infiniium 有差異的地方要在畫面或註解標明。衍生波形（F1、F2…）不進 CSV 匯出。只用 numpy，不准用 scipy。
 
 ## 二、風格規則
@@ -69,7 +69,7 @@
 |---|---|
 | L0 契約 | `docs/web-api契約.md`、`web/static/api_contract.json`、`static/index.html`、`static/js/{bridge,mock_backend,mock_catalog,mock_dsp,ui,fmt,main}.js`、`static/js/{l0_check,l0_util,l0_sem}.mjs`、`static/js/analysis/{store,scales}.js` |
 | L1a 後端橋接 | `web/{__init__,app,server,jobs,api}.py` |
-| L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,decimate}.py` |
+| L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,analysis_params,decimate}.py` |
 | L2 連線列＋截圖頁 | `static/js/{connbar,tab_screenshot}.js` |
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane}.js`、`static/css/analysis.css` |

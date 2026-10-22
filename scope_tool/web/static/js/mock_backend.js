@@ -10,7 +10,7 @@ const KEYS = {
   get_state: "", save_config: "patch", pick_folder: "initial", pick_waveform_file: "initial", search: "", add_manual_ip: "ip",
   connect: "resource series_override", connect_fake: "", disconnect: "", capture_info: "",
   screenshot: "directory name image_format inverted area", capture: "directory name channels points retrigger",
-  open_waveform: "path", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
+  open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
   measure: "entries range dx threshold", math: "op a b param", remove_channel: "name",
   fft: "source range dx window unit r_ohm peak_count peak_level peak_sort", fft_track_rf: "spectrum_id x direction level",
   export_csv: "range max_points directory", export_measurements: "rows gen revision directory", wait_events: "since timeout",
@@ -27,13 +27,14 @@ export function createMock(opts = {}) {
   let connected = false, model = null, series = null, gen = 0, fnum = 0, specNo = 0, seq = 0, jobNo = 0, rev = 0, shots = 0, instBusy = false, cur = null;
   let busy = !!opts.busy, spec = null, last = null; // spec：最近一次頻譜；last：最近一次量測快照
   let data = {};
+  const manual = []; // 手動新增的儀器清單（整份回傳）
   const events = [], subs = new Set(), dedupe = new Map();
   const config = { screenshot_dir: "/mock/Desktop", screenshot_name: "scope", image_format: "PNG", inverted: false, area: "full", waveform_dir: "/mock/Desktop",
     waveform_name: "wave", waveform_format: "CSV", points: 10000, retrigger: false, last_resource: "", manual_resources: [], series_overrides: {} };
 
   const emit = (ev) => { ev.seq = ++seq; events.push(ev); if (events.length > 500) events.shift(); subs.forEach((f) => f(ev)); };
   const needConn = () => { if (!connected) fail("尚未連線儀器"); };
-  const needFile = () => { if (!gen) fail("尚未開啟波形檔"); };
+  const needFile = () => { if (!Object.keys(data).length) fail("尚未開啟波形檔"); };
   const chan = (n) => data[n] ?? bad(`通道不存在：${n}`);
   const drv = () => emit({ type: "driver", connected, model, series });
   /** 工作型：立即回 {job}，結果稍後以 job 事件送出。lock＝要拿儀器鎖（搶不到同步回 BUSY，且不登記 request_id）。 */
@@ -76,7 +77,7 @@ export function createMock(opts = {}) {
     pick_folder: () => null,
     pick_waveform_file: () => null,
     search: () => job("search", () => [{ resource: "MOCK::INSTR", source: "visa", label: "模擬儀器 (mock)" }], true),
-    add_manual_ip: ({ ip }) => { if (!ip) bad("IP 不可為空"); return [{ resource: `TCPIP0::${ip}::hislip0::INSTR`, source: "manual", label: ip }]; },
+    add_manual_ip: ({ ip }) => { if (!ip) bad("IP 不可為空"); if (!manual.some((x) => x.label === ip)) manual.push({ resource: `TCPIP0::${ip}::hislip0::INSTR`, source: "manual", label: ip }); return manual.map((x) => ({ ...x })); },
     connect: ({ resource, series_override: so }) => job("connect", () => {
       if (!resource) fail("未指定資源");
       if (/UNKNOWN/.test(resource) && !so) throw err("UNSUPPORTED", "無法判斷儀器系列，請手動指定");
@@ -159,6 +160,7 @@ export function createMock(opts = {}) {
         return info(name);
       });
     },
+    close_waveform: () => { data = {}; gen++; spec = last = null; return null; },
     remove_channel: ({ name }) => { if (!data[name]?.derived) fail("只能刪除衍生通道"); delete data[name]; return null; },
     fft: (p) => {
       checkRange(p.range); inCat(p.window, Object.keys(CATALOG.fft_windows), "視窗"); inCat(p.unit, CATALOG.fft_units, "單位"); inCat(p.peak_sort, CATALOG.peak_sorts, "峰排序");
@@ -167,7 +169,7 @@ export function createMock(opts = {}) {
         needFile();
         const [a, b] = cut(p.source, p.range, p.dx), c = data[p.source];
         const unit = p.unit === "Phase" ? "°" : c.derived ? `${c.unit} rms` : p.unit;
-        if (b - a < 2) return specInfo({ ...p, unit }, { ok: false, reason: "所選範圍內資料不足，無法計算 FFT", df: null, rbw: null, enbw: null, enbw_bins: null, cg: null, n: null, effective_n: null, r_ohm: null, f_min: null, f_max: null });
+        if (b - a < 2) { spec = null; return specInfo({ ...p, unit }, { ok: false, reason: "所選範圍內資料不足，無法計算 FFT", df: null, rbw: null, enbw: null, enbw_bins: null, cg: null, n: null, effective_n: null, r_ohm: null, f_min: null, f_max: null }); }
         spec = { id: `s${++specNo}`, gen, ...makeSpectrum() };
         const idx = p.unit === "Phase" ? [] : peakBins(spec.y, p.peak_level);
         const sorts = { "Decreasing Magnitude": (i, j) => spec.y[j] - spec.y[i], "Increasing Magnitude": (i, j) => spec.y[i] - spec.y[j], "Increasing Frequency": (i, j) => i - j, "Decreasing Frequency": (i, j) => j - i };
@@ -212,10 +214,10 @@ export function createMock(opts = {}) {
       } catch (e) { return { ok: false, error: toErr(e) }; }
     },
     async binary(path, a) {
+      if (path === "/wave" && q(a.gen) !== gen) throw err("STALE", "開檔世代已變更");
       needFile();
       if (path === "/wave") {
         const c = chan(a.ch), n = px(a.px);
-        if (q(a.gen) !== gen) throw err("STALE", "開檔世代已變更");
         if (!(q(a.t0) <= q(a.t1))) bad("t0 必須 ≤ t1");
         return envelope(c.t, c.v, q(a.t0), q(a.t1), n);
       }

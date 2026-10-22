@@ -69,6 +69,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | marker_eval | mode, channel, x1, x2, y1, y2, screen_width, measurements | MarkerResult | Analysis |
 | measure J | entries, range, dx, threshold | MeasureBatch{gen, revision, results} | Analysis |
 | math J | op, a, b(null), param | ChannelInfo | Analysis |
+| close_waveform | （無） | null | Analysis |
 | remove_channel | name | null | Analysis |
 | fft J | source, range, dx, window, unit, r_ohm, peak_count, peak_level, peak_sort | FFTResult | Analysis |
 | fft_track_rf | spectrum_id, x, direction, level | RFResult | Analysis |
@@ -241,3 +242,12 @@ Class（BEM 風格，`block__element--modifier`）：
 - STALE 涵蓋 `/wave`、`/fft` gen／spectrum_id 不符、`export_measurements` 過期 revision；二進位端點 STALE 用 HTTP 409。
 - `export_csv.range` 為來源時間、不套 dx（與 measure／fft 的顯示時間不同，已知刻意差異）。
 - 契約自 commit「P0 契約凍結」起只有 lead 能改。
+
+## 附：P2 審查後 lead 裁決
+- 新增 `close_waveform()`（Analysis，同步）：釋放後端全部波形資料，gen+1。前端關檔必須呼叫。
+- `add_manual_ip` 回傳整份手動清單，前端以 label 找新增項。
+- `spectrum_id` 程序內遞增，換檔不重用。
+- `request_id` 去重鍵含方法名與參數；同 ID 不同方法／參數 → BAD_REQUEST。BAD_REQUEST 結果（含 job 內產生者）屬可重試，不留在去重表。
+- Track Measurements：MeasureResult 無事件座標，列為已知限制（UI 標「尚未支援」）。
+- CSV 游標區間：游標顯示時間直接切原始軸，不套 dx（與 Qt 一致）。
+- 開檔序列化：開檔進行中，前端禁止再次 file.open／關檔。

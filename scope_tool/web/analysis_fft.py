@@ -1,6 +1,7 @@
 """Analysis 的 FFT 部分（mixin）：fft、fft_track_rf 與頻譜二進位。狀態由 Analysis 提供。"""
 from __future__ import annotations
 
+import itertools
 import math
 
 import numpy as np
@@ -10,6 +11,8 @@ from scope_tool.analysis import marker as markermod
 from scope_tool.analysis.peaks import SORTS
 from scope_tool.web import decimate
 from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _range
+
+_SPEC_IDS = itertools.count(1)  # 程序內遞增，換檔／關檔不重設
 
 
 class FftMixin:
@@ -51,8 +54,7 @@ class FftMixin:
                                                         amplitude=s["rms"])
             self._alive(gen)
             with self._lock:
-                self._spec_no += 1
-                sid = f"s{self._spec_no}"
+                sid = f"s{next(_SPEC_IDS)}"
                 self._spec = {"id": sid, "gen": gen, "freq": s["freq"], "mag": s["mag"]}
             return _clean({"ok": True, "reason": None, "gen": gen, "spectrum_id": sid, "source": source,
                            "unit": s["unit"], "window": window, "df": s["df"], "rbw": s["rbw"], "enbw": s["enbw"],

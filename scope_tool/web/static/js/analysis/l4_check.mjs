@@ -1,10 +1,10 @@
 // L4 純邏輯自測：node --experimental-default-type=module l4_check.mjs
 import assert from "node:assert/strict";
 import { linear, logmap, divTicks, niceTicks, logTicks, envPixels, drawPixels, nearestDist, makeLatest, debounce } from "./plotcore.js";
-import { layoutRect, markerPixels, divY, yToDiv, valueY, panView, zoomView, waveKey } from "./mainplot.js";
+import { layoutRect, markerPixels, fetchTargets, divY, yToDiv, valueY, panView, zoomView, waveKey } from "./mainplot.js";
 import { fullRange, hitRegion, dragRegion } from "./overview.js";
 import { freqWindow, yRange } from "./fftpane.js";
-import { channelsFromFile, cleanView, bindOpen } from "./tab_analysis.js";
+import { channelsFromFile, cleanView, bindOpen, openPatch } from "./tab_analysis.js";
 
 const near = (a, b, e = 1e-9) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
 
@@ -66,4 +66,25 @@ assert.deepEqual(bound, ["file.open", "open_waveform"]);
 const mk = markerPixels({ mode: "Track Waveforms", points: [{ x: 0.5, y: 2, label: "A" }, { x: NaN, y: 1, label: "B" }, { x: 1, y: null }] }, linear(0, 1, r.l, r.l + r.w), r);
 assert.equal(mk.length, 1); near(mk[0].px, r.l + r.w / 2); near(mk[0].py, divY(r, 2)); assert.equal(mk[0].label, "A");
 assert.deepEqual(markerPixels(null, f, r), []);
+// 開檔 patch：file 與 channels／selected 同一次 set；fetchTargets 只含新檔內的通道
+const info = { gen: 2, channels: [{ name: "CHAN1", unit: "V", vmin: 0, vmax: 1, t0: 0, t1: 1 }] };
+const patch = openPatch(info); assert.equal(patch.file, info); assert.equal(patch.selected, "CHAN1"); assert.equal(patch.channels.length, 1);
+assert.deepEqual(fetchTargets({ file: info, channels: [{ name: "OLD", visible: true }, { name: "CHAN1", visible: true }, { name: "CHAN2", visible: false }] }).map((c) => c.name), ["CHAN1"]);
+// 可見狀態掛載：RO 同步觸發也不得 ReferenceError；以假 DOM 掛載三個圖表
+{
+  const mkCtx = () => new Proxy({}, { get: (t, k) => (k === "measureText" ? () => ({ width: 0 }) : (t[k] ??= () => {})), set: (t, k, v) => ((t[k] = v), true) });
+  const mkEl = () => ({ className: "", style: {}, width: 0, height: 0, listeners: {}, getContext: mkCtx, addEventListener() {}, setPointerCapture() {},
+    getBoundingClientRect: () => ({ width: 500, height: 300, left: 0, top: 0 }), append() {}, querySelector: () => mkEl(), innerHTML: "" });
+  globalThis.window = { devicePixelRatio: 2 };
+  globalThis.document = { createElement: mkEl };
+  globalThis.ResizeObserver = class { constructor(cb) { this.cb = cb; } observe() { this.cb(); } disconnect() {} }; // 同步觸發（最壞情況）
+  const { createStore } = await import("./store.js");
+  const store = createStore(); let fetched = 0;
+  const bridge = { fetchWave: async () => { fetched++; return { n: 1, mode: 0, x: Float64Array.of(0), lo: Float32Array.of(0), hi: Float32Array.of(0) }; }, fetchSpectrum: async () => ({ n: 0, mode: 0, x: new Float64Array(0), lo: new Float32Array(0), hi: new Float32Array(0) }) };
+  const c = { store, bridge, ui: { toast() {} } };
+  store.set(openPatch(info), "program");
+  for (const m of ["./mainplot.js", "./overview.js", "./fftpane.js"]) (await import(m)).mount(mkEl(), c);
+  await new Promise((s) => setTimeout(s, 250));
+  assert.ok(fetched >= 1);
+}
 console.log("l4 self-check OK");

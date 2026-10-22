@@ -15,3 +15,6 @@
 .plot__canvas { position: absolute; inset: 0; display: block; touch-action: none; user-select: none; }
 .plot__overlay { position: absolute; right: 6px; top: 4px; color: var(--c-plot-text, #ccc); font-size: 11px; pointer-events: none; }
 @media (max-width: 900px) { .analysis__body { flex-direction: column; } }
+.analysis__cursorbox { flex: 0 0 auto; font-size: var(--fs-sm, 12px); }
+.analysis__cursorbox > summary { cursor: pointer; padding: 2px 0; color: var(--c-text-dim, #888); }
+.analysis__cursors { max-height: 28vh; overflow: auto; }

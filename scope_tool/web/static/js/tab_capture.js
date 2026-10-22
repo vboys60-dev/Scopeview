@@ -17,6 +17,15 @@ export function riskOf(points, nCh) {
 export const elapsedText = (sec) => `擷取中… 已 ${Math.max(0, Math.floor(sec))} 秒`;
 export const STOP_NOTE = "擷取後示波器會維持 STOP 狀態（不會自動 RUN）；若要繼續觀察請在儀器上手動 RUN。";
 export const busyText = (e) => (e?.code === "BUSY" ? "儀器忙碌中，請等目前操作完成後再按一次。" : e?.message ?? String(e));
+/** BUSY 時延遲重試（最多 tries 次）；其他錯誤直接丟出。onWait(n) 供 UI 顯示「忙碌中」。 */
+export async function retryBusy(fn, { tries = 5, delayMs = 1000, onWait = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+  for (let n = 1; ; n++) {
+    try { return await fn(); } catch (e) {
+      if (e?.code !== "BUSY" || n >= tries) throw e;
+      onWait(n); await sleep(delayMs);
+    }
+  }
+}
 /** 驗證輸入；回錯誤字串或 null。 */
 export function validate({ connected, channels, maxPoints, points, dir }) {
   if (!connected) return "請先連線儀器。";
@@ -34,7 +43,7 @@ const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) 
 export function mount(el, ctx) {
   const { bridge, store, ui } = ctx;
   const cfg = ctx.appState?.config ?? {};
-  let info = null, running = false, lastPath = null, token = 0;
+  let info = null, dirty = true, running = false, lastPath = null, token = 0;
   const checks = new Map();
 
   const dir = h("input", "input grow"); dir.value = cfg.waveform_dir ?? "";
@@ -57,13 +66,17 @@ export function mount(el, ctx) {
   };
   const syncBtn = () => go.classList.toggle("is-disabled", running || !ctx.appState?.connected);
 
+  const active = () => ctx.activeTab === "capture";
+  /** 只在擷取分頁作用中才查；否則記旗標，切入時再查。 */
   async function loadInfo() {
+    if (!active()) { dirty = true; return; }
+    dirty = false;
     const my = ++token;
     chBox.replaceChildren(); checks.clear(); info = null; maxHint.textContent = ""; refreshRisk(); syncBtn();
     if (!ctx.appState?.connected) { status.textContent = "尚未連線"; return; }
     status.textContent = "查詢通道與點數上限中…";
     try {
-      const i = await bridge.job("capture_info", {});
+      const i = await retryBusy(() => bridge.job("capture_info", {}), { onWait: () => { if (my === token) status.textContent = "儀器忙碌中…稍後自動重試"; } });
       if (my !== token) return;
       info = i;
       for (const c of i.channels) {
@@ -98,6 +111,6 @@ export function mount(el, ctx) {
   };
 
   bridge.on("driver", () => loadInfo());
-  store.onCommand("tab.activated", (n) => { if (n === "capture" && !info && !running) loadInfo(); });
+  store.onCommand("tab.activated", (n) => { if (n === "capture" && (dirty || !info) && !running) loadInfo(); });
   loadInfo();
 }

@@ -23,6 +23,11 @@ export function markerPixels(mr, X, rect) {
   }
   return out;
 }
+/** 該抓哪些通道：可見、且存在於目前檔案（避免新檔 gen 搭配舊通道名）。 */
+export const fetchTargets = (s) => {
+  const names = new Set((s.file?.channels ?? []).map((c) => c.name));
+  return s.channels.filter((c) => c.visible && names.has(c.name));
+};
 /** /wave 請求鍵（來源時間 = 顯示時間 − dx）；相同鍵不重抓。 */
 export const waveKey = (name, v, dx, px, gen) => [name, v.t0 - dx, v.t1 - dx, px, gen].join("|");
 
@@ -71,8 +76,7 @@ export function mount(el, ctx) {
   function fetchNow() {
     const s = store.get(), gen = s.file?.gen, px = Math.min(16384, Math.max(2, Math.round(rect.w)));
     if (gen === undefined || rect.w < 2) return;
-    for (const c of s.channels) {
-      if (!c.visible) continue;
+    for (const c of fetchTargets(s)) {
       const key = waveKey(c.name, s.view, c.time_offset, px, gen);
       if (cache.get(c.name)?.key === key) continue;
       if (!latest.has(c.name)) latest.set(c.name, makeLatest());

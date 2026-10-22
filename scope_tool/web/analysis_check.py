@@ -166,6 +166,43 @@ def _self_check() -> None:
         assert cr["y"]["CHAN1"]["y1"] is None and json.dumps(cr, allow_nan=False)
         _, _, _, lo, hi = decode(wave_bytes(A, "CHAN1", 0.0, 1.0, 50, 2))
         assert np.isnan(lo).any() and np.array_equal(np.isnan(lo), np.isnan(hi))
+        # 換檔後舊頻譜 id 不得取得新檔頻譜；id 程序內遞增不重用
+        old_id = fr["spectrum_id"]
+        nf = run(A.fft("CHAN1", [0.0002, 0.01], {}, **kw))
+        assert nf["spectrum_id"] != old_id and int(nf["spectrum_id"][1:]) > int(old_id[1:]) and nf["ok"], nf
+        assert isinstance(err(A.fft_track_rf, old_id, 1.0, 0, -40.0, exc=StaleError), StaleError)
+        # Track Waveforms：資料起點不在 0 秒（5 ~ 5.1 s）仍可追蹤
+        t5 = 5.0 + np.arange(1000) * 1e-4
+        off = tmp / "off.csv"
+        off.write_text("Time(s),CH1(V)\n" + "\n".join(f"{float(a)!r},{float(b)!r}" for a, b in
+                                                      zip(t5, np.sin(t5 * 100))) + "\n", encoding="utf-8")
+        run(A.open_waveform(str(off)))
+        mk = A.marker_eval("Track Waveforms", "CHAN1", 5.02, 5.05, 0.0, 0.0, 0.1, [])
+        assert mk["available"] and abs(mk["position"]["x1"] - 5.02) < 1e-4, mk
+        # close_waveform：釋放並讓舊 gen／頻譜／快照全部 STALE
+        g_open = A._gen
+        sid = run(A.fft("CHAN1", None, {}, **kw))["spectrum_id"]
+        assert A.close_waveform() is None and A._gen == g_open + 1 and not A._waves and A._spec is None
+        assert isinstance(err(wave_bytes, A, "CHAN1", 0.0, 1.0, 10, g_open, exc=StaleError), StaleError)
+        assert isinstance(err(A.fft_track_rf, sid, 5.0, 0, -40.0, exc=StaleError), StaleError)
+        assert isinstance(err(A.export_measurements, [], g_open, 1, str(tmp), exc=StaleError), StaleError)
+        assert isinstance(err(A.cursor_readout, 0.0, 1.0, {}, exc=ScopeError), ScopeError)
+        # validate_params：只檢查型別／必填／列舉
+        from scope_tool.web.analysis_params import validate_params as vp
+        good = dict(entries=[{"channel": "CHAN1", "name": "Vmax", "rising": True}], range=None, dx={},
+                    threshold="10/50/90 %")
+        vp("measure", good)
+        for bad in (dict(good, threshold="x"), dict(good, range=[1]), dict(good, dx={"a": "b"}),
+                    dict(good, entries=[{"channel": "C"}]), {k: v for k, v in good.items() if k != "dx"},
+                    dict(good, extra=1)):
+            assert isinstance(err(vp, "measure", bad, exc=BadRequest), BadRequest), bad
+        vp("close_waveform", {})
+        vp("export_csv", dict(range=[1, 0.5], max_points=None, directory=None))
+        assert isinstance(err(vp, "export_csv", dict(range=None, max_points="5", directory=None), exc=BadRequest),
+                          BadRequest)
+        assert isinstance(err(vp, "marker_eval", dict(mode="Track RF", channel="a", x1=0, x2=0, y1=0, y2=0,
+                                                       screen_width=1, measurements=[]), exc=BadRequest), BadRequest)
+        assert isinstance(err(vp, "nope", {}, exc=BadRequest), BadRequest)
         # 參數錯誤
         assert isinstance(err(A.measure, [], [1, "x"], {}, "10/50/90 %", exc=BadRequest), BadRequest)
         assert isinstance(err(A.measure, [], None, {}, "bad", exc=BadRequest), BadRequest)

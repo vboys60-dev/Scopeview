@@ -24,6 +24,24 @@ assert.equal(elapsedText(0), "擷取中… 已 0 秒"); assert.equal(elapsedText
   assert.equal(u.errors.length, 0);
 }
 
+// 手動 IP：後端回整份清單，連加兩個要選到各自剛加的那筆
+{
+  const list = [], bridge = { on() {}, call: async (_, { ip }) => (list.push({ resource: `TCPIP0::${ip}::inst0::INSTR`, source: "manual", label: ip }), [...list]) };
+  const ips = ["10.0.0.5", "10.0.0.6"]; const u = ui(); let i = 0; u.prompt = async () => ips[i++];
+  const c = createConn({ bridge, ui: u, view: { render() {}, chooseSeries: async () => null } });
+  await c.manual(); assert.equal(c.state.selected, "TCPIP0::10.0.0.5::inst0::INSTR");
+  await c.manual(); assert.equal(c.state.selected, "TCPIP0::10.0.0.6::inst0::INSTR"); assert.equal(c.state.found.length, 2);
+}
+
+// 連著真機按模擬：不得斷線，只提示
+{
+  const { b } = mk(), u = ui(), c = createConn({ bridge: b, ui: u, config: { last_resource: "MOCK::INSTR" }, view: { render() {}, chooseSeries: async () => null } });
+  b.on("driver", c.onDriver);
+  await c.connect(); assert.equal(c.state.model, "DSO-X 3014G");
+  await c.toggleFake(); assert.ok(c.state.connected); assert.equal(c.state.model, "DSO-X 3014G"); assert.deepEqual(u.alerts, ["目前連著真機，請先斷線再使用模擬儀器。"]);
+  await c.disconnect(); await c.toggleFake(); assert.equal(c.state.model, "FAKE-SCOPE"); await c.toggleFake(); assert.ok(!c.state.connected);
+}
+
 // BUSY：固定文案，且不卡死（pending 會清掉）
 {
   const { m, b } = mk(), u = ui(), c = createConn({ bridge: b, ui: u, view: { render() {}, chooseSeries: async () => null } });

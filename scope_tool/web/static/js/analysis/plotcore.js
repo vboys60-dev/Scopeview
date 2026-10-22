@@ -124,9 +124,10 @@ export function createCanvas(host, onResize, cls = "plot__canvas") {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (w && h) onResize(w, h);
   };
-  const ro = new ResizeObserver(fit);
+  // 一律非同步呼叫 fit：呼叫端的 const cv = createCanvas(...) 尚未完成指派前，callback 不得被執行
+  const ro = new ResizeObserver(() => queueMicrotask(fit));
   ro.observe(host);
-  fit();
+  queueMicrotask(fit);
   return { canvas, ctx, size: () => [w, h], dispose: () => ro.disconnect() };
 }
 

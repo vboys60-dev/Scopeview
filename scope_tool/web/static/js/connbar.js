@@ -34,9 +34,12 @@ export function createConn({ bridge, ui, view, config = {}, series = ["InfiniiVi
       const ip = (await ui.prompt("儀器 IP 位址：", "", "手動輸入 IP"))?.trim();
       if (!ip) return;
       try {
-        const [it] = await bridge.call("add_manual_ip", { ip });
-        if (!s.found.some((f) => f.resource === it.resource)) s.found.push(it);
-        s.selected = it.resource; draw();
+        // 後端回整份手動清單：合併進清單，再以 label 找出剛輸入的那一筆
+        const list = await bridge.call("add_manual_ip", { ip });
+        for (const it of list) if (!s.found.some((f) => f.resource === it.resource)) s.found.push(it);
+        const it = list.find((f) => f.label === ip);
+        if (it) s.selected = it.resource;
+        draw();
       } catch (e) { await fail(e, "手動輸入失敗"); }
     },
     connect: () => run("connect", "連線中…", async () => {
@@ -56,7 +59,11 @@ export function createConn({ bridge, ui, view, config = {}, series = ["InfiniiVi
     disconnect: () => run("disconnect", "斷線中…", async () => { await bridge.job("disconnect", {}); applyDriver({ connected: false }); }, "斷線失敗"),
     fake: () => run("fake", "連線中…", async () => applyResult(await bridge.call("connect_fake", {})), "連線失敗"),
     toggle: () => (s.connected ? api.disconnect() : api.connect()),
-    toggleFake: () => (s.connected ? api.disconnect() : api.fake()),
+    async toggleFake() {
+      if (!s.connected) return api.fake();
+      if (s.model === "FAKE-SCOPE") return api.disconnect();
+      await ui.alert("目前連著真機，請先斷線再使用模擬儀器。", "請先斷線"); // 不得斷開真機
+    },
     onDriver: (ev) => applyDriver(ev),
   };
   function applyResult(r) { applyDriver({ connected: true, model: r.model }); }
@@ -105,7 +112,7 @@ export function mount(el, ctx) {
       const busy = !!s.pending;
       for (const b of [bSearch, bManual, bConn, bFake, combo]) b.disabled = busy;
       bConn.textContent = s.connected ? "斷線" : "連線";
-      bFake.textContent = s.connected && s.model === "FAKE-SCOPE" ? "斷開模擬" : "測試儀器（模擬）";
+      bFake.textContent = s.model === "FAKE-SCOPE" ? "斷開模擬" : "測試儀器（模擬）";
       status.textContent = s.text; warn.textContent = s.warn;
     },
   };

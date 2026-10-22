@@ -14,16 +14,17 @@ export function channelRecord(info, idx, colors, scales) {
     vmin: info.vmin, vmax: info.vmax, time_offset: 0, t0: info.t0, t1: info.t1, points: info.points };
 }
 const EMPTY_CUR = { x1: null, x2: null, y1: null, y2: null };
-/** 關檔：一次重設所有相依狀態（開檔由 L4 tab_analysis 處理）。 */
-export function closeFile(store) {
+/** 關檔：先通知後端釋放資料（gen+1），再一次重設所有相依狀態（開檔由 L4 處理）。mock 缺此方法（NOT_FOUND）時略過。 */
+export async function closeFile(store, bridge) {
+  try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
   store.set({ file: null, channels: [], selected: null, cursors: EMPTY_CUR, measurements: [], fftResult: null, rfPos: null, markerResult: null }, "program");
 }
 const rangeOf = (st) => (st.rangeMode === "cursors" && num(st.cursors.x1) && num(st.cursors.x2) ? [st.cursors.x1, st.cursors.x2] : null);
 const dxOf = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_offset || 0]));
-/** CSV 範圍：來源時間軸，游標（顯示時間）以第一通道 dx 換回來源（游標吸附第一通道）；無游標值＝全部。 */
+/** CSV 範圍：游標顯示時間直接切原始軸、不扣 dx（與 Qt、契約一致）；無游標值＝全部。 */
 export function csvRange(st) {
-  const [a, b] = [st.cursors.x1, st.cursors.x2], d = st.channels[0]?.time_offset || 0;
-  return num(a) && num(b) ? [a - d, b - d] : null;
+  const [a, b] = [st.cursors.x1, st.cursors.x2];
+  return num(a) && num(b) ? [a, b] : null;
 }
 /** FFT 參數；阻抗 Ω 缺或 ≤0 回 null。 */
 export function fftParams(st, p, catalog) {
@@ -41,9 +42,10 @@ export function createFft({ store, bridge }, catalog, p, { delay = 150, onError 
     try {
       const r = await bridge.job("fft", args);
       if (my !== token || store.get().file?.gen !== gen || (r.gen !== undefined && r.gen !== gen)) return;
-      store.set({ fftResult: { ...r, peak_level: args.peak_level } }, "program");
+      store.set({ fftResult: { ...r, peak_level: args.peak_level }, ...(r.unit === "°" ? { rfPos: null } : {}) }, "program"); // Phase 無 RF
     } catch (e) { if (my === token) { onError(e); store.set({ fftResult: null }, "program"); } }
   }
+  const invalidate = () => { token++; clearTimeout(timer); }; // 取消勾選時使進行中的 job 失效
   const schedule = () => { token++; clearTimeout(timer); timer = setTimeout(run, delay); };
   let sig = "";
   store.on(["file", "rangeMode", "cursors", "channels"], (st, keys) => {
@@ -52,7 +54,7 @@ export function createFft({ store, bridge }, catalog, p, { delay = 150, onError 
     sig = s;
     if (p.on) schedule();
   });
-  return { run, schedule };
+  return { run, schedule, invalidate };
 }
 
 function modal(title, build, ok = "確定") {
@@ -124,10 +126,10 @@ export function mount(el, ctx) {
 
   // ── 一般控制 ──
   const marker = select([["", "傳統游標 X1/X2"], ...(catalog.marker_modes ?? []).map((m) => [m, m])]);
-  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => store.set({ markerMode: marker.value || null }, "user");
+  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { store.set({ markerMode: marker.value || null }, "user"); if (marker.value === "Track Measurements") ui.toast("Track Measurements 尚未支援", "info"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
-  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store)), bReset = btn("重設視圖", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
+  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("重設視圖", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
   loaded.push(bClose, bInfo, bMath, bCsv, marker, bReset);
   const prev = h("input", "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
   el.append(bOpen, bClose, bInfo, bReset, fieldOf("預覽", prev), fieldOf("Marker", marker), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
@@ -143,7 +145,7 @@ export function mount(el, ctx) {
   nums(man, "manualR", (v) => v > 0); nums(lvl, "peakLevel", Number.isFinite); nums(cnt, "peakCount", (v) => Number.isInteger(v) && v >= 1);
   const sel = (s, key, conv = (x) => x) => { s.onchange = () => { p[key] = conv(s.value); syncFft(); fft.schedule(); }; };
   sel(src, "source"); sel(win, "window"); sel(unit, "unit"); sel(imp, "imp", Number); sel(sort, "peakSort");
-  on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(); else store.set({ fftResult: null, rfPos: null }, "program"); syncFft(); };
+  on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(); else { fft.invalidate(); store.set({ fftResult: null, rfPos: null }, "program"); } syncFft(); };
   function syncFft() {
     man.disabled = (catalog.fft_impedances ?? [])[p.imp]?.[1] !== null;
     const ph = p.unit === "Phase"; [sort, lvl, cnt].forEach((c) => { c.disabled = ph; });
@@ -158,13 +160,14 @@ export function mount(el, ctx) {
   function sync() {
     const st = store.get(), has = !!st.file, names = st.channels.map((c) => c.name);
     [...loaded, ...loadedAll].forEach((c) => { c.disabled = !has; });
+    bClose.disabled = !has || !!st.opening; // 開檔進行中不可關檔
     if (src.options.length !== names.length || [...src.options].some((o, i) => o.value !== names[i])) { src.replaceChildren(...names.map((n) => new Option(n, n))); }
     if (!names.includes(p.source)) { p.source = names[0] ?? null; }
     src.value = p.source ?? ""; marker.value = st.markerMode ?? ""; range.value = st.rangeMode; thr.value = st.threshold;
     if (!has && on.checked) { on.checked = false; p.on = false; store.command("fft.visible", false); }
     syncFft();
   }
-  store.on(["file", "channels", "markerMode", "rangeMode", "threshold"], sync);
+  store.on(["file", "channels", "markerMode", "rangeMode", "threshold", "opening"], sync);
   store.on(["fftResult"], (st) => { // 新頻譜（spectrum_id 已換）→ 已有 RF 位置就重新吸附（按鈕在 L4 fftpane）
     const r = st.fftResult;
     if (st.rfPos && r?.ok && r.unit !== "°") store.command("rf.intent", { direction: 0, x: st.rfPos.x }); else if (st.rfPos && !r?.ok) store.set({ rfPos: null }, "program");

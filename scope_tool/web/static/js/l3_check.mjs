@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { makeBridge } from "./bridge.js";
 import { createMock } from "./mock_backend.js";
-import { estimateBytes, riskOf, elapsedText, validate, doneText, busyText, fmtBytes } from "./tab_capture.js";
+import { estimateBytes, riskOf, elapsedText, validate, doneText, busyText, fmtBytes, retryBusy } from "./tab_capture.js";
 
 assert.equal(estimateBytes(100e6, 4), 6.4e9);
 assert.equal(riskOf(10000, 2), null);
@@ -32,4 +32,14 @@ await assert.rejects(b.job("capture", { directory: "/mock", name: "w", channels:
 mock.setBusy(true);
 const e = await b.job("capture_info", {}).catch((x) => x);
 assert.equal(e.code, "BUSY"); assert.match(busyText(e), /忙碌/);
+// BUSY 後重試成功／用盡次數
+{
+  let n = 0, waits = 0;
+  const v = await retryBusy(async () => { if (++n < 3) throw Object.assign(new Error("忙"), { code: "BUSY" }); return "ok"; }, { delayMs: 1, onWait: () => waits++ });
+  assert.equal(v, "ok"); assert.equal(waits, 2);
+  await assert.rejects(retryBusy(async () => { throw Object.assign(new Error("忙"), { code: "BUSY" }); }, { tries: 2, delayMs: 1 }), (x) => x.code === "BUSY");
+  let m = 0;
+  await assert.rejects(retryBusy(async () => { m++; throw Object.assign(new Error("x"), { code: "SCOPE_ERROR" }); }, { delayMs: 1 }));
+  assert.equal(m, 1);
+}
 console.log("l3 self-check OK");

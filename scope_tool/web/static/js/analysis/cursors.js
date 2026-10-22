@@ -58,8 +58,12 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         return;
       }
       if (!ch) return emit(null);
+      if (mode === "Track Measurements") { // MeasureResult 無事件座標，已知限制：明確提示，不送空陣列
+        store.set({ markerResult: null }, "program");
+        return emit({ kind: "unsupported", reason: "Track Measurements 尚未支援" });
+      }
       const src = toSource(cur, ch), v = st.view;
-      const r = await bridge.call("marker_eval", { mode, channel: ch.name, ...src, screen_width: v.t1 - v.t0, measurements: [] });
+      const r = await bridge.call("marker_eval", { mode, channel: ch.name, ...src, screen_width: v.t1 - v.t0, measurements: [] }); // 只有非 Track Measurements 模式會走到這裡
       if (!alive()) return;
       const p = r.position, dx1 = ch.time_offset || 0;
       if (mode === "Track Waveforms" && r.available) {
@@ -135,7 +139,7 @@ export function mount(el, ctx) {
     }
   }
   const rowsOf = (r) => {
-    if (!r) return [];
+    if (!r || r.kind === "unsupported") return [];
     const m = r.kind === "marker", L = m ? ["X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY"] : ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"];
     const dt = m ? r.dx : r.t2 - r.t1, dy = m ? r.dy : (r.v1 === null || r.v2 === null ? null : r.v2 - r.v1);
     const inv = m ? r.inv : dt ? 1 / dt : null;
@@ -148,7 +152,7 @@ export function mount(el, ctx) {
   const fill = (t, head, rows) => t.replaceChildren(...[head, ...rows].filter(Boolean).map((r, i) => { const tr = h("tr"); r.forEach((c) => tr.append(h(i === 0 && head ? "th" : "td", "", c))); return tr; }));
   function render(r) {
     syncInputs();
-    info.textContent = r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
+    info.textContent = r?.kind === "unsupported" ? r.reason : r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
     fill(tbl, null, rowsOf(r));
     const cs = store.get().channels;
     fill(chTbl, ["通道", "@t1", "@t2", "Δ(t2−t1)"], r?.kind === "legacy"

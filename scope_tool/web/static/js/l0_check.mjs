@@ -130,7 +130,7 @@ import { runSemantics } from "./l0_sem.mjs";
 
 // ---- 事件：亂序、重複、斷層、listener 例外、早到暫存超限（fake transport）----
 {
-  const fake = () => { const t = { handler: null, q: [], async rpc(m) { if (m === "get_state") return { ok: true, result: { seq: 10 } }; return { ok: true, result: { job: t.q.shift() } }; }, subscribe(h, since) { t.handler = h; t.since = since; }, binary() {}, url() {} }; return t; };
+  const fake = () => { const t = { handler: null, q: [], delay: 0, async rpc(m) { if (m === "get_state") return { ok: true, result: { seq: 10 } }; if (t.delay) { const j = t.q.shift(); await sleep(t.delay); return { ok: true, result: { job: j } }; } return { ok: true, result: { job: t.q.shift() } }; }, subscribe(h, since) { t.handler = h; t.since = since; }, binary() {}, url() {} }; return t; };
   const t = fake(), b = makeBridge(t, true, { gapMs: 30, earlyMax: 2 });
   const ce = console.error; console.error = () => {}; // 預期會印壞 listener 的例外
   await b.call("get_state"); assert.equal(t.since, 10); // 從目前 seq 起收
@@ -150,6 +150,11 @@ import { runSemantics } from "./l0_sem.mjs";
   // 早到暫存超限：ja1 被擠出 → job() 明確失敗；ja3 仍可取得
   ["e1", "e2", "e3"].forEach((id, i) => t.handler(jev(15 + i, id)));
   t.q.push("e1"); await rej(b.job("x", {}), "NETWORK"); t.q.push("e3"); assert.equal(await b.job("x", {}), "e3");
+  // RPC 期間發生 desync（回應延遲）：RPC 回來後不可永遠等待
+  t.delay = 80; t.q.push("late1"); const pl = b.job("x", {}); await sleep(5);
+  t.handler(jev(20, "zz")); await sleep(50); // 缺 18、19 → desync
+  await rej(Promise.race([pl, sleep(300).then(() => { throw Object.assign(new Error("hang"), { code: "HANG" }); })]), "NETWORK");
+  t.delay = 0; t.q.push("late2"); const pl2 = b.job("x", {}); await sleep(1); t.handler(jev(21, "late2")); assert.equal(await pl2, "late2"); // desync 後恢復正常
   console.error = ce;
 }
 

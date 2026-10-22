@@ -1,24 +1,18 @@
-"""Api：暴露給前端的後端方法（契約 owner=Api）。
-
-驅動器（VISA）呼叫一律包在交給 `jobs.submit` 的函式裡，由儀器工作執行緒執行；
-HTTP 執行緒與 pywebview 主執行緒不做 VISA I/O。
-公開方法集合與參數名必須等於 api_contract.json（見 contract_check）；
-輔助方法一律以底線開頭。
-"""
+"""Api：前端可呼叫的後端方法（契約 owner=Api）。VISA 呼叫一律包在 `jobs.submit` 的函式內，
+由儀器執行緒執行；公開方法須等於 api_contract.json（contract_check），輔助方法以底線開頭。"""
 
 from __future__ import annotations
 
 import json
 import re
+import sys
 import threading
 from pathlib import Path
 from typing import Any
 
 from scope_tool import config as config_mod
-from scope_tool.contracts import (
-    CaptureArea, FoundInstrument, ImageFormat, ScopeDriver, ScopeError, ScreenshotOptions,
-    Series, WaveformFormat,
-)
+from scope_tool.contracts import (CaptureArea, FoundInstrument, ImageFormat, ScopeDriver, ScopeError,
+                                  ScreenshotOptions, Series, WaveformFormat)
 from scope_tool.web.jobs import BadRequestError, Jobs
 
 for _m in ("infiniivision", "infiniium"):  # 註冊 driver；缺相依時略過（同 ui/main_window）
@@ -27,7 +21,10 @@ for _m in ("infiniivision", "infiniium"):  # 註冊 driver；缺相依時略過�
     except Exception:  # noqa: BLE001
         pass
 
-CONTRACT_PATH = Path(__file__).parent / "static" / "api_contract.json"
+# 凍結 exe（PyInstaller）時資源在 _MEIPASS 下；datas 目的路徑須為 scope_tool/web/static
+STATIC = (Path(getattr(sys, "_MEIPASS")) / "scope_tool" / "web" / "static") if hasattr(sys, "_MEIPASS") \
+    else Path(__file__).parent / "static"
+CONTRACT_PATH = STATIC / "api_contract.json"
 _PATH_KEYS = ("screenshot_dir", "waveform_dir")
 _IP_RE = re.compile(r"^[\w.\-:]+$")
 
@@ -35,9 +32,8 @@ _IP_RE = re.compile(r"^[\w.\-:]+$")
 def _path(s: str) -> Path:
     return Path(s).expanduser()
 
-
 def _asdict(f: FoundInstrument) -> dict[str, str]:
-    return {"resource": f.resource, "source": f.source, "label": f.label}
+    return dict(resource=f.resource, source=f.source, label=f.label)
 
 
 def _enum(cls: Any, value: Any, what: str) -> Any:
@@ -45,6 +41,21 @@ def _enum(cls: Any, value: Any, what: str) -> Any:
         return cls(value)
     except ValueError:
         raise BadRequestError(f"{what} 不合法：{value!r}") from None
+
+
+def _check_cfg(k: str, v: Any) -> None:
+    """依 Config 欄位型別驗值，拒絕 null 等會寫壞設定的值。"""
+    d = config_mod.DEFAULTS[k]
+    ok = (isinstance(v, bool) if isinstance(d, bool) else
+          isinstance(v, int) and not isinstance(v, bool) and v > 0 if isinstance(d, int) else
+          isinstance(v, list) and all(isinstance(x, str) and x for x in v) if isinstance(d, list) else
+          isinstance(v, dict) and all(isinstance(a, str) and isinstance(b, str) for a, b in v.items())
+          if isinstance(d, dict) else isinstance(v, str) and (v != "" or k == "last_resource"))
+    if not ok:
+        raise BadRequestError(f"設定 {k} 的值型別不合法：{v!r}")
+    enum = {"image_format": ImageFormat, "area": CaptureArea, "waveform_format": WaveformFormat}.get(k)
+    if enum:
+        _enum(enum, v, k)
 
 
 def _filename(name: str) -> str:
@@ -65,19 +76,17 @@ class Api:
         self._lock = threading.Lock()  # 保護 _cfg／_shot
         self._catalog: dict[str, Any] | None = None
 
-    # ------------------------------------------------------------ 內部輔助
     def _attach_window(self, window: Any) -> None:
         self._window = window
 
     def _shutdown(self) -> None:
-        """程式結束時盡力關閉連線。"""
-        d, self._drv = self._drv, None
-        try:
+        """程式結束：VISA 關閉交給儀器執行緒（取儀器鎖，3 秒逾時放棄），主執行緒不碰 VISA。"""
+        def work() -> None:
+            d, self._drv = self._drv, None
             if d is not None and d.res is not None:
                 d.res.close()
-        except Exception:  # noqa: BLE001
-            pass
         self._save()
+        self._jobs.close(work, 3.0)
 
     def _save(self) -> None:
         if self._persist:
@@ -90,16 +99,16 @@ class Api:
         return c
 
     def _emit_driver(self) -> None:
+        """發 driver 事件（取當下快照）；在工作內則延到儀器鎖釋放後、job 完成事件前。"""
         d = self._drv
-        self._jobs.events.emit({"type": "driver", "connected": d is not None,
-                                "model": d.model if d else None,
-                                "series": d.series.value if d else None})
+        ev = {"type": "driver", "connected": d is not None, "model": d and d.model,
+              "series": d and d.series.value}
+        self._jobs.after_release(lambda: self._jobs.events.emit(ev))
 
     def _need_drv(self) -> ScopeDriver:
         if self._drv is None:
             raise ScopeError("尚未連線儀器")
         return self._drv
-
     def _close_old(self) -> None:
         old, self._drv = self._drv, None
         if old is not None:
@@ -110,10 +119,8 @@ class Api:
                 pass
             self._emit_driver()
 
-    # ------------------------------------------------------------ 狀態與設定
     def get_state(self) -> dict[str, Any]:
-        if self._catalog is None:
-            self._catalog = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["catalog"]
+        self._catalog = self._catalog or json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))["catalog"]
         d = self._drv
         return {"config": self._config_view(), "connected": d is not None,
                 "model": d.model if d else None, "series": d.series.value if d else None,
@@ -124,9 +131,11 @@ class Api:
         bad = set(patch) - set(config_mod.DEFAULTS)
         if bad:
             raise BadRequestError(f"未知的設定鍵：{sorted(bad)}")
+        for k, v in patch.items():
+            _check_cfg(k, v)
         with self._lock:
             for k, v in patch.items():
-                self._cfg[k] = str(_path(v)) if k in _PATH_KEYS and isinstance(v, str) else v
+                self._cfg[k] = str(_path(v)) if k in _PATH_KEYS else v
             self._save()
         return self._config_view()
 
@@ -140,8 +149,7 @@ class Api:
         mode = (fd.FOLDER if kind == "folder" else fd.OPEN) if fd else \
             (webview.FOLDER_DIALOG if kind == "folder" else webview.OPEN_DIALOG)
         types = () if kind == "folder" else ("波形檔 (*.h5;*.hdf5;*.csv)", "所有檔案 (*.*)")
-        d = str(_path(initial)) if initial else ""
-        r = w.create_file_dialog(mode, directory=d, file_types=types)  # 待真機／桌面環境驗證
+        r = w.create_file_dialog(mode, directory=str(_path(initial)) if initial else "", file_types=types)
         return str(r[0]) if r else None
 
     def pick_folder(self, initial: str | None) -> str | None:
@@ -150,7 +158,6 @@ class Api:
     def pick_waveform_file(self, initial: str | None) -> str | None:
         return self._pick("file", initial)
 
-    # ------------------------------------------------------------ 搜尋與連線
     def search(self) -> dict[str, Any]:
         def work() -> list[dict[str, str]]:
             from scope_tool.instruments import discovery
@@ -174,13 +181,22 @@ class Api:
         override = _enum(Series, series_override, "series_override") if series_override else None
 
         def work() -> dict[str, str]:
-            import pyvisa
+            try:
+                import pyvisa
+            except ImportError as e:
+                raise ScopeError(f"找不到 pyvisa：{e}") from e
             from scope_tool.instruments import registry
             self._close_old()  # 先關舊連線再連
-            res = pyvisa.ResourceManager().open_resource(resource)
-            res.timeout = 5000
             try:
-                idn = res.query("*IDN?")
+                res = pyvisa.ResourceManager().open_resource(resource)
+                res.timeout = 5000
+            except Exception as e:  # noqa: BLE001 — pyvisa 例外轉 ScopeError，訊息含原因
+                raise ScopeError(f"無法開啟 {resource}：{e}") from e
+            try:
+                try:
+                    idn = res.query("*IDN?")
+                except Exception as e:  # noqa: BLE001
+                    raise ScopeError(f"查詢 *IDN? 失敗：{e}") from e
                 model = registry.parse_idn(idn)[1]
                 ov = override
                 if ov is None and self._cfg.get("series_overrides", {}).get(model):
@@ -214,7 +230,6 @@ class Api:
             self._close_old()
         return self._jobs.submit("disconnect", work, lock=True)
 
-    # ------------------------------------------------------------ 儀器操作
     def capture_info(self) -> dict[str, Any]:
         def work() -> dict[str, Any]:
             d = self._need_drv()
@@ -255,10 +270,8 @@ class Api:
                     "got_points": min(len(w.voltage) for w in result.waveforms)}
         return self._jobs.submit("capture", work, lock=True)
 
-    # ------------------------------------------------------------ 供 server 使用
-    def _last_screenshot(self) -> bytes | None:
-        s = self._shot
-        return s[1] if s else None
+    def _last_screenshot(self) -> bytes | None:  # 供 server 使用
+        return self._shot[1] if self._shot else None
 
 
 def contract_check() -> str:

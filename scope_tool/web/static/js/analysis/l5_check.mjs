@@ -18,9 +18,9 @@ function makeBridge(mock, hook) {
   const wait = (id) => new Promise((res, rej) => { const off = mock.subscribe((ev) => { if (ev.type === "job" && ev.id === id) { off(); ev.ok ? res(ev.result) : rej(Object.assign(new Error(ev.error.message), ev.error)); } }); });
   const call = async (m, p) => {
     calls.push([m, p]);
+    if (hook) await hook(m, p); // 延後送出（job 事件可能早於訂閱，故不能放在 rpc 之後）
     const r = await mock.rpc(m, p);
     if (!r.ok) throw Object.assign(new Error(r.error.message), r.error);
-    if (hook) await hook(m, p);
     return r.result;
   };
   return { calls, call, job: async (m, p) => { const id = (await call(m, p)).job; return wait(id); } };
@@ -175,7 +175,7 @@ async function setup(hook) {
   const { bridge, store, sum, channels } = await setup();
   store.set({ file: sum, channels, selected: "CHAN1", cursors: { x1: 0.003, x2: 0.001, y1: null, y2: null } }, "program");
   store.updateChannel("CHAN1", { time_offset: 0.0001 }, "user");
-  assert.deepEqual(csvRange(store.get()).map((v) => +v.toFixed(9)), [0.0029, 0.0009], "CSV 範圍換回來源時間（第一通道 dx）");
+  assert.deepEqual(csvRange(store.get()), [0.003, 0.001], "CSV 範圍：游標顯示時間直接切原始軸，不扣 dx");
   const p = { on: true, source: "CHAN1", window: "Hanning", unit: "dBm", imp: 2, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: "Decreasing Magnitude" };
   assert.equal(fftParams(store.get(), p, CATALOG).r_ohm, 100);
   assert.equal(fftParams(store.get(), { ...p, imp: 4, manualR: 0 }, CATALOG), null, "手動阻抗需 > 0");
@@ -199,5 +199,45 @@ async function setup(hook) {
   assert.equal(r.scale, 0.2); assert.ok(Math.abs(r.position - -5) < 1e-9);
   assert.deepEqual(scaleChange({ ...ch, vmin: null }, 0.2, scales), { scale: 0.2 });
   assert.equal(signature([{ name: "A", unit: "V", derived: false }]), "A|V|0");
+}
+
+// 9. 修正：前端自產失敗列（通道已刪）視為失敗且可匯出；關檔呼叫 close_waveform；取消 FFT 使 job 失效；Phase 清 rfPos；Track Measurements 提示
+{
+  const { bridge, store, sum, channels } = await setup();
+  const m = createMeasure({ store, bridge }, { delay: 5 });
+  store.set({ file: sum, channels, selected: "CHAN1" }, "program");
+  m.add("Vmax", "CHAN1", true); m.add("Vmin", "CHAN2", true); await sleep(40);
+  store.set({ channels: store.get().channels.filter((c) => c.name !== "CHAN2") }, "program"); await sleep(60);
+  const list = store.get().measurements, file = store.get().file;
+  assert.equal(list[1].result.reason, "來源通道已刪除");
+  assert.equal(rowState(list[1], file), "fail", "自產失敗列是失敗而非計算中");
+  assert.ok(exportable(list, file), "不鎖匯出");
+  assert.equal(list[1].result.revision, list[0].result.revision);
+  // 關檔
+  const { closeFile } = await import("./toolbar.js");
+  const seen = [];
+  await closeFile(store, { call: async (m) => { seen.push(m); return null; } });
+  assert.deepEqual(seen, ["close_waveform"], "關檔先呼叫後端");
+  assert.equal(store.get().file, null);
+}
+{
+  const { bridge, store, sum, channels } = await setup(async (m) => { if (m === "fft") await sleep(60); });
+  store.set({ file: sum, channels, selected: "CHAN1" }, "program");
+  const p = { on: true, source: "CHAN1", window: "Hanning", unit: "dBm", imp: 0, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: "Decreasing Magnitude" };
+  const f = createFft({ store, bridge }, CATALOG, p, { delay: 1 });
+  const run = f.run(); await sleep(10);
+  p.on = false; f.invalidate(); await run;
+  assert.equal(store.get().fftResult, null, "取消後完成的 job 不寫回");
+  p.on = true; p.unit = "Phase"; store.set({ rfPos: { x: 1, y: 1 } }, "program");
+  await f.run();
+  assert.equal(store.get().rfPos, null, "Phase 清 rfPos");
+}
+{
+  const { bridge, store, sum, channels } = await setup();
+  const ctl = createController({ store, bridge }, { delay: 5 });
+  store.set({ file: sum, channels, selected: "CHAN1" }, "program");
+  store.set({ markerMode: "Track Measurements" }, "user"); await sleep(40);
+  assert.equal(ctl.readout.kind, "unsupported"); assert.match(ctl.readout.reason, /尚未支援/);
+  assert.ok(!bridge.calls.some(([c, q]) => c === "marker_eval" && q.mode === "Track Measurements"), "不靜默送空陣列");
 }
 console.log("l5 self-check OK");

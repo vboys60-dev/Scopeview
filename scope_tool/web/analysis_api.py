@@ -22,7 +22,10 @@ from scope_tool.web import decimate
 
 from scope_tool.web.analysis_export import ExportMixin
 from scope_tool.web.analysis_fft import FftMixin
+from scope_tool.web.analysis_params import validate_params
 from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _nearest, _range, _si
+
+__all__ = ["Analysis", "wave_bytes", "fft_bytes", "validate_params"]  # validate_params 供 server 使用
 
 
 class Analysis(FftMixin, ExportMixin):
@@ -36,7 +39,6 @@ class Analysis(FftMixin, ExportMixin):
     def _reset(self, path: Path | None) -> None:
         self._path, self._waves, self._units, self._n_raw = path, [], {}, 0
         self._next_f, self._pyr, self._spec, self._snap = 1, {}, None, None
-        self._spec_no = 0
 
     def _need(self) -> tuple[int, list[Waveform], dict[str, str]]:
         with self._lock:
@@ -132,8 +134,10 @@ class Analysis(FftMixin, ExportMixin):
             raise BadRequest(f"未知或不支援的 Marker 模式：{mode}")
         _, waves, _ = self._need()
         w = self._wf(waves, channel)
+        # 追蹤視窗中心：資料含 0 秒（觸發點）用 0（同 Qt）；否則取兩游標中點夾進資料範圍
+        trig = 0.0 if w.time[0] <= 0 <= w.time[-1] else float(np.clip((x1 + x2) / 2, w.time[0], w.time[-1]))
         r = markermod.evaluate(mode, markermod.Position(x1, x2, y1, y2), markermod.Source(w.time, w.voltage),
-                               screen_width=screen_width, measurements=[tuple(m) for m in measurements or []])
+                               screen_width=screen_width, trigger_t=trig, measurements=[tuple(m) for m in measurements or []])
         p = r.position
         return _clean({"position": {"x1": p.x1, "x2": p.x2, "y1": p.y1, "y2": p.y2}, "available": r.available,
                        "reason": r.reason, "read_only": r.read_only, "points": [list(q) for q in r.points],
@@ -213,6 +217,13 @@ class Analysis(FftMixin, ExportMixin):
                 return _clean(self._info(w, self._units, gen))
 
         return work()
+
+    def close_waveform(self) -> None:
+        """釋放全部波形、金字塔、頻譜與量測快照；gen 加 1，舊結果之後回 STALE。"""
+        with self._lock:
+            self._gen += 1
+            self._reset(None)
+        return None
 
     def remove_channel(self, name: str) -> None:
         with self._lock:

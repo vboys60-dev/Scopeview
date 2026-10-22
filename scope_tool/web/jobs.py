@@ -119,6 +119,7 @@ class Jobs:
         self._tbl_lock = threading.Lock()
         self._n = 0
         self._ctx = threading.local()
+        self._wk = threading.local()  # 工作執行緒內的「釋放儀器鎖後」鉤子
 
     @contextmanager
     def request(self, rid: str | None, params: dict[str, Any]) -> Iterator[None]:
@@ -140,6 +141,27 @@ class Jobs:
         finally:
             self._inst_lock.release()
 
+    def after_release(self, fn: Callable[[], None]) -> None:
+        """在工作執行緒內呼叫：fn 延到儀器鎖釋放後、job 完成事件之前執行；不在工作內則立即執行。"""
+        hooks = getattr(self._wk, "hooks", None)
+        hooks.append(fn) if hooks is not None else fn()
+
+    def close(self, fn: Callable[[], None], timeout: float = 3.0) -> bool:
+        """結束時：取儀器鎖（逾時放棄）後在儀器執行緒跑 fn 並等收尾。回傳是否成功。"""
+        if not self._inst_lock.acquire(timeout=timeout):
+            self._inst_exec.shutdown(wait=False, cancel_futures=True)
+            self._ana_exec.shutdown(wait=False, cancel_futures=True)
+            return False
+        try:
+            self._inst_exec.submit(fn).result(timeout)
+        except Exception:  # noqa: BLE001
+            log.exception("結束清理失敗")
+        finally:
+            self._inst_lock.release()
+            self._inst_exec.shutdown(wait=True)
+            self._ana_exec.shutdown(wait=False)
+        return True
+
     @property
     def busy(self) -> bool:
         return self._inst_lock.locked()
@@ -149,10 +171,11 @@ class Jobs:
         rid = getattr(self._ctx, "rid", None)
         sig = getattr(self._ctx, "sig", None)
         with self._tbl_lock:
+            sig = f"{kind}|{sig}"  # 去重鍵含方法名＋參數
             ent = self._tbl.get(rid) if rid else None
             if ent is not None:
                 if ent["sig"] != sig:
-                    raise BadRequestError("同一個 request_id 卻帶了不同參數")
+                    raise BadRequestError("同一個 request_id 卻帶了不同方法或參數")
                 out = {"job": ent["job"]}
                 if ent["done"] is not None:
                     out["done"] = ent["done"]
@@ -171,30 +194,35 @@ class Jobs:
 
     def _run(self, rid: str | None, jid: str, kind: str, fn: Callable[[], Any], lock: bool,
              ent: dict[str, Any]) -> None:
+        self._wk.hooks = hooks = []
         try:
             done: dict[str, Any] = {"ok": True, "result": json_safe(fn())}
         except BaseException as e:  # noqa: BLE001 — 任何例外都要變成 job 事件
             done = {"ok": False, "error": map_error(e)}
         with self._tbl_lock:
             ent["done"] = done
-            # 可重試的失敗不保留，讓使用者沿用同 id 重送時真的重做
-            if rid and not done["ok"] and done["error"]["retryable"]:
+            # 可重試的失敗（含 BAD_REQUEST）不保留，讓使用者沿用同 id 重送時真的重做
+            if rid and not done["ok"] and (done["error"]["retryable"] or done["error"]["code"] == "BAD_REQUEST"):
                 self._tbl.pop(rid, None)
         if lock:
             self._inst_lock.release()  # 先放鎖再發事件，前端收到事件即可接著下一個工作
+        self._wk.hooks = None
+        for h in hooks:  # 例如 driver 事件：鎖已放，但仍早於本工作的 job 事件
+            try:
+                h()
+            except Exception:  # noqa: BLE001
+                log.exception("after_release 鉤子失敗")
         self.events.emit({"type": "job", "id": jid, "kind": kind, **done})
 
 
 def _self_check() -> None:
     j = Jobs()
     gate = threading.Event()
-    # 基本：成功與失敗
     with j.request("a", {"x": 1}):
         r = j.submit("t", lambda: {"v": float("nan")}, lock=False)
     assert set(r) == {"job"}
     ev = j.events.wait(0, 2)["events"][0]
     assert ev["type"] == "job" and ev["ok"] and ev["result"] == {"v": None}, ev
-    # 已完成重送 → 帶 done；同 id 不同參數 → BAD_REQUEST
     with j.request("a", {"x": 1}):
         r2 = j.submit("t", lambda: 1 / 0, lock=False)
     assert r2["job"] == r["job"] and r2["done"]["ok"], r2
@@ -204,7 +232,6 @@ def _self_check() -> None:
         raise AssertionError("應拋 BadRequestError")
     except BadRequestError:
         pass
-    # 儀器鎖：第二個 → Busy 且不登記；進行中重送回原 job
     with j.request("b", {}):
         rb = j.submit("slow", lambda: gate.wait(5) and "ok", lock=True)
     with j.request("c", {}):
@@ -220,29 +247,49 @@ def _self_check() -> None:
     seen = j.events.wait(1, 3)["events"]
     assert any(e["id"] == rb["job"] and e["result"] == "ok" for e in seen), seen
     assert not j.busy
-    # 失敗映射
     assert map_error(RemoteDesktopError("x"))["code"] == "REMOTE_DESKTOP"
     assert map_error(UnsupportedError("x"))["code"] == "UNSUPPORTED"
     assert map_error(ScopeError("x"))["code"] == "SCOPE_ERROR"
     assert map_error(StaleError("x"))["code"] == "STALE"
     assert map_error(ValueError("x"))["code"] == "BAD_REQUEST"
     assert map_error(KeyError("x"))["message"].startswith("未預期錯誤：")
-    # 可重試失敗不保留
     with j.request("d", {}):
         j.submit("t", lambda: (_ for _ in ()).throw(BusyError()), lock=False)
-    j.events.wait(j.events.seq, 0.3)
-    time.sleep(0.2)
+    time.sleep(0.3)
     assert "d" not in j._tbl
-    # 去重表上限
     for i in range(DEDUPE_SIZE + 5):
         with j.request(f"r{i}", {}):
             j.submit("t", lambda: 1, lock=False)
     assert len(j._tbl) <= DEDUPE_SIZE
+    # 同 id 不同方法 → BAD_REQUEST；job 內 BAD_REQUEST 不留在去重表
+    with j.request("m", {}):
+        j.submit("search", lambda: 1, lock=False)
+    try:
+        with j.request("m", {}):
+            j.submit("disconnect", lambda: 1, lock=False)
+        raise AssertionError("同 id 不同方法應 BAD_REQUEST")
+    except BadRequestError:
+        pass
+    with j.request("v", {}):
+        j.submit("t", lambda: (_ for _ in ()).throw(ValueError("x")), lock=False)
+    time.sleep(0.3)
+    assert "v" not in j._tbl
+    # after_release：鎖已放、早於 job 事件；非工作內立即執行
+    order: list[Any] = []
+    j.after_release(lambda: order.append("now"))
+    with j.request("h", {}):
+        j.submit("hk", lambda: j.after_release(lambda: order.append(("hook", j.busy))), lock=True)
+    time.sleep(0.3)
+    assert order == ["now", ("hook", False)], order
+    assert j.close(lambda: order.append("closed"), 1.0) and order[-1] == "closed" and not j.busy
+    j2 = Jobs()
+    j2._inst_lock.acquire()
+    assert j2.close(lambda: None, 0.2) is False
     # 事件環形緩衝與 long-poll 逾時
     for _ in range(RING_SIZE + 10):
         j.events.emit({"type": "driver"})
     assert len(j.events.wait(0, 0)["events"]) == RING_SIZE
-    time.sleep(0.5)  # 等前面的背景工作事件發完
+    time.sleep(0.5)
     t0 = time.monotonic()
     assert j.events.wait(j.events.seq, 0.2)["events"] == [] and time.monotonic() - t0 >= 0.15
     print("jobs self-check OK")

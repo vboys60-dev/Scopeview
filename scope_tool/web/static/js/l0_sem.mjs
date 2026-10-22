@@ -16,7 +16,8 @@ export async function runSemantics() {
     assert.equal((await call(b, "save_config", { patch: { points: 5 } })).points, 5);
     assert.equal(await call(b, "pick_folder", { initial: null }), null); await call(b, "pick_waveform_file", { initial: "/x" });
     assert.equal((await call(b, "connect_fake", {})).model, "FAKE-SCOPE");
-    await call(b, "search", {}); await call(b, "add_manual_ip", { ip: "1.2.3.4" });
+    await call(b, "search", {});
+  await call(b, "add_manual_ip", { ip: "1.2.3.4" }); assert.deepEqual((await call(b, "add_manual_ip", { ip: "5.6.7.8" })).map((x) => x.label), ["1.2.3.4", "5.6.7.8"]); // 整份清單、保留既有
 
     // connect：先關舊連線；driver 事件早於 job 事件；series_override 由後端回寫；UNSUPPORTED
     seen.length = 0;
@@ -127,6 +128,9 @@ export async function runSemantics() {
     assert.ok((await exm({})).path); await me("Vmax", "CHAN1", null); await rej(exm({}), "STALE"); // 舊 revision 被拒
     assert.ok((await call(b, "export_csv", { range: null, max_points: null, directory: null })).path);
     await rej(call(b, "export_csv", { range: [0, 1], max_points: 0, directory: "/d" }), "BAD_REQUEST");
-    await call(b, "open_waveform", { path: "/x/b.h5" }); await rej(exm({}), "STALE"); await rej(wv(), "STALE"); // 開新檔後舊世代全失效
+    const ef2 = await ff({ range: [5, 6] }); assert.ok(!ef2.ok); await rej(b.fetchSpectrum({ id: fr.spectrum_id, f0: 0, f1: 1e6, px: 100 }), "STALE"); await rej(rf(0, 0), "STALE"); // 失敗清除舊頻譜
+  const idA = (await ff()).spectrum_id; await call(b, "open_waveform", { path: "/x/c.h5" }); assert.notEqual((await ff()).spectrum_id, idA); // 換檔不重用 id
+  assert.equal(await call(b, "close_waveform", {}), null); await rej(wv(), "STALE"); await rej(call(b, "cursor_readout", { t1: 0, t2: 0, dx: DX }), "SCOPE_ERROR");
+  await call(b, "open_waveform", { path: "/x/b.h5" }); await rej(exm({}), "STALE"); await rej(wv(), "STALE"); // 開新檔後舊世代全失效
   }
 }
