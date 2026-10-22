@@ -1,154 +1,106 @@
-# Handoff：示波器截圖與波形擷取工具
+# Handoff：示波器截圖與波形擷取工具（HTML 版工作資料夾）
 
-目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖`（git repo，main，無 remote）
+目錄：`/Users/lianshi/Desktop/claude-cowork/示波器截圖_html`（獨立 git repo，main，無 remote）
+- 2026-10-22 從穩定版 `../示波器截圖`（Qt 版，HEAD `b358334`）複製，**未含 `N8900A/`**；之後 HTML 化只改這裡，原資料夾不動。
+- 備份：`../示波器截圖_備份_20261022_223504.tar.gz`（含 N8900A 與 git 歷史）。
+- 參考資料在 `../示波器截圖/N8900A/`（gitignore，無版本備份）。`InfScopeDLL_decompiled` 與 Infiniium Help 已是同名 `.tar.gz`，引用前先 `tar -xzf`。
 
-## 2026-10-22 階段 3：FFT（未 commit）
+## 現況（2026-10-22）
 
-- Opus 審查修正：Phase 失敗來源切回 dBm 恢復峰值控制；Track RF 缺 x1 回不可用與原因，成功／不可用皆維持 versus；等值譜不列假 DC 峰，保留有下降的端點峰與平台最左格規則。UI 僅列 Watt、W 留純函式別名；ENBW 倍率明示「原始 bin」。
-- 強化自我檢查：10000 點／1MHz 的 df=61.03515625Hz、RBW=91.552734375Hz、實際 ENBW=150Hz；端點峰、內插夾限／凸向拒絕／零鄰格、MAX_POINTS、補零主瓣倍率、NaN 相位參考拒絕、1001／1023 點非整數週期左補零相位與 RF versus 均有斷言。
-- 旁瓣列峰不改算法：已重現 10000 點 1030Hz 純正弦出現 1259.55Hz／−22.52dBm 旁瓣峰；數據與預設輸出影響列於真機清單。RBW 分母、RF 與峰表共用門檻（手冊 RF 自有門檻）、門檻相等採嚴格大於皆註明，待真機比對。
-- 本輪修正後指定 20 模組以 `QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.<模組>` 皆印 OK、exit 0；另以記憶體暫改驗證 13 種改壞情境全被攔截（不寫入原始檔）。`git diff --check` 通過；沒有真機驗證，沒有 commit。
+- 離線分析已完成並 commit：Stage 0 Jitter／眼圖移出 GUI（`analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye}.py` 保留未接線）；Stage 1 時間／電壓量測；Stage 2 Marker（B 級，`analysis/marker.py`）；Stage 3 FFT（補零／RBW／阻抗／Phase、`analysis/peaks.py`、Track RF）；`fc3d229` 修 Codex 審查 5 項（游標重吸附重算、RF 跳峰精度與效能、FFT 峰表快取、runner 防抖）。
+- 分析核心 `scope_tool/analysis/` 為純 numpy；UI 為 PySide6 + pyqtgraph（`scope_tool/ui/analysis_*.py`、`tab_analysis.py`）。規格 `docs/離線分析功能規格.md`。
+- **只有 offscreen 自我檢查，沒有真機／真人滑鼠驗證。** 待真機比對項目累積在 `docs/真機驗證清單.md`（階段 1~3 區段）。
+- 已上機：DSO-X 6004A、DSO-X 3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）。3000T、EXR、S 系列未上機。
+- 啟動：Mac 雙擊 `啟動示波器截圖.command` 或 `python scope_tool/main.py`；有「測試儀器（模擬）」按鈕。
 
-- FFT 改為前後補零至 2 冪次，保留五窗標準週期係數與 CG 校正，分別顯示 df／手冊 RBW／實際窗 ENBW；補 Auto 50／100／25Ω 與手動10–200Ω、Watt 別名、° Phase（Trigger 參考，純函式可設參考時間／delay／unwrap）。
-- 新增 `analysis/peaks.py`：局部峰、Peak Level、最大峰數、四種手冊排序、穩定同值左至右、log 振幅拋物線峰頻內插；FFT 沿用既有 Results 峰表。`analysis/marker.py` 加 Track RF 純函式與 evaluate 接口；`ui/analysis_marker.py` 的獨立 RF 控制接 FFT 格，預設關閉，支援頻率讀值／拖曳／門檻左右跳峰。
-- 無探棒／通道型態 metadata，UI Auto 型態由使用者指定、未知50Ω；未做 Phase 參考／delay／unwrap UI、RF 右鍵選單／多組 Marker、Channel Power／PSD／THD／Occupied BW 量測。手冊未載明之係數、ENBW、scalloping、旁瓣、同值次序、Phase 定義與未做項目均列 `docs/真機驗證清單.md` 階段3區段。
-- 指定20模組（含新增 peaks）offscreen 自我檢查皆 OK；五窗整／半bin、解析 ENBW、單位／阻抗、含補零 Parseval、分離多音 <RBW/10、RF 門檻／左右邊界有斷言。預設變更逐項見真機清單：非2冪次頻格／幅度、內插峰頻、−40dBm門檻、同值峰排序與狀態文字；2冪次預設 dBm 譜對 HEAD 最大差約5.7e-14dB。`git diff --check` 通過；已看 offscreen FFT 截圖，尚未真機／真人滑鼠驗證。未動 jitter/clock/eye 五檔，未 commit。
+## 進行中的決策
 
-## 2026-10-22 階段 2：Marker（B 級，未 commit）
+**1. HTML 化 GUI（未開工，嚴禁動程式碼，等使用者說「開工」）**
+- 選項：A QWebEngine+QWebChannel；B 本機伺服器+瀏覽器；C 留 Qt 只改 QSS／pyqtgraph 外觀；D 混合（pyqtgraph 畫波形，HTML 做表格／側欄）；pywebview；靜態 HTML 報告匯出。圖表庫候選 uPlot／Plotly／ECharts／Canvas。
+- Codex 傾向 D；Opus 建議先做 C（約 50~150 行）＋ stdlib 靜態 HTML 報告，不夠再 D。
+- pywebview 自帶視窗與事件迴圈，無法嵌入 Qt，等於整個 GUI 重寫並失去 pyqtgraph；Win10 需 WebView2；為新增第三方套件（需改 RULES）。
+- 使用者未決定方向與最困擾之處；「無深色主題」規則是否解除也未決。
 
-- 新增純 numpy `analysis/marker.py`（五種模式、觸發參考範圍、差值與 Delta To、數位限制）；UI 沿用四游標，由 `ui/analysis_marker.py` 接線，預設「現行 X1/X2」保留舊行為。預設 Results 保留 HEAD 的 t1/t2/Δt/1/Δt/v1/v2/ΔV 列名與 @t1/@t2 通道欄名，不加 Delta To；非預設模式才顯示 X1/X2/ΔX/1/ΔX/Y1/Y2/ΔY 與 Delta To，並清空通道表。
-- Track Measurements 接口接受呼叫端位置並唯讀顯示；量測引擎尚無位置輸出，因此尚未自動追蹤最近新增量測。不得從統計值猜位置。真機比對項目已補至 `docs/真機驗證清單.md`；C 級同值峰次序留階段 3。
-- Opus 意見修正：追蹤波形允許重複時間戳，遞減／非有限時間軸回不可用與原因；吸附限定窗內資料點，量測位置過濾 NaN／inf，切換模式後重算量測與讀值。手冊未載明的差值符號、數位來源整組不可用取捨已註明；未實作項目與效能限制只記錄於真機清單。
-- 指定 19 個模組 offscreen 自我檢查皆印 OK，預設模式與 git HEAD 版對照 5 組情境輸出逐字相同，`git diff --check` 通過；未做真機／真人滑鼠驗證，未動 jitter/clock/eye 五檔，未 commit。
+**2. Windows 打包（未開工）**
+- `RULES.md` 已允許 Windows 版用 PyInstaller 打 exe（使用者同意，Win10 上打包，須同時支援 Win10／Win11）；Mac 維持 `.command`。
+- 使用者 Win10 是一般 Python、尚未裝 PyInstaller。Windows 版仍須連儀器（截圖、擷取）：目標機要自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包 VISA）。
+- 已向使用者說明 onedir（資料夾）與 onefile：建議 onedir 先行，穩定後再切 onefile；介面外觀無差，差在啟動速度與資源路徑。若用 QWebEngine（150~300 MB）務必 onedir。
+- 打包要點：前端資源路徑用 `Path(__file__)`／`sys._MEIPASS`；截圖與 HDF5 不可存程式資料夾，要存使用者指定位置。
+- 待辦（開工後）：掃 Mac 專屬硬寫路徑與 VISA 載入方式（目前只記 macOS `/Library/Frameworks/visa.framework`）、產 `requirements.txt`（PySide6、pyqtgraph、numpy、h5py、pyvisa、zeroconf）與 PyInstaller spec 草稿。
 
-## 2026-10-22 本輪：DSO-X 6004A（X6000A）上機、已 commit 16240ff
+## 後續待辦
 
-- 註冊前綴 `DSO-X 6`／`MSO-X 6`（`infiniivision.py`）；截圖、擷取、離線分析讀檔實測通過，細節在 `docs/真機驗證清單.md` 第九輪。
-- **點數由時基決定**：20 ns/div 只有 2000 點，200 µs/div 為 1M；`:ACQuire:POINts` 設了無效。擷取頁在實際點數少於要求時狀態列提示。`max_points()` 的 4M 仍是固定值（未量到上限）。
-- 測試後示波器維持 STOP、20 ns/div、記憶體深度 AUTO。
-- 未測：GUI 全流程、Single／Normal、`:DIGitize`、LAN。
+1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。
+2. 上機：HD304 四通道 100M 與 `:DIGitize`（先確認設定已還原）、MXR Error 273／LAN／慢時基、3000T、MSO9254A 截圖／擷取／分析、DSO-X 6004A 的 GUI 全流程與 Single／Normal／`:DIGitize`。
+3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
+4. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
 
-## 2026-10-19 本輪：MSO9254A（9000A）加入、已 commit
+## 工作流程
 
-- **9000A 系列**：`instruments/infiniium.py` 的 `model_prefixes` 加 `MSO9`、`DSO9`，沿用 EXR 命令（待真機驗證）。
-- **漏註冊 bug 已修**：`infiniium.py` 原本沒有 `register(InfiniiumDriver)`，GUI 搜尋到 MSO9254A 仍跳「無法辨識型號」。現已在類別後補上。
-- **已連線（GUI，USB）**：`USB0::0x2A8D::0x900E::MY53130146::INSTR`，`*IDN?` → `KEYSIGHT TECHNOLOGIES,MSO9254A,MY53130146,05.50.0006`；`:SYSTem:ERRor?` → 0；`:ACQuire:POINts:MAXimum?` → 41000000。只做讀取，示波器狀態未動。
-- **未測**：截圖（`:DISPlay:DATA?`）、擷取（`:DISK:SAVE`／GETFILE）、分析頁讀真實波形。
-- 新增 `啟動示波器截圖.command`（專案根目錄，雙擊執行 `scope_tool/main.py`；未實際雙擊測試，第一次可能要在隱私權設定放行）。
-- 自我檢查注意：`registry.py` 自檢不會 import `infiniium`，所以它抓不到「忘了註冊」；要靠 GUI 載入路徑或 `import scope_tool.ui.main_window` 後 `driver_for` 驗證。
-- `docs/真機驗證清單.md` 尚未補這輪紀錄。
+- **GUI 測試由使用者主導**：使用者逐步手測，Claude 只記錄編號、不改程式，直到使用者說「沒有其他問題」才規劃→實作→審查→重開。
+- 寫程式交 Codex，Opus 審。Codex：`codex exec -s workspace-write -C "$PWD" "<prompt>" < /dev/null > log 2>&1`（**一定要 `< /dev/null`**；背景啟動器的「completed」不等於 Codex 完成，log 結尾自加 `finished` 再輪詢）。Codex 沙箱連不到 VISA，實機由 Claude 執行。
+- 繁體中文，直白。沒真機的路徑要說清楚只有紙上驗證。
+- commit 結尾加 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` 與 `Claude-Session: https://claude.ai/code/session_0123DNaqbpGaCSVhdH7aNrA5`。
 
-## 離線分析＋新版面：已實作、使用者 GUI 實測無問題、已 commit
+## 自我檢查
 
-- **GUI 測試流程（使用者定）**：使用者一步步手動測試，每步回報一個問題；Claude **只記錄、編號、簡短確認，不改程式**，直到使用者說「沒有其他問題」才規劃（給版面／做法表，等使用者回「照這樣做」）→ 實作 → 審查＋自我檢查 → 重開 GUI。
-- 2026-10-17：Claude 與 Codex（唯讀）讀 Infiniium Offline 手冊討論定案，規格在 `docs/離線分析功能規格.md`，使用者說「可以編碼」後實作完成；上一輪 GUI 改善三項（10 格、V/格查表、縮放判斷）已併入。全部自我檢查通過；Codex 唯讀審查 5 項已修；使用者 GUI 實測「目前暫無問題」後 commit。
+系統 `python3` 沒有 numpy，用 `/opt/anaconda3/bin/python3`（3.13）：
+`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn analysis.peaks analysis.marker analysis.clock analysis.jitter analysis.eye ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_runner ui.analysis_fftplot ui.analysis_marker ui.analysis_jitter ui.analysis_eye ui.analysis_math ui.analysis_layout ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.$m; done`（皆應印 OK）。
+注意 `registry.py` 自檢不會 import `infiniium`，抓不到「忘了註冊」；要 import `scope_tool.ui.main_window` 後 `driver_for` 驗證。
 
-## Jitter／眼圖：已實作、尚未 GUI 實測、尚未 commit
+## 擷取規則（已寫入 RULES.md 第 5、9 條）
 
-- 2026-10-22 已移出 GUI，clock/jitter/eye 與 analysis_jitter/analysis_eye 保留未接線。
-- 2026-10-17：使用者問單檔能否做 Jitter、眼圖 → Claude × Codex 兩輪討論定案（規格 `docs/離線分析功能規格.md`「Jitter／眼圖」節），使用者說「可以編碼」後實作。
-- 新增 `analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye,runner,layout}.py`；MeasureRunner 從 controls 搬到 runner（並修：重算／防抖期間表上顯示「…」不留舊值、舊結果不回填、計算中不可匯出），版面／接線從 tab_analysis 搬到 layout。
-- pyqtgraph 0.14 自動降採樣在 x 為秒時會丟光資料：TIE 趨勢圖不開降採樣。
-
-## 現況（2026-10-17）
-
-- 最新 commit 9c15896。分析頁改進已 commit：新增 `scope_tool/analysis/`（measure、edge、filter、fft、mathfn）與 `ui/analysis_{chanbar,controls,plot,fftplot,results,math,overview,export}.py`；改 `ui/tab_analysis.py`、`storage/reader.py`（`read_file_info`）、`RULES.md`（第 11 條離線分析、刪「不做自動量測」、擁有權表）、本檔。`analysis_readout.py` 已刪（併入 `analysis_results.py`）。
-- 已上機：DSO-X 6004A、DSO-X 3014G、HD304MSO、MXR254B（Infiniium 首次）、MSO-X 4154G。3000T、EXR、S 系列沒上機。逐輪紀錄在 `docs/真機驗證清單.md`。
-- 自我檢查：`for m in instruments.base instruments.infiniivision instruments.infiniium instruments.fake instruments.registry storage.writer storage.reader storage.csv_export ui.worker ui.tab_capture ui.tab_screenshot analysis.measure analysis.edge analysis.filter analysis.fft analysis.mathfn analysis.clock analysis.jitter analysis.eye ui.analysis_chanbar ui.analysis_plot ui.analysis_overview ui.analysis_results ui.analysis_export ui.analysis_controls ui.analysis_runner ui.analysis_fftplot ui.analysis_jitter ui.analysis_eye ui.analysis_math ui.analysis_layout ui.tab_analysis ui.main_window contracts; do QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -m scope_tool.$m; done`（系統 `python3` 沒有 numpy）。
-- 啟動：`python main.py`（在 `scope_tool/`），有「測試儀器（模擬）」按鈕。或雙擊根目錄 `啟動示波器截圖.command`。
-
-## 下一步
-
-1. 真機比對：量測數值與示波器面板讀數、Bessel 低通是否與原廠一樣補償群延遲。
-2. 上機：HD304 重測四通道 100M、`:DIGitize` 四通道（上次 USB 斷線；接上先確認設定已還原）；MXR 補 Error 273（遠端桌面）、LAN、慢時基、GUI 全流程；3000T。
-3. （CSV 匯出已在 GUI 實測：3014G 4M 檔，全部 1M 點與游標區間縮點 1 萬點，與原檔逐點比對正確。縮點時時間位數依縮點後間隔，觸發次取樣偏移會被捨去，使用者確認不改。）
-4. 分析頁後續階段（使用者先前已定需求）：
-   - ~~第 2 階段 游標區間統計~~：已被離線分析功能取代（量測範圍＝游標區間／全部）。
-   - 延後項目見 `docs/離線分析功能規格.md`「延後」。
-   - **第 3 階段**：疊圖／分開堆疊兩種模式可切換（現在每通道可獨立 V/格與位置，可能已部分涵蓋，做之前跟使用者確認）。
-   - **第 4 階段**：多檔疊圖比較（曲線名「檔名 CH1」、各用自己時間軸）；多檔時 CSV 選一個檔匯出。
-
-## 分析頁現況（Infiniium 風格版面，2026-10-17 實作，使用者 GUI 實測無問題）
-
-- 版面：上方工具列（開啟、檔案資訊、重設視圖、通道歸位、游標歸位、匯出 CSV 選單、數學…、FFT、閾值、量測範圍、預覽、點數／取樣率）；左側直立分頁「時間量測／電壓量測」＋邊緣方向；通道列色塊（勾選、V/格查表、位置格數、雙擊換色、點選＝量測與游標換算來源、F 通道有 ×）；中央分隔：預覽→主波形 10×10 格→FFT 格；水平列（時間/格、中心）＋操作說明；下方結果區（量測表／游標表／FFT 峰值，寬並排、窄於 900 px 改分頁）。
-- 游標、示波器模式互動同前（四條游標、吸附第一通道取樣點、滾輪換 V/格、拖曳位移）；滾輪放大前判斷會不會超出 ±5 格，縮放以波形中心為準。
-- 量測／FFT／數學在背景執行（`worker.Job`），過期結果丟棄；CSV 匯出只含原始通道。
-- 只有紙上驗證：真人滑鼠手感、大檔拖曳流暢度、原生 QColorDialog／QMessageBox、量測數值與真機面板比對、Bessel 低通是否與原廠一樣補償群延遲。
-
-## 擷取規則（使用者定案，已寫入 RULES.md 第 5、9 條）
-
-- **示波器只因「使用者手動」或「按下擷取」而停止。** 擷取時若在 RUN：等 `10×時基+1` 秒再 `:STOP`，讀完**維持 STOP**。原本 STOP 直接讀。`retrigger` → `:DIGitize`。
-- **一律存 HDF5**；CSV 只能從分析頁匯出（`storage/csv_export.py`，RULES 第 5 條）：範圍全部／游標區間；可勾縮點、上限預設 10M（每 N 點取 1）；欄名照契約 `CH1(V)`；科學記號、每欄位數依「最小相異間隔」自動決定（誤差 < 間隔/10）。存到來源檔同資料夾、加時間戳。實測 4 通道 10M 列約 11 秒、668 MB。
-- **HDF5 存原始整數**：uint16 + group attrs `YInc/YOrg/YReference`；無 preamble 才存 float64 電壓。
-- `max_points()`：HD3 100M、3000G 4M、Infiniium 查 `:ACQuire:POINts:MAXimum?`（MXR 200M）。
-- **Infiniium 一律存檔轉取整筆記錄**（`:DISK:SAVE ALL` → `GETFILE?` → `DELete`），「點數」只當上限：記錄點數 > 設定點數就丟 ScopeError，不改使用者記憶體深度。存檔維持 `ALL`，原生檔含所有顯示中通道。
+- 示波器只因「使用者手動」或「按下擷取」而停止。擷取時若在 RUN：等 `10×時基+1` 秒再 `:STOP`，讀完**維持 STOP**；原本 STOP 直接讀；`retrigger` → `:DIGitize`。
+- 一律存 HDF5（uint16 原始整數 + group attrs `YInc/YOrg/YReference`；無 preamble 才存 float64 電壓）；CSV 只能從分析頁匯出（`storage/csv_export.py`）：範圍全部／游標區間，可縮點（上限預設 10M），欄名 `CH1(V)`，時間位數依最小相異間隔。
+- `max_points()`：HD3 100M、3000G 4M、Infiniium 查 `:ACQuire:POINts:MAXimum?`。InfiniiVision 的點數由時基決定（20 ns/div 只有 2000 點），`:ACQuire:POINts` 設了無效。
+- Infiniium 存檔轉取整筆記錄（`:DISK:SAVE ALL` → `GETFILE?` → `DELete`），「點數」只當上限，超過丟 ScopeError，不改使用者記憶體深度。
 
 ## 真機踩到的坑（已修，勿回退）
 
 - pyvisa `query_binary_values` 傳輸 > 約 64 MiB 會卡死：`_query_binary` 手動分段讀 IEEE 488.2 block（每段 4 MiB）。
-- InfiniiVision `:HARDcopy:AREA GRAT` 回 `-221`，**不要送**。格線區由 driver 依截圖尺寸查表裁：800×512（3014G）(16,52,642×400)、800×632（4154G）(16,92,642×480)，其他尺寸回全圖。
-- `:ACQuire:POINts:MAXimum?` 在 InfiniiVision/HD3 不存在（-113 + 逾時）。
+- InfiniiVision `:HARDcopy:AREA GRAT` 回 `-221`，**不要送**；格線區由 driver 依截圖尺寸查表裁：800×512 (16,52,642×400)、800×632 (16,92,642×480)，其他回全圖。
+- `:ACQuire:POINts:MAXimum?` 在 InfiniiVision／HD3 不存在（-113 + 逾時）。
 - `bytes(np.array)` 會把每個位元組展開成 8 倍 → 檔案損壞。
 - `channels()` 探測不存在通道會逾時並留 `-113`：探測期間 timeout 1 秒，之後 `*CLS`。
-- 沒有完整採集（Single/Normal 等觸發、剛 RUN 就 STOP）：3000G PREamble 卡死（5 秒逾時 + device clear），HD3 回空欄位；都丟明確 ScopeError。HD3 無法查採集是否完成。
+- 沒有完整採集（Single/Normal 等觸發、剛 RUN 就 STOP）：3000G PREamble 卡死（5 秒逾時 + device clear），HD3 回空欄位；都丟明確 ScopeError。等不到觸發時 `:DIGitize` 的 `*OPC?` 會 60 秒逾時，`_prepare_capture` 逾時後 device clear 並丟 ScopeError。
 - `*OPC?` 在 Single 等待觸發時不回應：`*CLS` 用 `_write_nowait`。
-- HDF5 attrs 在 **group** 上；reader 先讀 group，退回 dataset。
-- Keysight 原生 H5INt：`YReference=1` **不能扣**，V = raw×YInc+YOrg。本工具寫的檔（有 `/ScopeTool`）才扣。
-- HD3：沒有 `:OPERegister:CONDition?`（用 `:RSTate?`）、沒有 INKSaver（程式端 `invertPixels()`）、截圖波形區隨面板變動（偵測 `#282828` 外框）。
-- MXR：沒有 `:WAVeform:POINts <n>`/`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
-- 4154G：每次 `:DISPlay:DATA?` 後畫面跳「Remote operation completed.」約 5 秒，連續截圖會拍到 → 截圖前送 `:DISPlay:MESSage:CLEar`（3014G 也接受）。
-- InfiniiVision `:DISPlay:DATA?` 的調色盤參數會保留在儀器上（`:HARDcopy:PALette?` 看不出來），被設成灰階後截圖一直是灰階 → 每次送 `<fmt>,COLor`（問題在 4154G 發現，修正在 3014G 驗證；HD3 帶第二參數會逾時，不帶）。
-- 新 driver 模組底部必須 `register(...)`。`ui/main_window.py` 載入 driver 模組時用 `try/except: pass` 包住，漏註冊或 import 失敗都會靜默，只表現為「無法辨識型號」。
-- 等不到觸發時 `:DIGitize` 的 `*OPC?` 會 60 秒逾時，之後示波器不回應 → `_prepare_capture` 逾時後 device clear 並丟明確 ScopeError（3014G 實測；Infiniium 未測）。
-
-## 已知小問題（未處理）
-
-- Infiniium Error 273 只有紙上驗證。
-- HD3 `DATA?` 連 1000 點也要約 4 秒。
+- HDF5 attrs 在 **group** 上；reader 先讀 group，退回 dataset。Keysight 原生 H5INt：`YReference=1` **不能扣**，V = raw×YInc+YOrg；本工具寫的檔（有 `/ScopeTool`）才扣。
+- HD3：沒有 `:OPERegister:CONDition?`（用 `:RSTate?`）、沒有 INKSaver（程式端 `invertPixels()`）、截圖波形區隨面板變動（偵測 `#282828` 外框）；`DATA?` 連 1000 點也要約 4 秒。
+- MXR：沒有 `:WAVeform:POINts <n>`／`:WAVeform:UNSigned`、PREamble 24 欄 → 直讀路線已刪。
+- 4154G：每次 `:DISPlay:DATA?` 後跳「Remote operation completed.」約 5 秒 → 截圖前送 `:DISPlay:MESSage:CLEar`。
+- InfiniiVision `:DISPlay:DATA?` 調色盤參數會殘留在儀器上 → 每次送 `<fmt>,COLor`（HD3 帶第二參數會逾時，不帶）。
+- 新 driver 模組底部必須 `register(...)`；`main_window.py` 載入 driver 時 `try/except: pass`，漏註冊或 import 失敗都會靜默，只表現為「無法辨識型號」（MSO9254A 曾因此漏註冊）。
+- pyqtgraph 0.14 自動降採樣在 x 為秒時會丟光資料：TIE 趨勢圖不開降採樣。
 - 4 通道 × 100M 記憶體約 7 GB 以上，再大要改契約（凍結）。
-- 調色盤修正（`,COLor`）4154G 未重測。
 
 ## 先讀
 
 | 檔案 | 內容 |
 |---|---|
-| `RULES.md` | 硬規則：`contracts.py` 不准改、不准裝新套件（**沒有 Pillow**）、只用 PySide6 |
-| `scope_tool/contracts.py` | 凍結契約，含 CSV/HDF5 格式 |
-| `docs/真機驗證清單.md` | 逐輪實測紀錄 |
-| `docs/示波器命令規格書.md`、`docs/reference/` | SCPI 規格與原廠文件 |
+| `RULES.md` | 硬規則：`contracts.py` 不准改、不准裝新執行期套件（**沒有 Pillow**）、只用 PySide6、打包規則 |
+| `scope_tool/contracts.py` | 凍結契約，含 CSV／HDF5 格式 |
+| `docs/真機驗證清單.md` | 逐輪實測紀錄（append-only） |
+| `docs/離線分析功能規格.md` | 離線分析規格 |
+| `docs/示波器命令規格書.md`、`docs/reference/` | SCPI 規格與原廠文件、手冊整理 |
 | `docs/adr/` | 0001 PySide6；0002 搜尋；0003 HDF5 沿用 Keysight 結構、存原始整數 |
+| `docs/archive/PLAN.md.gz` | 舊開發計畫（T1~T11 皆完成），`zcat` 可讀 |
 
-## 環境
-
-- `/opt/anaconda3/bin/python3`（3.13）、pyvisa（macOS `/Library/Frameworks/visa.framework`）、numpy、h5py、PySide6；進入點先 `os.environ["QT_API"]="pyside6"`。
-- 實機（輸入皆接地雜訊；**測試改設定要記下並還原**）：
+## 實機（輸入皆接地雜訊；**測試改設定要記下並還原**）
 
 | 機台 | VISA | 使用者設定 |
 |---|---|---|
 | HD304MSO | `USB0::0x2A8D::0x4704::MY66190300::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div |
 | DSO-X 3014G | `USB0::0x2A8D::0x1768::MY65520038::INSTR` | RUN、5 ms/div、AUTO、4 通道全開、1 V/div、INKSaver 1（輸入平 DC，Single/Normal 不會觸發） |
+| DSO-X 6004A | （未記錄） | 測完維持 STOP、20 ns/div、記憶體深度 AUTO |
 | MXR254B | `USB0::0x2A8D::0x9007::MY63310109::INSTR` | RUN、100 ns/div、AUTO、RTIM、記憶體深度 AUTO、只開 CH1、5 V/div |
 | MSO-X 4154G | `USB0::0x2A8D::0x17BC::MY65060120::INSTR` | RUN、100 µs/div、AUTO、只開 CH1、5 V/div、INKSaver 1 |
-| MSO9254A（9000A） | `USB0::0x2A8D::0x900E::MY53130146::INSTR` | 2026-10-19 GUI 已連線，僅讀取查詢；設定未記錄，測試前先確認 |
+| MSO9254A | `USB0::0x2A8D::0x900E::MY53130146::INSTR` | 僅讀取；設定未記錄，測試前先確認 |
 
-- Codex：`codex exec --sandbox workspace-write ... </dev/null`（**一定要 `</dev/null`**）。Codex 沙箱連不到 VISA，實機測試由 Claude 執行。
-
-## 已定案（仍有效）
+## 已定案
 
 - 搜尋：VISA 列表 + zeroconf + 手動 IP；`*IDN?` 判不出系列讓使用者手選一次。
-- 截圖頁：檔名自動接時間戳，永不覆蓋；BMP/PNG、正常/反轉、全螢幕/格線區。HD3 反轉為程式端反相、格線區自動偵測。
-- 擷取頁：通道多選，單位是點數，只存 HDF5。「重新觸發」預設關。
-- 分析頁：離線；示波器式每通道 V/格＋位置（只改顯示）；讀值取原始資料；CSV 從分析頁匯出原始資料。自動量測只會開放「游標區間統計」（第 2 階段），其餘不做。
-- I/O 全在 QThread；逾時截圖 15s、擷取每個 VISA 操作 60s；Error 273 → 「請關閉遠端桌面」；不做取消。
-
-## 不做
-
-掃網段搜尋、自動量測、傳輸取消、面板 USB CSV 解析、自訂 HDF5 結構。
-
-## 溝通
-
-繁體中文，直白，不長篇大論。沒真機的路徑要說清楚只有紙上驗證。改程式交 Codex，Opus 審。
-
-## 資料夾整理（2026-10-22）
-- `N8900A/InfScopeDLL_decompiled/` 與 `N8900A/Keysight Infiniium Offline Oscilloscope Analysis Software Help/` 已壓成同名 `.tar.gz`（N8900A 被 gitignore，無版本備份）；文件中引用這兩個路徑時，需先 `tar -xzf` 解開。
-- 開發計畫 `PLAN.md`（T1~T11 皆完成）移至 `docs/archive/PLAN.md.gz`；`zcat` 可讀。
+- 截圖頁：檔名自動接時間戳、永不覆蓋；BMP／PNG、正常／反轉、全螢幕／格線區。
+- 擷取頁：通道多選，單位是點數，只存 HDF5；「重新觸發」預設關。
+- 分析頁：離線；示波器式每通道 V／格＋位置（只改顯示）；讀值取原始資料；四游標吸附第一通道取樣點；量測、FFT、數學在背景執行（`worker.Job`），過期結果丟棄。
+- I/O 全在 QThread；逾時截圖 15 s、擷取每個 VISA 操作 60 s；Error 273 → 「請關閉遠端桌面」；不做取消。
+- 不做：掃網段搜尋、傳輸取消、面板 USB CSV 解析、自訂 HDF5 結構。
