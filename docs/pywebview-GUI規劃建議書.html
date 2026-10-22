@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pywebview GUI 規劃建議書</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mute:#5b6675;--line:#dde2e9;--acc:#1f5fbf;--ok:#1b7a43;--warn:#b25e00;--bad:#b3261e;--code:#eef1f5}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14181e;--card:#1c222b;--ink:#e6eaf0;--mute:#9aa6b6;--line:#2c3541;--acc:#6aa5ff;--ok:#5fcf8a;--warn:#f0a34a;--bad:#ff8a80;--code:#262e39}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 "PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:26px;margin:8px 0}h2{font-size:20px;margin:40px 0 12px;padding-top:8px;border-top:2px solid var(--line)}h3{font-size:16px;margin:22px 0 8px}
+p,li{margin:6px 0}.mute{color:var(--mute)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:13px}
+pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;line-height:1.5}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--card)}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}th{background:var(--code)}
+.tag{display:inline-block;padding:0 8px;border-radius:99px;font-size:12px;border:1px solid currentColor}
+.S{color:var(--ok)}.M{color:var(--warn)}.L{color:var(--bad)}
+.rec{border-left:4px solid var(--acc)}.warn{border-left:4px solid var(--warn)}.stop{border-left:4px solid var(--bad)}
+nav{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin:10px 0}nav a{color:var(--acc);text-decoration:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.wave{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch;margin:10px 0}
+.ph{flex:1 1 200px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:8px 10px;font-size:13px}
+.ph b{display:block;color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>pywebview GUI 規劃建議書</h1>
+<p class="mute">示波器截圖／波形擷取／離線分析工具｜2026-10-22｜由 Opus 與 Codex 各自獨立規劃後整合。<br>
+狀態：<b>規劃階段，尚未改任何程式碼</b>，等你說「開工」。</p>
+<nav>
+<a href="#sum">1 摘要</a><a href="#dec">2 待你決定</a><a href="#arch">3 架構</a><a href="#big">4 大資料</a><a href="#contract">5 凍結契約</a><a href="#own">6 檔案擁有權</a><a href="#lanes">7 並行 lane</a><a href="#map">8 功能對照</a><a href="#rules">9 RULES 修訂</a><a href="#risk">10 風險</a><a href="#mig">11 遷移與回退</a><a href="#diff">12 兩份規劃的差異</a>
+</nav>
+
+<h2 id="sum">1 摘要</h2>
+<div class="card rec">
+<ul>
+<li><b>做法：</b>pywebview 只當「原生視窗＋原生檔案對話框」。介面是純 HTML/JS（ES modules，不打包、不用 CDN），Python 後端沿用現有 <code>instruments/ storage/ analysis/</code>，完全不改。</li>
+<li><b>前後端只靠一份凍結契約溝通</b>（<code>api_contract.json</code> + 型別文件）。前端用 mock 後端、後端用 FakeDriver，各自驗證，不必等對方。</li>
+<li><b>波形永遠不整包送前端。</b>Python 依像素寬度做 min/max 降採樣，以二進位傳輸，縮放平移再重取。</li>
+<li><b>Qt 版全程保留</b>，到功能與跨平台驗收完成才切預設入口；可隨時回退。</li>
+<li><b>工作拆成 9 條 lane</b>，每條只改自己名下檔案，可交給不同模型同時寫。契約凍結（P0）是唯一的單線瓶頸。</li>
+</ul>
+</div>
+<div class="card warn"><b>兩位規劃者都踩到、你需要先知道的事實</b>
+<ul>
+<li>pywebview 6.2.1 與 pyobjc 已裝在 <code>/opt/anaconda3</code>，Mac 不必再裝東西。</li>
+<li><b>Web 版仍然需要 PySide6。</b><code>instruments/infiniivision.py</code> 用 <code>QImage/QBuffer</code> 做截圖裁切與 HD3 反轉色（已用 grep 確認）。RULES 禁止 Pillow，所以首版不能把 PySide6 移出打包，也不能宣稱「完全脫離 Qt」。</li>
+<li><code>zeroconf</code> 目前沒裝在 anaconda（<code>discovery</code> 會靜默退化成只剩 VISA 列表）。這是既有問題，與本案無關，另案處理。</li>
+<li><code>contracts.py</code> 的 capture docstring 仍寫「還原 RUN/STOP」，與 RULES 第 9 條（擷取後維持 STOP）衝突。凍結檔不能改，記錄即可。</li>
+<li>Windows 缺 WebView2 時 pywebview 會<b>靜默退成 IE11</b>，ES modules 不會執行，必須偵測並提示。</li>
+</ul></div>
+
+<h2 id="dec">2 待你決定的事（開工前）</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>議題</th><th>選項</th><th>建議</th></tr>
+<tr><td>D1</td><td>前後端傳輸</td><td>A 全走本機 HTTP（RPC + 二進位 + long-poll 事件）<br>B 控制走 pywebview <code>js_api</code>，二進位走 HTTP，事件用 <code>evaluate_js</code></td><td><b>A</b>。只有一條路，同一套前端可在 pywebview、一般瀏覽器＋真後端、瀏覽器＋mock 三種環境原封不動跑，最利於並行驗證。傳輸細節全部藏在 <code>bridge.js</code>，之後要換成 B 只改這一個檔。</td></tr>
+<tr><td>D2</td><td>圖表</td><td>自繪 Canvas／uPlot／Plotly／ECharts</td><td><b>自繪 Canvas</b>（每通道獨立 V/格與位置、點中曲線拖曳、四條吸附游標、Marker、Track RF 都是客製互動，函式庫幫不上忙）。P0 先花 ~1 天用 uPlot 做適配驗證，不適配就維持 Canvas。Plotly／ECharts 不考慮。</td></tr>
+<tr><td>D3</td><td>RULES 修訂</td><td>第 2、3、4、10 條與擁有權表（見第 9 節）</td><td>需你核准，P0 才能收尾。</td></tr>
+<tr><td>D4</td><td>大檔開啟方式</td><td>A 沿用現有 <code>reader</code> 整檔載入＋建金字塔<br>B 另寫 h5py 懶載入（<code>hdf_source.py</code>）</td><td><b>首版 A</b>，與 Qt 版同樣的記憶體上限（4×100M ≈ 6.4 GB，既有限制）。B 列為 P3 之後的選配 lane，不佔關鍵路徑。</td></tr>
+<tr><td>D5</td><td>深色主題</td><td>解除／維持禁止</td><td><b>維持禁止</b>：App 淺色，圖區黑底（沿用現況）。</td></tr>
+<tr><td>D6</td><td>Windows 先做哪個</td><td>Win10 onedir 打包時程</td><td>Mac 先跑通全流程，Win 在 P3 做；WebView2 離線安裝檔隨發行資料夾附上。</td></tr>
+</table></div>
+
+<h2 id="arch">3 目標架構</h2>
+<pre>
+主執行緒（macOS 強制）
+  scope_tool/web/app.py ── webview.create_window(url=http://127.0.0.1:PORT/?k=TOKEN)
+                           webview.start()          只負責視窗與原生對話框
+        │
+前端 static/（ES modules）
+  bridge.js ── POST /rpc/&lt;method&gt;          JSON 請求／回應
+            ── GET  /wave  /fft             二進位降採樣包絡
+            ── POST /rpc/wait_events        long-poll 事件（≤25 s）
+        │
+daemon 執行緒：ThreadingHTTPServer（stdlib、HTTP/1.1、只綁 127.0.0.1、token 驗證）
+  快速方法（純 numpy 查表）→ 請求執行緒直接做
+  慢方法（VISA／開大檔／量測／FFT／數學／匯出）→ jobs.submit() 回 {job:id}
+                                              → 工作執行緒 → 事件環形緩衝 → 前端
+        │ 沿用、不修改
+  instruments/*  storage/*  analysis/*  contracts.py  config.py
+</pre>
+<h3>執行緒規則（對應 RULES 第 4 條）</h3>
+<div class="tbl"><table>
+<tr><th>執行緒</th><th>可做</th><th>禁止</th></tr>
+<tr><td>主執行緒（pywebview）</td><td><code>webview.start()</code>、原生對話框</td><td>VISA、檔案 I/O、分析</td></tr>
+<tr><td>HTTP 請求執行緒</td><td>解析參數、<code>searchsorted</code>、包絡查表、送出工作</td><td>呼叫 <code>driver.*()</code></td></tr>
+<tr><td>jobs 工作執行緒</td><td>driver、讀檔、量測、FFT、數學、匯出</td><td>—</td></tr>
+<tr><td>WebView JS</td><td>繪圖、互動</td><td>同步 XHR</td></tr>
+</table></div>
+<ul>
+<li><b>儀器鎖：</b>全域一把鎖，<code>acquire(blocking=False)</code>；搶不到回 <code>BUSY</code>（「儀器忙碌中，請等目前操作完成」）。順手堵住 Qt 版截圖頁與擷取頁可同時下 SCPI 的潛在問題。同一 VISA session 的工作序列執行。</li>
+<li><b>驗收用 grep：</b><code>grep -nE "driver\.(screenshot|capture|channels|max_points)\(" scope_tool/web/*.py</code> 必須 0 筆（driver 只能以函式參照傳給 <code>jobs.submit</code>）。</li>
+<li><b>進度只回報真實資訊：</b><code>ScopeDriver.capture()</code> 沒有進度回呼，所以顯示「擷取中… 已 N 秒」與不定量進度，不捏造百分比。不做傳輸取消（與 RULES 一致）。</li>
+<li><b>過期結果：</b>後端用 <code>gen</code>（開檔世代），前端用遞增序號；防抖沿用量測 150 ms、FFT 200 ms。</li>
+<li><b>關窗：</b>有工作進行時 <code>events.closing</code> 先確認；不強殺 VISA（標 <code># 待真機驗證</code>）。</li>
+</ul>
+
+<h2 id="big">4 大資料策略（100M 點 × 4 通道）</h2>
+<ol>
+<li><b>原始資料只存在 Python。</b>前端永遠拿不到整包。</li>
+<li><b>伺服端 min/max 降採樣：</b><code>GET /wave?ch&amp;t0&amp;t1&amp;px</code>。<code>searchsorted</code> 找索引區間、左右各多取一點避免邊緣斷線；點數 ≤ 2×px 直接回原始點；否則 <code>np.minimum/maximum.reduceat</code> 分桶；NaN 保留斷線語義；單通道上限 32,768 點。</li>
+<li><b>單層金字塔：</b>開檔工作對每個 &gt;1M 點通道預算一次 factor-1024 的 min/max（100M 點 ≈ 98k 桶 ≈ 0.8 MB）。全覽走金字塔，O(px) 而非 O(n)。</li>
+<li><b>二進位格式</b>（<code>/wave</code>、<code>/fft</code> 共用，little-endian）：
+<pre>uint32 n | uint32 mode(0=原始,1=包絡) | uint32 0 | uint32 0   ← 16 bytes
+float64 x[n]   位移 16（8 對齊）  ← 時間要全精度
+float32 lo[n]  位移 16+8n         ← 只拿來顯示
+float32 hi[n]  位移 16+12n（原始模式 hi==lo）</pre>
+不用 JSON／base64（波形走 JSON 慢且有跳脫問題；base64 多 1/3 體積）。pywebview 的 js_api 回傳值是 <code>json.dumps</code> 後塞進 <code>evaluate_js</code> 字串，已查證，波形不可走這條。</li>
+<li><b>縮放平移：</b>取可見範圍左右各 +50%；拖曳先位移重畫（零延遲），超出範圍或縮放倍率變化 &gt;2× 才重取（停頓 80–120 ms、每圖最多 1 個進行中請求、<code>AbortController</code> 只中止過期顯示請求）。FFT 同理，log 軸按對數等距分桶、排除 0 Hz。</li>
+<li><b>min/max 只是視覺預覽。</b>游標讀值、量測、FFT、CSV 一律用全精度原始資料。</li>
+<li><b>NaN／inf 一律轉 <code>null</code>：</b>Python <code>json.dumps</code> 會輸出 <code>NaN</code>，JS <code>JSON.parse</code> 直接報錯（必踩的坑）。</li>
+<li><b>Windows MIME 寫死：</b><code>mimetypes</code> 讀登錄檔，<code>.js</code> 可能變 <code>text/plain</code> 使 ES module 被拒；<code>server.py</code> 寫死 html/js/css/json/svg/png/bmp。</li>
+<li><b>效能目標（待量測，不是保證）：</b>全覽 4×100M 全部回來 &lt;300 ms；放大到 1M 點視野每通道 &lt;30 ms；每幀重畫 &lt;16 ms；暖快取縮放重取 P95 ≤250 ms。</li>
+<li><b>離線：</b>資源全在 <code>static/</code>，不用 npm／CDN／web font（字型 <code>PingFang TC, Microsoft JhengHei</code>）。驗收 grep：<code>grep -rnE "https?://" scope_tool/web/static | grep -v 127.0.0.1</code> = 0 筆。</li>
+</ol>
+<div class="card warn"><b>記憶體界線要講清楚：</b>前端降採樣成功 ≠ 100M×4 擷取與所有分析成功。driver 擷取仍回完整 <code>CaptureResult</code>（凍結契約），峰值記憶體不會因此下降；大型 CSV 的 <code>np.unique</code> 也有暫存成本。要在小 RAM 機器處理 100M×4，需另立串流擷取／分塊量測決策，不屬於「GUI 換皮」。</div>
+
+<h2 id="contract">5 凍結的前後端契約（P0 產出，凍結後只有 lead 能改）</h2>
+<h3>傳輸規則</h3>
+<ul>
+<li>RPC：<code>POST /rpc/&lt;method&gt;?k=TOKEN</code>，body 為 kwargs JSON。回應一律 200：<code>{"ok":true,"result":…}</code> 或 <code>{"ok":false,"error":{"code","message","retryable"}}</code>；token 錯 403、方法不存在 404。</li>
+<li>錯誤碼：<code>ScopeError</code> 用其訊息；<code>RemoteDesktopError</code> → <code>REMOTE_DESKTOP</code>（「請關閉遠端桌面連線後重試」）；<code>BUSY</code>；其他為「未預期錯誤：…」。</li>
+<li>工作型方法立即回 <code>{"job":"j&lt;N&gt;"}</code>，結果經事件回傳；前端 <code>bridge.js</code> 必須暫存「比 RPC 回應先到」的 job 事件。同一 <code>request_id</code> 重送回原工作，避免重複擷取／寫檔。</li>
+<li>安全：只綁 <code>127.0.0.1</code>＋<code>secrets.token_urlsafe(16)</code>。<code>open_waveform</code>、<code>export_*</code> 能讀寫任意路徑，token 擋掉本機其他網頁的 CSRF；不開萬用 CORS，只服務靜態白名單與已登記 blob。</li>
+</ul>
+<h3>方法（J = 工作型）</h3>
+<div class="tbl"><table>
+<tr><th>方法</th><th>參數</th><th>回傳</th><th>擁有</th></tr>
+<tr><td><code>get_state</code></td><td>—</td><td>AppState（config、connected、model、series、catalog）</td><td>Api</td></tr>
+<tr><td><code>save_config</code></td><td>patch</td><td>Config</td><td>Api</td></tr>
+<tr><td><code>pick_folder / pick_waveform_file</code></td><td>initial</td><td>路徑或 null（取消＝正常結果，非錯誤）</td><td>Api</td></tr>
+<tr><td><code>search</code> J / <code>add_manual_ip</code></td><td>— / ip</td><td>FoundInstrument[]</td><td>Api</td></tr>
+<tr><td><code>connect</code> J / <code>connect_fake</code> / <code>disconnect</code></td><td>resource, series_override?</td><td>{model, series} + <code>driver</code> 事件</td><td>Api</td></tr>
+<tr><td><code>capture_info</code> J</td><td>—</td><td>{channels, max_points}</td><td>Api</td></tr>
+<tr><td><code>screenshot</code> J</td><td>directory, name, image_format, inverted, area</td><td>{path, preview}</td><td>Api</td></tr>
+<tr><td><code>capture</code> J</td><td>directory, name, channels, points, retrigger</td><td>{path, got_points, requested}</td><td>Api</td></tr>
+<tr><td><code>open_waveform</code> J</td><td>path</td><td>FileSummary（含金字塔建置）</td><td>Analysis</td></tr>
+<tr><td><code>cursor_readout</code></td><td>t1, t2, dx</td><td>CursorReadout（吸附第一通道取樣點）</td><td>Analysis</td></tr>
+<tr><td><code>marker_eval</code></td><td>mode, channel, x1,x2,y1,y2, screen_width, measurements</td><td>MarkerResult（來源座標）</td><td>Analysis</td></tr>
+<tr><td><code>measure</code> J</td><td>entries, range, dx, threshold</td><td>{gen, results[]}（具名統計欄位，不可用傳 null＋原因）</td><td>Analysis</td></tr>
+<tr><td><code>math</code> J / <code>remove_channel</code></td><td>op, a, b?, param / name</td><td>ChannelInfo（F# 編號不重用）</td><td>Analysis</td></tr>
+<tr><td><code>fft</code> J</td><td>source, range, dx, window, unit, r_ohm, peak_count, peak_level, peak_sort</td><td>FFTResult（含 spectrum_id、peaks）</td><td>Analysis</td></tr>
+<tr><td><code>fft_track_rf</code></td><td>spectrum_id, x, direction, level</td><td>{x, y, available, reason}</td><td>Analysis</td></tr>
+<tr><td><code>export_csv</code> J / <code>export_measurements</code></td><td>range, max_points, directory / rows, meta</td><td>{path}（衍生通道不匯出，由後端保證）</td><td>Analysis</td></tr>
+<tr><td><code>wait_events</code></td><td>since, timeout</td><td>{seq, events[]}</td><td>server</td></tr>
+</table></div>
+<h3>二進位端點與事件</h3>
+<pre>GET /wave?k&amp;ch&amp;t0&amp;t1&amp;px            GET /fft?k&amp;id&amp;f0&amp;f1&amp;px&amp;log=0|1
+GET /screenshot/last?k&amp;n            （原始位元組，BMP/PNG 直接進 &lt;img&gt;）
+
+{"seq":12,"type":"job","id":"j7","kind":"capture","ok":true,"result":{…}}
+{"seq":14,"type":"driver","connected":true,"model":"DSO-X 3014G","series":"InfiniiVision"}</pre>
+<h3>座標定義（必須凍結，否則游標／匯出會對不上）</h3>
+<ul>
+<li><code>display_time = source_time + time_offset(dx)</code>；<code>display_y_div = source_value / scale_per_div + position_div</code>。</li>
+<li>Marker 請求的 x/y 用<b>來源物理座標</b>；傳統游標用顯示時間吸附第一通道，各通道讀值先扣自己的位移。</li>
+<li>波形 CSV 匯出維持現行行為：原始資料不套顯示位移，以游標時間切原始時間軸。</li>
+</ul>
+<h3>前端內部契約（同屬 P0 凍結）</h3>
+<ul>
+<li><code>bridge.js</code>：<code>call / job / on / fetchWave / fetchSpectrum / screenshotUrl / MOCK</code>。</li>
+<li><code>analysis/store.js</code>：共享狀態（<code>file, channels, selected, view, cursors, markerMode, threshold, fftResult, measurements</code>）、<code>set(patch, origin)</code>（origin ∈ user／snap／program，防止吸附造成無限迴圈）、<code>command / onCommand</code>。<b>各模組只透過 store 和 bridge 溝通，不互相 import 內部函式。</b>三個 lane 不得同時擁有同一份游標真值。</li>
+<li>圖表核心與控制元件只發「意圖事件」：<code>viewport.intent</code>、<code>channel.shift_intent</code>、<code>channel.scale_intent</code>、<code>cursor.intent</code>、<code>rf.intent</code>。</li>
+<li>樣式 token 與 CSS class 名稱由 L0 寫進契約文件，L6 實作，其他 lane 只能引用。</li>
+</ul>
+<h3>契約自我檢查（機械驗證，防止偏離）</h3>
+<ul>
+<li>Python：<code>Api</code>＋<code>Analysis</code> 公開方法集合 == <code>api_contract.json</code> 的 methods，且 <code>inspect.signature</code> 參數名一致、兩者無重名。</li>
+<li>JS：<code>mock_backend.js</code> 方法名 == 契約 methods。mock 不得各頁自行發明假 API。</li>
+</ul>
+
+<h2 id="own">6 新目錄與檔案擁有權</h2>
+<pre>
+scope_tool/web/
+  __init__.py  app.py  server.py  jobs.py  api.py       ← L1a
+  analysis_api.py  decimate.py                          ← L1b
+  e2e_check.py                                          ← L8
+  static/
+    index.html  api_contract.json                       ← L0
+    css/app.css  styleguide.html                        ← L6
+    css/analysis.css                                    ← L4
+    selfcheck.html  js/selfcheck_node.js                ← L8
+    js/{bridge,mock_backend,ui,fmt,main}.js             ← L0
+    js/connbar.js  js/tab_screenshot.js                 ← L2
+    js/tab_capture.js                                   ← L3
+    js/analysis/{store,scales}.js                       ← L0
+    js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane}.js   ← L4
+    js/analysis/{chanbar,toolbar,results,measure,cursors}.js           ← L5
+packaging/{scope_tool_web.spec,build_win.bat}  requirements-web.txt  啟動示波器截圖_web.command  ← L7
+docs/web-api契約.md  docs/web版驗收清單.md             ← L0 / L8
+</pre>
+<div class="tbl"><table>
+<tr><th>Lane</th><th>唯一可修改範圍</th></tr>
+<tr><td>L0 契約</td><td>契約文件、<code>api_contract.json</code>、<code>index.html</code>、<code>bridge/mock_backend/ui/fmt/main.js</code>、<code>analysis/store.js、scales.js</code></td></tr>
+<tr><td>L1a 後端橋接</td><td><code>web/{__init__,app,server,jobs,api}.py</code></td></tr>
+<tr><td>L1b 分析服務</td><td><code>web/analysis_api.py</code>、<code>web/decimate.py</code></td></tr>
+<tr><td>L2 連線列＋截圖頁</td><td><code>connbar.js</code>、<code>tab_screenshot.js</code></td></tr>
+<tr><td>L3 擷取頁</td><td><code>tab_capture.js</code></td></tr>
+<tr><td>L4 圖表核心</td><td><code>analysis/{tab_analysis,plotcore,mainplot,overview,fftpane}.js</code>、<code>analysis.css</code></td></tr>
+<tr><td>L5 表格／側欄／游標</td><td><code>analysis/{chanbar,toolbar,results,measure,cursors}.js</code></td></tr>
+<tr><td>L6 樣式／主題</td><td><code>app.css</code>、<code>styleguide.html</code></td></tr>
+<tr><td>L7 打包</td><td><code>packaging/**</code>、<code>requirements-web.txt</code>、新 <code>.command</code></td></tr>
+<tr><td>L8 測試驗證</td><td><code>e2e_check.py</code>、<code>selfcheck.html</code>、<code>selfcheck_node.js</code>、<code>web版驗收清單.md</code></td></tr>
+<tr><td>Lead（你／Opus）</td><td><code>RULES.md HANDOFF.md CONTEXT.md</code>；契約變更</td></tr>
+<tr><td><b>凍結，所有人唯讀</b></td><td><code>contracts.py config.py instruments/* storage/* analysis/* ui/* main.py</code></td></tr>
+</table></div>
+<p>共通約定：①共享入口（<code>index.html</code>、<code>main.js</code>）只由 L0 改，頁面 lane 不碰；②契約要改，其他 lane 只能提需求；③JS 檔同樣遵守 300 行上限，vendor 明確豁免；④舊 <code>ui/ analysis/ storage/</code> 若發現必修問題，另開單獨變更，不混入 Web lane；⑤從 Qt 檔「複製」到 <code>web/</code> 的邏輯（<code>_connect_resource</code>、<code>_compute</code>、<code>write_csv</code>、<code>_TIPS</code>）加 <code># ponytail:</code> 註記，刪 Qt 後即為唯一版本。</p>
+
+<h2 id="lanes">7 並行 lane 與階段</h2>
+<div class="wave">
+<div class="ph"><b>P0 單線</b>L0 契約凍結＋RULES 修訂核准＋D2 圖表適配驗證。<br>所有人卡在這裡。</div>
+<div class="ph"><b>P1 全並行</b>L1a、L1b、L2、L3、L4、L5、L6、L7 雛形。<br>前端用 mock、後端用 FakeDriver。</div>
+<div class="ph"><b>P2 整合</b>前端拿掉 <code>?mock=1</code> 直接打真後端（不改程式碼）；L8 跑端對端；問題退回擁有的 lane。</div>
+<div class="ph"><b>P3 平台</b>Win10 打包、WebView2、100M×4 壓測、<b>你主導</b>的手測與真機。</div>
+<div class="ph"><b>P4 切換</b>預設入口改 Web，Qt 保留一個週期。</div>
+</div>
+<div class="tbl"><table>
+<tr><th>Lane</th><th>依賴</th><th>量</th><th>驗收標準</th><th>無真機驗證方式</th></tr>
+<tr><td>L0 契約</td><td>無</td><td class="M">M</td><td><code>node --experimental-default-type=module static/js/selfcheck_node.js</code> 印出 <code>store/scales/fmt/bridge-mock self-check OK</code>；scales 斷言逐條移植自 <code>analysis_chanbar</code>；mock 方法名 == 契約</td><td><code>python3 -m http.server 8765 -d scope_tool/web/static</code> 開 <code>?mock=1</code>，三分頁可切</td></tr>
+<tr><td>L1a 後端橋接</td><td>L0</td><td class="L">L</td><td><code>python3 -m scope_tool.web.{server,jobs,api}</code> 皆印 OK：起 server 後用 urllib 走完 <code>connect_fake→screenshot→capture</code>；檔名有時間戳；錯 token 403；<code>wait_events</code> 25 s 內回；鎖碰撞回 BUSY；VISA grep 0 筆</td><td>FakeDriver；另用標準庫 fake VISA resource 驗命令順序與 thread ID；真 VISA 路徑 docstring 標「待真機驗證」</td></tr>
+<tr><td>L1b 分析服務</td><td>L0</td><td class="L">L</td><td><code>web.decimate</code> 自檢：包絡與暴力逐桶 min/max 完全相同，金字塔差異 ≤1 桶。<code>web.analysis_api</code> 自檢：移植 Qt 版數值斷言（1 kHz、10 dBm±1.5、Flattop Vrms、RF 1.0000004 全精度跳峰、F1 刪除不重用、改峰值參數不重跑 <code>fft.spectrum</code>）；10M 點全覽 &lt;50 ms</td><td>合成波形</td></tr>
+<tr><td>L2 連線列＋截圖頁</td><td>L0、L6 token</td><td class="S">S</td><td>搜尋／手動 IP／連線／模擬儀器；截圖表單、預覽 <code>&lt;img&gt;</code>；存圖中按鈕停用；未連線整頁停用；錯誤用 <code>&lt;dialog&gt;</code>；Error 273 顯示「請關閉遠端桌面」</td><td>Chrome＋mock；P2 改打真後端＋FakeDriver</td></tr>
+<tr><td>L3 擷取頁</td><td>L0、L6</td><td class="S">S</td><td>通道多選；點數超過 <code>max_points</code> 擋下且不送 <code>capture</code>；「重新觸發」預設關；顯示經過秒數；實際點數不足提示</td><td>同上</td></tr>
+<tr><td>L4 圖表核心</td><td>L0</td><td class="L">L</td><td><code>selfcheck.html?mock=1</code> title 變 <code>web self-check OK</code>；10×10 格線、點中曲線上下拖／Shift 左右拖／滾輪換 V/格（放大前檢查是否超出 ±5 格）、空白處滾輪縮放、四條游標、overview 雙向同步、FFT 格（log 軸、峰值、Track RF）；座標換算與命中測試在 node 跑斷言；NaN 缺口、不同時間軸、F1/F2、單通道位移</td><td>Chrome＋mock（4×4k 包絡）；P2 改用 L1b 的 10M 合成檔；效能用 Performance 面板量</td></tr>
+<tr><td>L5 表格／側欄／游標</td><td>L0</td><td class="L">L</td><td>通道列（勾選／換色／V·格／位置／刪 F#）；水平列（<code>parseSI("200u")</code>）；工具列＋數學 dialog＋匯出選單；量測 runner（150 ms 防抖、序號丟棄、計算中「…」、算完才可匯出）；<code>cursors.js</code> 吸附迴圈防護；三張結果表</td><td>node 斷言（移植 <code>analysis_runner</code> 自檢）；<code>fmt(1.5e-6,"s")=="1.5 µs"</code>；Chrome＋mock＋假 chart</td></tr>
+<tr><td>L6 樣式</td><td>L0 token</td><td class="M">M</td><td>淺色主題、寬窄版（約 900 px 切換）、焦點、中文字型、DPI；WKWebView 與 WebView2 字型正常；無外部 URL</td><td>開 <code>styleguide.html</code> 人眼確認</td></tr>
+<tr><td>L7 打包</td><td>P1 雛形，P2 後定稿</td><td class="M">M</td><td>Mac：雙擊 <code>.command</code> 開視窗＋模擬儀器全流程。Win10 onedir：<code>dist\示波器工具\示波器工具.exe</code> 啟動；缺 WebView2 顯示安裝提示；資源以 <code>Path(__file__)</code>／<code>sys._MEIPASS</code> 解析；截圖／HDF5／CSV 只寫使用者指定路徑</td><td>模擬儀器；VISA 須目標機自裝 NI-VISA 或 IO Libraries</td></tr>
+<tr><td>L8 測試驗證</td><td>P1 完成</td><td class="L">L</td><td><code>python3 -m scope_tool.web.e2e_check</code> 印 OK、exit 0：模擬連線→截圖→擷取 2M 點→開檔→解析 <code>/wave</code> 二進位→量測→數學→FFT→Track RF→兩種匯出，並驗 CSV 欄名與科學記號；Qt 對照驗收清單逐項打勾</td><td>claude-in-chrome 開 <code>?mock=1</code>／<code>--browser</code> 截圖、讀 console；真機項目併入 <code>docs/真機驗證清單.md</code></td></tr>
+</table></div>
+<p class="mute">估算單位：S 約 1–2 人日、M 3–5、L 6–10（含整合與驗收，不含等真機與額外串流分析開發）。<b>關鍵路徑：</b>L0 → L4／L5 → P2 整合 → L7 Win10 打包；L1a／L1b 與前端並行，P2 才接上。</p>
+<h3>給不同模型的分派建議（沿用 HANDOFF 工作流：Codex 寫、Opus 審）</h3>
+<ul>
+<li>每條 lane 的任務卡 = 該 lane 的「擁有檔案」＋「只讀契約」＋「驗收指令」＋「禁止修改清單」。任務卡不放其他 lane 的實作細節。</li>
+<li>P1 同時最多開 4–5 條（依可用席位分批）：建議先開 L1a／L1b（Python）與 L4（圖表）、L5，再開 L2／L3／L6。</li>
+<li>每條 lane 完成後由審查者只比對 <code>git diff --stat</code> 是否越界，再跑該 lane 驗收指令。</li>
+<li>前端互動手感（拖曳、滾輪）無法自動驗證：P2 由你逐項手測，照 HANDOFF 流程，Claude 只記編號，全部列完才修。</li>
+</ul>
+
+<h2 id="map">8 現有 Qt 功能 → Web 做法</h2>
+<div class="tbl"><table>
+<tr><th>功能</th><th>Web 做法與保留語義</th></tr>
+<tr><td>搜尋／手動 IP／連線／模擬儀器</td><td>連線列＋<code>search/add_manual_ip/connect/connect_fake</code>；不明系列用 <code>series_override</code> 讓使用者手選</td></tr>
+<tr><td>截圖 PNG／BMP、反轉、全螢幕／格線區</td><td>沿用 driver＋<code>write_screenshot</code>，前端不裁切不反相；預覽用本機 URL</td></tr>
+<tr><td>擷取、重新觸發、固定 HDF5</td><td>沿用 writer；前後端都驗上限，以後端為準；擷取後維持 STOP</td></tr>
+<tr><td>游標吸附</td><td>拖曳時 JS 先讓線自由移動；rAF 節流呼叫 <code>cursor_readout</code>，後端 <code>searchsorted</code> 吸附第一通道取樣點；用 <code>store.set(…,"snap")</code> 回寫，origin=snap 不再觸發；位置有變且範圍為游標區間時重排量測與 FFT</td></tr>
+<tr><td>Marker</td><td>前端依 <code>markerMode</code> 決定線的顯示與可拖；<code>marker_eval</code> 用來源座標；Track Measurements 維持唯讀（引擎仍無位置）</td></tr>
+<tr><td>FFT</td><td>快取鍵含 source／設定／range／dx／gen，<b>不再需要手動 <code>refresh()</code></b>；切 log 軸只重取 <code>/fft?log=1</code> 不重算；只改峰值參數只重算峰表；Phase 時停用峰值控制；保留補零／RBW／ENBW 與差異註記；上限 2²⁴ 點，超限提示縮小區間</td></tr>
+<tr><td>Track RF</td><td>後端保留完整頻譜；<code>state.rfPos</code> 存全精度 Number，輸入框只顯示（保留 fc3d229 修正）</td></tr>
+<tr><td>通道列</td><td>checkbox、名稱點擊選取、<code>&lt;input type=color&gt;</code>、V/格 <code>&lt;select&gt;</code>（表外值插入）、位置 number、衍生通道才有 ×；選取依名稱保留</td></tr>
+<tr><td>水平列</td><td><code>&lt;input&gt;</code>＋<code>parseSI</code>，與 <code>state.view</code> 雙向同步</td></tr>
+<tr><td>量測／統計表</td><td>HTML table；加入時固定來源；計算中不可匯出（前後端皆驗 revision）</td></tr>
+<tr><td>數學／濾波 F1/F2</td><td><code>&lt;dialog&gt;</code>＋背景 <code>math</code>；F 編號不重用；開新檔丟棄舊工作；衍生波形不進 CSV</td></tr>
+<tr><td>波形 CSV</td><td>原始通道、全部／游標區間、縮點（預設上限 10M）；<code>export_csv</code> 工作；無來源資料夾時先 <code>pick_folder</code></td></tr>
+<tr><td>量測結果 CSV</td><td>由後端數值 snapshot 輸出（不讀 DOM 文字），檔名時間戳、<code>utf-8-sig</code></td></tr>
+<tr><td>檔案對話框／QMessageBox</td><td>原生：<code>window.create_file_dialog</code>（瀏覽器模式回 null，前端改 prompt）；訊息框用 <code>&lt;dialog&gt;</code> 自製，不用 <code>window.alert</code></td></tr>
+<tr><td>結果區寬窄／工具列溢出／分隔線</td><td>CSS flex-wrap＋約 20 行拖曳把手；不做分頁模式與右鍵刪除（改每列 ×），列入行為差異清單</td></tr>
+<tr><td>Jitter／眼圖</td><td>保持未接線，本輪不移植</td></tr>
+</table></div>
+
+<h2 id="rules">9 RULES 修訂清單（需你核准，P0 前完成）</h2>
+<div class="tbl"><table>
+<tr><th>條</th><th>現況</th><th>修訂</th></tr>
+<tr><td>2</td><td>禁新增第三方套件</td><td>加入 <code>pywebview==6.2.1</code>（5→6 的 API 有變，例如 <code>FileDialog</code> 列舉）及其平台相依（macOS pyobjc；Windows pythonnet／clr_loader；bottle、proxy_tools、typing_extensions）。需列完整傳遞相依，不能只允許名稱。前端第三方 JS（若採 uPlot）也須納入，不能以「不是 Python 套件」繞過；vendor 放版本、授權、SHA-256。</td></tr>
+<tr><td>3</td><td>只能 PySide6</td><td>Web 入口不啟動 Qt GUI，但 <code>app.py</code> 開頭仍設 <code>QT_API=pyside6</code>（防止 pywebview 在 cocoa 失敗時靜默退到 qt 又撞三套 Qt 綁定）。<b>PySide6 因 <code>QImage</code> 仍是執行期相依</b>，不下架。</td></tr>
+<tr><td>4</td><td>VISA 在 <code>ui/worker.py</code> QThread</td><td>改寫：Qt 入口維持 <code>worker.Job</code>；Web 入口所有 <code>driver.*()</code> 只能以函式參照交給 <code>web/jobs.py</code> 的專用儀器工作執行緒；HTTP 請求執行緒與 pywebview 主執行緒不得做 VISA I/O。</td></tr>
+<tr><td>10</td><td>python 模組 assert 自檢</td><td>JS 自檢改用 <code>node --experimental-default-type=module …</code> 或 <code>selfcheck.html</code>，同樣印 <code>xxx self-check OK</code>。Node 僅開發機輔助，不進產品。</td></tr>
+<tr><td>三（不做）</td><td>深色主題</td><td><b>不解除</b>。</td></tr>
+<tr><td>四</td><td>T1–T10 擁有權表</td><td>新增本文第 6 節的 Web lane 表與凍結後變更流程。</td></tr>
+</table></div>
+
+<h2 id="risk">10 風險與對策</h2>
+<div class="tbl"><table>
+<tr><th>風險</th><th>對策</th></tr>
+<tr><td>Win10 缺 WebView2 → 靜默退 IE11</td><td>前端 <code>&lt;script nomodule&gt;</code> 偵測並提示；明確指定 <code>edgechromium</code>；發行資料夾附 Evergreen 離線安裝檔；最後手段 <code>--browser</code></td></tr>
+<tr><td>macOS 主執行緒限制</td><td>server 用 daemon thread，在 <code>webview.start()</code> 前起好；VISA 全在 jobs 執行緒</td></tr>
+<tr><td>WKWebView 與 WebView2 不同引擎</td><td>必測 wheel delta、pointer capture、右鍵、DPR、字型、對話框、fetch／binary、頁面重載；兩平台各跑一次完整流程</td></tr>
+<tr><td>PyInstaller 打包</td><td>onedir；排除 PyQt5／PyQt6／QtWebEngine，<b>不排除 PySide6</b>；MIME 寫死；資源路徑用 <code>_MEIPASS</code>；VISA 由目標機自裝</td></tr>
+<tr><td>Canvas 自製互動手感與 pyqtgraph 不同</td><td>P2 使用者逐項手測；互動細節以 Qt 版為準對照</td></tr>
+<tr><td>兩份重複邏輯（Qt 與 web）</td><td>加 <code># ponytail:</code> 註記，刪 Qt 後只剩一份</td></tr>
+<tr><td>擷取中關窗</td><td><code>events.closing</code> 確認；不強殺 VISA；逾時與暫存檔清理照舊（待真機驗證）</td></tr>
+<tr><td>記憶體 4×100M ≈ 6.4–7 GB</td><td>既有上限；首版需在足夠 RAM 的指定機器驗收；小 RAM 需另案</td></tr>
+<tr><td>FakeDriver 不足以證明真實 SCPI</td><td>另用標準庫 fake VISA resource 驗命令順序；沒真機的路徑一律標「僅紙上驗證」</td></tr>
+</table></div>
+
+<h2 id="mig">11 遷移、驗證與回退</h2>
+<ol>
+<li><b>P0–P3：只新增</b> <code>scope_tool/web/</code>、<code>packaging/</code>、新 <code>.command</code>。<code>ui/</code>、<code>main.py</code>、舊 <code>.command</code> 一行不動；兩版共用 <code>~/.scope_tool.json</code>（鍵相同）。不同 GUI 不同程序，不同時占用同一儀器。</li>
+<li><b>P4 切換：</b>打 git tag <code>qt-final</code>；舊 <code>.command</code> 改跑 web、Qt 版改名 <code>_qt.command</code> 保留一個週期；你確認後才刪 <code>ui/</code> 與 <code>main.py</code>（此時 PySide6 仍因 QImage 留在相依，pyqtgraph 才下架）。</li>
+<li><b>四層驗證：</b>①Python 自檢＋契約案例（無 NaN／Infinity、重送、忙碌、亂序、世代隔離）；②瀏覽器 mock（失敗、取消、未連線、重複點擊、晚到結果）；③原生平台與效能（Win/Mac 完整流程、100M×4 分塊產生的測試 HDF5、中文／長路徑、拔網）；④真機與真人（沿用 <code>docs/真機驗證清單.md</code>，Qt／Web 對同一檔比對游標、量測、FFT、RF 跳峰、兩種 CSV）。人工互動與真機項目不可標成自動驗證通過。</li>
+<li><b>回退（代價由小到大）：</b>pywebview／WebView2 出問題 → <code>python3 -m scope_tool.web.app --browser</code>；Web 版不行 → 雙擊 <code>_qt.command</code>；Qt 已刪 → <code>git checkout qt-final -- scope_tool/ui scope_tool/main.py</code>。</li>
+<li><b>觸發回退的條件：</b>原生 WebView 不穩；游標／Track RF 數值與 Qt 不一致；大檔記憶體超預算；儀器操作順序、逾時清理或 STOP 行為回歸失敗；Windows 打包缺資源或 VISA 連不上。</li>
+</ol>
+
+<h2 id="diff">12 兩份規劃的差異與取捨</h2>
+<div class="tbl"><table>
+<tr><th>議題</th><th>Opus</th><th>Codex</th><th>本書採用</th></tr>
+<tr><td>傳輸</td><td>全 HTTP，long-poll 事件</td><td><code>js_api</code> 控制＋HTTP 二進位＋<code>evaluate_js</code> 事件</td><td>Opus（D1），藏在 <code>bridge.js</code> 可換</td></tr>
+<tr><td>圖表</td><td>自繪 Canvas，uPlot 備案</td><td>uPlot 優先、P0 適配，不行改 Canvas</td><td>Canvas 預設＋P0 適配驗證（D2）</td></tr>
+<tr><td>大檔</td><td>整檔載入＋單層金字塔</td><td>另寫 h5py 懶載入</td><td>首版 Opus；懶載入列選配（D4）</td></tr>
+<tr><td>PySide6 打包</td><td>spec 排除 PySide6</td><td>發現 <code>QImage</code> 相依，不可排除</td><td><b>Codex 正確</b>（已 grep 驗證）</td></tr>
+<tr><td>契約</td><td>單一 <code>api_contract.json</code></td><td><code>protocol/</code> 目錄（schemas、types.py、types.d.ts、examples）</td><td>以 json 為準，補 Codex 的 examples（成功／失敗／亂序事件案例）</td></tr>
+<tr><td>冪等與 dataset 世代</td><td>gen</td><td><code>request_id</code> 重送、<code>dataset_id/generation/revision/viewport_seq</code></td><td>兩者合併</td></tr>
+<tr><td>儀器忙碌</td><td>全域鎖＋BUSY</td><td>序列 worker＋BUSY</td><td>相同</td></tr>
+<tr><td>前端工具</td><td>Node 輔助自檢</td><td>僅瀏覽器 assert</td><td>兩者皆可，Node 不進產品</td></tr>
+</table></div>
+<p class="mute">原始報告：Codex 規劃全文存於 session scratchpad（<code>codex_plan.md</code>）；Opus 報告為子代理最終回覆。</p>
+</main>
+</body>
+</html>

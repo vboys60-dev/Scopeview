@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>示波器工具</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/analysis.css">
+</head>
+<body>
+<!-- 舊版 WebView（例如缺 WebView2 時退成 IE11）不支援 ES modules：顯示安裝提示 -->
+<div id="legacy-warning" class="legacy-warning" hidden></div>
+<script nomodule>
+  var w = document.getElementById("legacy-warning");
+  w.hidden = false;
+  w.textContent = "此瀏覽器元件過舊，無法執行本程式。請安裝 Microsoft Edge WebView2 Runtime（發行資料夾內附離線安裝檔）後重新開啟。";
+</script>
+<div class="app">
+  <header id="connbar" class="connbar"></header>
+  <nav id="tabs" class="tabs" role="tablist">
+    <button class="tab tab--active" role="tab" data-tab="screenshot" aria-selected="true">截圖</button>
+    <button class="tab" role="tab" data-tab="capture" aria-selected="false">波形擷取</button>
+    <button class="tab" role="tab" data-tab="analysis" aria-selected="false">離線分析</button>
+  </nav>
+  <main class="pages">
+    <section id="tab-screenshot" class="page" role="tabpanel"></section>
+    <section id="tab-capture" class="page" role="tabpanel" hidden></section>
+    <section id="tab-analysis" class="page" role="tabpanel" hidden></section>
+  </main>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
