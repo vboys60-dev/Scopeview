@@ -53,8 +53,17 @@ class MarkerResult:
         return None if p.y1 is None or p.y2 is None else p.y2 - p.y1
 
     @property
+    def delta_y_over_delta_x(self) -> float | None:
+        dx, dy = self.delta_x, self.delta_y
+        if dx is None or dy is None or not np.isfinite([dx, dy]).all() or dx == 0:
+            return None
+        slope = dy / dx
+        return slope if np.isfinite(slope) else None
+
+    @property
     def fields(self) -> dict[str, float | None]:
-        return {"ΔX": self.delta_x, "1/ΔX": self.inverse_delta_x, "ΔY": self.delta_y}
+        return {"ΔX": self.delta_x, "1/ΔX": self.inverse_delta_x, "ΔY": self.delta_y,
+                "ΔY/ΔX": self.delta_y_over_delta_x}
 
 
 def evaluate(mode: str, position: Position = Position(), source: Source | None = None, *,
@@ -67,6 +76,7 @@ def evaluate(mode: str, position: Position = Position(), source: Source | None =
     measurements 是呼叫端提供的「最近新增量測」位置，順序照輸入；前兩點形成差值。
     手冊未載明多點量測的配對方式，本工具保留全部位置供顯示，不推導量測位置。
     手冊未載明 ΔX 的符號規則；本工具一律 X2−X1，不排序，負號保留。
+    Track Waveforms 重複時間戳取第一筆；ΔY/ΔX 保留符號。
     數位來源的 Manual Y only／X and Y 整組不可用是本工具取捨；
     手冊只說 Y markers will not be displayed，未要求連 X 也隱藏。
     """
@@ -115,10 +125,13 @@ def evaluate(mode: str, position: Position = Position(), source: Source | None =
         i = int(np.clip(np.searchsorted(t, x), a, b - 1))
         if i > a and abs(t[i - 1] - x) < abs(t[i] - x):
             i -= 1
+        i = int(np.searchsorted(t, t[i], side="left"))
         return float(t[i]), float(v[i])
 
     x1, y1 = snap(position.x1)
     x2, y2 = snap(position.x2)
+    if not np.isfinite([y1, y2]).all():
+        return MarkerResult(Position(x1, x2, y1, y2), False, "吸附點的 Y 值必須有限", versus=versus)
     return MarkerResult(Position(x1, x2, y1, y2), versus=versus)
 
 
@@ -169,7 +182,14 @@ def _self_check() -> None:
     source = Source(t, 2 * t + 1)
     r = evaluate(MODES[3], Position(-0.18, 0.85), source)
     assert r.position == Position(-0.2, 0.9, 0.6, 2.8)
-    assert np.allclose(list(r.fields.values()), [1.1, 1 / 1.1, 2.2])
+    assert np.allclose(list(r.fields.values()), [1.1, 1 / 1.1, 2.2, 2.])
+    for p, expected in ((Position(0, 2, 1, -3), -2.), (Position(2, 0, 1, -3), 2.)):
+        r = MarkerResult(p)
+        assert r.delta_y_over_delta_x == expected and r.fields["ΔY/ΔX"] == expected
+    for p in (Position(), Position(0, 1), Position(y1=0, y2=1), Position(0, 0, 1, 2),
+              Position(0, np.inf, 1, 2), Position(0, 1, np.nan, 2),
+              Position(0, 1, 0, np.inf), Position(0, 1e-308, 0, 1e308)):
+        assert MarkerResult(p).delta_y_over_delta_x is None
     assert r.delta_to == DELTA_TO and dict(r.delta_to)["X2"] == "X1"
     r = evaluate(MODES[3], Position(-99, 99), source)
     assert r.position == Position(-1., 1., -1., 3.)
@@ -205,6 +225,13 @@ def _self_check() -> None:
     assert r.position == Position(0.5, 0.5, 0., 0.)
     r = evaluate(MODES[3], Position(0.1, 0.8), Source(np.array([0., 0., 1.]), np.array([2., 2., 3.])))
     assert r.available and r.position == Position(0., 1., 2., 3.)
+    r = evaluate(MODES[3], Position(0.1, 0.), Source(np.array([0., 0., 1.]), np.array([2., 9., 3.])))
+    assert r.position == Position(0., 0., 2., 2.)
+    for bad in (np.nan, np.inf, -np.inf):
+        for values in ([bad, 1.], [1., bad]):
+            r = evaluate(MODES[3], Position(0, 1), Source(np.array([0., 1.]), np.array(values)))
+            assert not r.available and r.reason and r.position.x1 == 0 and r.position.x2 == 1
+            assert r.delta_y_over_delta_x is None
     for times in ([0., 1., 0.5], [0., np.nan, 1.]):
         r = evaluate(MODES[3], Position(0, 1), Source(np.array(times), np.zeros(3)))
         assert not r.available and r.reason and r.position == Position()

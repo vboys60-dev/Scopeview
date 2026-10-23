@@ -27,6 +27,7 @@ def peaks(freq: np.ndarray, mag: np.ndarray, n: int = 5, start: int = 1, *,
     補零可解析出窗旁瓣局部峰；手冊未載明如何壓旁瓣，維持列峰，待真機比對。
     頻率內插為本工具做法：在 log 線性振幅上做三點拋物線，限制 ±半格；
     振幅保留原始峰格讀值，不以內插掩蓋 scalloping。amplitude 應傳線性有效值。
+    相鄰頻格間距容許頻率尺度的 8 ULP 捨入誤差，據此判斷等距；非等距保留原格頻率。
     """
     f, y = np.asarray(freq), np.asarray(mag)
     if f.ndim != 1 or y.shape != f.shape or not np.isfinite(f).all() or not np.isfinite(y).all():
@@ -46,7 +47,8 @@ def peaks(freq: np.ndarray, mag: np.ndarray, n: int = 5, start: int = 1, *,
     out = []
     for i in idx:
         x = float(f[i])
-        if interpolate and 0 < i < len(y) - 1 and np.all(a[i - 1:i + 2] > 0):
+        if (interpolate and 0 < i < len(y) - 1 and np.all(a[i - 1:i + 2] > 0)
+                and abs((f[i] - f[i - 1]) - (f[i + 1] - f[i])) <= 8 * np.spacing(abs(f[i + 1]))):
             l, c, r = np.log(a[i - 1:i + 2])
             den = l - 2 * c + r
             if den < 0:
@@ -73,9 +75,19 @@ def _self_check() -> None:
         assert not peaks(np.arange(float(size)), np.zeros(size), start=0)
     # mag 決定峰格，amplitude 決定內插；刻意分開以測到夾限與凸向拒絕。
     f3, y3 = np.arange(3.), np.array([0., 2., 0.])
+    assert peaks(np.array([0., 1., 3.]), y3, interpolate=True,
+                 amplitude=np.exp([0., 2., 3.])) == [(1., 2.)]
     for logs, expected_x in (([0., 2., 3.], 1.5), ([3., 2., 0.], .5),
                              ([0., -2., 1.], 1.)):
         assert peaks(f3, y3, interpolate=True, amplitude=np.exp(logs)) == [(expected_x, 2.)]
+    assert peaks(f3 - 4, y3, interpolate=True, amplitude=np.exp([0., 2., 3.])) == [(-2.5, 2.)]
+    # 大頻格僅取鄰近三點，模擬 Hanning 主瓣，避免建立完整波形與 FFT。
+    n, dt, k = 2**24, 3.7e-11, 7000000
+    local_f = np.fft.rfftfreq(n, dt)[k - 1:k + 2]
+    delta = np.arange(-1., 2.) - 0.3
+    amplitude = np.abs(np.sinc(delta) / (1 - delta**2))
+    peak = peaks(local_f, amplitude, interpolate=True)[0][0] * (n * dt)
+    assert abs(peak - (k + 0.316)) < 0.001
     # 零鄰格不可取 log；以浮點例外確保即使 NaN 被後續略過也抓得到。
     with np.errstate(divide="raise", invalid="raise"):
         assert peaks(f3, y3, interpolate=True, amplitude=np.array([0., 2., 1.])) == [(1., 2.)]

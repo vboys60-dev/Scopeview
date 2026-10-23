@@ -12,20 +12,22 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QRectF
 
-from scope_tool.analysis import eye
+from scope_tool.analysis import eye, status as st
 from scope_tool.analysis.clock import ClockSpec, recover
 from scope_tool.ui.analysis_jitter import ClockPane, Provider
+from scope_tool.ui.analysis_results import fmt
 
 
 def _eye(t: np.ndarray, v: np.ndarray, pct: tuple, spec: ClockSpec) -> dict:
     ck = recover(t, v, pct, spec)
     counts, ylim = eye.density(t, v, ck)
     return {"clock": ck, "counts": counts, "ylim": ylim, "n_ui": float(t[-1] - t[0]) / ck.ui,
-            "kept": eye.crossing(ck)[2]}
+            "assessment": eye.assess("眼寬", t, v, ck)}
 
 
 class EyePane(ClockPane):
     TITLE = "眼圖 "
+    STATUS_LABEL = "眼寬狀態"
     compute = staticmethod(_eye)
 
     def __init__(self, provider: Provider, spec: Callable[[], ClockSpec],
@@ -42,8 +44,12 @@ class EyePane(ClockPane):
 
     def summary(self, res: dict) -> str:
         text = f"{res['n_ui']:,.0f} UI｜色階＝樣本密度（相鄰取樣線性補點只供顯示，量測用原始取樣）"
-        if res["kept"] < 0.95:
-            text += f"｜交叉點只保留 {res['kept']:.0%}（有離群或多峰，眼 Jitter／眼寬偏樂觀）"
+        d = res["assessment"].diagnostics
+        limited = st.CROSSING_TRIMMED in res["assessment"].reasons
+        label = "（受限：裁切 σ、6σ 估計與眼寬可能偏樂觀）" if limited else ""
+        text += (f"｜原始 σ {fmt(d['raw_sigma'], 's')}｜實測 p-p {fmt(d['measured_pp'], 's')}"
+                 f"｜裁切 σ {fmt(d['trimmed_sigma'], 's')}｜Jitter 6σ 估計 {fmt(d['six_sigma_estimate'], 's')}{label}"
+                 f"｜資訊：剔除 {d['trimmed_count']} 點／{d['trimmed_fraction']:.2%}")
         return text
 
     def draw(self, res: dict, unit: str, color: str) -> None:
@@ -82,11 +88,28 @@ def _self_check() -> None:
             time.sleep(0.01)
 
     wait()
+    assert "眼寬狀態 受限" in pane.status.text() and "時脈狀態 受限" in pane.status.text() and "未給定速率" in pane.warn.text()
+    assert "實測 p-p" in pane.status.text() and "Jitter 6σ 估計" in pane.status.text()
     img = pane.image.image
     assert img is not None and img.shape == (400, 256) and "3,000 UI" in pane.status.text(), pane.status.text()
     assert img[200, 128] == 0 and img[100, 128] > 0  # 眼中心沒有中間電壓；交叉處（0 UI）有
     rect = pane.image.mapRectToParent(pane.image.boundingRect())
     assert abs(rect.left() + 0.5) < 1e-9 and abs(rect.width() - 2) < 1e-9 and "還原速率 1" in pane.status.text()
+    res = _eye(t, v, (10, 50, 90), ClockSpec("NRZ 資料", mode="手動", rate=1e9))
+    for fraction in (0.0099, 0.01, 0.0101):
+        limited = fraction > 0.01
+        res["assessment"] = res["assessment"]._replace(
+            status=st.LIMITED if limited else st.VALID, reasons=(st.CROSSING_TRIMMED,) if limited else ())
+        res["assessment"].diagnostics.update(trimmed_count=round(fraction * 10000), trimmed_fraction=fraction)
+        pane._show("CHAN1", "V", "#ffcc00", res)
+        assert f"眼寬狀態 {st.STATUS_TEXT[res['assessment'].status]}" in pane.status.text()
+        assert "時脈狀態 有效" in pane.status.text() and pane.status.text().count("剔除") == 1
+        assert ("裁切 σ、6σ 估計與眼寬可能偏樂觀" in pane.status.text()) == limited
+        assert "資訊：剔除" in pane.status.text() and "剔除" not in pane.warn.text()
+        assert "偏樂觀" not in pane.warn.text()  # 提示涵蓋裁切 σ、6σ 估計與眼寬。
+    res["assessment"] = res["assessment"]._replace(status=st.INVALID, reasons=(st.EYE_NO_POSITIVE_OPENING,))
+    pane._show("CHAN1", "V", "#ffcc00", res)
+    assert "眼寬狀態 無效" in pane.status.text() and "時脈狀態 有效" in pane.status.text()
     pane.source.setCurrentIndex(1)
     wait()
     assert "振幅" in pane.status.text() and pane.image.image is None

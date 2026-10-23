@@ -15,15 +15,33 @@ BINARY = ("加", "減", "乘", "除")
 UNARY = ("反相", "絕對值", "平方", "開根號", "log10", "微分", "積分")
 FILTERS = ("低通", "高通", "平滑")
 OPERATIONS = BINARY + UNARY + FILTERS
+_UNIT_OPERATORS = "/·²√"
 SYMBOLS = {"加": "+", "減": "−", "乘": "×", "除": "÷"}
 
 
 def _wrap(u: str) -> str:
-    return f"({u})" if any(c in u for c in "/·²√") else u
+    return f"({u})" if any(c in u for c in _UNIT_OPERATORS) else u
 
 
 def _square(u: str) -> str:
     return f"{_wrap(u)}²" if u else ""
+
+
+def _sqrt_unit(u: str) -> str:
+    if u.endswith("²"):
+        inner = u[:-1]
+        depth = 0
+        for i, ch in enumerate(inner):
+            depth += (ch == "(") - (ch == ")")
+            if depth == 0:
+                break
+        if inner.startswith("(") and depth == 0 and i == len(inner) - 1:
+            return inner[1:-1]
+        if not any(ch in inner for ch in _UNIT_OPERATORS):
+            return inner
+    if any(ch in u for ch in _UNIT_OPERATORS):
+        return f"√({u})"
+    return f"√{u}" if u else ""
 
 
 def _mul(a: str, b: str) -> str:
@@ -68,7 +86,7 @@ def derive(op: str, ta: np.ndarray, va: np.ndarray, ua: str, tb: np.ndarray | No
         if op == "平方":
             return ta, va ** 2, _square(ua)
         if op == "開根號":
-            inner = ua[:-1].strip("()") if ua.endswith("²") else f"√{_wrap(ua)}" if ua else ""
+            inner = _sqrt_unit(ua)
             return ta, np.sqrt(va), inner
         if op == "log10":
             return ta, np.log10(np.where(va > 0, va, np.nan)), ""
@@ -82,7 +100,7 @@ def derive(op: str, ta: np.ndarray, va: np.ndarray, ua: str, tb: np.ndarray | No
         if op == "高通":
             return ta, flt.highpass(ta, va, param), ua
         if op == "平滑":
-            t, v = flt.smooth(ta, va, int(param))
+            t, v = flt.smooth(ta, va, param)
             return t, v, ua
     raise ScopeError(f"未知的運算：{op}")
 
@@ -119,10 +137,21 @@ def _self_check() -> None:
     assert np.allclose(derive("微分", t, a, "V")[1][500], 2 * np.pi * 1e3 * np.cos(np.pi), rtol=1e-3)
     assert derive("開根號", t, b, "V²")[2] == "V" and np.allclose(derive("開根號", t, b, "V²")[1], np.sqrt(2))
     assert np.isnan(derive("開根號", t, -b, "V")[1]).all()
+    for unit, expected in (("(V/(A·s))²", "V/(A·s)"), ("((V/s)·(A/s))²", "(V/s)·(A/s)"),
+                           ("V²", "V"), ("(V/s)²", "V/s"), ("V/s²", "√(V/s²)"),
+                           ("(V)·(A)²", "√((V)·(A)²)"), ("((V/s))²", "(V/s)")):
+        assert derive("開根號", t, b, unit)[2] == expected
     _, lg, ul = derive("log10", t, np.full_like(t, 100.0), "V")
     assert np.allclose(lg, 2) and ul == ""
     assert np.allclose(derive("反相", t, a, "V")[1], -a)
     assert derive("平滑", t, a, "V", param=5)[1].size == len(t) - 4
+    assert derive("平滑", t, a, "V", param=5.0)[1].size == len(t) - 4
+    for times, values, n in ((t, a, 3.9), (np.r_[t[:5], t[6:]], np.r_[a[:5], a[6:]], 3)):
+        try:
+            derive("平滑", times, values, "V", param=n)
+            raise AssertionError("應拒絕非整數點數／不等距平滑")
+        except ScopeError:
+            pass
     assert derive("低通", t, a, "V", param=1e5)[2] == "V"
     print("analysis.mathfn self-check OK")
 

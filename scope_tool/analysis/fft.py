@@ -104,7 +104,7 @@ def spectrum(t: np.ndarray, v: np.ndarray, window_name: str = "Hanning", unit: s
             "lobe": int(np.ceil(len(WINDOWS[window_name]) * effective_n / n)),
             "enbw_bins": factor, "enbw": factor / (n * dt), "rbw": df * factor,
             "cg": float(w.mean()), "n": n, "effective_n": effective_n, "r_ohm": resistance,
-            "power": rms ** 2 / resistance,
+            "power": rms ** 2 / resistance if source_unit == "V" else None,
             "power_correction": effective_n / n * factor}
 
 
@@ -177,6 +177,11 @@ def _self_check() -> None:
     for r, watts in ((50, .02), (100, .01)):
         assert magnitude(np.ones(1), "W", r)[0] == magnitude(np.ones(1), "Watt", r)[0] == watts
     assert spectrum(t, t, source_unit="V/s")['unit'] == "V/s rms"
+    for source_unit in ("V/s", "A", ""):
+        for unit in ("Watt", "Phase"):
+            s = spectrum(t, t, unit=unit, source_unit=source_unit)
+            assert s['power'] is None and np.isfinite(s['rms']).all()
+            assert s['unit'] == ("°" if unit == "Phase" else source_unit + " rms")
     # 原長度非整數週期，左補零相位不能恰好繞整圈而漏測正負號。
     for count in (16384, 1001, 1023):
         times = t[:count] - .231

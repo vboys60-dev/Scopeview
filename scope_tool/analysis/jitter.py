@@ -1,5 +1,5 @@
 """Jitter 量測（依 Infiniium 手冊 Jitter_Meas_Clock_TIE、Jitter_Meas_Clock_period-period、
-Jitter_Meas_Clock_pos_width-pos_width、Jitter_Meas_Data_TIE）。統計沿用 measure.stats：標準差＝RMS、範圍＝p-p。
+Jitter_Meas_Clock_pos_width-pos_width、Jitter_Meas_Data_TIE）。統計沿用 measure.stats：標準差 σ＝去均值 RMS（與含均值 RMS 僅均值為零時相等）、範圍＝p-p。
 
 N 週期、Period-Period、寬度差只用時脈型，且不跨缺邊（格號必須剛好差 N 個週期）；
 資料型 N-UI／UI-UI 延後。
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from scope_tool.analysis import eye
+from scope_tool.analysis import eye, status as st
 from scope_tool.analysis.clock import Clock, ClockSpec, nrz, rate, recover
 from scope_tool.contracts import ScopeError
 
@@ -51,7 +51,7 @@ def width_diffs(ck: Clock, positive: bool) -> np.ndarray:
 
 def measure(name: str, t: np.ndarray, v: np.ndarray, ck: Clock) -> np.ndarray:
     """Jitter 與眼圖量測：回傳每個事件的值；量測不出來丟 ScopeError。"""
-    if name in eye.NAMES:
+    if name in eye.NAMES or name in ("眼 Jitter RMS", "眼 Jitter p-p"):
         return eye.measure(name, t, v, ck)
     if name == "TIE":
         out = ck.tie
@@ -72,6 +72,13 @@ def measure(name: str, t: np.ndarray, v: np.ndarray, ck: Clock) -> np.ndarray:
     if not out.size:
         raise ScopeError(f"範圍內沒有可配對的事件（N＝{ck.spec.n}，缺邊不跨）")
     return out
+
+
+def assess(name: str, ck: Clock) -> st.Result:
+    """Jitter 單筆狀態繼承時脈層；眼圖請用 eye.assess。"""
+    if name not in NAMES:
+        raise ScopeError(f"未知的 Jitter 量測：{name}")
+    return st.Result(ck.status, ck.reasons, dict(ck.diagnostics or {}))
 
 
 def _self_check() -> None:
@@ -107,6 +114,17 @@ def _self_check() -> None:
     t, v = nrz(bits, 1e-9, 16)
     dck = recover(t, v, (10, 50, 90), ClockSpec("NRZ 資料"))
     assert abs(measure("還原速率", t, v, dck)[0] - 1e9) < 1 and np.max(np.abs(measure("TIE", t, v, dck))) < 1e-14
+    assert assess("TIE", dck).status == st.LIMITED and st.RATE_INFERRED in assess("還原 UI", dck).reasons
+    assert assess("TIE", ck).status == st.VALID
+    try:
+        assess("未知", ck)
+        raise AssertionError("未知名稱應該丟出 ScopeError")
+    except ScopeError as exc:
+        assert "未知的 Jitter 量測" in str(exc)
+    bad = dck._replace(status=st.INVALID, reasons=(st.GRID_COLLISION_MANY,))
+    assert assess("TIE", bad).status == st.INVALID and assess("還原速率", bad).reasons == bad.reasons
+    assert measure("眼 Jitter RMS", t, v, dck).shape == (1,)
+    assert measure("眼 Jitter p-p", t, v, dck)[0] == np.ptp(dck.tie)
     for name in ("N 週期", "未知"):
         try:
             measure(name, t, v, dck)

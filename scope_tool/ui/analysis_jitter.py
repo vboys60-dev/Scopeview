@@ -14,6 +14,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QFormLayout, QHBoxLayout, QLabel,
                                QSizePolicy, QSpinBox, QVBoxLayout, QWidget)
 
+from scope_tool.analysis import status as st
 from scope_tool.analysis.clock import EDGES, KINDS, MODES, Clock, ClockSpec, rate, recover
 from scope_tool.ui.analysis_results import fmt
 from scope_tool.ui.worker import Job
@@ -67,6 +68,7 @@ class ClockPane(QWidget):
     子類別提供 compute（背景執行的純函式，回傳含 "clock" 的 dict）、draw、clear、summary。"""
 
     TITLE = ""
+    STATUS_LABEL = "時脈狀態"
 
     def __init__(self, provider: Provider, spec: Callable[[], ClockSpec],
                  pct: Callable[[], tuple[float, float, float]]) -> None:
@@ -139,10 +141,24 @@ class ClockPane(QWidget):
         ck: Clock = res["clock"]
         info = (f"{name}｜還原速率 {fmt(rate(ck), 'Hz')}｜UI {fmt(ck.ui, 's')}｜{ck.times.size:,} 個邊緣｜"
                 f"{self.summary(res)}｜{NOTE}")
+        result = res.get("assessment", st.Result(ck.status, ck.reasons, ck.diagnostics or {}))
+        info += f"｜{self.STATUS_LABEL} {st.STATUS_TEXT[result.status]}"
+        if "assessment" in res:
+            info += f"｜時脈狀態 {st.STATUS_TEXT[ck.status]}"
         self.status.setText(info)
         self.status.setToolTip(info)
-        self.warn.setText("⚠ " + "；".join(ck.warnings))
-        self.warn.setVisible(bool(ck.warnings))
+        duplicate = {st.GRID_COLLISION: "格號衝突", st.GRID_COLLISION_MANY: "格號衝突",
+                     st.RATE_AMBIGUOUS: "所有間隔", st.LOW_EDGE_COUNT: "個邊緣",
+                     st.HALF_UI_AMBIGUOUS: "半個 UI"}
+        messages = list(ck.warnings)
+        for reason in result.reasons:
+            if reason in duplicate and any(duplicate[reason] in w for w in ck.warnings):
+                continue
+            if reason == st.CROSSING_TRIMMED and "剔除" in info:
+                continue
+            messages.append(st.REASON_TEXT[reason])
+        self.warn.setText("⚠ " + "；".join(m.rstrip("。；") for m in messages))
+        self.warn.setVisible(bool(messages))
         self.draw(res, unit, color)
 
 
@@ -222,12 +238,23 @@ def _self_check() -> None:
 
     wait()
     assert "還原速率 500 MHz" in pane.status.text() and "缺邊 1 處" in pane.warn.text(), pane.status.text()
+    assert "時脈狀態 有效" in pane.status.text()
     assert np.isnan(pane.trend_curve.yData).sum() == 1 and pane.hist_curve.yData.sum() == 1499
     assert len(pane.trend_curve.getData()[0]) > 1000  # 真的有畫出來（不是被降採樣丟光）
     spec[0] = ClockSpec(edges="兩者")
     pane.refresh()
     wait()
     assert "2,997 個邊緣" in pane.status.text() and "還原速率 500 MHz" in pane.status.text()
+    ck = recover(tc, vc, (10, 50, 90), spec[0])
+    for collision in (st.GRID_COLLISION, st.GRID_COLLISION_MANY):
+        flagged = ck._replace(status=st.LIMITED, reasons=(collision, st.RATE_AMBIGUOUS, st.LOW_EDGE_COUNT,
+                                                       st.RATE_INFERRED, st.HALF_UI_AMBIGUOUS, st.GRID_SLIP_SUSPECT),
+                              warnings=["1 處格號衝突", "所有間隔都是 2 的整數倍", "只有 999 個邊緣", "半個 UI 附近"])
+        pane._show("CHAN1", "V", "#ffcc00", {"clock": flagged})
+        assert pane.warn.text().count("格號衝突") == 1 and "共同倍數" not in pane.warn.text()
+        assert "邊緣數偏少" not in pane.warn.text() and "配對有歧義" not in pane.warn.text()
+        assert "。；" not in pane.warn.text() and "未給定速率" in pane.warn.text()
+        assert "格號可能滑格；TIE 統計僅供參考" in pane.warn.text()
     pane.source.setCurrentIndex(1)
     wait()
     assert "振幅" in pane.status.text() and pane.warn.isHidden() and len(pane.trend_curve.xData or []) == 0
