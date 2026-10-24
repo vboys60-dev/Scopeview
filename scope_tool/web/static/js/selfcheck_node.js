@@ -3,9 +3,9 @@
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 
-const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs", "analysis/p2b_check.mjs", "analysis/p2b2_check.mjs", "analysis/p2b3_check.mjs", "analysis/p3_check.mjs"];
+const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs", "analysis/p2b_check.mjs", "analysis/p2b2_check.mjs", "analysis/p2b3_check.mjs", "analysis/p3_check.mjs", "analysis/p3b_check.mjs"];
 for (const f of FILES) {
-  const r = spawnSync(process.execPath, [path.join(__dirname, f)], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [path.join(__dirname, f), ...process.argv.slice(2)], { encoding: "utf8" });
   process.stdout.write(r.stdout);
   if (r.status !== 0) {
     process.stderr.write(`${f} 失敗（exit ${r.status}）\n${r.stderr}`);

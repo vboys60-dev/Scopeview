@@ -88,16 +88,18 @@ export function bindViewport(store) {
   return history;
 }
 
-/** 線命中半徑 ±8px；等距時按 x1、x2、y1、y2 順序決定。 */
-export function nearestCursor(cursors, view, r, x, y) {
+export const cursorRadius = (pointerType) => pointerType === "touch" ? 12 : 8;
+/** 線命中半徑滑鼠／筆 ±8px、觸控 ±12px；等距時按 x1、x2、y1、y2 順序決定。 */
+export function nearestCursor(cursors, view, r, x, y, pointerType) {
   if (x < r.l || x > r.l + r.w || y < r.t || y > r.t + r.h) return null;
   const X = linear(view.t0, view.t1, r.l, r.l + r.w);
-  let best = null, distance = 8;
+  const radius = cursorRadius(pointerType);
+  let best = null, distance = radius;
   for (const k of ["x1", "x2", "y1", "y2"]) {
     if (!Number.isFinite(cursors[k])) continue;
     if (k[0] === "x" && (cursors[k] < view.t0 || cursors[k] > view.t1)) continue;
     const d = Math.abs(k[0] === "x" ? X(cursors[k]) - x : r.t + (5 - cursors[k]) * r.h / 10 - y);
-    if (d <= 8 && (best === null || d < distance)) { best = k; distance = d; }
+    if (d <= radius && (best === null || d < distance)) { best = k; distance = d; }
   }
   return best;
 }
@@ -110,13 +112,13 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   const local = (e) => { const b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
   const X = (view) => { const r = geometry(); return linear(view.t0, view.t1, r.l, r.l + r.w); };
   const inside = (x, y) => { const r = geometry(); return x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h; };
-  function hitCursor(x, y) {
+  function hitCursor(x, y, pointerType) {
     if (!inside(x, y)) return null;
     const s = store.get(), r = geometry();
-    return nearestCursor(s.cursors, s.view, r, x, y);
+    return nearestCursor(s.cursors, s.view, r, x, y, pointerType);
   }
   const updateHover = () => {
-    const next = !drag && pointer && store.get().file && mode === "pan" && !space && !pointer.shiftKey ? hitCursor(pointer.x, pointer.y) : null;
+    const next = !drag && pointer && store.get().file && mode === "pan" && !space && !pointer.shiftKey ? hitCursor(pointer.x, pointer.y, pointer.pointerType) : null;
     if (next === hover) return false;
     hover = next; draw(); return true;
   };
@@ -135,8 +137,8 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     if (e.button !== 0 && e.button !== 1) return;
     canvas.focus?.({ preventScroll: true }); // 先讓欄位 blur 提交，再取得拖曳起始 view。
     const [x, y] = local(e), s = store.get(), r = geometry();
-    pointer = { x, y, shiftKey: !!e.shiftKey };
-    const handle = hitHandle(s.channels, r, x, y), edge = hitCursorEdge(s.cursors, s.view, r, x, y), which = hitCursor(x, y);
+    pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
+    const handle = hitHandle(s.channels, r, x, y), edge = hitCursorEdge(s.cursors, s.view, r, x, y), which = hitCursor(x, y, e.pointerType);
     const type = gestureFor({ ...e, button: e.button, shiftKey: e.shiftKey, mode, space: space && !editableTarget(document.activeElement), handle: !!handle, edge: !!edge, cursor: !!which, inside: inside(x, y) });
     if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
     if (!type) return;
@@ -147,7 +149,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   });
   on(canvas, "pointermove", (e) => {
     const [x, y] = local(e), r = geometry(), s = store.get();
-    pointer = { x, y, shiftKey: !!e.shiftKey };
+    pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     if (!drag) {
       updateHover();
       canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }

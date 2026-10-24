@@ -6,6 +6,7 @@ import { fullRange } from "./overview.js";
 import { clampLayout, loadPrefs, savePrefs, validatePrefs, resetPref } from "./layout.js";
 import { mountTabs } from "./bpanel.js";
 import { mountSplitter } from "./splitter.js";
+import * as fmt from "../fmt.js";
 
 const FALLBACK_COLORS = ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"];
 
@@ -58,7 +59,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
 }
 
 export function lowerSummary(st, fftOn) {
-  return `量測 ${st.measurements.length}／FFT 峰值 ${fftOn && st.fftResult?.ok ? st.fftResult.peaks?.length ?? 0 : 0}／ΔX ${Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? (st.cursors.x2-st.cursors.x1).toPrecision(4)+' s' : '—'}`;
+  return `量測 ${st.measurements.length}／FFT 峰值 ${fftOn && st.fftResult?.ok ? st.fftResult.peaks?.length ?? 0 : 0}${st.markerMode === 'Manual Y only' ? '' : '／ΔX ' + fmt.fmt(Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? st.cursors.x2-st.cursors.x1 : null, 's')}`;
 }
 
 export function mount(el, ctx) {

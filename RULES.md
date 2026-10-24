@@ -73,11 +73,13 @@
 | L2 連線列＋截圖頁 | `static/js/{connbar,tab_screenshot}.js` |
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage}.js`、`static/css/analysis.css` |
-| L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary}.js`、`static/css/vertical.css` |
+| L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary,cursor_table}.js`、`static/css/vertical.css` |
 | L6 樣式 | `static/css/app.css`、`static/styleguide.html` |
 | L7 打包 | `packaging/**`、`requirements-web.txt`、`啟動示波器截圖_web.command` |
-| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`docs/web版驗收清單.md` |
+| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`docs/web版驗收清單.md` |
 
 分析頁 GUI 新 command（`view.undo`／`view.redo`／`view.mode`／`view.history`／`view.historyGroup`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/分析頁GUI改善計劃書.md` 管理。
 
 凍結（所有 Web lane 唯讀）：`contracts.py config.py instruments/* storage/* analysis/* ui/* main.py`。JS 檔同樣 300 行上限（vendor 豁免）。
+
+P3b-1（gui-p3b，使用者授權）：L5/L8 修正沿用 P3b 範圍；L4 `tab_analysis.js` 僅修正 `lowerSummary` 回傳行與必要的 fmt 匯入，採 SI 格式且僅 Y 模式隱藏 ΔX，其餘 L4 實作不動。

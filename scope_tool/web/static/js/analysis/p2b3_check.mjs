@@ -117,7 +117,7 @@ ctx.bridge.call = async (...args) => {
   return r;
 };
 const cursor = new Element('div'); mountCursors(cursor,ctx);
-assert.equal(cursor.children[2].tagName,'table','各通道讀值優先放在摘要前');
+assert.equal(cursor.children[2].tagName,'table','傳統各通道讀值維持前置');
 assert.equal(cursor.children[0].className,'cursors__inputs'); assert.equal(cursor.children[0].children.length,6);
 assert.deepEqual(cursor.children[0].children.slice(0,4).map(e => e.firstChild.textContent),['X1 ','X2 ','Y1 (V)','Y2 (V)']);
 store.command('cursor.intent',{ which:'x1',value:1 }); store.command('cursor.intent',{ which:'x2',value:2 });
@@ -155,7 +155,7 @@ assert.ok(!/font(?:-size)?\s*:|white-space\s*:/.test(narrowTable),'窄版保留�
 assert.match(css,/td:first-child \{[^}]*max-width:[^}]*text-overflow: ellipsis/);
 assert.match(css,/td:last-child \{[^}]*position: sticky; right: 0/);
 const summaryState = { measurements:[{},{}], fftResult:{ok:true,peaks:[{},{},{}]}, cursors:{x1:1,x2:2} };
-assert.match(lowerSummary(summaryState,true),/^量測 2／FFT 峰值 3／ΔX 1\.000 s$/);
+assert.match(lowerSummary(summaryState,true),/^量測 2／FFT 峰值 3／ΔX 1 s$/);
 assert.match(lowerSummary(summaryState,false),/^量測 2／FFT 峰值 0／ΔX/);
 const source = readFileSync(new URL('./tab_analysis.js',import.meta.url),'utf8');
 assert.match(source,/buttons\.lower\.setAttribute\('aria-label',buttons\.lower\.title\)/);
@@ -186,7 +186,7 @@ if (process.argv.includes('--mutations')) {
   ];
   mutations.push(
     ['M1 欄位資料錯位','results.js','prefs.columns.includes(COLUMNS[i])','prefs.columns.includes(COLUMNS[(i+1)%7])'],
-    ['M2 寬版峰值混入其他面板','bpanel.js',"!tabbed && tab !== 'peaks' && panel !== 'peaks'","!tabbed && panel !== 'peaks'"],
+    ['M2 寬版峰值混入其他面板','bpanel.js',"!tabbed && tab !== 'cursor' && tab !== 'peaks' && panel !== 'peaks'","!tabbed && tab !== 'cursor' && panel !== 'peaks'"],
     ['M3 FFT 關閉仍顯示計數','bpanel.js','fftOn && count','count'],
     ['M4 游標文字縮小','../../css/analysis.css','.cursors__value { display: flex; flex-direction: column; font-size: 12.5px;','.cursors__value { display: flex; flex-direction: column; font-size: 11px;'],
     ['M5 收折摘要錯誤','tab_analysis.js','量測 ${st.measurements.length}／FFT 峰值','量測／FFT 峰值'],

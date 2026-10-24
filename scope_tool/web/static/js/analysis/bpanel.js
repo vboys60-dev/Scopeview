@@ -21,7 +21,7 @@ export function save(prefs, storage = () => globalThis.localStorage) {
 /** B 的高度含 28px 標題列；並排時保留量測／游標，峰值獨佔面板。 */
 export const useTabs = (width, height) => width < 820 || height < 150;
 export function panelVisible(panel, tab, tabbed) {
-  return panel === tab || (!tabbed && tab !== 'peaks' && panel !== 'peaks');
+  return panel === tab || (!tabbed && tab !== 'cursor' && tab !== 'peaks' && panel !== 'peaks');
 }
 export function mountTabs(host, panels, { initial = load(), persist = save, actions } = {}) {
   let prefs = validate(initial), tabbed = true, collapsed = false;
@@ -40,14 +40,15 @@ export function mountTabs(host, panels, { initial = load(), persist = save, acti
   for (const name of ['pointerdown','dblclick','keydown']) tabs.addEventListener(name,e => e.stopPropagation());
   host.append(tabs);
   function render() {
+    const single = tabbed || prefs.tab === 'cursor';
     tabs.hidden = collapsed;
-    tabs.setAttribute('aria-multiselectable',String(!tabbed));
+    tabs.setAttribute('aria-multiselectable',String(!single));
     if (actions) actions.hidden = collapsed || !panelVisible('measure',prefs.tab,tabbed);
     for (const key of TABS) {
       buttons[key].setAttribute('aria-selected',String(panelVisible(key,prefs.tab,tabbed)));
       panels[key].hidden = !panelVisible(key,prefs.tab,tabbed);
     }
-    panels.measure.parentNode.dataset.resultTabbed = String(tabbed);
+    panels.measure.parentNode.dataset.resultTabbed = String(single);
   }
   return { update({ width, height, count = 0, fftOn = false, lowerCollapsed = false }) {
     tabbed = useTabs(width,height); collapsed = lowerCollapsed;

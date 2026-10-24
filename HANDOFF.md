@@ -26,7 +26,7 @@
 
 - 計劃書：`docs/分析頁GUI改善計劃書.md`（§8 決策已定案）。範圍：A 區量測欄、B 區結果、C 區主圖；操作模型參考 N8900A。
 - 已 commit／標籤：`p1-gui`（`5ed726b` 小修）→ `p2a-gui`（`82d02a9` 模式列／框選放大／Undo-Redo／Horizontal 列）→ `p2b-gui`（P2b-1 版面、P2b-2a Vertical 欄位與左軸電壓，合併於 `49d155f`）→ `8848ff5` FFT 控制列標籤同行 → `p2b3-gui`（`e18bf96` B 區縮小與頁籤）。
-- 目前行為摘要：拖曳＝平移、滾輪＝縮放時間；「框選放大」模式／Shift 暫時框選／Space 或中鍵暫時平移；Ctrl/Cmd+Z、Shift+Z、Ctrl+Y；Horizontal 列（時間/格、位置±1 格、完整時間）；Vertical 列（單位/格 微調與粗調、中心電位 O=−position×scale、歸零、適配＝以畫面中心為基準、dx 徽章）；左軸顯示目前通道實際電壓（通道色），零位把手對齊 0 V；三條 splitter（A｜圖區、圖區｜B、主圖｜FFT）、`clampLayout`（`layout.js`，門檻用視窗尺寸、預算用容器尺寸；窄於 900 視窗改「波形／FFT」分頁與窄軌抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`（B 實際寬度≥820 並排，否則分頁）、量測表欄位選單（預設隱藏範圍／次數）、游標緊湊網格。偏好只存記憶體＋localStorage（不保證跨啟動）。
+- 目前行為摘要：拖曳＝平移、滾輪＝縮放時間；「框選放大」模式／Shift 暫時框選／Space 或中鍵暫時平移；Ctrl/Cmd+Z、Shift+Z、Ctrl+Y；Horizontal 列（時間/格、位置±1 格、完整時間）；Vertical 列（單位/格 微調與粗調、中心電位 O=−position×scale、歸零、適配＝以畫面中心為基準、dx 徽章）；左軸顯示目前通道實際電壓（通道色），零位把手對齊 0 V；三條 splitter（A｜圖區、圖區｜B、主圖｜FFT）、`clampLayout`（`layout.js`，門檻用視窗尺寸、預算用容器尺寸；窄於 900 視窗改「波形／FFT」分頁與窄軌抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`（B 實際寬度≥820 並排，否則分頁；寬版點「游標」分頁會獨佔全寬，量測面板暫隱）、量測表欄位選單（預設隱藏範圍／次數）、游標緊湊網格。偏好只存記憶體＋localStorage（不保證跨啟動）。
 - 新檔與 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage`；L5 `vertical bpanel`＋`css/vertical.css`；L8 `p1_check p2_check p2b_check p2b2_check p2b3_check`、`web/browser_analysis_checks.py`。新 command（`view.*`、`layout.*`）是前端 `store.command` 字串，不在凍結契約。
 - 驗證現況：`selfcheck_node.js` 含各階段變異測試全過；`e2e_check`、`browser_check`（含多尺寸、splitter、Vertical 列、B 區尺寸斷言）在沙箱外通過。Codex 沙箱不能綁 localhost，這兩項必須由 Claude 在沙箱外跑。
 - 已知／待辦：

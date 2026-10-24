@@ -96,3 +96,10 @@
 .analysis__cursorSummary { position: sticky; right: 0; background: var(--c-surface); margin-left: auto; flex: 1 1 240px; min-width: 60px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 .cursors__sourcefield { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; }
 .cursors__source { min-width: 0; max-width: 12ch; font-size: 13px; }
+
+/* Marker 表在游標分頁使用 B 全寬；狹窄並排時捲動限制在表格容器。 */
+.cursor-results { min-width: 0; max-width: 100%; font-size: 12.5px; }
+.cursor-results__bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.cursor-results__wrap { max-width: 100%; overflow-x: auto; }
+.cursor-results__table { width: 100%; }
+.analysis__cursors .cursor-results__table th, .analysis__cursors .cursor-results__table td { font-size: 12.5px; padding: 2px; white-space: nowrap; }

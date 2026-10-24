@@ -1,3 +1,4 @@
+import { mountCursorTable } from "./cursor_table.js";
 import { voltageAt } from "./voltage.js";
 // 游標與 Marker：cursors 的唯一寫入者。store.cursors 的 x＝顯示時間（秒）、y＝顯示格數；
 // 送後端前在此換成來源座標：x_src＝x−dx[ch]、y_src＝(y−position)×scale。對照 ui/analysis_marker.py。
@@ -113,7 +114,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         if (num(cur.x1)) p.x1 = r.t1;
         if (num(cur.x2)) p.x2 = r.t2;
         setSnap(p);
-        const [v1, v2] = [source.y1, source.y2];
+        const [v1, v2] = ch ? [source.y1, source.y2] : [null, null];
         emit({ kind: "legacy", t1: r.t1, t2: r.t2, v1, v2, unit: ch?.unit ?? "", source: ch?.name ?? "", y: r.y, mode });
         store.set({ markerResult: null }, "program");
         return;
@@ -203,6 +204,7 @@ export function mount(el, ctx) {
   const { store, ui, fmt } = ctx;
   el.classList.add("cursors");
   const info = h("div", "muted"), inputs = h("div", "cursors__inputs"), tbl = h("div", "cursors__readout"), chTbl = h("table", "table table--num");
+  const markerTable = mountCursorTable(ctx);
   const boxes = {}, labels = {};
   let sourceSig = "";
   const source = h("select", "select cursors__source"), sourceLabel = h("label", "cursors__sourcefield", "來源 ");
@@ -240,13 +242,15 @@ export function mount(el, ctx) {
       cell.append(h("span", "muted", label), h("span", "cursors__number", value)); return cell;
     }));
     const cs = store.get().channels;
-    fill(chTbl, ["通道", "@t1", "@t2", "Δ(t2−t1)"], r?.kind === "legacy"
+    tbl.hidden = markerTable.render(r) > 0;
+    chTbl.hidden = r?.kind !== "legacy";
+    fill(chTbl, ["通道", "@X1", "@X2", "Δ(X2−X1)"], r?.kind === "legacy"
       ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [c.name, fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
   }
   const controller = createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
   store.on(["cursors", "markerMode", "channels"], syncInputs);
   onCursorSource(store, syncInputs);
   inputs.append(centerButton(store),sourceLabel);
-  el.append(inputs, info, chTbl, tbl);
+  el.append(inputs, info, chTbl, tbl, markerTable.el);
   render(null);
 }

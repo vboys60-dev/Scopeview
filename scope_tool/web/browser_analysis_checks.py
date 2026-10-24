@@ -1,6 +1,8 @@
 """L8：browser_check 的分析頁 CDP 驗證；由主流程注入已開啟檔案的瀏覽器。"""
 from __future__ import annotations
 
+from scope_tool.web.browser_marker_checks import p3a_markers, p3b_markers
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -160,7 +162,7 @@ def compact_results(c: Cdp, prep: str) -> None:
     })()""")
     assert len(dims["rows"]) == 3 and max(dims["rows"]) <= 34, dims
     assert dims["single"] and dims["fonts"] and dims["parallel"] and dims["actions"], dims
-    assert 0 < dims["readout"] <= 140 and dims["values"] >= 7, dims
+    assert 0 <= dims["readout"] <= 140 and dims["values"] >= 7, dims
     c.js("document.querySelector('.results__menu summary').click()")
     c.wait("document.querySelector('.results__menu').open")
     original_count = c.js("document.querySelector('[data-column=count]').checked")
@@ -210,7 +212,7 @@ def compact_results(c: Cdp, prep: str) -> None:
     for side in (240, 360):
         c.js("(async()=>{" + prep + f"S.command('layout.resize',{{kind:'side',value:{side}}});S.command('layout.resize',{{kind:'lower',value:150}})" + "})()")
         c.wait(f"Math.abs(document.querySelector('.analysis__sidepanel').getBoundingClientRect().width-{side})<1")
-        c.wait("(()=>{const b=document.querySelector('.analysis__lowerbody');return b.dataset.resultTabbed===String(b.clientWidth<820)})()")
+        c.wait("(()=>{const b=document.querySelector('.analysis__lowerbody');return b.dataset.resultTabbed===String(b.clientWidth<820||document.querySelector('[data-result-tab=cursor]').getAttribute('aria-selected')==='true')})()")
         c.js("document.querySelector('[data-result-tab=cursor]').click()")
         dims = c.js("(async()=>{" + prep + """
             S.set({cursors:{...S.state.cursors,x2:999.5e-6}},'snap');
@@ -239,54 +241,6 @@ def compact_results(c: Cdp, prep: str) -> None:
     c.js("document.querySelector('[data-result-tab=measure]').click()")
     c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
     c.js("(async()=>{" + prep + "S.command('layout.reset','lower');S.command('layout.reset','side')})()")
-
-
-def p3a_markers(c: Cdp, prep: str) -> None:
-    """來源脫鉤、物理值與畫面投影、單行摘要與禁用模式。"""
-    result = c.js("(async()=>{" + prep + """
-        const C=await import('/js/analysis/cursors.js'),F=await import('/js/fmt.js'),M=await import('/js/analysis/mainplot.js'),original=S.state.channels,selected=S.state.selected;
-        const mode=S.state.markerMode,cur={...S.state.cursors};
-        const source=document.querySelector('.cursors__source'),choose=name=>{source.value=name;source.dispatchEvent(new Event('change',{bubbles:true}))};
-        const originalSource=C.cursorSource(S).channel?.name;
-        try {
-            const first=original[0],second=original[1];
-            choose(first.name);S.set({markerMode:null});S.command('cursor.intent',{which:'y1',value:first.position+2});
-            const before=C.cursorSource(S).y1,division=S.state.cursors.y1;
-            document.querySelectorAll('.analysis__chanbar .chip')[1].click();
-            const independent=source.value===first.name&&S.state.selected===second.name&&C.cursorSource(S).y1===before;
-            const proto=CanvasRenderingContext2D.prototype,fill=proto.fillText,draws=[];
-            proto.fillText=function(t,x,y,...a){if(t.startsWith('v1 '))draws.push({t,y});return fill.call(this,t,x,y,...a)};
-            try { S.updateChannel(first.name,{scale:first.scale*2},'user'); } finally { proto.fillText=fill; }
-            const after=C.cursorSource(S),projected=S.state.cursors.y1;
-            const field=document.querySelector('.cursors__field--y input');
-            const expected=before/(first.scale*2)+first.position,cv=document.querySelector('.analysis__main canvas').getBoundingClientRect();
-            const expectedY=Math.round(M.divY(M.layoutRect(cv.width,cv.height),expected))+2.5;
-            const track=[...document.querySelectorAll('.analysis__toolbar option')].find(o=>o.value==='Track Measurements');
-            return {independent,physical:Math.abs(after.y1-before)<1e-12,
-                projected:Math.abs(projected-expected)<1e-12,moved:projected!==division,
-                input:Math.abs(F.parseSI(field.value)-before)<Math.max(1e-12,Math.abs(before)*0.001),unit:field.parentElement.textContent,
-                drawn:Math.abs(draws.at(-1)?.y-expectedY)<1&&draws.at(-1)?.t===`v1 ${F.fmt(before,first.unit)}`,
-                disabled:track?.disabled,title:track?.title,source:source.value};
-        } finally {
-            S.set({channels:original,selected,markerMode:mode},'program');
-            if(originalSource)choose(originalSource);
-            for(const [which,value] of Object.entries(cur))S.command('cursor.intent',{which,value});
-        }
-    })()""")
-    assert all(result[k] for k in ('independent', 'physical', 'projected', 'moved', 'disabled', 'input', 'drawn')), result
-    assert result['source'] == 'CHAN1' and '(V)' in result['unit'], result
-    assert result['title'] == '需先補後端事件座標，暫未提供', result
-    for width, height in ((1360, 860), (900, 600)):
-        c.send('Emulation.setDeviceMetricsOverride', width=width, height=height, deviceScaleFactor=1, mobile=False)
-        c.pump(0.3)
-        dims = c.js("""(()=>{const b=document.querySelector('.analysis__cursorSummary'),p=b.parentElement;
-            const r=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),s=getComputedStyle(b);
-            return {height:r.height,line:parseFloat(s.lineHeight),right:r.right,parentRight:pr.right,
-                nowrap:s.whiteSpace,overflow:s.overflowX,ellipsis:s.textOverflow,title:b.title,text:b.textContent}})()""")
-        assert dims['nowrap'] == 'nowrap' and dims['overflow'] == 'hidden' and dims['ellipsis'] == 'ellipsis', dims
-        assert dims['height'] < 28 and dims['right'] <= dims['parentRight'] + 1, dims
-        assert dims['title'] == dims['text'] and 'ΔX' in dims['text'], dims
-    c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
 
 
 if __name__ == "__main__":

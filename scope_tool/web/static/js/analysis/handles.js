@@ -1,7 +1,9 @@
 // L4：左緣通道零位把手與畫面外游標提示；只發既有意圖，不寫通道／游標。
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const yPixel = (r, d) => r.t + (5 - d) * r.h / 10;
-const contains = (b, x, y) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
+// 視覺尺寸不變，命中矩形每軸至少 24px；重疊時選中心最近者。
+export const hitBox = (b) => ({ x: b.x - Math.max(0, 24 - b.w) / 2, y: b.y - Math.max(0, 24 - b.h) / 2, w: Math.max(24, b.w), h: Math.max(24, b.h) });
+const contains = (b, x, y) => { const a = hitBox(b); return x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h; };
 
 /** 把手在刻度左側保留 12px；僅顯示零位重疊時分欄。 */
 export function channelHandles(channels, r) {
@@ -16,7 +18,7 @@ export function channelHandles(channels, r) {
       x: 2 + lane * 12, y, w: 12, h: 20 };
   });
 }
-export const hitHandle = (channels, r, x, y) => channelHandles(channels, r).find((b) => contains(b, x, y)) ?? null;
+export const hitHandle = (channels, r, x, y) => channelHandles(channels, r).filter((b) => contains(b, x, y)).sort((a, b) => Math.hypot(x-a.x-a.w/2,y-a.y-a.h/2)-Math.hypot(x-b.x-b.w/2,y-b.y-b.h/2))[0] ?? null;
 /** 用相對位移保留抓取點；越界貼邊的把手拖動時也不會突然跳位。 */
 export const handlePosition = (position, dy, r) => position - dy * 10 / r.h;
 export function moveHandle(store, name, position) {
