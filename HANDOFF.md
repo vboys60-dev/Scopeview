@@ -22,17 +22,18 @@
 - **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/web版驗收清單.md`。
 - 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
-## 分析頁 GUI 改善（2026-10-24，P1／P2a／P2b 已完成並實測，分支 `gui-p2`，尚未合 main）
+## 分析頁 GUI 改善（2026-10-24，P1／P2a／P2b／P3a／P3b 已完成並實測；P1–P2b 已在 main，P3 在分支 `gui-p3`→`gui-p3b`→`gui-p3b2` 鏈上，尚未合 main）
 
 - 計劃書：`docs/分析頁GUI改善計劃書.md`（§8 決策已定案）。範圍：A 區量測欄、B 區結果、C 區主圖；操作模型參考 N8900A。
-- 已 commit／標籤：`p1-gui`（`5ed726b` 小修）→ `p2a-gui`（`82d02a9` 模式列／框選放大／Undo-Redo／Horizontal 列）→ `p2b-gui`（P2b-1 版面、P2b-2a Vertical 欄位與左軸電壓，合併於 `49d155f`）→ `8848ff5` FFT 控制列標籤同行 → `p2b3-gui`（`e18bf96` B 區縮小與頁籤）。
+- 已 commit／標籤：`p1-gui`（`5ed726b` 小修）→ `p2a-gui`（`82d02a9` 模式列／框選放大／Undo-Redo／Horizontal 列）→ `p2b-gui`（P2b-1 版面、P2b-2a Vertical 欄位與左軸電壓，合併於 `49d155f`）→ `8848ff5` FFT 控制列標籤同行 → `p2b3-gui`（`e18bf96` B 區縮小與頁籤）→ `p3a-gui`（`346664d` 游標來源脫鉤／Y 物理值真值／最近優先命中／摘要列）→ `p3b1-gui`（`4bfbfc3` 游標分頁 Marker 結果表／TSV 複製／觸控 ±12px）→ `p3b2-gui`（`0b8b61d` 垂直／雙向框選）。分支鏈 `gui-p3`→`gui-p3b`→`gui-p3b2`（尾端含全部），合 main 待使用者下令。
 - 目前行為摘要：拖曳＝平移、滾輪＝縮放時間；「框選放大」模式／Shift 暫時框選／Space 或中鍵暫時平移；Ctrl/Cmd+Z、Shift+Z、Ctrl+Y；Horizontal 列（時間/格、位置±1 格、完整時間）；Vertical 列（單位/格 微調與粗調、中心電位 O=−position×scale、歸零、適配＝以畫面中心為基準、dx 徽章）；左軸顯示目前通道實際電壓（通道色），零位把手對齊 0 V；三條 splitter（A｜圖區、圖區｜B、主圖｜FFT）、`clampLayout`（`layout.js`，門檻用視窗尺寸、預算用容器尺寸；窄於 900 視窗改「波形／FFT」分頁與窄軌抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`（B 實際寬度≥820 並排，否則分頁；寬版點「游標」分頁會獨佔全寬，量測面板暫隱）、量測表欄位選單（預設隱藏範圍／次數）、游標緊湊網格。偏好只存記憶體＋localStorage（不保證跨啟動）。
-- 新檔與 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage`；L5 `vertical bpanel`＋`css/vertical.css`；L8 `p1_check p2_check p2b_check p2b2_check p2b3_check`、`web/browser_analysis_checks.py`。新 command（`view.*`、`layout.*`）是前端 `store.command` 字串，不在凍結契約。
+- 新檔與 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage`；L5 `vertical bpanel summary cursor_table`＋`css/vertical.css`；L4 另有 `vzoom`；L8 `p1_check p2_check p2b_check p2b2_check p2b3_check p3_check p3b_check p3b2_check`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`。新 command（`view.*`、`layout.*`）是前端 `store.command` 字串，不在凍結契約。
 - 驗證現況：`selfcheck_node.js` 含各階段變異測試全過；`e2e_check`、`browser_check`（含多尺寸、splitter、Vertical 列、B 區尺寸斷言）在沙箱外通過。Codex 沙箱不能綁 localhost，這兩項必須由 Claude 在沙箱外跑。
 - 已知／待辦：
-  - P3（待使用者下令）：Marker 語意（游標來源與 Y 脫鉤、Y 游標改物理值，目前 Y1/Y2 仍標「格」）、把手移出繪圖區、摘要列、Track Measurements、可選垂直／雙向框選。
+  - P3 已完成：游標來源與 `selected` 脫鉤（私有狀態在 `cursors.js`，隱藏／刪除時依單位回退、重新可見還原使用者選擇）；Y 真值＝來源通道＋物理值，`store.cursors.y` 仍是格數投影（來源 scale/position 變動以變更前換算重投影）；最近優先命中（線 ±8 px、觸控 ±12 px）；Horizontal 摘要列（`summary.js`）；游標分頁 Marker_Results 表與 TSV 複製（`cursor_table.js`）；框選種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`：最小合法檔位、整個 10 格適配、雙向一次 Undo、視圖歷史只記實際改動的通道）。Track Measurements 仍 disabled（契約無事件座標）。
+  - 已知小項：複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發一次「寬版點 FFT 峰值分頁未切換」（4/5 次通過後未再重現，原因未查）；種類＝垂直時 Shift 暫時框選沿用該種類。
   - 浮動量測面板（可拖曳、可停靠）已提建議、未實作；依賴 `layout.js`，建議放 P3 前後。
-  - 小項：收折列 ΔX 顯示 `0.000003999 s` 格式不佳；`browser_check.py` 逾 300 行（測試檔，考慮再拆）；500 µV V/div 下限與需求文字的 1 mV 不同（沿用 P1）；FFT 分隔線拖曳時仍重取頻譜（既有行為）。
+  - 小項（收折列 ΔX 格式、測試檔行數已於 P3 解決）：500 µV V/div 下限與需求文字的 1 mV 不同（沿用 P1）；FFT 分隔線拖曳時仍重取頻譜（既有行為）。
   - 真機：Mac 觸控板手感、Windows 899px 斷點與中鍵自動捲動；WKWebView 捏合可能不送 `ctrl+wheel`。
 - 工作方式：Codex 編碼（`codex exec -s workspace-write -C <dir> -o <out.md> "$(cat brief.md)" < /dev/null`，背景執行）→ 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查（含變異測試）→ Codex 修正輪 → Claude 提交與標籤。平行任務用 git worktree。
 
