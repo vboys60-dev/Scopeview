@@ -1,11 +1,13 @@
 // L4：版面偏好與純尺寸計算；自動退讓只存在 effective，不回寫 prefs。
+// FFT 預算與 analysis.css 同步：40px 同行控制列＋至少 120px 繪圖區。
+export const FFT_BAR_HEIGHT = 40, FFT_PLOT_MIN = 120, FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN;
 export const VERSION = 1, STORAGE_KEY = 'scope.analysis.layout.v1';
 export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, overview: null });
 const clip = (n, a, b) => Math.min(b, Math.max(a, n));
 export function validatePrefs(raw) {
   const p = defaults();
   if (!raw || typeof raw !== 'object' || raw.version !== VERSION) return p;
-  for (const [k, lo, hi] of [['side',180,360], ['lower',120,600], ['fft',160,900]]) {
+  for (const [k, lo, hi] of [['side',180,360], ['lower',120,600], ['fft',FFT_MIN_HEIGHT,900]]) {
     if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) p[k] = clip(raw[k], lo, hi);
   }
   for (const k of ['sideCollapsed','lowerCollapsed','fftCollapsed']) if (typeof raw[k] === 'boolean') p[k] = raw[k];
@@ -34,14 +36,14 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   let overview = (prefs?.overview ?? vh > 700) ? (fftOn ? 40 : 56) : 0;
   const fftCollapsed = p.fftCollapsed;
   const separators = 28 + (fftOn ? 28 : 0);
-  const preferredFFT = Math.max(160,Math.min(200,H-chrome-separators-lower-overview-330));
+  const preferredFFT = Math.max(FFT_MIN_HEIGHT,Math.min(200,H-chrome-separators-lower-overview-330));
   let fft = fftOn && !fftCollapsed ? p.fft ?? preferredFFT : 0;
   const room = () => H - chrome - separators - lower - overview - fft;
   if (room() < (fftOn ? 330 : 270) && overview) { overview = 0; steps.push('overview'); }
   if (room() < 270 && lower && p.lowerCollapsed !== false) { lower = 0; lowerCollapsed = true; steps.push('lower'); }
-  if (room() < 270 && fft > 160) { fft = 160; steps.push('fft'); }
+  if (room() < 270 && fft > FFT_MIN_HEIGHT) { fft = FFT_MIN_HEIGHT; steps.push('fft'); }
   let tabbed = fftOn && !fftCollapsed && (room() < 270 || vw < 1100);
-  if (tabbed) { steps.push('tabs'); fft = Math.max(160, H - chrome - separators - lower - overview); }
+  if (tabbed) { steps.push('tabs'); fft = Math.max(FFT_MIN_HEIGHT, H - chrome - separators - lower - overview); }
   let main = tabbed ? Math.max(270, fft) : Math.max(270, room());
   if (tabbed) fft = main;
   const usedHeight = chrome + separators + lower + overview + (tabbed ? main : main + fft);
@@ -52,7 +54,7 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
 }
 /** splitter 數值邏輯：拖曳與方向鍵共用，絕不以越界觸發收折。 */
 export function resizeValue(kind, start, delta, max = Infinity) {
-  const min = kind === 'side' ? 180 : kind === 'lower' ? 120 : 160;
+  const min = kind === 'side' ? 180 : kind === 'lower' ? 120 : FFT_MIN_HEIGHT;
   return clip(start + delta, min, Math.max(min, Math.min(max, kind === 'side' ? 360 : kind === 'lower' ? 600 : 900)));
 }
 export function resetPref(prefs, kind) {

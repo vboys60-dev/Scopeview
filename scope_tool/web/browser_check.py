@@ -302,6 +302,19 @@ def main() -> None:
             c.pump(1)
         step("FFT", fft)
         c.shot(out / "08_fft.png")
+        # FFT 標籤：正常寬度與窄版分頁，橫捲前後都不得被控制列上下緣裁切。
+        def fft_label_bounds() -> None:
+            for end in (False, True):
+                dims = c.js("(()=>{const b=document.querySelector('.analysis__fftbar');"
+                            f"b.scrollLeft={'b.scrollWidth' if end else '0'};"
+                            "const r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height,"
+                            "plot:document.querySelector('.analysis__fftplot').getBoundingClientRect().height,"
+                            "labels:[...b.querySelectorAll('label')].map(e=>{const t=e.getBoundingClientRect();"
+                            "return {text:e.textContent.trim(),top:t.top,bottom:t.bottom,font:parseFloat(getComputedStyle(e).fontSize)}})}})()")
+                assert len(dims["labels"]) == 7, dims
+                assert dims["height"] <= 40 and dims["plot"] >= 120, dims
+                assert all(e["top"] >= dims["top"] and e["bottom"] <= dims["bottom"]
+                           and e["font"] >= 12 for e in dims["labels"]), dims
         # P2b：實測容器／繪圖高度、分頁、拖曳與共用收折狀態。
         def layout_check() -> None:
             for width, height in ((1360, 860), (900, 600)):
@@ -314,6 +327,7 @@ def main() -> None:
                 assert dims["main"] >= 240 and dims["tabs"] == (width == 900), dims
                 assert abs(dims["dpr"] - 2) < 0.02, dims
                 if width == 1360:
+                    fft_label_bounds()
                     c.js(f"(async()=>{{{prep} S.command('fft.visible',false)}})()")
                     c.pump(0.2)
                     assert c.js("!document.querySelector('.analysis__overview').hidden")
@@ -343,6 +357,7 @@ def main() -> None:
                     c.js("document.querySelector('[data-pane=fft]').click()")
                     c.pump(0.2)
                     assert c.js("document.querySelector('.analysis__fftplot').getBoundingClientRect().height") >= 120
+                    fft_label_bounds()
                     c.js("document.querySelector('[data-pane=wave]').click()")
                 c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
                 for kind, body in (("side", "side"), ("lower", "lowerbody"), ("fft", "fft")):

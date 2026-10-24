@@ -1,16 +1,29 @@
 // L8：純版面矩陣、偏好儲存與真正 splitter 事件；變異只改暫存副本。
 import assert from 'node:assert/strict';
-import { clampLayout, defaults, validatePrefs, loadPrefs, savePrefs, resizeValue, resetPref } from './layout.js';
+import { readFileSync } from 'node:fs';
+import { FFT_BAR_HEIGHT, FFT_PLOT_MIN, FFT_MIN_HEIGHT, clampLayout, defaults, validatePrefs, loadPrefs, savePrefs, resizeValue, resetPref } from './layout.js';
 import { mountSplitter } from './splitter.js';
 import { createStore } from './store.js';
 import { createController } from './cursors.js';
 import { bindViewport } from './gestures.js';
 import { bindLayoutCommands } from './tab_analysis.js';
+// 核對 CSS 與純尺寸計算的共用預算，避免調整控制列後吃掉繪圖下限。
+assert.equal(FFT_BAR_HEIGHT,40); assert.equal(FFT_PLOT_MIN,120);
+assert.equal(FFT_MIN_HEIGHT,FFT_BAR_HEIGHT+FFT_PLOT_MIN);
+const css = readFileSync(new URL('../../css/analysis.css',import.meta.url),'utf8');
+const rule = (selector) => css.split(selector+' {')[1]?.split('}')[0] ?? '';
+assert.ok(rule('.analysis__fftbar').includes(`height: ${FFT_BAR_HEIGHT}px; flex: 0 0 ${FFT_BAR_HEIGHT}px;`));
+assert.ok(rule('.analysis__fft').includes(`min-height: ${FFT_MIN_HEIGHT}px;`));
+assert.ok(rule('.analysis__fftplot').includes(`min-height: ${FFT_PLOT_MIN}px;`));
+assert.match(rule('.analysis__fftbar .field'),/flex-direction: row;/);
+assert.match(rule('.analysis__fftbar .field'),/margin-bottom: 0;/);
+assert.match(rule('.analysis__fftbar .field'),/font-size: 12px;/);
 const prefs = Object.freeze({ ...defaults(), side:280, lower:180, fft:220, sideCollapsed:false });
 const layout = (vw,vh,p = defaults(),fftOn = false,extra = {}) => clampLayout({ W:vw-24,H:vh-200,vw,vh,prefs:p,fftOn,...extra });
 for (const [vw,vh] of [[1360,860],[1280,800],[1366,768],[1024,768],[900,600],[923,768],[1100,860],[1123,860]]) for (const fftOn of [true,false]) {
   const before = JSON.stringify(prefs), e = layout(vw,vh,prefs,fftOn);
   assert.ok(e.mainGrid >= 240); assert.ok(!fftOn || e.fftCollapsed || e.fft >= 160);
+  if (fftOn && !e.fftCollapsed) assert.ok(e.fft - FFT_BAR_HEIGHT >= FFT_PLOT_MIN);
   assert.ok(e.side+10+e.plotWidth <= vw-24);
   assert.ok(e.lowerCollapsed || e.lower >= 120); assert.equal(JSON.stringify(prefs),before);
   assert.equal(e.scroll,e.usedHeight > vh-200);
@@ -197,6 +210,12 @@ if (process.argv.includes('--mutations')) {
   const { spawnSync } = await import('node:child_process');
   const { fileURLToPath } = await import('node:url'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
   const mutations = [
+    ['FFT 標籤恢復垂直','../../css/analysis.css','flex-direction: row; align-items: center; margin-bottom: 0;','flex-direction: column; align-items: center; margin-bottom: 0;'],
+    ['FFT 標籤恢復留白','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 12px; font-size: 12px;'],
+    ['FFT 標籤字體縮小','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 0; font-size: 10px;'],
+    ['FFT 控制列預算漂移','layout.js','FFT_BAR_HEIGHT = 40','FFT_BAR_HEIGHT = 56'],
+    ['FFT 繪圖下限不足','layout.js','FFT_PLOT_MIN = 120','FFT_PLOT_MIN = 100'],
+    ['FFT 總高度漏控制列','layout.js','FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN','FFT_MIN_HEIGHT = FFT_PLOT_MIN'],
     ['拿掉硬下限','layout.js','Math.max(270, room())','Math.max(0, room())'],
     ['退讓次序錯','layout.js',"if (room() < (fftOn ? 330 : 270) && overview)","if (false && overview)"],
     ['覆寫偏好','layout.js','const p = validatePrefs(prefs), steps = [];','prefs.side = 36; const p = validatePrefs(prefs), steps = [];'],
@@ -229,11 +248,12 @@ if (process.argv.includes('--mutations')) {
   ];
   const temp = mkdtempSync(join(tmpdir(),'scope-p2b-'));
   try {
-    cpSync(fileURLToPath(new URL('../',import.meta.url)),temp,{ recursive:true });
+    cpSync(fileURLToPath(new URL('../',import.meta.url)),join(temp,'js'),{ recursive:true });
+    cpSync(fileURLToPath(new URL('../../css/',import.meta.url)),join(temp,'css'),{ recursive:true });
     for (const [name,file,old,changed] of mutations) {
-      const path = join(temp,'analysis',file), original = readFileSync(path,'utf8'); assert.ok(original.includes(old));
+      const path = join(temp,'js/analysis',file), original = readFileSync(path,'utf8'); assert.ok(original.includes(old));
       try { writeFileSync(path,original.replace(old,changed));
-        const result = spawnSync(process.execPath,[join(temp,'analysis/p2b_check.mjs')],{ encoding:'utf8' });
+        const result = spawnSync(process.execPath,[join(temp,'js/analysis/p2b_check.mjs')],{ encoding:'utf8' });
         assert.notEqual(result.status,0,`${name}：未抓到變異`); assert.match(result.stderr,/AssertionError|TypeError/); console.log(`${name}：如預期失敗`);
       } finally { writeFileSync(path,original); }
     }

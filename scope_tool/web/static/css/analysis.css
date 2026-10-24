@@ -11,7 +11,11 @@
 .analysis__fftsection { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; }
 .analysis__fft { flex: 0 0 auto; min-height: 160px; display: flex; flex-direction: column; overflow: hidden; }
 .analysis__fftbar { height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; background: var(--c-surface); }
+/* FFT 欄位同行，移除全域 .field 的上下排列與底部留白；連捲軸仍容得下 24px 控件。 */
+.analysis__fftbar > *, .analysis__fftbar .row > * { flex-shrink: 0; }
 .analysis__fftbar .row { flex-wrap: nowrap; }
+.analysis__fftbar .field { flex-direction: row; align-items: center; margin-bottom: 0; font-size: 12px; line-height: 16px; }
+.analysis__fftbar .input, .analysis__fftbar .select { height: 24px; font-size: 12px; }
 .analysis__fftplot { flex: 1 0 120px; min-height: 120px; position: relative; }
 .analysis__lower { grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .analysis__lowerbody { flex: 1 1 0; min-height: 0; display: flex; gap: 8px; overflow: auto; }
