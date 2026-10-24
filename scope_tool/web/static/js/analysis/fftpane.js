@@ -74,7 +74,7 @@ export function mount(el, ctx) {
 
   function fetchNow() {
     const r = res();
-    if (!r || rect.w < 2) return;
+    if (!r || rect.w < 2 || store.get().opening) return; // 開檔中伺服器端頻譜將被換掉，不重取（避免 409）
     const fw = win(), req = latest.begin(), px = Math.min(16384, Math.round(rect.w)), id = r.spectrum_id;
     bridge.fetchSpectrum({ id, f0: fw.f0, f1: fw.f1, px, log: log(), signal: req.signal })
       .then((e) => { if (req.ok()) { env = e; yr = yRange(e); draw(); } })
@@ -93,6 +93,7 @@ export function mount(el, ctx) {
   };
   store.on(["fftResult"], refreshAll);
   store.on(["rfPos"], draw);
+  store.on(["opening"], () => { if (!store.get().opening) fetchSoon(); }); // 開檔取消時補取被略過的請求
   logBox.addEventListener("change", () => { env = null; fetchSoon(); draw(); });
 
   // RF：按鈕與點擊都只發 rf.intent。x 為目前 RF（無則視窗中心）。
