@@ -46,7 +46,8 @@
 - 草案要點：revision 以私有 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；刪等待槽；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 的 BAD_REQUEST 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、w 失鎖門檻另訂（暫 ±1500 ppm）；RMS 2 冪縮放驗收 ≤5e−15·|a|。`analysis/*` 歸 T7。
 - RMS 2 冪縮放已完成（`ef6936f`，`analysis/rms.py`＋`measure_check.py`；公開 `measure` 在 ~1.8e308 資料會先卡在 top/base 直方圖，屬已知限制）。
 - 頻譜比值檢查已完成（`docs/DSOX6004A_Jitter驗證紀錄.md` 第四輪）：示波器／離線 TIE 增益各頻帶平坦約 0.85，無追蹤跡象，PLL 前置條件已清。
-- 待使用者下令：PLL 事件層原型、契約 v3＋Jitter／眼圖 Web 實作、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
+- PLL 事件層原型已完成：`analysis/pll.py`（139 行）＋`pll_check.py`（100 行），`python3 -B -m scope_tool.analysis.pll_check` 印 OK（B 定義、±1000 ppm 頻偏、SJ 掃頻 0.1B／B／10B 振幅 ≤5%／相位 ≤5°、交替碼／PRBS7／8b10b、長碼 ≤32／33 UI、0.2／0.6 UI 階躍、2000 ppm 與短記錄無假零；降 Kp 變異測試會失敗）。只有事件層，未接 clock／眼圖／GUI／契約；門檻皆待校準。實測 1400 ppm 會重鎖一次、2000 ppm 失鎖。
+- 待使用者下令：契約 v3＋Jitter／眼圖 Web 實作（PLL 接線另案）、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
 
 ## Windows 打包
 
