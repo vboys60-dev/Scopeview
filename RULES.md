@@ -72,11 +72,11 @@
 | L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,analysis_params,decimate}.py` |
 | L2 連線列＋截圖頁 | `static/js/{connbar,tab_screenshot}.js` |
 | L3 擷取頁 | `static/js/tab_capture.js` |
-| L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage,vzoom}.js`、`static/css/analysis.css` |
+| L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage,vzoom,floatpanel,floatpanel_math}.js`、`static/css/analysis.css` |
 | L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary,cursor_table}.js`、`static/css/vertical.css` |
 | L6 樣式 | `static/css/app.css`、`static/styleguide.html` |
 | L7 打包 | `packaging/**`、`requirements-web.txt`、`啟動示波器截圖_web.command` |
-| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check,p3b2_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`docs/web版驗收清單.md` |
+| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check,p3b2_check,float_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`web/browser_float_checks.py`、`docs/web版驗收清單.md` |
 
 分析頁 GUI 新 command（`view.undo`／`view.redo`／`view.mode`／`view.history`／`view.historyGroup`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/分析頁GUI改善計劃書.md` 管理。
 
@@ -85,3 +85,5 @@
 P3b-1（gui-p3b，使用者授權）：L5/L8 修正沿用 P3b 範圍；L4 `tab_analysis.js` 僅修正 `lowerSummary` 回傳行與必要的 fmt 匯入，採 SI 格式且僅 Y 模式隱藏 ΔX，其餘 L4 實作不動。
 
 P3b-2（gui-p3b2，使用者授權）：L4 axes／gestures／vzoom 框選種類與合併歷史；L8 p3b2_check.mjs、browser_marker_checks.py。新指令 view.zoomKind／view.zoomRect 為 store.command 字串；凍結檔唯讀。
+
+浮動面板（gui-float，使用者授權）：L4 floatpanel.js／floatpanel_math.js；L8 float_check.mjs／browser_float_checks.py。接線可改 L4 tab_analysis／layout、L5 results，樣式限浮動面板。

@@ -34,9 +34,10 @@ export function fftInfo(r, fmt) {
 export function mount(el, ctx) {
   const { store, bridge, ui, fmt } = ctx, cat = () => ctx.appState?.catalog ?? {};
   el.classList.add("results");
-  let prefs = load();
+  let prefs = load(), floating = !!el.closest?.('.analysis__float'), floatColumns = [...COLUMNS];
+  const visibleColumns = () => floating ? floatColumns : prefs.columns;
   const labels = () => cat().stat_columns ?? ["目前", "平均", "最小", "最大", "範圍", "標準差", "次數"];
-  const cols = () => ["量測", ...COLUMNS.filter(k => prefs.columns.includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
+  const cols = () => ["量測", ...COLUMNS.filter(k => visibleColumns().includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
   const meas = h("table", "table table--num results__table");
   const note = h("span", "results__info", "ⓘ"); note.tabIndex = 0;
   note.title = "『目前』＝範圍內最左邊的事件（離線單檔）";
@@ -46,15 +47,22 @@ export function mount(el, ctx) {
   const menu = h("details", "results__menu"), toggle = h("summary", "btn btn--small", "⋮"); toggle.title = "選擇量測欄位";
   menu.ontoggle = () => {
     const r = toggle.getBoundingClientRect();
-    choices.style.bottom = `${innerHeight-r.top}px`; choices.style.right = `${Math.max(0,innerWidth-r.right)}px`;
+    choices.style.boxSizing = 'border-box'; choices.style.maxHeight = `${innerHeight}px`;
+    const height = Math.min(choices.getBoundingClientRect().height,innerHeight);
+    choices.style.bottom = 'auto';
+    choices.style.top = `${Math.max(0,Math.min(innerHeight-height,r.top >= height ? r.top-height : r.bottom))}px`;
+    choices.style.overflowY = 'auto';
+    choices.style.right = `${Math.max(0,innerWidth-r.right)}px`;
   };
   const choices = h("div", "results__choices"); menu.append(toggle, choices);
+  const columnBoxes = [];
   for (const key of COLUMNS) {
     const label = h("label", "check"), box = h("input"); box.type = "checkbox"; box.dataset.column = key;
-    box.checked = prefs.columns.includes(key); label.append(box, h("span", "", labels()[COLUMNS.indexOf(key)])); choices.append(label);
+    columnBoxes.push(box); box.checked = visibleColumns().includes(key); label.append(box, h("span", "", labels()[COLUMNS.indexOf(key)])); choices.append(label);
     box.onchange = () => {
-      prefs = { ...load(), columns:COLUMNS.filter(k => k === key ? box.checked : prefs.columns.includes(k)) };
-      save(prefs); renderMeas();
+      prefs = { ...load(), columns:COLUMNS.filter(k => k === key ? box.checked : visibleColumns().includes(k)) };
+      if (floating) floatColumns = [...prefs.columns]; else save(prefs);
+      renderMeas();
     };
   }
   const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(note, menu, bClear, bExp);
@@ -68,12 +76,13 @@ export function mount(el, ctx) {
   function tr(cells, tag = "td", title) { const r = h("tr"); cells.forEach((c) => { const d = h(tag, "", c); r.append(d); }); if (title) r.title = title; return r; }
   function renderMeas() {
     const { measurements: list, file, channels } = store.get(), defs = Object.fromEntries((cat().measurements ?? []).map((m) => [m.name, m]));
+    for (const box of columnBoxes) box.checked = visibleColumns().includes(box.dataset.column);
     const rows = [tr(cols(), "th")];
     for (const e of list) {
       const ch = channels.find((c) => c.name === e.channel), state = rowState(e, file);
       const unit = e.result?.unit || unitFor(defs[e.name]?.unit, ch?.unit ?? "V");
       const arrow = defs[e.name]?.sloped ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${e.name}(${e.channel}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => prefs.columns.includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const row = tr([`${e.name}(${e.channel}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
       const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);
@@ -100,5 +109,6 @@ export function mount(el, ctx) {
   };
   store.on(["measurements", "file", "channels"], renderMeas);
   store.on(["fftResult"], renderFft);
+  store.onCommand('layout.float.state',on=>{ floating=on; if (!on) prefs=load(); renderMeas(); });
   renderMeas(); renderFft();
 }

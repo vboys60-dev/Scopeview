@@ -5,6 +5,7 @@ import { bindViewport } from "./gestures.js";
 import { fullRange } from "./overview.js";
 import { clampLayout, loadPrefs, savePrefs, validatePrefs, resetPref } from "./layout.js";
 import { mountTabs } from "./bpanel.js";
+import { mountFloat } from "./floatpanel.js";
 import { mountSplitter } from "./splitter.js";
 import * as fmt from "../fmt.js";
 
@@ -33,10 +34,10 @@ const L5 = [["toolbar", "./toolbar.js", "analysis__toolbar"], ["measure", "./mea
   ["chanbar", "./chanbar.js", "analysis__chanbar"], ["results", "./results.js", "analysis__results"], ["cursors", "./cursors.js", "analysis__cursors"]];
 
 // 產品與自檢共用 command 接線；起點永遠取偏好，不把自動退讓當成使用者設定。
-export function bindLayoutCommands(store, { schedule, dragging = () => {}, initial = loadPrefs(), persist = savePrefs, viewport = () => innerWidth }) {
+export function bindLayoutCommands(store, { schedule, dragging = () => {}, initial = loadPrefs(), persist = savePrefs, lowerLocked = () => false, viewport = () => innerWidth }) {
   let prefs = initial, effective, drawerOpen = false;
   const change = (p) => { const overview = p.overview; prefs = { ...validatePrefs(p), overview }; persist(prefs); schedule(); };
-  const valid = (kind) => ['side','lower','fft'].includes(kind);
+  const valid = (kind) => ['side','lower','fft'].includes(kind) && !(kind === 'lower' && lowerLocked());
   const state = (kind) => {
     const e = effective, value = prefs[kind] ?? (kind === 'side' ? 240 : kind === 'lower' ? 180 : 180);
     const shown = kind === 'side' ? (e.drawer ? e.drawerWidth : e.side) : e[kind];
@@ -120,8 +121,8 @@ export function mount(el, ctx) {
 
   // 原 P1 按鈕移入 splitter，只有同一份偏好與 effective 狀態。
   const root = q("analysis"), fftSection = q("analysis__fftsection");
-  let fftOn = false, effective, frame = 0, activeTab = 'wave';
-  const controller = bindLayoutCommands(store,{ schedule, dragging:(on) => { root.dataset.dragging = String(on); } });
+  let fftOn = false, effective, frame = 0, activeTab = 'wave', floatPanel;
+  const controller = bindLayoutCommands(store,{ schedule, lowerLocked:() => !!floatPanel?.floating, dragging:(on) => { root.dataset.dragging = String(on); } });
   const buttons = { side:q('analysis__sidetoggle'), lower:q('analysis__lowertoggle'), fft:q('analysis__ffttoggle') };
   const tabs = document.createElement('div'); tabs.className = 'analysis__plotTabs'; tabs.setAttribute('role','tablist');
   tabs.innerHTML = '<button type="button" role="tab" data-pane="wave">波形</button><button type="button" role="tab" data-pane="fft">FFT</button>';
@@ -139,12 +140,16 @@ export function mount(el, ctx) {
   const lowerHeader = buttons.lower.parentNode;
   const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), peaks:q('analysis__peaks') },{ actions });
   lowerHeader.append(actions);
+  const lowerBody = q('analysis__lowerbody');
+  floatPanel = mountFloat(el,{ store, lower:q('analysis__lower'), header:lowerHeader, body:lowerBody,
+    tabs:lowerHeader.querySelector('.analysis__resultTabs'), actions, schedule });
   function schedule() { if (!frame) frame = requestAnimationFrame(renderLayout); }
   function renderLayout() {
     frame = 0;
     const H = Math.max(0,root.clientHeight-q('analysis__toolbar').getBoundingClientRect().height-8);
     const chrome = q('analysis__chanbar').getBoundingClientRect().height+28;
-    effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, drawerOpen:controller.drawerOpen, fftOn, chrome });
+    const floating = floatPanel.update();
+    effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, chrome });
     controller.update(effective);
     const e = effective, plot = q('analysis__plot');
     root.style.gridTemplateColumns = `${e.side}px 10px minmax(0,1fr)`;
@@ -156,7 +161,8 @@ export function mount(el, ctx) {
     root.classList.toggle('analysis--fft',fftOn && !e.fftCollapsed);
     root.dataset.tabbed = String(e.tabbed);
     q('analysis__side').hidden = e.sideCollapsed;
-    q('analysis__lowerbody').hidden = e.lowerCollapsed;
+    lowerBody.hidden = floating ? floating.collapsed : e.lowerCollapsed;
+    buttons.lower.hidden = !!floating;
     q('analysis__lower').style.height = e.lower+'px';
     overview.hidden = !e.overview; overview.style.height = e.overview+'px';
     tabs.hidden = !e.tabbed;
@@ -168,7 +174,7 @@ export function mount(el, ctx) {
     fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
     plot.style.overflowY = e.scroll ? 'auto' : 'hidden';
     for (const tab of tabs.children) tab.setAttribute('aria-selected',String(tab.dataset.pane === activeTab));
-    resultTabs.update({ width:q('analysis__lowerbody').clientWidth, height:e.lower, lowerCollapsed:e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftResult.peaks?.length ?? 0 : 0 });
+    resultTabs.update({ width:floating?.width ?? lowerBody.clientWidth, height:floating?.height ?? e.lower, lowerCollapsed:floating ? floating.collapsed : e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftResult.peaks?.length ?? 0 : 0 });
     const st = store.get();
     buttons.side.textContent = e.sideCollapsed ? '›' : '‹'; buttons.side.title = e.sideCollapsed ? '展開量測欄' : '收折量測欄';
     buttons.side.setAttribute('aria-label',buttons.side.title);
@@ -177,6 +183,7 @@ export function mount(el, ctx) {
     buttons.lower.setAttribute('aria-label',buttons.lower.title);
     buttons.fft.textContent = `${e.fftCollapsed ? '▾ 展開' : '▴ 收折'} FFT 窗格`;
     for (const kind of ['side','lower','fft']) splitters[kind].update(state(kind));
+    lowerHeader.tabIndex = floating ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
   }
   store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
   store.on(['measurements','fftResult','cursors'],schedule);

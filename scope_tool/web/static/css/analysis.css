@@ -103,3 +103,33 @@
 .cursor-results__wrap { max-width: 100%; overflow-x: auto; }
 .cursor-results__table { width: 100%; }
 .analysis__cursors .cursor-results__table th, .analysis__cursors .cursor-results__table td { font-size: 12.5px; padding: 2px; white-space: nowrap; }
+
+/* 浮動僅影響 B 的搬移容器；無遮罩，層級低於對話框與 toast。 */
+.analysis__float { position: fixed; z-index: 15; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-surface); box-shadow: var(--shadow-dlg); box-sizing: border-box; }
+.analysis__floatTitle { flex: 0 0 26px; min-height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 6px; cursor: move; touch-action: none; user-select: none; font-size: 13px; }
+.analysis__floatTitle:focus-visible { outline: 2px solid var(--c-accent); outline-offset: -2px; }
+.analysis__floatCaption { flex: 1; }
+.analysis__floatBar { display: flex; flex-wrap: wrap; flex: 0 0 auto; gap: 4px; padding: 2px 6px; background: var(--c-bg); }
+.analysis__float .results__actions { flex-wrap: wrap; }
+.analysis__float .analysis__lowerbody { width: 100%; }
+.analysis__float .results__table { table-layout: fixed; }
+.analysis__float .results__table th, .analysis__float .results__table td { white-space: normal; overflow-wrap: anywhere; padding: 2px; }
+.analysis__float .results__table th:first-child, .analysis__float .results__table td:first-child { width: 18%; }
+.analysis__float .results__table th:last-child, .analysis__float .results__table td:last-child { width: 20px; }
+.analysis__float .results__fftinfo { white-space: normal; overflow-wrap: anywhere; }
+.analysis__floatHome { font-size: 12.5px; position: relative; background: var(--c-bg); }
+.analysis__floatGrip { position: absolute; touch-action: none; z-index: 2; }
+.analysis__floatGrip[data-edge="n"], .analysis__floatGrip[data-edge="s"] { height: 8px; left: 8px; right: 8px; cursor: ns-resize; }
+.analysis__floatGrip[data-edge="n"] { top: 0; }
+.analysis__floatGrip[data-edge="s"] { bottom: 0; }
+.analysis__floatGrip[data-edge="w"], .analysis__floatGrip[data-edge="e"] { width: 8px; top: 8px; bottom: 8px; cursor: ew-resize; }
+.analysis__floatGrip[data-edge="w"] { left: 0; }
+.analysis__floatGrip[data-edge="e"] { right: 0; }
+.analysis__floatGrip[data-edge="ne"], .analysis__floatGrip[data-edge="nw"], .analysis__floatGrip[data-edge="se"], .analysis__floatGrip[data-edge="sw"] { width: 8px; height: 8px; }
+.analysis__floatGrip[data-edge="ne"], .analysis__floatGrip[data-edge="nw"] { top: 0; }
+.analysis__floatGrip[data-edge="se"], .analysis__floatGrip[data-edge="sw"] { bottom: 0; }
+.analysis__floatGrip[data-edge="ne"], .analysis__floatGrip[data-edge="se"] { right: 0; }
+.analysis__floatGrip[data-edge="nw"], .analysis__floatGrip[data-edge="sw"] { left: 0; }
+.analysis__floatGrip[data-edge="nw"], .analysis__floatGrip[data-edge="se"] { cursor: nwse-resize; }
+.analysis__floatGrip[data-edge="ne"], .analysis__floatGrip[data-edge="sw"] { cursor: nesw-resize; }
+.analysis__floatGrip[data-edge="se"] { border-right: 2px solid var(--c-border); border-bottom: 2px solid var(--c-border); }

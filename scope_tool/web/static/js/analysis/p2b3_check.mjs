@@ -166,10 +166,10 @@ const wiring = source.match(/resultTabs\.update\(([^;]+)\);/);
 assert.ok(wiring,'resultTabs.update 必須接線');
 for (const width of [700,819,820,1000]) {
   let received;
-  Function('resultTabs','q','e','store','fftOn','innerWidth',`resultTabs.update(${wiring[1]});`)(
+  Function('resultTabs','q','e','store','fftOn','innerWidth','floating','lowerBody',`resultTabs.update(${wiring[1]});`)(
     {update:args => { received = args; tabs.update(args); }},
     name => { assert.equal(name,'analysis__lowerbody'); return {clientWidth:width}; },
-    {lower:150,lowerBody:122,lowerCollapsed:false},store,false,1100);
+    {lower:150,lowerBody:122,lowerCollapsed:false},store,false,1100,null,{clientWidth:width});
   assert.equal(received.width,width,'使用實際 B 寬度，不能用視窗或 e.lowerBody 高度');
   assert.equal(body.dataset.resultTabbed,String(width < 820));
 }
@@ -181,16 +181,16 @@ if (process.argv.includes('--mutations')) {
     ['清除全部不作用','results.js','store.command("measure.clear")','store.command("measure.noop")'],
     ['nowrap 拿掉','../../css/analysis.css','.results__table th, .results__table td { white-space: nowrap;','.results__table th, .results__table td { white-space: normal;'],
     ['分頁判定錯','bpanel.js','width < 820 || height < 150','width < 900 || height < 120'],
-    ['選單不保存','results.js','save(prefs); renderMeas();','renderMeas();'],
+    ['選單不保存','results.js','else save(prefs);','else void 0;'],
     ['匯出失去資料','results.js','rows: ex.rows','rows: []'],
   ];
   mutations.push(
-    ['M1 欄位資料錯位','results.js','prefs.columns.includes(COLUMNS[i])','prefs.columns.includes(COLUMNS[(i+1)%7])'],
+    ['M1 欄位資料錯位','results.js','visibleColumns().includes(COLUMNS[i])','visibleColumns().includes(COLUMNS[(i+1)%7])'],
     ['M2 寬版峰值混入其他面板','bpanel.js',"!tabbed && tab !== 'cursor' && tab !== 'peaks' && panel !== 'peaks'","!tabbed && tab !== 'cursor' && panel !== 'peaks'"],
     ['M3 FFT 關閉仍顯示計數','bpanel.js','fftOn && count','count'],
     ['M4 游標文字縮小','../../css/analysis.css','.cursors__value { display: flex; flex-direction: column; font-size: 12.5px;','.cursors__value { display: flex; flex-direction: column; font-size: 11px;'],
     ['M5 收折摘要錯誤','tab_analysis.js','量測 ${st.measurements.length}／FFT 峰值','量測／FFT 峰值'],
-    ['M6 以 lowerBody 高度判定分頁','tab_analysis.js',"width:q('analysis__lowerbody').clientWidth",'width:e.lowerBody'],
+    ['M6 以 lowerBody 高度判定分頁','tab_analysis.js','width:floating?.width ?? lowerBody.clientWidth','width:e.lowerBody'],
     ['M7 欄位覆寫頁籤偏好','results.js','prefs = { ...load(), columns:','prefs = { ...prefs, columns:'],
     ['M8 移除 update 接線','tab_analysis.js','resultTabs.update({','resultTabs.disconnected({'],
     ['操作列未隨分頁隱藏','bpanel.js',"collapsed || !panelVisible('measure',prefs.tab,tabbed)",'collapsed'],

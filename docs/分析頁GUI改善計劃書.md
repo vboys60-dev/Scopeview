@@ -290,3 +290,5 @@ P3a 完成項同 §5；新增 `summary.js`（L5，摘要與模式選項）、`p3
 P3b-2 指令登記：`view.zoomKind` 接受 horizontal／vertical／both，預設 horizontal；`view.zoomRect` 接受可選 view 與 channels（僅 name／scale／position），合併為一次歷史，通道經 channel.scale_intent 套用。種類群組具 role="group"，平移模式淡化但保持可見與固定佔位，Shift 暫時框選沿用目前種類。
 
 P3b-2 審查修正：垂直框選以整個格高 `2 * DIVS`（10 格）選取最小容納檔位，檔位比較容許 1e-9 相對浮點誤差；10 格框在 1 V/格維持 1 V/格。時間意圖歷史只記 view；框選只記實際改變的 view 與可見通道 name／scale／position，Undo／Redo 的反向快照沿用該筆欄位範圍，避免覆蓋後續手動調整。
+
+浮動面板指令登記（gui-float）：`layout.float`（布林，浮動／停靠）、`layout.float.collapse`（收折浮動內容）、`layout.float.rect`（位置／尺寸）、`layout.float.state`（浮動狀態通知）。均為 store.command 字串；視窗 <900 自動停靠，不改原 layout 偏好；本次授權取代 §9 首版不做 float 的限制。

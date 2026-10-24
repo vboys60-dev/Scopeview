@@ -258,6 +258,8 @@ def main() -> None:
                     assert c.js(f"(()=>{{const b=document.querySelector('.analysis__splitter--{kind} button');return (b.getAttribute('aria-expanded')==='false')===document.querySelector('.analysis__{body}').hidden}})()")
                 c.shot(out / f"layout_{width}x{height}.png")
         step("P2b 多尺寸／splitter／DPR／共用收折", layout_check)
+        from scope_tool.web.browser_float_checks import float_panel
+        step("浮動面板／拖曳／縮放／停靠／窄版／字體", lambda: float_panel(c, prep))
         # NaN 缺口 CSV
         nanp = Path(prof) / "nan.csv"
         nanp.write_text("Time(s),CH1(V)\n" + "".join(f"{i * 1e-6},{'nan' if 40 <= i < 60 else (i % 20) / 10}\n" for i in range(200)), "utf-8")

@@ -25,13 +25,13 @@ export function savePrefs(p, storage = () => globalThis.localStorage) {
   try { storage().setItem(STORAGE_KEY, JSON.stringify({ ...memory, overview:undefined })); } catch { /* 私密模式也正常運作 */ }
 }
 /** H 為工具列以下可用高度；chrome 為實測通道列＋Horizontal 列。 */
-export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, drawerOpen = false }) {
+export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, drawerOpen = false, lowerFloating = false }) {
   const p = validatePrefs(prefs), steps = [];
   W = Math.max(0, Number.isFinite(W) ? W : 0); H = Math.max(0, Number.isFinite(H) ? H : 0);
   const narrow = vw <= 899, drawer = narrow && drawerOpen;
   const sideCollapsed = narrow ? !drawer : (p.sideCollapsed ?? vw < 1100);
   const side = narrow || sideCollapsed ? 36 : p.side;
-  let lowerCollapsed = p.lowerCollapsed ?? (vh <= 700 && fftOn);
+  let lowerCollapsed = lowerFloating || (p.lowerCollapsed ?? (vh <= 700 && fftOn));
   let lower = lowerCollapsed ? 0 : (p.lower ?? clip(H * .21,150,180)) - 28;
   let overview = (prefs?.overview ?? vh > 700) ? (fftOn ? 40 : 56) : 0;
   const fftCollapsed = p.fftCollapsed;

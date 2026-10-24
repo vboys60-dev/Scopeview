@@ -32,7 +32,7 @@
 - 已知／待辦：
   - P3 已完成：游標來源與 `selected` 脫鉤（私有狀態在 `cursors.js`，隱藏／刪除時依單位回退、重新可見還原使用者選擇）；Y 真值＝來源通道＋物理值，`store.cursors.y` 仍是格數投影（來源 scale/position 變動以變更前換算重投影）；最近優先命中（線 ±8 px、觸控 ±12 px）；Horizontal 摘要列（`summary.js`）；游標分頁 Marker_Results 表與 TSV 複製（`cursor_table.js`）；框選種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`：最小合法檔位、整個 10 格適配、雙向一次 Undo、視圖歷史只記實際改動的通道）。Track Measurements 仍 disabled（契約無事件座標）。
   - 已知小項：複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發一次「寬版點 FFT 峰值分頁未切換」（4/5 次通過後未再重現，原因未查）；種類＝垂直時 Shift 暫時框選沿用該種類。
-  - 浮動量測面板（可拖曳、可停靠）已提建議、未實作；依賴 `layout.js`，建議放 P3 前後。
+  - 浮動量測面板已於 `gui-float` 實作（從 main 切出、未 commit）：同節點搬移 B 頁籤／動作列／內容，Pointer Capture 拖移與四邊／四角縮放、鍵盤移動／縮放、停靠／內容收折、<900 自動停靠，獨立記憶體＋localStorage 偏好。`floatpanel_math.js`／`floatpanel.js` 歸 L4；`float_check.mjs`／`browser_float_checks.py` 歸 L8。浮動時主圖視為 B 收折；量測全欄預設，窄框欄內換行且不縮字；停靠欄位偏好保留。Node 自檢＋浮動變異 40/40、`e2e_check`、`browser_check`（連跑 5 次）通過；Opus 審查已修（鍵盤事件不再被吞、自動停靠／夾回不覆寫偏好、欄位選單不溢出、不蓋頁籤列）。偶發 console `/fft 409` 為測試步驟與開檔的競態（防抖重取），已在測試端等待消除；產品端加固（`fftpane.js` 開檔中不重取）未做。真人手感待實測。
   - 小項（收折列 ΔX 格式、測試檔行數已於 P3 解決）：500 µV V/div 下限與需求文字的 1 mV 不同（沿用 P1）；FFT 分隔線拖曳時仍重取頻譜（既有行為）。
   - 真機：Mac 觸控板手感、Windows 899px 斷點與中鍵自動捲動；WKWebView 捏合可能不送 `ctrl+wheel`。
 - 工作方式：Codex 編碼（`codex exec -s workspace-write -C <dir> -o <out.md> "$(cat brief.md)" < /dev/null`，背景執行）→ 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查（含變異測試）→ Codex 修正輪 → Claude 提交與標籤。平行任務用 git worktree。
