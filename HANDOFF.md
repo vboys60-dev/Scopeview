@@ -22,6 +22,19 @@
 - **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/web版驗收清單.md`。
 - 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
+## 分析頁 GUI 改善（2026-10-24，進行中）
+
+- 計劃書：`docs/分析頁GUI改善計劃書.md`（Opus＋Codex 兩輪討論，§8 決策已定案；目前未 commit）。範圍：A 區量測欄、B 區結果表、C 區主圖；操作模型參考 N8900A。
+- 分期：P1 小修（**已實作，待實機驗證，未 commit**）→ P2 Zoom In＋H/V 欄位＋splitter＋`clampLayout`＋B 分頁 → P3 Marker 語意（游標來源脫鉤、Y 物理值）。
+- **P1 在分支 `gui-p1`（未 commit）**，由 Codex 編碼、Opus 審核（修一輪）。內容：時間刻度標籤（共用前綴、`0 s`、高倍率相對偏移、過密隔格）；滾輪依 `deltaY` 連續縮放（`wheelFactor` 在 `plotcore.js`，主圖與 FFT 共用）；拖曳只平移、滾輪只縮放時間，移除曲線上改 V 位置／Shift＋拖 dx／曲線上滾輪改 V/格／`fits`／點曲線選通道；移除 FFT 的 `scrollIntoView` 與自動展開，FFT 計算與可見性分開；主圖:FFT 約 60:40、主圖格內 ≥240px；A／B／FFT 收折鈕（記憶體狀態）；overview 套用 dx；「重設視圖」→「完整時間」；▲▼ 提示改「較矮／較高」；斷點 899px（窄版量測欄塌陷已修）。
+- P1 驗證：node 與 Python 自檢、`e2e_check`、`browser_check`（含 880×700）皆通過。**待實機**：Mac 觸控板滑動／捏合手感（WKWebView 捏合可能不送 `ctrl+wheel`）、Windows 899px 斷點（`min_size` 含邊框）、收折鈕可用性。
+- **已知問題（P2 處理）**：開 FFT 時 FFT 繪圖區只剩約 28px（無 splitter／`clampLayout`）。P1 跨 lane 改了 L5（`chanbar.js`、`toolbar.js` 文字）、L6（`app.css` 斷點）、L8（`selfcheck_node.js`），需 lead 確認登記。
+- P1 回饋審核續修（2026-10-24，未 commit）：`chanbar` 以方向找相鄰粗檔（不改 `scales.js`）、兼容 500 µV 下限、未確認輸入作步進起點、IME／修飾鍵防護；主圖記錄越界箭頭 pointerdown 時間，500ms 內不處理 dblclick；把手固定 12px、僅重疊分欄，左界至少 84px 並依重疊欄數擴充以避開刻度；無檔停用歸位，Y 箭頭直接發 `cursor.intent` 回 ±2 格。微調保波形中心語意維持。
+- 本輪驗證：全部 Node 自檢通過；Python 50 個自檢執行，47 通過，`web.server`／`web.e2e_check`／`web.browser_check` 因沙箱禁止 bind localhost（PermissionError）無法完成，須在允許 localhost 的環境重跑；未做真人／真機驗證。`0.1 +` 嚴格等於 `0.11` 已斷言，另加 `0.237 +` 嚴格等於 `0.247`；在暫存副本移除 `toPrecision(15)`，後者確實因 `0.24700000000000003` 失敗（0.1 案例單獨無法抓出該變異）。
+- 追加「回中央」（2026-10-24，未 commit）：游標數值面板與主圖通道列共用 `cursors.js` 按鈕／寫入邏輯，無檔停用；以目前 view 中心置中，有限且小於 90% 視窗跨度的有號間距保留（含反向與零間距），其餘回 25%／75%；有限且在 ±5 格內的 Y 保留，其餘回 ±2 格。維持 user origin 與既有吸附。`p1_check.mjs` 實際掛載雙按鈕測中心／間距／反向／90% 邊界／缺值／Y／吸附與防迴圈；暫存副本改回舊重設行為，測試確實以 `22 != 23` 失敗。全部 Node 自檢通過；Python 51 項執行、48 通過（含 main／discovery／config），同上 3 項仍因 localhost 綁定被沙箱阻擋；`browser_check.py` 已加入 B 區收折時主圖按鈕可見／可操作的驗證，但尚未實跑該步驟。待真人檢查按鈕位置與操作手感；凍結檔／契約未動，修改檔皆 ≤300 行。
+- P2 前置：lead 先登記新檔名（`gestures.js`、`axes.js`、`layout.js`）與新 command（`view.undo`／`view.redo`／`layout.*`）到契約與 lane 表，再動工。
+- 工作方式：Codex 編碼（`codex exec -s workspace-write -C <repo> ... < /dev/null`，沙箱不能綁 localhost，`e2e_check`／`browser_check` 要在沙箱外跑）→ Opus 審核 → 修正輪。
+
 ## Windows 打包
 
 - `RULES.md` 允許 Windows 版 PyInstaller（Win10／Win11，onedir）；目標機自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包）。

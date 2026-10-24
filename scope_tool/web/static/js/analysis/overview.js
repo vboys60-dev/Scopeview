@@ -42,7 +42,7 @@ export function mount(el, { store, bridge }) {
     const Y = (v) => 3 + (hi - v) / span * (H - 6);
     for (const c of cs) {
       const env = cache.get(c.name);
-      if (env) drawPixels(g, envPixels(env, x, Y), c.color); // 縮圖忽略 dx（Qt 版同）
+      if (env) drawPixels(g, envPixels(env, (t) => x(t + c.time_offset), Y), c.color); // 與主圖同樣套用顯示時間位移
     }
     if (full()) {
       const a = x(s.view.t0), b = x(s.view.t1);

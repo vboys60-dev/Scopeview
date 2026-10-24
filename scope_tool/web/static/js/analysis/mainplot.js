@@ -1,10 +1,9 @@
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
-// 意圖：viewport.intent／channel.shift_intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
-import { DIVS, linear, divTicks, tickLabel, envPixels, drawPixels, nearestDist, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
-import { stepScale, rescale } from "./scales.js";
-
-export const MARGIN = { l: 44, t: 8, r: 10, b: 22 };
-export const layoutRect = (w, h) => ({ l: MARGIN.l, t: MARGIN.t, w: Math.max(1, w - MARGIN.l - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
+// 意圖：viewport.intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
+import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
+import { channelHandles, drawHandles, hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
+export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
+export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
 /** 顯示格數 → 像素 y（置頂為 +5 格）。 */
 export const divY = (rect, d) => rect.t + (DIVS - d) * rect.h / (2 * DIVS);
 export const yToDiv = (rect, py) => DIVS - (py - rect.t) * (2 * DIVS) / rect.h;
@@ -35,7 +34,7 @@ export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
-  let rect = layoutRect(1, 1), drag = null, warned = 0;
+  let rect = layoutRect(1, 1), drag = null, warned = 0, edgeDownAt = -Infinity;
   const cv = createCanvas(el, (w, h) => { rect = layoutRect(w, h); draw(); fetchSoon(); });
   const { canvas, ctx: g } = cv;
 
@@ -44,9 +43,16 @@ export function mount(el, ctx) {
   function draw() {
     const [w, h] = cv.size();
     if (!w || !h) return;
-    const s = store.get(), X = Xmap(s.view), col = plotColors();
+    const s = store.get();
+    // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
+    const left = Math.max(MARGIN.l, ...channelHandles(s.channels, rect).map((b) => b.x + b.w + 24));
+    rect = layoutRect(w, h, left);
+    const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
-    drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v) => ({ p: X(v), label: tickLabel(v, "s") })),
+    const labels = timeTickLabels(s.view.t0, s.view.t1);
+    g.font = "11px sans-serif";
+    const dense = labels.some((label) => g.measureText(label).width + 8 > rect.w / 10);
+    drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: !dense || i % 2 === 1 ? labels[i] : "" })),
       Array.from({ length: 2 * DIVS + 1 }, (_, i) => ({ p: divY(rect, DIVS - i), label: String(DIVS - i) })), col);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     for (const c of s.channels) {
@@ -71,6 +77,7 @@ export function mount(el, ctx) {
       if (k.label) g.fillText(k.label, k.px + 6, k.py - 3);
     }
     g.restore();
+    drawHandles(g, s.channels, s.cursors, s.view, rect);
   }
 
   function fetchNow() {
@@ -110,50 +117,43 @@ export function mount(el, ctx) {
     }
     return null;
   }
-  function hitChannel(x, y) {
-    const cs = store.get().channels;
-    for (let i = cs.length - 1; i >= 0; i--) {
-      const e = cache.get(cs[i].name);
-      if (cs[i].visible && e?.px && nearestDist(e.px, x, y, 8) < Infinity) return cs[i];
-    }
-    return null;
-  }
   const inside = (x, y) => x >= rect.l && x <= rect.l + rect.w && y >= rect.t && y <= rect.t + rect.h;
 
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     const [x, y] = local(e), s = store.get();
     const base = { x, y, view: s.view };
-    const which = hitCursor(x, y), ch = which ? null : hitChannel(x, y);
-    drag = which ? { ...base, type: "cursor", which }
-      : ch ? { ...base, type: "chan", ch, shift: e.shiftKey }
+    const handle = hitHandle(s.channels, rect, x, y);
+    const edge = hitCursorEdge(s.cursors, s.view, rect, x, y);
+    if (!handle && edge) { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
+    const which = hitCursor(x, y);
+    drag = handle ? { ...base, type: "handle", name: handle.name, position: handle.position } : which ? { ...base, type: "cursor", which }
       : inside(x, y) ? { ...base, type: "pan" } : null;
     if (drag) canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener("pointermove", (e) => {
     const [x, y] = local(e);
-    if (!drag) { canvas.style.cursor = hitCursor(x, y) ? "grab" : hitChannel(x, y) ? "move" : "default"; return; }
-    const d = drag, span = d.view.t1 - d.view.t0;
-    if (d.type === "pan") store.command("viewport.intent", panView(d.view, x - d.x, rect.w));
-    else if (d.type === "chan" && d.shift) store.command("channel.shift_intent", { name: d.ch.name, time_offset: d.ch.time_offset + (x - d.x) * span / rect.w });
-    else if (d.type === "chan") store.command("channel.scale_intent", { name: d.ch.name, position: d.ch.position - (y - d.y) * 2 * DIVS / rect.h });
+    if (!drag) { const s = store.get(); canvas.style.cursor = hitHandle(s.channels, rect, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, rect, x, y) ? "pointer" : hitCursor(x, y) || inside(x, y) ? "grab" : "default"; return; }
+    const d = drag;
+    if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, rect));
+    else if (d.type === "pan") store.command("viewport.intent", panView(d.view, x - d.x, rect.w));
     else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? Xmap(d.view).inv(x) : yToDiv(rect, y) });
   });
   const end = () => { drag = null; };
   canvas.addEventListener("pointerup", end);
   canvas.addEventListener("pointercancel", end);
-  canvas.addEventListener("dblclick", () => store.command("view.reset"));
+  canvas.addEventListener("lostpointercapture", end);
+  canvas.addEventListener("dblclick", (e) => {
+    if (e.timeStamp >= edgeDownAt && e.timeStamp - edgeDownAt <= 500) return;
+    const [x, y] = local(e), s = store.get(), handle = hitHandle(s.channels, rect, x, y);
+    if (handle) moveHandle(store, handle.name, 0);
+    else if (!hitCursorEdge(s.cursors, s.view, rect, x, y)) store.command("view.reset");
+  });
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const [x, y] = local(e), up = e.deltaY > 0, s = store.get(), ch = hitChannel(x, y);
-    if (ch) { // 命中曲線：換 V/格（縮小一律可以；放大前確認不超出畫面，同 Qt）
-      const next = stepScale(ch.scale, ch.unit, up);
-      if (next === ch.scale) return;
-      const [pos, fits] = rescale(ch.vmin ?? 0, ch.vmax ?? 0, ch.scale, ch.position, next);
-      if (up || fits || ch.vmin == null) store.command("channel.scale_intent", { name: ch.name, scale: next, position: pos });
-      return;
-    }
-    store.command("viewport.intent", zoomView(s.view, Xmap(s.view).inv(Math.min(Math.max(x, rect.l), rect.l + rect.w)), up ? 1.25 : 0.8));
+    const [x] = local(e), s = store.get(), factor = wheelFactor(e, rect.h);
+    if (factor === 1) return;
+    store.command("viewport.intent", zoomView(s.view, Xmap(s.view).inv(Math.min(Math.max(x, rect.l), rect.l + rect.w)), factor));
   }, { passive: false });
   draw();
   return { draw, dispose() { cv.dispose(); fetchSoon.cancel(); } };

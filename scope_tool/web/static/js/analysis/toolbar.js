@@ -133,7 +133,7 @@ export function mount(el, ctx) {
   marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { store.set({ markerMode: marker.value || null }, "user"); if (marker.value === "Track Measurements") ui.toast("Track Measurements 尚未支援", "info"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
-  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("重設視圖", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
+  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
   loaded.push(bClose, bInfo, bMath, bCsv, marker, bReset);
   const prev = h("input", "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
   el.append(bOpen, bClose, bInfo, bReset, fieldOf("預覽", prev), fieldOf("Marker", marker), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
@@ -157,7 +157,7 @@ export function mount(el, ctx) {
   }
   const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
   const loadedAll = [on, src, win, unit, imp, man, sort, lvl, cnt];
-  el.append(fieldOf("FFT", on));
+  el.append(fieldOf("FFT 計算", on));
   fftRow.append(fieldOf("來源", src), fieldOf("視窗", win), fieldOf("單位", unit), imp, man, fieldOf("Peak Sort", sort), fieldOf("Peak Level", lvl), fieldOf("峰數", cnt));
   const root = el.closest(".analysis") ?? el.parentNode, place = () => { const bar = root.querySelector(".analysis__fftbar"); if (bar) bar.append(fftRow); return !!bar; };
   if (!place()) { const mo = new MutationObserver(() => { if (place()) mo.disconnect(); }); mo.observe(root, { childList: true, subtree: true }); setTimeout(() => { if (!fftRow.parentNode) el.append(fftRow); }, 3000); }

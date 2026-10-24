@@ -104,7 +104,7 @@ body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 v
 .chip__remove:hover { color: var(--c-danger); }
 
 /* 窄版（約 900 px 以下）：側欄移到圖上方 */
-@media (max-width: 900px) {
+@media (max-width: 899px) {
   .analysis { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(240px, 1fr) auto;
     grid-template-areas: "tool" "side" "plot" "results"; }
   .analysis__side { max-height: 30vh; }

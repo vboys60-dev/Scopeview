@@ -1,6 +1,6 @@
 // FFT 頻譜窗格：顯示 store.fftResult（由 L5 以 fft job 寫入）；頻譜資料走 /fft 二進位。
 // 對數軸、峰值標記、RF 位置（store.rfPos）；RF 操作只發 rf.intent。FFT 參數控制列由 L5 掛在 .analysis__fftbar。
-import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
+import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
 
 export const MARGIN = { l: 64, t: 8, r: 10, b: 22 };
 /** 頻率視窗：log 時下界須 >0（以 df 或 f_max/1e6 為底）。 */
@@ -124,7 +124,9 @@ export function mount(el, ctx) {
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     if (!res()) return;
-    const w = win(), f = e.deltaY > 0 ? 1.25 : 0.8, F = Fmap(), a = F.inv(Math.min(Math.max(lx(e), rect.l), rect.l + rect.w));
+    const f = wheelFactor(e, rect.h);
+    if (f === 1) return;
+    const w = win(), F = Fmap(), a = F.inv(Math.min(Math.max(lx(e), rect.l), rect.l + rect.w));
     if (log()) setView({ f0: a * (w.f0 / a) ** f, f1: a * (w.f1 / a) ** f });
     else setView({ f0: Math.max(a - (a - w.f0) * f, 0), f1: a + (w.f1 - a) * f });
   }, { passive: false });

@@ -160,6 +160,19 @@ def main() -> None:
         step("放置游標", cursors)
         c.shot(out / "06_cursors.png")
         step("游標讀值面板有文字", lambda: c.wait("document.body.innerText.match(/ΔX|Δt|ΔT|X1/)"))
+        def center_cursors() -> None:
+            result = c.js(f"(async()=>{{{prep} const v=S.state.view,w=v.t1-v.t0,mid=(v.t0+v.t1)/2;"
+                          "S.set({cursors:{x1:v.t0-w,x2:v.t0-w*0.8,y1:1,y2:-1}},'user');"
+                          "document.querySelector('.analysis__lowertoggle').click();"
+                          "const b=[...document.querySelectorAll('.analysis__chanbar button')].find(b=>b.textContent==='回中央');"
+                          "const visible=!!b&&b.getBoundingClientRect().height>0&&!b.disabled; b.click();"
+                          "const q=S.state.cursors;return {visible,hidden:document.querySelector('.analysis__lowerbody').hidden,"
+                          "center:Math.abs((q.x1+q.x2)/2-mid)/w,gap:Math.abs((q.x2-q.x1)/w-0.2),y:q.y1===1&&q.y2===-1}})()")
+            assert result["visible"] and result["hidden"] and result["y"], result
+            assert result["center"] < 1e-12 and result["gap"] < 1e-12, result
+            c.shot(out / "06_center_collapsed.png")
+            c.js("document.querySelector('.analysis__lowertoggle').click()")
+        step("B 區收折仍可回中央並保留間距", center_cursors)
         # 不同 dx（通道 2 位移）
         step("通道 dx 位移", lambda: (c.js(f"(async()=>{{{prep} S.updateChannel(S.state.channels[1].name,{{time_offset:(S.state.view.t1-S.state.view.t0)*0.05}},'user')}})()"), c.pump(1)))
         # 量測：頻率／Vp-p 按鈕
@@ -177,6 +190,25 @@ def main() -> None:
             c.pump(1)
         step("FFT", fft)
         c.shot(out / "08_fft.png")
+        # 880×700：側欄保留內容高度與 30vh 上限，FFT 開關皆採自然結果區高度。
+        def narrow_layout() -> None:
+            c.send("Emulation.setDeviceMetricsOverride", width=880, height=700, deviceScaleFactor=1, mobile=False)
+            for on in (True, False):
+                c.js(f"(async()=>{{{prep} S.command('fft.visible', {str(on).lower()})}})()")
+                c.pump(0.4)
+                dims = c.js("(()=>{const side=document.querySelector('.analysis__side'),lower=document.querySelector('.analysis__lower');"
+                            "return {side:side.getBoundingClientRect().height,flex:getComputedStyle(side).flex,"
+                            "max:getComputedStyle(side).maxHeight,lower:lower.getBoundingClientRect().height}})()")
+                assert 26 < dims["side"] <= 210, dims
+                assert dims["flex"] == "0 1 auto" and dims["max"] == "210px", dims
+                before = dims["lower"]
+                c.js("document.querySelector('.analysis__lower').style.height='auto'")
+                after = c.js("document.querySelector('.analysis__lower').getBoundingClientRect().height")
+                c.js("document.querySelector('.analysis__lower').style.height=''")
+                assert abs(before - after) < 0.1, (before, after)
+                print(f"880×700 FFT={on}: {dims}, height:auto={after}")
+            c.shot(out / "880x700.png")
+        step("880×700 窄版側欄與 FFT 結果區", narrow_layout)
         # NaN 缺口 CSV
         nanp = Path(prof) / "nan.csv"
         nanp.write_text("Time(s),CH1(V)\n" + "".join(f"{i * 1e-6},{'nan' if 40 <= i < 60 else (i % 20) / 10}\n" for i in range(200)), "utf-8")

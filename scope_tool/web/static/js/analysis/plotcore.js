@@ -42,7 +42,37 @@ export function logTicks(lo, hi) {
   }
   return out;
 }
-export const tickLabel = (v, unit) => fmt(v, unit, 4);
+/** 時間文字依格距量化，整軸共用前綴與小數位；不回寫數值座標。 */
+export function tickLabel(v, unit, step = 0, max = Math.abs(v)) {
+  if (unit !== "s" || !(step > 0)) return fmt(v, unit, 4);
+  const order = Math.floor(Math.log10(step)), res = 10 ** (order - 1);
+  const q = Math.round(v / res) * res;
+  if (q === 0) return "0 s";
+  const e = Math.min(12, Math.max(-12, Math.floor(Math.log10(max) / 3) * 3));
+  const prefix = ["p", "n", "µ", "m", "", "k", "M", "G", "T"][(e + 12) / 3];
+  const decimals = Math.min(100, Math.max(0, e - order + 1));
+  return `${(q / 10 ** e).toFixed(decimals)} ${prefix}s`;
+}
+/** 超過 9 位有效數字：中心保留完整絕對值，其餘顯示相對中心偏移。 */
+export function timeTickLabels(lo, hi, n = 10) {
+  const step = (hi - lo) / n, max = Math.max(Math.abs(lo), Math.abs(hi));
+  const relative = step > 0 && Math.floor(Math.log10(max)) - Math.floor(Math.log10(step)) + 2 > 9;
+  const center = lo + (hi - lo) / 2;
+  return divTicks(lo, hi, n).map((v, i) => {
+    if (!relative) return tickLabel(v, "s", step, max);
+    if (i === n / 2) return `${center} s`;
+    const offset = (i - n / 2) * step;
+    return (offset > 0 ? "+" : "") + tickLabel(offset, "s", step, (hi - lo) / 2);
+  });
+}
+
+/** deltaMode：行以 16px、頁以實際圖高換算；捏合較敏感，單次倍率限制在 0.5～2。 */
+export function wheelFactor({ deltaY, deltaMode = 0, ctrlKey = false }, pageHeight = 800) {
+  if (!Number.isFinite(deltaY) || deltaY === 0) return 1;
+  const dy = deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? pageHeight : 1);
+  const exponent = dy * Math.LN2 / (ctrlKey ? 120 : 480);
+  return Math.exp(Math.max(-Math.LN2, Math.min(Math.LN2, exponent)));
+}
 
 /**
  * 包絡／原始解碼結果 → 像素。X(source_t) 與 Y(value) 由呼叫端組（含 dx、scale、position）。

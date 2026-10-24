@@ -19,6 +19,26 @@ export const toDisplay = (x, y, ch) => [x + (ch.time_offset || 0), y / ch.scale 
 const differs = (a, b) => (a === null) !== (b === null) || (a !== null && Math.abs(a - b) > 1e-12 * Math.max(1, Math.abs(a)));
 /** 預設游標：X 在範圍 25%／75%、Y 在 ±2 格。 */
 export const defaultCursors = (v) => ({ x1: v.t0 + 0.25 * (v.t1 - v.t0), x2: v.t0 + 0.75 * (v.t1 - v.t0), y1: 2, y2: -2 });
+/** 回中央保留有效的有號間距、畫面內 Y；換檔仍使用 defaultCursors。 */
+function resetCursors(store) {
+  const { file, view, cursors } = store.get();
+  if (!file) return;
+  const next = defaultCursors(view), delta = cursors.x2 - cursors.x1, center = (view.t0 + view.t1) / 2;
+  if (num(cursors.x1) && num(cursors.x2) && num(delta) && Math.abs(delta) < 0.9 * (view.t1 - view.t0)) {
+    next.x1 = center - delta / 2; next.x2 = center + delta / 2;
+  }
+  for (const k of ["y1", "y2"]) if (num(cursors[k]) && Math.abs(cursors[k]) <= 5) next[k] = cursors[k];
+  store.set({ cursors: next }, "user");
+}
+/** 通道列與游標數值面板共用；不另外建立吸附控制器或新增 command。 */
+export function centerButton(store) {
+  const button = h("button", "btn btn--small", "回中央"); button.type = "button";
+  button.title = "t1／t2 回到目前畫面中間";
+  button.onclick = () => resetCursors(store);
+  const sync = () => { button.disabled = !store.get().file; };
+  store.on(["file"], sync); sync();
+  return button;
+}
 export const MODE_AXES = (m) => ({ x: m === null || ["Manual X only", "Manual X and Y", "Track Waveforms"].includes(m), y: m === null || ["Manual Y only", "Manual X and Y"].includes(m) });
 
 /** 控制器：不碰 DOM，方便純邏輯測試。onReadout(readout|null) 通知畫面。 */
@@ -114,7 +134,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
       store.set({ rfPos: { x: r.x, y: r.y, available: r.available, reason: r.reason } }, "user");
     } catch (e) { if (e.code !== "STALE") onError(e); }
   });
-  return Object.assign(ctl, { refresh, schedule });
+  return Object.assign(ctl, { refresh, schedule, reset() { resetCursors(store); } });
 }
 
 /** 游標表讀值；ΔY/ΔX 的缺值與有限值規則對齊 analysis/marker.py。 */
@@ -164,6 +184,7 @@ export function mount(el, ctx) {
   }
   createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
   store.on(["cursors", "markerMode"], syncInputs);
+  inputs.append(centerButton(store));
   el.append(inputs, info, tbl, chTbl);
   render(null);
 }

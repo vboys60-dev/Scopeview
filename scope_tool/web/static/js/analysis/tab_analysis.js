@@ -32,16 +32,23 @@ export function mount(el, ctx) {
   // 版面骨架（grid 區域由 app.css 的 .analysis 定義：tool／side／plot／results；細節見 analysis.css）
   el.innerHTML = `<div class="analysis">
     <div class="analysis__toolbar"></div>
-    <div class="analysis__side"></div>
+    <div class="analysis__sidepanel">
+      <button type="button" class="btn btn--small analysis__sidetoggle" aria-expanded="true" aria-controls="analysis-side-body">收折量測欄</button>
+      <div class="analysis__side" id="analysis-side-body"></div>
+    </div>
     <div class="analysis__plot">
       <div class="analysis__chanbar chanbar"></div>
-      <div class="analysis__overview"></div>
+      <div class="analysis__overview" title="來源時間概觀（原始通道共用電壓範圍）"></div>
       <div class="analysis__main plot"></div>
-      <div class="analysis__fft" hidden></div>
+      <section class="analysis__fftsection" hidden>
+        <button type="button" class="btn btn--small analysis__ffttoggle" aria-expanded="true" aria-controls="analysis-fft-body">收折 FFT 窗格</button>
+        <div class="analysis__fft" id="analysis-fft-body"></div>
+      </section>
     </div>
     <div class="analysis__lower">
-      <div class="analysis__results"></div>
-      <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details>
+      <button type="button" class="btn btn--small analysis__lowertoggle" aria-expanded="true" aria-controls="analysis-lower-body"></button>
+      <div class="analysis__lowerbody" id="analysis-lower-body"><div class="analysis__results"></div>
+      <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details></div>
     </div>
   </div>`;
   const q = (c) => el.querySelector("." + c);
@@ -69,15 +76,33 @@ export function mount(el, ctx) {
     return b;
   }
 
-  // 顯示控制：縮圖由 L5 以 command("preview.visible", bool)、FFT 以 command("fft.visible", bool) 切換；FFT 有結果時自動顯示
+  // 收折只記在本次頁面記憶體，不寫 store／不新增意圖。FFT 計算仍由工具列獨立管理。
+  const root = q("analysis"), fftSection = q("analysis__fftsection");
+  let fftOn = false, fftCollapsed = false, sideCollapsed = false, lowerCollapsed = false;
+  const sideButton = q("analysis__sidetoggle"), lowerButton = q("analysis__lowertoggle"), fftButton = q("analysis__ffttoggle");
+  function renderLayout() {
+    root.classList.toggle("analysis--side-collapsed", sideCollapsed);
+    root.classList.toggle("analysis--lower-collapsed", lowerCollapsed);
+    root.classList.toggle("analysis--fft", fftOn && !fftCollapsed);
+    fftSection.hidden = !fftOn;
+    fftSection.classList.toggle("analysis__fftsection--collapsed", fftCollapsed);
+    q("analysis__side").hidden = sideCollapsed;
+    q("analysis__lowerbody").hidden = lowerCollapsed;
+    fft.hidden = fftCollapsed;
+    sideButton.textContent = sideCollapsed ? "展開" : "收折量測欄";
+    sideButton.title = sideCollapsed ? "展開量測欄" : "收折量測欄";
+    const st = store.get(), count = st.measurements.length, peaks = st.fftResult?.peaks?.length ?? 0;
+    lowerButton.textContent = `${lowerCollapsed ? "展開" : "收折"}結果（量測 ${count}／FFT 峰值 ${peaks}）`;
+    fftButton.textContent = `${fftCollapsed ? "展開" : "收折"} FFT 窗格`;
+    for (const [button, collapsed] of [[sideButton, sideCollapsed], [lowerButton, lowerCollapsed], [fftButton, fftCollapsed]]) button.setAttribute("aria-expanded", String(!collapsed));
+  }
+  sideButton.onclick = () => { sideCollapsed = !sideCollapsed; renderLayout(); };
+  lowerButton.onclick = () => { lowerCollapsed = !lowerCollapsed; renderLayout(); };
+  fftButton.onclick = () => { fftCollapsed = !fftCollapsed; renderLayout(); };
   store.onCommand("preview.visible", (on) => { overview.hidden = !on; });
-  const showFft = (on) => {
-    fft.hidden = !on;
-    q("analysis").classList.toggle("analysis--fft", on);
-    if (on) requestAnimationFrame(() => fft.scrollIntoView({ block: "nearest" })); // 空間不足時讓 FFT 參數列進入可視範圍
-  };
-  store.onCommand("fft.visible", showFft);
-  store.on(["fftResult"], (s) => { if (s.fftResult?.ok && fft.hidden) showFft(true); });
+  store.onCommand("fft.visible", (on) => { fftOn = !!on; renderLayout(); });
+  store.on(["measurements", "fftResult"], renderLayout); // 更新數量，絕不改使用者的收折狀態
+  renderLayout();
 
   // viewport.intent 的唯一處理者
   store.onCommand("viewport.intent", (p) => { const v = cleanView(p); if (v) store.set({ view: v }, "user"); });
