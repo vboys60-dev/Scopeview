@@ -5,7 +5,7 @@ import { createStore } from "./store.js";
 import * as scales from "./scales.js";
 import * as F from "../fmt.js";
 import { createMock, CATALOG } from "../mock_backend.js";
-import { toSource, toDisplay, defaultCursors, createController, MODE_AXES } from "./cursors.js";
+import { toSource, toDisplay, defaultCursors, createController, MODE_AXES, cursorRows } from "./cursors.js";
 import { createMeasure, rangeOf, unitFor } from "./measure.js";
 import { rowState, exportable, rowCells } from "./results.js";
 import { channelRecord, csvRange, fftParams, createFft } from "./toolbar.js";
@@ -258,5 +258,22 @@ async function setup(hook) {
   await sleep(30); assert.equal(errs.length, 2, "換檔後不自動重跑");
   p.on = true; store.set({ file: null }, "program");
   assert.equal(p.on, false); assert.equal(resets, 2, "關檔也重置");
+}
+// 11. 游標表斜率：傳統／Marker 都保留正負號與來源單位，無效值留白。
+{
+  for (const kind of ["legacy", "marker"]) {
+    const row = (dx, dy, unit = "V") => cursorRows({ kind, t1: 0, t2: dx, v1: 0, v2: dy, dx, dy, unit, source: "CHAN1" }, F.fmt);
+    for (const [dx, dy, want] of [[2, 4, "2 V/s"], [-2, 4, "-2 V/s"], [2, -4, "-2 V/s"], [2, 0, "0 V/s"],
+      [0, 4, ""], [null, 4, ""], [undefined, 4, ""], [2, null, ""], [2, undefined, ""],
+      [Infinity, 4, ""], [2, Infinity, ""], [NaN, 4, ""], [2, NaN, ""], [1e-308, 1e308, ""]]) {
+      const rows = row(dx, dy);
+      assert.deepEqual(rows[7], ["ΔY/ΔX", want]);
+      assert.deepEqual(rows[8], ["換算來源", "CHAN1"]);
+      assert.equal(rows.length, kind === "marker" ? 10 : 9);
+    }
+    assert.deepEqual(row(2, 4, "A")[7], ["ΔY/ΔX", "2 A/s"]);
+    assert.deepEqual(row(2, 4, "dB")[7], ["ΔY/ΔX", "2 dB/s"]);
+  }
+  assert.deepEqual(cursorRows(null, F.fmt), []);
 }
 console.log("l5 self-check OK");

@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QGroupBox, QHBoxLayout, QHeade
                                QPushButton, QSizePolicy, QSplitter, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QTabWidget, QVBoxLayout, QWidget)
 
-from scope_tool.analysis.marker import MarkerResult
+from scope_tool.analysis.marker import MarkerResult, Position
 from scope_tool.analysis.measure import STAT_COLUMNS
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info
@@ -200,13 +200,15 @@ class ResultsPane(QWidget):
                           unit: str, source: str, channels: list[tuple[str, str, str, float, float]],
                           marker: MarkerResult | None = None) -> None:
         """v1/v2 以 source 通道換算；channels：(名稱, 顏色, 單位, @t1, @t2)。"""
-        d = marker.delta_x if marker else t2 - t1
+        d = marker.delta_x if marker else (None if t1 is None or t2 is None else t2 - t1)
         inv = marker.inverse_delta_x if marker else (1 / d if d else None)
-        dy = marker.delta_y if marker else v2 - v1
+        dy = marker.delta_y if marker else (None if v1 is None or v2 is None else v2 - v1)
         labels = ("X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY") if marker else (
                   "t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV")
         values = ((t1, "s"), (t2, "s"), (d, "s"), (inv, "Hz"), (v1, unit), (v2, unit), (dy, unit))
         rows = [[label, fmt(v, u)] for label, (v, u) in zip(labels, values)]
+        slope = (marker or MarkerResult(Position(t1, t2, v1, v2))).delta_y_over_delta_x
+        rows.append(["ΔY/ΔX", fmt(slope, f"{unit}/s" if unit else "1/s") if slope is not None else ""])
         rows.append(["換算來源", source])
         if marker:
             rows.append(["Delta To", "X1↔X2；Y1↔Y2"])
@@ -256,10 +258,19 @@ def _self_check() -> None:
     assert ("檔名", "（未存檔）") in file_info_rows(None, waves)
     pane.set_cursor_values(0.0, 1e-3, -1.0, 1.0, "V", "CHAN1", [("CHAN1", "#ffcc00", "V", 0.1, 0.3)])
     assert pane.channel_table.item(0, 3).text() == fmt(0.3 - 0.1, "V")
-    assert pane.cursor_table.item(3, 1).text() == "1 kHz" and pane.cursor_table.item(7, 1).text() == "CHAN1"
-    assert pane.cursor_table.rowCount() == 8
-    assert [pane.cursor_table.item(i, 0).text() for i in range(7)] == ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"]
+    assert pane.cursor_table.item(3, 1).text() == "1 kHz" and pane.cursor_table.item(8, 1).text() == "CHAN1"
+    assert pane.cursor_table.rowCount() == 9
+    assert [pane.cursor_table.item(i, 0).text() for i in range(8)] == ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV", "ΔY/ΔX"]
     assert [pane.channel_table.horizontalHeaderItem(i).text() for i in range(4)] == ["通道", "@t1", "@t2", "Δ(t2−t1)"]
+    assert pane.cursor_table.item(7, 1).text() == fmt(2000, "V/s")
+    for marker_mode in (False, True):
+        for x1, x2, y1, y2, want in ((0, 2, 1, 5, 2), (2, 0, 1, 5, -2), (0, 2, 1, 1, 0),
+                (0, 0, 1, 5, None), (None, 2, 1, 5, None), (0, 2, None, 5, None),
+                (0, np.inf, 1, 5, None), (0, 2, 1, np.nan, None), (0, 1e-308, 0, 1e308, None)):
+            marker = MarkerResult(Position(x1, x2, y1, y2)) if marker_mode else None
+            pane.set_cursor_values(x1, x2, y1, y2, "A", "CHAN2", [], marker=marker)
+            assert pane.cursor_table.item(7, 1).text() == (fmt(want, "A/s") if want is not None else "")
+            assert pane.cursor_table.rowCount() == (10 if marker_mode else 9)
     pane.set_fft("Δf = 1 Hz", [(1e3, -3.0)], "dBm")
     assert pane.fft_table.item(0, 1).text() == "1 kHz" and pane.fft_table.item(0, 2).text() == "-3 dBm"
     pane.resize(1200, 300)

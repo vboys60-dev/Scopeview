@@ -184,8 +184,9 @@ def _self_check() -> None:
     assert plot.vline1.value() == -1 and plot.vline2.value() == 1
     assert not plot.hline1.isVisible() and len(tab.markers.points.points()) == 2
     assert tab.results.cursor_table.item(2, 1).text() == "2 s"
-    assert tab.results.cursor_table.item(0, 0).text() == "X1" and tab.results.cursor_table.rowCount() == 9
-    assert tab.results.cursor_table.item(8, 0).text() == "Delta To" and tab.results.channel_table.rowCount() == 0
+    assert tab.results.cursor_table.item(0, 0).text() == "X1" and tab.results.cursor_table.rowCount() == 10
+    assert tab.results.cursor_table.item(9, 0).text() == "Delta To" and tab.results.channel_table.rowCount() == 0
+    assert tab.results.cursor_table.item(7, 1).text() == "2 V/s"
     # 縮放使 Track Waveforms 重新吸附移動游標時，量測與 FFT 必須失效重算（setValue 不發 sigDragged）。
     plot.setXRange(-3, 3, padding=0)
     plot.vline1.setValue(-2)

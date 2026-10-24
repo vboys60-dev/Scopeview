@@ -117,6 +117,21 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
   return Object.assign(ctl, { refresh, schedule });
 }
 
+/** 游標表讀值；ΔY/ΔX 的缺值與有限值規則對齊 analysis/marker.py。 */
+export function cursorRows(r, fmt) {
+  if (!r || r.kind === "unsupported") return [];
+  const m = r.kind === "marker", L = m ? ["X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY"] : ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"];
+  const dt = m ? r.dx : (num(r.t1) && num(r.t2) ? r.t2 - r.t1 : null), dy = m ? r.dy : (num(r.v1) && num(r.v2) ? r.v2 - r.v1 : null);
+  const inv = m ? r.inv : dt ? 1 / dt : null;
+  const f = [[r.t1, "s"], [r.t2, "s"], [dt, "s"], [inv, "Hz"], [r.v1, r.unit], [r.v2, r.unit], [dy, r.unit]];
+  const rows = L.map((l, i) => [l, fmt(f[i][0], f[i][1])]);
+  const slope = num(dt) && num(dy) && dt !== 0 ? dy / dt : null;
+  rows.push(["ΔY/ΔX", num(slope) ? fmt(slope, r.unit ? `${r.unit}/s` : "1/s") : ""]);
+  rows.push(["換算來源", r.source]);
+  if (m) rows.push(["Delta To", "X1↔X2；Y1↔Y2"]);
+  return rows;
+}
+
 export function mount(el, ctx) {
   const { store, ui, fmt } = ctx;
   el.classList.add("cursors");
@@ -138,22 +153,11 @@ export function mount(el, ctx) {
       if (document.activeElement !== boxes[k]) boxes[k].value = cursors[k] === null ? "" : k[0] === "x" ? fmt.fmt(cursors[k], "s") : String(Number(cursors[k].toFixed(3)));
     }
   }
-  const rowsOf = (r) => {
-    if (!r || r.kind === "unsupported") return [];
-    const m = r.kind === "marker", L = m ? ["X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY"] : ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"];
-    const dt = m ? r.dx : r.t2 - r.t1, dy = m ? r.dy : (r.v1 === null || r.v2 === null ? null : r.v2 - r.v1);
-    const inv = m ? r.inv : dt ? 1 / dt : null;
-    const f = [[r.t1, "s"], [r.t2, "s"], [dt, "s"], [inv, "Hz"], [r.v1, r.unit], [r.v2, r.unit], [dy, r.unit]];
-    const rows = L.map((l, i) => [l, fmt.fmt(f[i][0], f[i][1])]);
-    rows.push(["換算來源", r.source]);
-    if (m) rows.push(["Delta To", "X1↔X2；Y1↔Y2"]);
-    return rows;
-  };
   const fill = (t, head, rows) => t.replaceChildren(...[head, ...rows].filter(Boolean).map((r, i) => { const tr = h("tr"); r.forEach((c) => tr.append(h(i === 0 && head ? "th" : "td", "", c))); return tr; }));
   function render(r) {
     syncInputs();
     info.textContent = r?.kind === "unsupported" ? r.reason : r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
-    fill(tbl, null, rowsOf(r));
+    fill(tbl, null, cursorRows(r, fmt.fmt));
     const cs = store.get().channels;
     fill(chTbl, ["通道", "@t1", "@t2", "Δ(t2−t1)"], r?.kind === "legacy"
       ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [c.name, fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
