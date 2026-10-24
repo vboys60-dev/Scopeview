@@ -44,7 +44,8 @@
 - **契約 v3 先不升**（使用者決定）：要改的是 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`），不是 `scope_tool/contracts.py`（儀器契約，禁改）；只改 JSON 會讓 `l0_check.mjs`、`selfcheck_node.js`、`api.py contract_check`、`analysis_check.py` 失敗，合入須同一筆含 mock 同步＋Analysis 3 個 stub。**更正（2026-10-24）**：GUI P2 的 `view.undo`／`view.redo`／`layout.*` 是前端 `store.command` 字串，不在凍結契約內（`f2ed9ec` 已登記於 RULES.md），與 v3 無共用契約改動，不需一起升版；v3 只為 Jitter／眼圖新增 3 個 RPC。草案 `草案_Jitter眼圖Web契約.md` 已同步改成此說法（2026-10-25 確認）。
 - 建議順序：①GUI P2 先做完並 commit（它在改 `tab_analysis.js` 等 L4 檔，Jitter 面板會動同批檔）→ ②v3 一筆落地（`api_contract.json`、`web-api契約.md`、`mock_catalog.js`、`mock_backend.js`＋Analysis 3 個 stub）→ ③Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）與前端面板分開實作。
 - 草案要點：revision 以私有 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；刪等待槽；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 的 BAD_REQUEST 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、w 失鎖門檻另訂（暫 ±1500 ppm）；RMS 2 冪縮放驗收 ≤5e−15·|a|。`analysis/*` 歸 T7。
-- 待使用者下令：RMS 2 冪縮放實作（P3）、頻譜比值檢查→PLL 事件層原型、契約 v3＋Jitter／眼圖 Web 實作、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
+- RMS 2 冪縮放已完成（`ef6936f`，`analysis/rms.py`＋`measure_check.py`；公開 `measure` 在 ~1.8e308 資料會先卡在 top/base 直方圖，屬已知限制）。
+- 待使用者下令：頻譜比值檢查→PLL 事件層原型、契約 v3＋Jitter／眼圖 Web 實作、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
 
 ## Windows 打包
 
