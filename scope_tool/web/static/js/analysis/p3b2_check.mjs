@@ -14,26 +14,22 @@ import { mount as mountAxes } from './axes.js';
 const near = (a,b) => assert.ok(Math.abs(a-b)<1e-10, `${a} ≠ ${b}`);
 const ch = {name:'CHAN1',unit:'V',visible:true,scale:1,position:2,time_offset:0,t0:0,t1:10};
 assert.equal(DEFAULT_ZOOM_KIND,'horizontal'); assert.equal(FIT_DIVS,2*DIVS);
-assert.deepEqual(verticalZoom(ch,-1,3,V_TABLE),{scale:0.5,position:2});
+near(verticalZoom(ch,-1,3,V_TABLE).scale,0.4); near(verticalZoom(ch,-1,3,V_TABLE).position,2.5);
 assert.deepEqual(verticalZoom({...ch,scale:V_TABLE[0]},-4,4,V_TABLE),{scale:V_TABLE[0],position:2});
 assert.equal(verticalZoom(ch,1,1+1e-10,V_TABLE).scale,V_TABLE[0]);
 assert.equal(verticalZoom(ch,-100,100,V_TABLE).scale,V_TABLE.at(-1));
-assert.equal(verticalZoom(ch,-6,6,V_TABLE).scale,2);
+assert.equal(verticalZoom(ch,-6,6,V_TABLE).scale,1.2);
 assert.equal(verticalZoom(ch,1,1,V_TABLE),null);
 assert.equal(verticalZoom(ch,-5,5,V_TABLE).scale,1);
-assert.equal(verticalZoom({...ch,scale:0.1},-1.1,6.9,V_TABLE).scale,0.1);
-// 十格邊界的浮點尾差仍選原檔；超出容差則升檔。
-assert.equal(verticalZoom({...ch,scale:0.1},-1.1,8.9+1e-10,V_TABLE).scale,0.1);
-assert.equal(verticalZoom({...ch,scale:0.1},-1.1,8.9+1e-6,V_TABLE).scale,0.2);
+// 回報的缺陷：選框占 60% 高度時必須放大，不能吸附回原檔。
+near(verticalZoom({...ch,scale:0.2},-1,5,V_TABLE).scale,0.12);
 assert.deepEqual(ch,{name:'CHAN1',unit:'V',visible:true,scale:1,position:2,time_offset:0,t0:0,t1:10});
 assert.equal(verticalZoom({...ch,scale:NaN},-1,1,V_TABLE),null);
 for(const c of [ch,{...ch,name:'F1',derived:true,unit:'V²',scale:0.03,position:-3}]) {
   const steps=c.unit==='V'?V_TABLE:STEPS_125, patch=verticalZoom(c,-1,2,steps);
   const lo=(-1-c.position)*c.scale,hi=(2-c.position)*c.scale;
   near(-patch.position*patch.scale,(lo+hi)/2);
-  assert.ok(hi-lo<=FIT_DIVS*patch.scale+1e-12);
-  assert.ok(steps.includes(patch.scale));
-  assert.ok(steps.indexOf(patch.scale)===0 || steps[steps.indexOf(patch.scale)-1]*FIT_DIVS<hi-lo);
+  near(FIT_DIVS*patch.scale,Math.max(hi-lo,FIT_DIVS*steps[0]));
 }
 class Element {
   constructor(tag='div') {this.tagName=tag;this.children=[];this.style={};this.dataset={};this.attrs={};this.listeners={};this.classList={add(){}};}
@@ -73,15 +69,15 @@ const reset=()=>{store.set({channels:[ch,math,{...ch,name:'HIDDEN',visible:false
 // 起點與終點在圖內；純垂直拖曳完全不依賴框寬。
 store.command('view.mode','zoom');store.command('view.zoomKind','vertical');
 drag([400,150],[400,270]);
-assert.equal(store.get().channels[0].scale,0.5);assert.equal(store.get().channels[2].scale,1);
-assert.equal(store.get().channels[1].scale,0.001);
+near(store.get().channels[0].scale,0.3);assert.equal(store.get().channels[2].scale,1);
+near(store.get().channels[1].scale,0.0006);
 assert.deepEqual(store.get().view,{t0:0,t1:10});assert.equal(history.status().undo,1);
 assert.deepEqual([cursorSource(store).y1,cursorSource(store).y2],physical);
 for(const key of ['y1','y2']) near((store.get().cursors[key]-store.get().channels[0].position)*store.get().channels[0].scale,cursorSource(store)[key]);
 store.command('view.undo');assert.deepEqual(store.get().channels[0],ch);assert.equal(history.status().undo,0);
-store.command('view.redo');assert.equal(store.get().channels[0].scale,0.5);
+store.command('view.redo');near(store.get().channels[0].scale,0.3);
 reset();store.command('view.zoomKind','both');drag([300,150],[700,270]);
-assert.deepEqual(store.get().view,{t0:2.5,t1:7.5});assert.equal(store.get().channels[0].scale,0.5);assert.equal(history.status().undo,1);
+assert.deepEqual(store.get().view,{t0:2.5,t1:7.5});near(store.get().channels[0].scale,0.3);assert.equal(history.status().undo,1);
 // 歷史不得還原可見性、顏色、dx 等其他通道欄位。
 store.updateChannel(ch.name,{color:'#123456',time_offset:0.25},'user');
 store.command('view.undo');assert.deepEqual(store.get().view,{t0:0,t1:10});assert.equal(store.get().channels[0].scale,1);
@@ -92,7 +88,7 @@ reset();store.command('view.zoomKind','vertical');drag([300,150],[700,155]);asse
 assert.equal(verticalRect([ch],150,156,r,6).length,1);
 assert.equal(verticalRect([ch],-100,r.t+5,r,6).length,0);
 // Shift 暫時框選保留種類，反向拖曳、夾邊、取消與 overlay。
-store.command('view.mode','pan');drag([400,270],[400,150],{shiftKey:true});assert.equal(store.get().channels[0].scale,0.5);
+store.command('view.mode','pan');drag([400,270],[400,150],{shiftKey:true});near(store.get().channels[0].scale,0.3);
 reset();assert.deepEqual(verticalRect([ch],-100,900,r,6),verticalRect([ch],r.t,r.t+r.h,r,6));
 store.command('view.mode','zoom');
 fire('pointerdown',400,150);fire('pointermove',600,270);
