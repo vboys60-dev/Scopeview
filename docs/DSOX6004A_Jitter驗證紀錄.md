@@ -1,0 +1,27 @@
+# DSO-X 6004A Jitter 驗證紀錄（2026-10-24）
+
+> 原始波形與示波器趨勢資料在研究目錄 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore，無版本備份）：`CH1_10MHz_*.h5`、`scope_reference.json`、`scope_trend_1M.json`。
+- 訊號：10 MHz 方波於 CH1；示波器 STOP 後擷取同一筆，量測門檻 10/50/90%。
+- 第二輪：10 µs/div、1,000,000 點、10 GSa/s、約 1000 邊緣（`CH1_10MHz_1M_*.h5`）。
+- 示波器統計（σ）：N-Period 5.00 ps、+Width C2C 8.39 ps、Clock TIE 3.49 ps。
+- 離線（50% 中點）：5.72 / 9.05 / 4.01（上升緣）；sin(x)/x 內插影響 <0.4 ps。
+- 中點門檻在 0.74–0.85 V 間掃描：離線 σ 變動 4.65–5.88／7.10–9.11／3.27–4.13 ps，示波器三值皆落在範圍內。
+- 結論：兩邊時間位置在 0.2 ps 內一致；σ 差距小於門檻位置敏感度，未發現算法錯誤。Clock TIE 的參考時脈定義與 SCPI 語法未確認。
+
+## 第三輪：TIE 逐點序列（同一筆 1M 點波形，示波器 STOP）
+- 讀法：`:FUNCtion1:OPERation TRENd` → `:FUNCtion1:TRENd:NMEasurement MEAS<n>`（MEAS1=N-Period、MEAS2=+Width C2C、MEAS3=Clock TIE）→ `:WAVeform:SOURce FUNCtion1` → `:WAVeform:DATA?`（ASCii）。`:MEASure:TIEClock?` 等直接查詢無法使用。
+- 資料：1,000,000 點階梯波形，每週期保持一個值（約 1000 點），無效為 9.9E37；每區塊取中點。原始檔 `scope_trend_1M.json`。
+- 逐點對照（離線為 50% 中點、線性內插）：
+
+| 項目 | 筆數 | 相關係數 | 差異 σ | 最大差異 |
+|---|---|---|---|---|
+| +Width C2C | 998 | 0.964 | 2.43 ps | 8.8 ps |
+| Clock TIE（對上升緣）| 998 | 0.967 | 1.09 ps | 4.4 ps |
+| N-Period（N=10）| 989 | 0.894 | 2.66 ps | 8.9 ps |
+
+- Clock TIE 只用上升緣（對下降緣相關僅 0.1）；對齊錯一個週期相關即降到約 0。
+- 示波器 TIE ≈ 0.842 × 離線線性擬合 TIE − 250.7 ps（殘差 σ 0.89 ps）。偏移為參考時脈起點不同；0.84 的比例顯示其參考時脈不是整段線性擬合（可能含追蹤，**未證實**）。
+- 週期誤差序列（相鄰 TIE 差）相關 0.970，σ：示波器 5.07 ps、離線 5.84 ps。
+- 結論：邊緣時間在逐點層級與示波器相符；σ 差距來自 TIE 參考時脈定義與門檻位置，非邊緣偵測錯誤。要使 TIE 數值完全一致，須確認示波器的參考時脈定義（與 PLL 追蹤草案相關）。
+- 儀器還原：Math 函數 1 回 `OPERation ADD`、`DISPlay 0`、`NMEasurement MEAS1`；`WAVeform:SOURce CHAN1`；仍為 STOP；錯誤佇列無錯。
+- 限制：僅 10 MHz 方波、單一幅度、單一筆擷取；未驗 PRBS／眼圖／大抖動訊號。
