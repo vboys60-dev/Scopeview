@@ -25,8 +25,15 @@ export function dragRegion(mode, v, dt, tAt, minSpan) {
 export function mount(el, { store, bridge }) {
   const cache = new Map(); // name → env
   const latest = makeLatest();
-  let drag = null, W = 0, H = 0;
-  const cv = createCanvas(el, (w, h) => { W = w; H = h; draw(); load(); });
+  let drag = null, W = 0, H = 0, draggingLayout = false, missed = false, loadedWidth = 0;
+  const cv = createCanvas(el, (w, h) => {
+    W = w; H = h; draw();
+    if (w !== loadedWidth && !draggingLayout) { loadedWidth = w; load(); }
+  });
+  store.onCommand('layout.dragging', (on) => {
+    draggingLayout = on;
+    if (!on && (missed || W !== loadedWidth)) { missed = false; loadedWidth = W; load(); }
+  });
   const { canvas, ctx: g } = cv;
   const rawChannels = () => store.get().channels.filter((c) => !c.derived && c.visible);
   const full = () => fullRange(store.get().file);
@@ -51,6 +58,7 @@ export function mount(el, { store, bridge }) {
     }
   }
   function load() {
+    if (draggingLayout) { missed = true; return; }
     const s = store.get(), f = full();
     if (!f || W < 2 || s.file?.gen === undefined) return;
     const req = latest.begin(), gen = s.file.gen;

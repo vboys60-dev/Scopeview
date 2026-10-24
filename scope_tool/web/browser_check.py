@@ -161,17 +161,55 @@ def main() -> None:
         c.shot(out / "06_cursors.png")
         step("游標讀值面板有文字", lambda: c.wait("document.body.innerText.match(/ΔX|Δt|ΔT|X1/)"))
         def center_cursors() -> None:
-            result = c.js(f"(async()=>{{{prep} const v=S.state.view,w=v.t1-v.t0,mid=(v.t0+v.t1)/2;"
-                          "S.set({cursors:{x1:v.t0-w,x2:v.t0-w*0.8,y1:1,y2:-1}},'user');"
-                          "document.querySelector('.analysis__lowertoggle').click();"
-                          "const b=[...document.querySelectorAll('.analysis__chanbar button')].find(b=>b.textContent==='回中央');"
-                          "const visible=!!b&&b.getBoundingClientRect().height>0&&!b.disabled; b.click();"
-                          "const q=S.state.cursors;return {visible,hidden:document.querySelector('.analysis__lowerbody').hidden,"
-                          "center:Math.abs((q.x1+q.x2)/2-mid)/w,gap:Math.abs((q.x2-q.x1)/w-0.2),y:q.y1===1&&q.y2===-1}})()")
-            assert result["visible"] and result["hidden"] and result["y"], result
-            assert result["center"] < 1e-12 and result["gap"] < 1e-12, result
-            c.shot(out / "06_center_collapsed.png")
-            c.js("document.querySelector('.analysis__lowertoggle').click()")
+            # layout.toggle 排程 rAF；先等 aria/hidden 一致，再按實際狀態收折。
+            lower_state = "(()=>{const b=document.querySelector('.analysis__lowertoggle'),p=document.querySelector('.analysis__lowerbody');return b.getAttribute('aria-expanded')===String(!p.hidden)})()"
+            c.wait(lower_state)
+            original_hidden = c.js("document.querySelector('.analysis__lowerbody').hidden")
+            try:
+                if not original_hidden:
+                    c.js("document.querySelector('.analysis__lowertoggle').click()")
+                c.wait("document.querySelector('.analysis__lowerbody').hidden && " + lower_state)
+                # 等回中央引發的真正 RPC 完成與控制器回寫，再交棒 P2a。
+                # 不另送讀值請求、不靠固定 sleep，也不要求每次都會產生 snap 差值。
+                result = c.js("(async()=>{" + prep + """
+                    const v=S.state.view,w=v.t1-v.t0,mid=(v.t0+v.t1)/2;
+                    const originalCall=B.call;
+                    let timer, complete, fail;
+                    const done=new Promise((resolve,reject)=>{complete=resolve;fail=reject});
+                    B.call=async function(method,args) {
+                        try {
+                            const r=await originalCall.call(this,method,args);
+                            if(method==='cursor_readout') requestAnimationFrame(()=>complete(r));
+                            return r;
+                        } catch(e) { if(method==='cursor_readout') fail(e); throw e; }
+                    };
+                    try {
+                        timer=setTimeout(()=>fail(Error('回中央讀值未完成')),10000);
+                        S.command('cursor.intent',{which:'x1',value:v.t0-w});
+                        S.command('cursor.intent',{which:'x2',value:v.t0-w*0.8});
+                        S.command('cursor.intent',{which:'y1',value:1});
+                        S.command('cursor.intent',{which:'y2',value:-1});
+                        const b=[...document.querySelectorAll('.analysis__chanbar button')].find(b=>b.textContent==='回中央');
+                        const visible=!!b&&b.getBoundingClientRect().height>0&&!b.disabled;
+                        if(!visible) throw Error('回中央按鈕不可用');
+                        b.click();
+                        const q=S.state.cursors;
+                        const result={visible,hidden:document.querySelector('.analysis__lowerbody').hidden,
+                            center:Math.abs((q.x1+q.x2)/2-mid)/w,gap:Math.abs((q.x2-q.x1)/w-0.2),y:q.y1===1&&q.y2===-1};
+                        await done;
+                        return result;
+                    } finally {clearTimeout(timer);B.call=originalCall;}
+                })()""")
+                assert result["visible"] and result["hidden"] and result["y"], result
+                assert result["center"] < 1e-12 and result["gap"] < 1e-12, result
+                c.shot(out / "06_center_collapsed.png")
+            finally:
+                # 即使斷言失敗仍還原，避免 step() 繼續後續案例時殘留 B 狀態。
+                c.wait(lower_state)
+                if c.js("document.querySelector('.analysis__lowerbody').hidden") != original_hidden:
+                    c.js("document.querySelector('.analysis__lowertoggle').click()")
+                expected = "true" if original_hidden else "false"
+                c.wait(f"document.querySelector('.analysis__lowerbody').hidden === {expected} && " + lower_state)
         step("B 區收折仍可回中央並保留間距", center_cursors)
         # P2a：送真實滑鼠事件，驗範圍與只改 view；JS 區塊不用 f-string 避免括號誤植。
         def p2a_view() -> None:
@@ -193,7 +231,7 @@ def main() -> None:
             span = before["view"]["t1"] - before["view"]["t0"]
             for k, fraction in (("t0", 0.2), ("t1", 0.7)):
                 assert abs(after["view"][k] - (before["view"]["t0"] + fraction * span)) < span * 0.003, (before, after)
-            assert after["channels"] == before["channels"] and after["cursors"] == before["cursors"], after
+            assert after["channels"] == before["channels"] and after["cursors"] == before["cursors"], (before["channels"], before["cursors"], after)
             c.js("(" + click + ")('↶')")
             undone = c.js(snapshot)
             assert undone["view"] == before["view"], (before, undone)
@@ -226,25 +264,57 @@ def main() -> None:
             c.pump(1)
         step("FFT", fft)
         c.shot(out / "08_fft.png")
-        # 880×700：側欄保留內容高度與 30vh 上限，FFT 開關皆採自然結果區高度。
-        def narrow_layout() -> None:
-            c.send("Emulation.setDeviceMetricsOverride", width=880, height=700, deviceScaleFactor=1, mobile=False)
-            for on in (True, False):
-                c.js(f"(async()=>{{{prep} S.command('fft.visible', {str(on).lower()})}})()")
-                c.pump(0.4)
-                dims = c.js("(()=>{const side=document.querySelector('.analysis__side'),lower=document.querySelector('.analysis__lower');"
-                            "return {side:side.getBoundingClientRect().height,flex:getComputedStyle(side).flex,"
-                            "max:getComputedStyle(side).maxHeight,lower:lower.getBoundingClientRect().height}})()")
-                assert 26 < dims["side"] <= 210, dims
-                assert dims["flex"] == "0 1 auto" and dims["max"] == "210px", dims
-                before = dims["lower"]
-                c.js("document.querySelector('.analysis__lower').style.height='auto'")
-                after = c.js("document.querySelector('.analysis__lower').getBoundingClientRect().height")
-                c.js("document.querySelector('.analysis__lower').style.height=''")
-                assert abs(before - after) < 0.1, (before, after)
-                print(f"880×700 FFT={on}: {dims}, height:auto={after}")
-            c.shot(out / "880x700.png")
-        step("880×700 窄版側欄與 FFT 結果區", narrow_layout)
+        # P2b：實測容器／繪圖高度、分頁、拖曳與共用收折狀態。
+        def layout_check() -> None:
+            for width, height in ((1360, 860), (900, 600)):
+                c.send("Emulation.setDeviceMetricsOverride", width=width, height=height, deviceScaleFactor=2, mobile=False)
+                c.js(f"(async()=>{{{prep} for(const k of ['side','lower','fft'])S.command('layout.reset',k);S.command('fft.visible',true)}})()")
+                c.pump(0.5)
+                dims = c.js("(()=>{const q=s=>document.querySelector('.analysis__'+s),h=s=>q(s).getBoundingClientRect().height;"
+                            "return {main:h('main')-30,fft:h('fftplot'),side:q('sidepanel').getBoundingClientRect().width,"
+                            "tabs:!q('plotTabs').hidden,tabHeight:h('plotTabs'),dpr:q('main').querySelector('canvas').width/q('main').clientWidth}})()")
+                assert dims["main"] >= 240 and dims["tabs"] == (width == 900), dims
+                assert abs(dims["dpr"] - 2) < 0.02, dims
+                if width == 1360:
+                    c.js(f"(async()=>{{{prep} S.command('fft.visible',false)}})()")
+                    c.pump(0.2)
+                    assert c.js("!document.querySelector('.analysis__overview').hidden")
+                    c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
+                    c.pump(0.2)
+                    c.js("document.querySelector('.analysis__lowertoggle').click()")
+                    c.pump(0.2)
+                    assert c.js("document.querySelector('.analysis__lower').getBoundingClientRect().height") >= 120
+                    c.js(f"(async()=>{{{prep} S.command('layout.reset','lower')}})()")
+                    c.pump(0.2)
+                    assert dims["fft"] >= 120, dims
+                    for kind, delta in (("side", 30), ("fft", -30), ("lower", -30)):
+                        c.js(f"(async()=>{{{prep} S.command('fft.visible',{str(kind != 'lower').lower()});S.command('layout.resize',{{kind:'{kind}',value:180}})}})()")
+                        c.pump(0.2)
+                        box = c.js(f"(()=>{{const e=document.querySelector('.analysis__splitter--{kind}'),r=e.getBoundingClientRect();return {{x:r.left+2,y:r.top+(e.classList.contains('analysis__splitter--side')?40:r.height/2),v:+e.getAttribute('aria-valuenow')}}}})()")
+                        c.mouse("mousePressed", box["x"], box["y"])
+                        c.mouse("mouseMoved", box["x"] + (delta if kind == "side" else 0), box["y"] + (0 if kind == "side" else delta), buttons=1)
+                        c.pump(0.2)
+                        c.mouse("mouseReleased", box["x"] + (delta if kind == "side" else 0), box["y"] + (0 if kind == "side" else delta))
+                        now = c.js(f"+document.querySelector('.analysis__splitter--{kind}').getAttribute('aria-valuenow')")
+                        assert now > box["v"] and now >= (180 if kind == "side" else 160 if kind == "fft" else 120), (kind, box, now)
+                        assert c.js("document.querySelector('.analysis__main').getBoundingClientRect().height-30") >= 240
+                        if kind != "lower":
+                            assert c.js("document.querySelector('.analysis__fftplot').getBoundingClientRect().height") >= 120
+                else:
+                    assert dims["side"] == 36 and dims["tabHeight"] >= 28, dims
+                    c.js("document.querySelector('[data-pane=fft]').click()")
+                    c.pump(0.2)
+                    assert c.js("document.querySelector('.analysis__fftplot').getBoundingClientRect().height") >= 120
+                    c.js("document.querySelector('[data-pane=wave]').click()")
+                c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
+                for kind, body in (("side", "side"), ("lower", "lowerbody"), ("fft", "fft")):
+                    if kind == "fft" and width == 900:
+                        continue  # 分頁共用空間，FFT splitter 禁用
+                    c.js(f"document.querySelector('.analysis__splitter--{kind} button').click()")
+                    c.pump(0.2)
+                    assert c.js(f"(()=>{{const b=document.querySelector('.analysis__splitter--{kind} button');return (b.getAttribute('aria-expanded')==='false')===document.querySelector('.analysis__{body}').hidden}})()")
+                c.shot(out / f"layout_{width}x{height}.png")
+        step("P2b 多尺寸／splitter／DPR／共用收折", layout_check)
         # NaN 缺口 CSV
         nanp = Path(prof) / "nan.csv"
         nanp.write_text("Time(s),CH1(V)\n" + "".join(f"{i * 1e-6},{'nan' if 40 <= i < 60 else (i % 20) / 10}\n" for i in range(200)), "utf-8")

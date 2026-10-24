@@ -35,8 +35,15 @@ export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
-  let rect = layoutRect(1, 1), warned = 0, gestures = null;
-  const cv = createCanvas(el, (w, h) => { rect = layoutRect(w, h); draw(); fetchSoon(); });
+  let rect = layoutRect(1, 1), warned = 0, gestures = null, draggingLayout = false, missed = false, lastWidth = 0;
+  const cv = createCanvas(el, (w, h) => {
+    rect = layoutRect(w, h); draw();
+    if (w !== lastWidth && !draggingLayout) { lastWidth = w; fetchSoon(); }
+  });
+  store.onCommand('layout.dragging', (on) => {
+    draggingLayout = on;
+    if (!on) { const [w] = cv.size(); if (missed || w !== lastWidth) { missed = false; lastWidth = w; fetchSoon(); } }
+  });
   const { canvas, ctx: g } = cv;
 
   const Xmap = (v) => linear(v.t0, v.t1, rect.l, rect.l + rect.w);
@@ -83,6 +90,7 @@ export function mount(el, ctx) {
   }
 
   function fetchNow() {
+    if (draggingLayout) { missed = true; return; }
     const s = store.get(), gen = s.file?.gen, px = Math.min(16384, Math.max(2, Math.round(rect.w)));
     if (gen === undefined || rect.w < 2) return;
     for (const c of fetchTargets(s)) {

@@ -136,6 +136,8 @@ export function mount(el, ctx) {
   const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
   loaded.push(bClose, bInfo, bMath, bCsv, marker, bReset);
   const prev = h("input", "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
+  store.onCommand('layout.state', (s) => { prev.checked = s.overview; });
+  store.command('layout.query');
   el.append(bOpen, bClose, bInfo, bReset, fieldOf("預覽", prev), fieldOf("Marker", marker), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
 
   // ── FFT ──

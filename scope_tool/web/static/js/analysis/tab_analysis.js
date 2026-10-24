@@ -3,6 +3,8 @@
 import { autoScale } from "./scales.js";
 import { bindViewport } from "./gestures.js";
 import { fullRange } from "./overview.js";
+import { clampLayout, loadPrefs, savePrefs, validatePrefs, resetPref } from "./layout.js";
+import { mountSplitter } from "./splitter.js";
 
 const FALLBACK_COLORS = ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"];
 
@@ -27,6 +29,32 @@ export const cleanView = (p) => (p && Number.isFinite(p.t0) && Number.isFinite(p
 // L5 模組與掛載點（缺檔時顯示佔位）。cursors.js 無自己的區塊，掛在隱藏容器。
 const L5 = [["toolbar", "./toolbar.js", "analysis__toolbar"], ["measure", "./measure.js", "analysis__side"],
   ["chanbar", "./chanbar.js", "analysis__chanbar"], ["results", "./results.js", "analysis__results"], ["cursors", "./cursors.js", "analysis__cursors"]];
+
+// 產品與自檢共用 command 接線；起點永遠取偏好，不把自動退讓當成使用者設定。
+export function bindLayoutCommands(store, { schedule, dragging = () => {}, initial = loadPrefs(), persist = savePrefs, viewport = () => innerWidth }) {
+  let prefs = initial, effective, drawerOpen = false;
+  const change = (p) => { const overview = p.overview; prefs = { ...validatePrefs(p), overview }; persist(prefs); schedule(); };
+  const valid = (kind) => ['side','lower','fft'].includes(kind);
+  const state = (kind) => {
+    const e = effective, value = prefs[kind] ?? (kind === 'side' ? 240 : kind === 'lower' ? 180 : 180);
+    const shown = kind === 'side' ? (e.drawer ? e.drawerWidth : e.side) : e[kind];
+    const max = kind === 'side' ? 360 : shown + Math.max(0,e.main-270);
+    return { value, max, collapsed:e[kind+'Collapsed'], disabled:kind === 'fft' && e.tabbed, prefs };
+  };
+  store.onCommand('layout.resize', ({ kind, value }) => { if (valid(kind) && !state(kind).disabled) change({ ...prefs,[kind]:value,[kind+'Collapsed']:false }); });
+  store.onCommand('layout.toggle', (kind) => {
+    if (!valid(kind) || state(kind).disabled) return;
+    if (kind === 'side' && viewport() <= 899) { drawerOpen = !drawerOpen; schedule(); }
+    else change({ ...prefs,[kind+'Collapsed']:!effective[kind+'Collapsed'] });
+  });
+  store.onCommand('layout.reset', (kind) => { if (valid(kind)) { if (kind === 'side') drawerOpen = false; change(resetPref(prefs,kind)); } });
+  store.onCommand('layout.restore', change);
+  store.onCommand('layout.dragging', dragging);
+  store.onCommand('preview.visible', (on) => { prefs = { ...prefs,overview:!!on }; schedule(); });
+  store.onCommand('layout.query', () => { if (effective) store.command('layout.state',{ overview:!!effective.overview }); });
+  return { state, get prefs() { return prefs; }, get drawerOpen() { return drawerOpen; },
+    update(e) { effective = e; store.command('layout.state',{ overview:!!e.overview }); } };
+}
 
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
@@ -80,33 +108,65 @@ export function mount(el, ctx) {
     return b;
   }
 
-  // 收折只記在本次頁面記憶體，不寫 store／不新增意圖。FFT 計算仍由工具列獨立管理。
+  // 原 P1 按鈕移入 splitter，只有同一份偏好與 effective 狀態。
   const root = q("analysis"), fftSection = q("analysis__fftsection");
-  let fftOn = false, fftCollapsed = false, sideCollapsed = false, lowerCollapsed = false;
-  const sideButton = q("analysis__sidetoggle"), lowerButton = q("analysis__lowertoggle"), fftButton = q("analysis__ffttoggle");
-  function renderLayout() {
-    root.classList.toggle("analysis--side-collapsed", sideCollapsed);
-    root.classList.toggle("analysis--lower-collapsed", lowerCollapsed);
-    root.classList.toggle("analysis--fft", fftOn && !fftCollapsed);
-    fftSection.hidden = !fftOn;
-    fftSection.classList.toggle("analysis__fftsection--collapsed", fftCollapsed);
-    q("analysis__side").hidden = sideCollapsed;
-    q("analysis__lowerbody").hidden = lowerCollapsed;
-    fft.hidden = fftCollapsed;
-    sideButton.textContent = sideCollapsed ? "展開" : "收折量測欄";
-    sideButton.title = sideCollapsed ? "展開量測欄" : "收折量測欄";
-    const st = store.get(), count = st.measurements.length, peaks = st.fftResult?.peaks?.length ?? 0;
-    lowerButton.textContent = `${lowerCollapsed ? "展開" : "收折"}結果（量測 ${count}／FFT 峰值 ${peaks}）`;
-    fftButton.textContent = `${fftCollapsed ? "展開" : "收折"} FFT 窗格`;
-    for (const [button, collapsed] of [[sideButton, sideCollapsed], [lowerButton, lowerCollapsed], [fftButton, fftCollapsed]]) button.setAttribute("aria-expanded", String(!collapsed));
+  let fftOn = false, effective, frame = 0, activeTab = 'wave';
+  const controller = bindLayoutCommands(store,{ schedule, dragging:(on) => { root.dataset.dragging = String(on); } });
+  const buttons = { side:q('analysis__sidetoggle'), lower:q('analysis__lowertoggle'), fft:q('analysis__ffttoggle') };
+  const tabs = document.createElement('div'); tabs.className = 'analysis__plotTabs'; tabs.setAttribute('role','tablist');
+  tabs.innerHTML = '<button type="button" role="tab" data-pane="wave">波形</button><button type="button" role="tab" data-pane="fft">FFT</button>';
+  q('analysis__plot').insertBefore(tabs,q('analysis__main'));
+  tabs.onclick = (e) => { if (e.target.dataset.pane) { activeTab = e.target.dataset.pane; schedule(); } };
+  const state = controller.state;
+  const splitters = {};
+  for (const kind of ['side','lower','fft']) {
+    const host = document.createElement('div');
+    if (kind === 'side') root.append(host);
+    else if (kind === 'lower') q('analysis__lower').prepend(host);
+    else fftSection.prepend(host);
+    splitters[kind] = mountSplitter(host,{ kind, button:buttons[kind], store, getState:() => state(kind) });
   }
-  sideButton.onclick = () => { sideCollapsed = !sideCollapsed; renderLayout(); };
-  lowerButton.onclick = () => { lowerCollapsed = !lowerCollapsed; renderLayout(); };
-  fftButton.onclick = () => { fftCollapsed = !fftCollapsed; renderLayout(); };
-  store.onCommand("preview.visible", (on) => { overview.hidden = !on; });
-  store.onCommand("fft.visible", (on) => { fftOn = !!on; renderLayout(); });
-  store.on(["measurements", "fftResult"], renderLayout); // 更新數量，絕不改使用者的收折狀態
-  renderLayout();
+  function schedule() { if (!frame) frame = requestAnimationFrame(renderLayout); }
+  function renderLayout() {
+    frame = 0;
+    const H = Math.max(0,root.clientHeight-q('analysis__toolbar').getBoundingClientRect().height-8);
+    const chrome = q('analysis__chanbar').getBoundingClientRect().height+28;
+    effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, drawerOpen:controller.drawerOpen, fftOn, chrome });
+    controller.update(effective);
+    const e = effective, plot = q('analysis__plot');
+    root.style.gridTemplateColumns = `${e.side}px 10px minmax(0,1fr)`;
+    root.style.gridTemplateRows = `auto minmax(0,1fr) ${e.lower}px`;
+    root.classList.toggle('analysis--side-collapsed',e.sideCollapsed);
+    root.classList.toggle('analysis--drawer',e.drawer);
+    root.style.setProperty('--side-drawer-width',e.drawerWidth+'px');
+    root.classList.toggle('analysis--lower-collapsed',e.lowerCollapsed);
+    root.classList.toggle('analysis--fft',fftOn && !e.fftCollapsed);
+    root.dataset.tabbed = String(e.tabbed);
+    q('analysis__side').hidden = e.sideCollapsed;
+    q('analysis__lowerbody').hidden = e.lowerCollapsed;
+    q('analysis__lower').style.height = e.lower+'px';
+    overview.hidden = !e.overview; overview.style.height = e.overview+'px';
+    tabs.hidden = !e.tabbed;
+    const waveHidden = e.tabbed && activeTab === 'fft';
+    q('analysis__main').hidden = waveHidden; q('analysis__horizontal').hidden = waveHidden;
+    q('analysis__main').style.height = e.main+'px';
+    // 分頁共用同一塊空間；Horizontal 列在頻譜分頁留在尺寸預算內。
+    fftSection.hidden = !fftOn || (e.tabbed && activeTab !== 'fft');
+    fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
+    plot.style.overflowY = e.scroll ? 'auto' : 'hidden';
+    for (const tab of tabs.children) tab.setAttribute('aria-selected',String(tab.dataset.pane === activeTab));
+    const st = store.get();
+    buttons.side.textContent = e.sideCollapsed ? '›' : '‹'; buttons.side.title = e.sideCollapsed ? '展開量測欄' : '收折量測欄';
+    buttons.side.setAttribute('aria-label',buttons.side.title);
+    buttons.lower.textContent = `${e.lowerCollapsed ? '▴ 展開' : '▾ 收折'}結果（量測 ${st.measurements.length}／FFT 峰值 ${st.fftResult?.peaks?.length ?? 0}／ΔX ${Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? (st.cursors.x2-st.cursors.x1).toPrecision(4)+' s' : '—'}）`;
+    buttons.fft.textContent = `${e.fftCollapsed ? '▾ 展開' : '▴ 收折'} FFT 窗格`;
+    for (const kind of ['side','lower','fft']) splitters[kind].update(state(kind));
+  }
+  store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
+  store.on(['measurements','fftResult','cursors'],schedule);
+  const observer = new ResizeObserver(schedule);
+  for (const host of [root,q('analysis__toolbar'),q('analysis__chanbar')]) observer.observe(host);
+  schedule();
 
   // 開檔流程：file.open {path?}；未給路徑則用 ui.pickPath。序列化：進行中再開檔一律忽略並提示；
   // store.opening 在開檔期間為 true（toolbar 據此禁用關檔／開檔）。

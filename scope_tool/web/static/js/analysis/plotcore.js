@@ -145,8 +145,9 @@ export function createCanvas(host, onResize, cls = "plot__canvas") {
   canvas.className = cls;
   host.append(canvas);
   const ctx = canvas.getContext("2d");
-  let w = 0, h = 0;
+  let w = 0, h = 0, frame = 0, disposed = false;
   const fit = () => {
+    frame = 0; if (disposed) return;
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     w = Math.max(0, Math.round(r.width)); h = Math.max(0, Math.round(r.height));
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
@@ -155,10 +156,25 @@ export function createCanvas(host, onResize, cls = "plot__canvas") {
     if (w && h) onResize(w, h);
   };
   // 一律非同步呼叫 fit：呼叫端的 const cv = createCanvas(...) 尚未完成指派前，callback 不得被執行
-  const ro = new ResizeObserver(() => queueMicrotask(fit));
+  const schedule = () => {
+    if (typeof requestAnimationFrame !== 'function') { queueMicrotask(fit); return; }
+    if (!frame) frame = requestAnimationFrame(fit);
+  };
+  const ro = new ResizeObserver(schedule);
+  // 跨螢幕 DPR 改變通常伴隨 resize；重新訂閱 resolution 補上僅 DPR 改變的情形。
+  let media;
+  const dprChanged = () => {
+    media?.removeEventListener?.('change',dprChanged);
+    media = window.matchMedia?.(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    media?.addEventListener?.('change',dprChanged); schedule();
+  };
+  dprChanged(); window.addEventListener?.('resize',schedule);
   ro.observe(host);
   queueMicrotask(fit);
-  return { canvas, ctx, size: () => [w, h], dispose: () => ro.disconnect() };
+  return { canvas, ctx, size: () => [w, h], dispose: () => {
+    disposed = true; ro.disconnect(); if (frame) cancelAnimationFrame(frame);
+    window.removeEventListener?.('resize',schedule); media?.removeEventListener?.('change',dprChanged);
+  } };
 }
 
 /** 通用：畫格線與座標軸文字。xt/yt＝[{p:像素, label}]；rect＝{l,t,w,h}。 */
