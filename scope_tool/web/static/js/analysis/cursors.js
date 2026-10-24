@@ -157,7 +157,7 @@ export function mount(el, ctx) {
   el.classList.add("cursors");
   const info = h("div", "muted"), inputs = h("div", "row"), tbl = h("table", "table table--num"), chTbl = h("table", "table table--num");
   const boxes = {};
-  for (const [k, label] of [["x1", "X1"], ["x2", "X2"], ["y1", "Y1"], ["y2", "Y2"]]) {
+  for (const [k, label] of [["x1", "X1"], ["x2", "X2"], ["y1", "Y1(格)"], ["y2", "Y2(格)"]]) {
     const i = h("input", "input"); i.style.width = "7em"; i.title = k[0] === "x" ? `${label}（時間，如 1.5m）` : `${label}（格數）`;
     i.onchange = () => {
       const t = i.value.trim(), v = t === "" ? null : k[0] === "x" ? fmt.parseSI(t) : Number(t);

@@ -3,7 +3,7 @@
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 
-const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs"];
+const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs", "analysis/p2b2_check.mjs"];
 for (const f of FILES) {
   const r = spawnSync(process.execPath, [path.join(__dirname, f)], { encoding: "utf8" });
   process.stdout.write(r.stdout);
@@ -33,6 +33,8 @@ const checks = spawnSync(process.execPath, ["--input-type=module", "-e", `
     const fine = timeTickLabels(center - 5e-10, center + 5e-10);
     assert.equal(new Set(fine).size, 11);
     assert.equal(fine[5], center + " s");
+    assert.equal(fine[6], "+100 ps");
+    assert.equal(fine[4], "-100 ps");
     assert.ok(fine[4].startsWith("-") && fine[6].startsWith("+"));
     console.log("100 ps/div: " + fine.join(" | "));
   }
