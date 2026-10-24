@@ -140,7 +140,7 @@ TIE 斷線規則僅限時脈型：格距>step 處，在遞增的時間陣列插�
 
 ## 6. 後續改動位置與擁有權（僅列提案）
 
-須由 lead 解凍後逐檔落地；以下未實際修改。v3 變更屬 L0 Web 契約（`RULES.md:70`）：`docs/web-api契約.md`、`scope_tool/web/static/api_contract.json`、`scope_tool/web/static/js/{mock_catalog,mock_backend}.js`、`scope_tool/web/static/js/l0_*.mjs`；既有 Range／Stats／PathResult 沿用。`scope_tool/contracts.py` 是儀器契約，依 `RULES.md:11` 禁改，保持不變。只改 JSON 會使 `l0_check.mjs:14/24/28`、`selfcheck_node.js`、`api.py` 的 `contract_check`、`analysis_check.py:30` 失敗；合入 main 須同一筆包含 mock 同步與 Analysis 的 `jitter_eval`／`eye_density`／`export_timing` 三個同簽章 stub 方法。v3 與 GUI P2 新 command（`view.undo`／`view.redo`／`layout.*`）一併規劃，避免連升兩次版。`analysis/*` 歸 T7 執行，Web lane 唯讀（`RULES.md:52、81`）；`ui/*` 同樣對 Web lane 唯讀。本輪明確不改 `web/static/js`、CSS 等前端實作；前端接線與自檢均為後續工作。
+須由 lead 解凍後逐檔落地；以下未實際修改。v3 變更屬 L0 Web 契約（`RULES.md:70`）：`docs/web-api契約.md`、`scope_tool/web/static/api_contract.json`、`scope_tool/web/static/js/{mock_catalog,mock_backend}.js`、`scope_tool/web/static/js/l0_*.mjs`；既有 Range／Stats／PathResult 沿用。`scope_tool/contracts.py` 是儀器契約，依 `RULES.md:11` 禁改，保持不變。只改 JSON 會使 `l0_check.mjs:14/24/28`、`selfcheck_node.js`、`api.py` 的 `contract_check`、`analysis_check.py:30` 失敗；合入 main 須同一筆包含 mock 同步與 Analysis 的 `jitter_eval`／`eye_density`／`export_timing` 三個同簽章 stub 方法。GUI P2 的 `view.undo`／`view.redo`／`layout.*` 屬前端 `store.command`，不在凍結契約內（`RULES.md` 已登記），與 v3 無共用改動、不需一併升版；順序為 GUI P2 先 commit，再一筆落地 v3（HANDOFF.md）。`analysis/*` 歸 T7 執行，Web lane 唯讀（`RULES.md:52、81`）；`ui/*` 同樣對 Web lane 唯讀。本輪明確不改 `web/static/js`、CSS 等前端實作；前端接線與自檢均為後續工作。
 
 | 既有檔案 | 擁有者／擬改動點與行數控制 |
 |---|---|

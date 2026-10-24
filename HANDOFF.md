@@ -39,7 +39,8 @@
 
 - 已 commit：`1014c05` 游標表 ΔY/ΔX（Web `cursors.js`＋Qt `analysis_results.py`，空單位顯示 `1/s`）；`52b5c90` `marker.py` versus 模式不給斜率；`e928c31`、`4b7840d` 兩份草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`（Opus 兩輪複審後修訂，僅文件）；`35fd551`、`4b7840d` `docs/DSOX6004A_Jitter驗證紀錄.md`。
 - DSO-X 6004A 驗證（10 MHz 方波）：Clock TIE 只用上升緣；示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps；σ 對 50% 中點門檻極敏感。先前「參考時脈可能含追蹤」證據不足（恆等式，σ 比與頻率無關），PLL 開工前先用 `scope_trend_1M.json` 比對頻譜比值。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
-- **契約 v3 先不升**（使用者決定）：要改的是 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`），不是 `scope_tool/contracts.py`（儀器契約，禁改）；只改 JSON 會讓 `l0_check.mjs`、`selfcheck_node.js`、`api.py contract_check`、`analysis_check.py` 失敗，合入須同一筆含 mock 同步＋Analysis 3 個 stub。**建議與 GUI P2 的新 command 一起升一次版**。
+- **契約 v3 先不升**（使用者決定）：要改的是 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`），不是 `scope_tool/contracts.py`（儀器契約，禁改）；只改 JSON 會讓 `l0_check.mjs`、`selfcheck_node.js`、`api.py contract_check`、`analysis_check.py` 失敗，合入須同一筆含 mock 同步＋Analysis 3 個 stub。**更正（2026-10-24）**：GUI P2 的 `view.undo`／`view.redo`／`layout.*` 是前端 `store.command` 字串，不在凍結契約內（`f2ed9ec` 已登記於 RULES.md），與 v3 無共用契約改動，不需一起升版；v3 只為 Jitter／眼圖新增 3 個 RPC。草案 `草案_Jitter眼圖Web契約.md` 內「與 GUI P2 一起規劃 v3」的字句已過時（待改）。
+- 建議順序：①GUI P2 先做完並 commit（它在改 `tab_analysis.js` 等 L4 檔，Jitter 面板會動同批檔）→ ②v3 一筆落地（`api_contract.json`、`web-api契約.md`、`mock_catalog.js`、`mock_backend.js`＋Analysis 3 個 stub）→ ③Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）與前端面板分開實作。
 - 草案要點：revision 以私有 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；刪等待槽；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 的 BAD_REQUEST 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、w 失鎖門檻另訂（暫 ±1500 ppm）；RMS 2 冪縮放驗收 ≤5e−15·|a|。`analysis/*` 歸 T7。
 - 待使用者下令：RMS 2 冪縮放實作（P3）、頻譜比值檢查→PLL 事件層原型、契約 v3＋Jitter／眼圖 Web 實作、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
 
