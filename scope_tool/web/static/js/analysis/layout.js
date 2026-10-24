@@ -32,7 +32,7 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   const sideCollapsed = narrow ? !drawer : (p.sideCollapsed ?? vw < 1100);
   const side = narrow || sideCollapsed ? 36 : p.side;
   let lowerCollapsed = p.lowerCollapsed ?? (vh <= 700 && fftOn);
-  let lower = lowerCollapsed ? 0 : (p.lower ?? clip(H * .23,160,200)) - 28;
+  let lower = lowerCollapsed ? 0 : (p.lower ?? clip(H * .21,150,180)) - 28;
   let overview = (prefs?.overview ?? vh > 700) ? (fftOn ? 40 : 56) : 0;
   const fftCollapsed = p.fftCollapsed;
   const separators = 28 + (fftOn ? 28 : 0);

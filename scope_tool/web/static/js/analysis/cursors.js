@@ -155,16 +155,16 @@ export function cursorRows(r, fmt) {
 export function mount(el, ctx) {
   const { store, ui, fmt } = ctx;
   el.classList.add("cursors");
-  const info = h("div", "muted"), inputs = h("div", "row"), tbl = h("table", "table table--num"), chTbl = h("table", "table table--num");
+  const info = h("div", "muted"), inputs = h("div", "cursors__inputs"), tbl = h("div", "cursors__readout"), chTbl = h("table", "table table--num");
   const boxes = {};
   for (const [k, label] of [["x1", "X1"], ["x2", "X2"], ["y1", "Y1(格)"], ["y2", "Y2(格)"]]) {
-    const i = h("input", "input"); i.style.width = "7em"; i.title = k[0] === "x" ? `${label}（時間，如 1.5m）` : `${label}（格數）`;
+    const i = h("input", "input"); i.title = k[0] === "x" ? `${label}（時間，如 1.5m）` : `${label}（格數）`;
     i.onchange = () => {
       const t = i.value.trim(), v = t === "" ? null : k[0] === "x" ? fmt.parseSI(t) : Number(t);
       if (v === null || Number.isFinite(v)) store.command("cursor.intent", { which: k, value: v }); else syncInputs();
     };
     boxes[k] = i;
-    const f = h("label", "field", label + " "); f.append(i); inputs.append(f);
+    const f = h("label", `cursors__field cursors__field--${k[0]}`, label + " "); f.append(i); inputs.append(f);
   }
   function syncInputs() {
     const { cursors, markerMode } = store.get(), ax = MODE_AXES(markerMode);
@@ -177,14 +177,21 @@ export function mount(el, ctx) {
   function render(r) {
     syncInputs();
     info.textContent = r?.kind === "unsupported" ? r.reason : r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
-    fill(tbl, null, cursorRows(r, fmt.fmt));
+    info.hidden = !info.textContent;
+    const rows = cursorRows(r, fmt.fmt);
+    source.title = `換算來源：${r?.source ?? '—'}`; source.setAttribute('aria-label',source.title);
+    tbl.replaceChildren(...rows.filter(([label]) => label !== '換算來源').map(([label,value],i) => {
+      const cell = h("div", `cursors__value${i === 4 ? " cursors__value--newrow" : ""}`);
+      cell.append(h("span", "muted", label), h("span", "cursors__number", value)); return cell;
+    }));
     const cs = store.get().channels;
     fill(chTbl, ["通道", "@t1", "@t2", "Δ(t2−t1)"], r?.kind === "legacy"
       ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [c.name, fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
   }
   createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
   store.on(["cursors", "markerMode"], syncInputs);
-  inputs.append(centerButton(store));
-  el.append(inputs, info, tbl, chTbl);
+  const source = h('span','results__info','ⓘ'); source.tabIndex = 0;
+  inputs.append(centerButton(store),source);
+  el.append(inputs, info, chTbl, tbl);
   render(null);
 }

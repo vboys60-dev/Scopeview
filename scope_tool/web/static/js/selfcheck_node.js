@@ -3,7 +3,7 @@
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 
-const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs", "analysis/p2b_check.mjs", "analysis/p2b2_check.mjs"];
+const FILES = ["l0_check.mjs", "l2_check.mjs", "l3_check.mjs", "analysis/l4_check.mjs", "analysis/l5_check.mjs", "analysis/p1_check.mjs", "analysis/p2_check.mjs", "analysis/p2b_check.mjs", "analysis/p2b2_check.mjs", "analysis/p2b3_check.mjs"];
 for (const f of FILES) {
   const r = spawnSync(process.execPath, [path.join(__dirname, f)], { encoding: "utf8" });
   process.stdout.write(r.stdout);

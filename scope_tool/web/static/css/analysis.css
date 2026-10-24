@@ -17,10 +17,9 @@
 .analysis__fftbar .field { flex-direction: row; align-items: center; margin-bottom: 0; font-size: 12px; line-height: 16px; }
 .analysis__fftbar .input, .analysis__fftbar .select { height: 24px; font-size: 12px; }
 .analysis__fftplot { flex: 1 0 120px; min-height: 120px; position: relative; }
-.analysis__lower { grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.analysis__lower { font-size: 13px; grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .analysis__lowerbody { flex: 1 1 0; min-height: 0; display: flex; gap: 8px; overflow: auto; }
 .analysis__lower .analysis__results { flex: 1 1 0; min-width: 0; max-height: none; overflow: auto; }
-.analysis__cursorbox { font-size: var(--fs-sm, 12px); border: 1px solid var(--c-border, #ddd); border-radius: var(--radius, 4px); flex: 0 1 38%; min-width: 220px; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--c-surface); }
 .plot__canvas { position: absolute; inset: 0; display: block; touch-action: none; user-select: none; }
 .plot__overlay { position: absolute; right: 6px; top: 4px; color: var(--c-plot-text); font-size: 11px; pointer-events: none; }
 .analysis__splitter { position: relative; flex: 0 0 28px; height: 28px; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: ns-resize; background: var(--c-bg); }
@@ -34,7 +33,6 @@
 .analysis__plotTabs [aria-selected="true"] { background: var(--c-accent); color: white; }
 .analysis--drawer .analysis__sidepanel { position: relative; z-index: 5; width: var(--side-drawer-width); box-shadow: 4px 0 12px #0003; }
 .analysis--drawer .analysis__splitter--side { z-index: 6; transform: translateX(calc(var(--side-drawer-width) - 36px)); }
-@media (max-width: 899px) { .analysis__lowerbody { flex-direction: column; } }
 
 /* P2a：維持單列 28px，窄視窗可橫捲，不壓縮主圖格內高度。 */
 .analysis__horizontal { background: var(--c-surface); color: var(--c-text); display: flex; flex: 0 0 28px; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; }
@@ -46,8 +44,51 @@
 .analysis__hmodes { display: inline-flex; position: sticky; left: 0; z-index: 1; flex: 0 0 auto; gap: 4px; background: var(--c-surface, #fff); }
 
 .analysis__placeholder { color: var(--c-text-dim, #888); font-size: var(--fs-sm, 12px); padding: var(--sp-1, 4px); }
-.analysis__cursorbox > summary { flex: 0 0 auto; cursor: pointer; padding: 2px 8px; color: var(--c-text-dim, #888); }
 .analysis__cursors { flex: 1 1 0; min-height: 0; overflow: auto; padding: 4px 8px; }
-.analysis__cursorbox:not([open]) > .analysis__cursors { display: none; }
 
-.analysis__cursorbox[open]::details-content { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+
+/* P2b3：B 標題列共用 splitter；內容容器各自捲動，數字與單位不拆行。 */
+/* 左側保留 10px 純拖曳帶，收折鈕與頁籤不得覆蓋。 */
+.analysis__splitter--lower { padding-left: 10px; justify-content: flex-start; gap: 4px; overflow: visible; z-index: 3; }
+.analysis__splitter--lower > button { font-size: 12.5px; }
+.analysis__resultTabs, .results__actions { position: relative; display: flex; align-items: center; gap: 4px; background: var(--c-bg); }
+.analysis__resultTabs { flex: 0 0 auto; }
+.results__actions { margin-left: auto; }
+.analysis__lower .btn, .analysis__lower summary { font-size: 12.5px; padding: 0 5px; }
+.analysis__resultTabs [aria-selected="true"] { border-color: var(--c-accent); color: var(--c-accent); background: var(--c-surface); }
+.analysis__lowerbody { overflow: hidden; }
+.analysis__lowerbody > * { min-width: 0; min-height: 0; overflow: auto; font-size: 13px; }
+.analysis__lowerbody > .analysis__cursors { flex: 0 0 42%; padding: 2px 4px; background: var(--c-surface); }
+.analysis__lowerbody[data-result-tabbed="true"] > *, .analysis__lowerbody > .analysis__peaks { flex: 1 1 0; }
+.results__table { width: 100%; }
+.results__table th, .results__table td { white-space: nowrap; padding: 3px 6px; height: 26px; line-height: 19px; font-size: 13px; }
+.results__menu { position: relative; }
+.results__menu > summary { list-style: none; cursor: pointer; min-width: 24px; text-align: center; }
+.results__choices { position: fixed; z-index: 20; padding: 8px; background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-dlg); }
+.results__choices label { display: flex; font-size: 13px; }
+.results__info { font-size: 14px; cursor: help; }
+.results__fftinfo { white-space: nowrap; font-size: 12.5px; padding: 2px 6px; }
+.cursors__inputs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 2px; }
+.cursors__field { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; font-size: 12.5px; line-height: 16px; white-space: nowrap; }
+.cursors__field .input { width: 100%; height: 24px; padding: 0 3px; font-size: 13px; font-family: var(--font-mono); }
+.cursors__inputs > button { flex: 0 0 auto; }
+.cursors__readout { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 2px 8px; }
+.cursors__value { display: flex; flex-direction: column; font-size: 12.5px; line-height: 16px; white-space: nowrap; }
+.cursors__value--newrow { grid-column: 1; }
+.cursors__number { font: 13px/18px var(--font-mono); }
+.analysis__cursors .table th, .analysis__cursors .table td { white-space: nowrap; padding: 2px 4px; font-size: 13px; line-height: 18px; }
+
+/* B 區以自身寬度換行；X 的 SI 單位保留完整輸入空間。 */
+.analysis__cursors { container-type: inline-size; }
+.cursors__field--x { flex: 2 1 10ch; min-width: 10ch; }
+.cursors__field--y { flex: 1 1 5ch; min-width: 5ch; }
+.cursors__field--x .input { min-width: 10ch; }
+@container (max-width: 430px) {
+  .cursors__readout { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  /* 通道表四欄皆 nowrap，最小內容寬度仍可撐破 width:100%；左右各省 2px，共留回 16px。 */
+  .analysis__cursors .table th, .analysis__cursors .table td { padding: 2px 2px; }
+}
+.results__table th:first-child, .results__table td:first-child { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; }
+.results__table th:last-child, .results__table td:last-child { position: sticky; right: 0; background: var(--c-surface); z-index: 1; }
+
+.analysis__lower .analysis__placeholder { font-size: 13px; }

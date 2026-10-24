@@ -4,6 +4,7 @@ import { autoScale } from "./scales.js";
 import { bindViewport } from "./gestures.js";
 import { fullRange } from "./overview.js";
 import { clampLayout, loadPrefs, savePrefs, validatePrefs, resetPref } from "./layout.js";
+import { mountTabs } from "./bpanel.js";
 import { mountSplitter } from "./splitter.js";
 
 const FALLBACK_COLORS = ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"];
@@ -26,7 +27,7 @@ export const OPEN_COMMANDS = ["file.open", "open_waveform"];
 export const bindOpen = (store, fn) => OPEN_COMMANDS.forEach((n) => store.onCommand(n, fn));
 export const cleanView = (p) => (p && Number.isFinite(p.t0) && Number.isFinite(p.t1) && p.t0 < p.t1 ? { t0: p.t0, t1: p.t1 } : null);
 
-// L5 模組與掛載點（缺檔時顯示佔位）。cursors.js 無自己的區塊，掛在隱藏容器。
+// L5 模組與掛載點；B 區由量測／游標／FFT 峰值面板共用標題列。
 const L5 = [["toolbar", "./toolbar.js", "analysis__toolbar"], ["measure", "./measure.js", "analysis__side"],
   ["chanbar", "./chanbar.js", "analysis__chanbar"], ["results", "./results.js", "analysis__results"], ["cursors", "./cursors.js", "analysis__cursors"]];
 
@@ -56,6 +57,10 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
     update(e) { effective = e; store.command('layout.state',{ overview:!!e.overview }); } };
 }
 
+export function lowerSummary(st, fftOn) {
+  return `量測 ${st.measurements.length}／FFT 峰值 ${fftOn && st.fftResult?.ok ? st.fftResult.peaks?.length ?? 0 : 0}／ΔX ${Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? (st.cursors.x2-st.cursors.x1).toPrecision(4)+' s' : '—'}`;
+}
+
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   // 版面骨架（grid 區域由 app.css 的 .analysis 定義：tool／side／plot／results；細節見 analysis.css）
@@ -78,7 +83,7 @@ export function mount(el, ctx) {
     <div class="analysis__lower">
       <button type="button" class="btn btn--small analysis__lowertoggle" aria-expanded="true" aria-controls="analysis-lower-body"></button>
       <div class="analysis__lowerbody" id="analysis-lower-body"><div class="analysis__results"></div>
-      <details class="analysis__cursorbox" open><summary>游標數值</summary><div class="analysis__cursors"></div></details></div>
+      <div class="analysis__cursors"></div><div class="analysis__peaks"></div></div>
     </div>
   </div>`;
   const q = (c) => el.querySelector("." + c);
@@ -90,10 +95,14 @@ export function mount(el, ctx) {
   const own = [["./axes.js", q("analysis__horizontal")], ["./mainplot.js", q("analysis__main")], ["./overview.js", overview], ["./fftpane.js", fft]];
   for (const [src, host] of own) import(src).then((m) => m.mount(host, ctx)).catch((e) => { host.textContent = `（圖表載入失敗：${e.message}）`; console.warn(src, e); });
 
+  const actions = document.createElement('div'); actions.className = 'results__actions';
+  for (const name of ['pointerdown','dblclick','keydown']) actions.addEventListener(name,e => e.stopPropagation());
+  const resultsCtx = Object.assign(Object.create(ctx), { resultActions:actions, fftPeaks:q('analysis__peaks') });
+
   // L5 模組：缺檔或掛載失敗只影響該區塊
   for (const [name, src, cls] of L5) {
     const host = q(cls);
-    import(src).then((m) => m.mount(host, ctx))
+    import(src).then((m) => m.mount(host, name === "results" ? resultsCtx : ctx))
       .catch((e) => {
         if (cls === "analysis__cursors") return;
         host.innerHTML = `<span class="analysis__placeholder">（${name} 模組尚未載入）</span>`;
@@ -126,6 +135,9 @@ export function mount(el, ctx) {
     else fftSection.prepend(host);
     splitters[kind] = mountSplitter(host,{ kind, button:buttons[kind], store, getState:() => state(kind) });
   }
+  const lowerHeader = buttons.lower.parentNode;
+  const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), peaks:q('analysis__peaks') },{ actions });
+  lowerHeader.append(actions);
   function schedule() { if (!frame) frame = requestAnimationFrame(renderLayout); }
   function renderLayout() {
     frame = 0;
@@ -155,10 +167,13 @@ export function mount(el, ctx) {
     fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
     plot.style.overflowY = e.scroll ? 'auto' : 'hidden';
     for (const tab of tabs.children) tab.setAttribute('aria-selected',String(tab.dataset.pane === activeTab));
+    resultTabs.update({ width:q('analysis__lowerbody').clientWidth, height:e.lower, lowerCollapsed:e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftResult.peaks?.length ?? 0 : 0 });
     const st = store.get();
     buttons.side.textContent = e.sideCollapsed ? '›' : '‹'; buttons.side.title = e.sideCollapsed ? '展開量測欄' : '收折量測欄';
     buttons.side.setAttribute('aria-label',buttons.side.title);
-    buttons.lower.textContent = `${e.lowerCollapsed ? '▴ 展開' : '▾ 收折'}結果（量測 ${st.measurements.length}／FFT 峰值 ${st.fftResult?.peaks?.length ?? 0}／ΔX ${Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? (st.cursors.x2-st.cursors.x1).toPrecision(4)+' s' : '—'}）`;
+    buttons.lower.textContent = e.lowerCollapsed ? `▴ 展開結果（${lowerSummary(st,fftOn)}）` : '▾';
+    buttons.lower.title = e.lowerCollapsed ? '展開結果' : '收折結果';
+    buttons.lower.setAttribute('aria-label',buttons.lower.title);
     buttons.fft.textContent = `${e.fftCollapsed ? '▾ 展開' : '▴ 收折'} FFT 窗格`;
     for (const kind of ['side','lower','fft']) splitters[kind].update(state(kind));
   }

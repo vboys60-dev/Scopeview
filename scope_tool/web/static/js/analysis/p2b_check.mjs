@@ -18,6 +18,7 @@ assert.ok(rule('.analysis__fftplot').includes(`min-height: ${FFT_PLOT_MIN}px;`))
 assert.match(rule('.analysis__fftbar .field'),/flex-direction: row;/);
 assert.match(rule('.analysis__fftbar .field'),/margin-bottom: 0;/);
 assert.match(rule('.analysis__fftbar .field'),/font-size: 12px;/);
+assert.match(rule('.analysis__splitter--lower'),/padding-left: 10px;/,'B 左側保留不被標題列控件覆蓋的拖曳帶');
 const prefs = Object.freeze({ ...defaults(), side:280, lower:180, fft:220, sideCollapsed:false });
 const layout = (vw,vh,p = defaults(),fftOn = false,extra = {}) => clampLayout({ W:vw-24,H:vh-200,vw,vh,prefs:p,fftOn,...extra });
 for (const [vw,vh] of [[1360,860],[1280,800],[1366,768],[1024,768],[900,600],[923,768],[1100,860],[1123,860]]) for (const fftOn of [true,false]) {
@@ -112,6 +113,24 @@ for (const kind of ['side','lower','fft']) {
   api.update({ value:240,collapsed:false,max:360 }); assert.equal(host.attrs['aria-valuenow'],'240'); assert.equal(button.attrs['aria-expanded'],'true');
   assert.equal(host.attrs['aria-valuemin'],String(kind === 'side' ? 180 : kind === 'lower' ? 120 : 160));
   assert.equal(host.attrs['aria-orientation'],kind === 'side' ? 'vertical' : 'horizontal'); api.dispose();
+}
+// B 有足夠空間時，真正 pointer 事件向上拖 30px，偏好／版面／ARIA 都要變高。
+{
+ const store = createStore(), host = element(), button = element();
+ const ctl = bindLayoutCommands(store,{ initial:{ ...defaults(),lower:180,lowerCollapsed:false },persist:() => {},schedule:() => {},viewport:() => 1360 });
+ const compute = () => layout(1360,860,ctl.prefs,false);
+ ctl.update(compute());
+ const api = mountSplitter(host,{ kind:'lower',button,store,getState:() => ctl.state('lower') });
+ api.update(ctl.state('lower'));
+ assert.ok(ctl.state('lower').max >= 210,'起點 180 尚有至少 30px 長高空間');
+ const fire = (name,y,target = host) => host.listeners[name]({ target,button:0,pointerId:1,clientY:y,preventDefault() {} });
+ fire('pointerdown',100,button); assert.ok(!host.captured,'收折鈕不啟動拖曳');
+ fire('pointerdown',100); assert.ok(host.captured);
+ fire('pointermove',70); fire('pointerup',70); flush();
+ const e = compute(); ctl.update(e); api.update(ctl.state('lower'));
+ assert.equal(ctl.prefs.lower,210); assert.equal(e.lower,210);
+ assert.equal(host.attrs['aria-valuenow'],'210'); assert.ok(e.mainGrid >= 240);
+ api.dispose();
 }
 // 實際 tab_analysis state/max/toggle/resize 接線。
 {
@@ -210,6 +229,8 @@ if (process.argv.includes('--mutations')) {
   const { spawnSync } = await import('node:child_process');
   const { fileURLToPath } = await import('node:url'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
   const mutations = [
+    ['B 標題列覆蓋拖曳帶','../../css/analysis.css','padding-left: 10px; justify-content: flex-start;','padding-left: 0; justify-content: flex-start;'],
+    ['B 向上拖不長高','splitter.js','(coordinate(e)-drag.at)*(vertical ? 1 : -1)',"(coordinate(e)-drag.at)*(vertical || kind === 'lower' ? 1 : -1)"],
     ['FFT 標籤恢復垂直','../../css/analysis.css','flex-direction: row; align-items: center; margin-bottom: 0;','flex-direction: column; align-items: center; margin-bottom: 0;'],
     ['FFT 標籤恢復留白','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 12px; font-size: 12px;'],
     ['FFT 標籤字體縮小','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 0; font-size: 10px;'],
