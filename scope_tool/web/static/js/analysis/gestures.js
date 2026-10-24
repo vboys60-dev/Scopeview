@@ -1,11 +1,12 @@
-// P2a：水平手勢、時間界線與只記 view 的歷史；不寫通道／游標真值。
+// L4：框選／平移與視圖歷史；通道只經既有意圖套用。
+import { DEFAULT_ZOOM_KIND, ZOOM_KINDS, verticalRect } from "./vzoom.js";
 import { fullRange } from "./overview.js";
 import { linear, wheelFactor } from "./plotcore.js";
 import { hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
 export const DEFAULT_MODE = "pan";
 export const RECT_MIN_PX = 6;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const same = (a, b) => a.t0 === b.t0 && a.t1 === b.t1;
+const same = (a, b) => a.t0 === b.t0 && a.t1 === b.t1 && JSON.stringify(a.channels) === JSON.stringify(b.channels);
 export const editableTarget = (el) => !!el && (!!el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A)$/i.test(el.tagName ?? el.tag ?? "") || !!el.closest?.('[contenteditable]:not([contenteditable="false"]), [role="button"]'));
 export function shortcutFor(e, target = e.target) {
   if (editableTarget(target) || e.isComposing || e.altKey) return null;
@@ -48,7 +49,7 @@ export function zoomToRect(view, a, b, rect, limits) {
   const X = linear(view.t0, view.t1, rect.l, rect.l + rect.w);
   return limitView({ t0: X.inv(Math.min(a, b)), t1: X.inv(Math.max(a, b)) }, limits, true);
 }
-/** 獨立於 DOM／時鐘；呼叫端提供時間與群組，一段拖曳可跨越 300ms。 */
+/** 獨立於 DOM／時鐘；一段拖曳可跨越 300ms。Undo／Redo 可傳函式，依目標項目取得局部快照。 */
 export function createHistory(limit = 50) {
   let past = [], future = [], last = null;
   return {
@@ -59,28 +60,47 @@ export function createHistory(limit = 50) {
       future = [];
       last = key ? { key, time } : null;
     },
-    undo(current) { last = null; if (!past.length) return null; future.push({ ...current }); return past.pop(); },
-    redo(current) { last = null; if (!future.length) return null; past.push({ ...current }); return future.pop(); },
+    undo(current) { last = null; if (!past.length) return null; future.push({ ...(typeof current === "function" ? current(past.at(-1)) : current) }); return past.pop(); },
+    redo(current) { last = null; if (!future.length) return null; past.push({ ...(typeof current === "function" ? current(future.at(-1)) : current) }); return future.pop(); },
     end() { last = null; },
     clear() { past = []; future = []; last = null; },
     status: () => ({ undo: past.length, redo: future.length }),
   };
 }
-/** viewport.intent 唯一提交者；Undo/Redo 也經同一路徑，重播時不再記錄。 */
+/** 時間與框選共用歷史；還原只送 scale／position，不回寫其他通道欄位。 */
 export function bindViewport(store) {
   const history = createHistory();
-  let group = {}, replay = false;
+  let group = {};
+  const snapshot = (item) => ({
+    ...(item.t0 !== undefined ? store.get().view : {}),
+    ...(item.channels ? { channels: store.get().channels.filter((c) => item.channels.some((n) => n.name === c.name)).map(({ name, scale, position }) => ({ name, scale, position })) } : {}),
+  });
+  const apply = (next) => {
+    if (next.t0 !== undefined) store.set({ view: { t0: next.t0, t1: next.t1 } }, "user");
+    for (const c of next.channels ?? []) {
+      const current = store.get().channels.find((ch) => ch.name === c.name);
+      if (current && (current.scale !== c.scale || current.position !== c.position)) store.command("channel.scale_intent", c);
+    }
+  };
   const notify = () => store.command("view.history", history.status());
   store.onCommand("view.historyGroup", (p) => { group = p ?? {}; if (p?.end) history.end(); });
   store.onCommand("viewport.intent", (p) => {
-    const before = store.get().view, next = limitView(p, viewLimits(store.get().file));
+    const before = { ...store.get().view }, next = limitView(p, viewLimits(store.get().file));
     if (!next) return;
-    if (!replay) history.record(before, next, { ...group, time: Date.now() });
-    store.set({ view: next }, "user"); notify();
+    history.record(before, next, { ...group, time: Date.now() });
+    apply(next); notify();
+  });
+  store.onCommand("view.zoomRect", ({ view, channels = [] }) => {
+    const valid = view ? limitView(view, viewLimits(store.get().file)) : null;
+    if (view && !valid) return;
+    const changed = channels.filter((n) => store.get().channels.some((c) => c.name === n.name && c.visible && (c.scale !== n.scale || c.position !== n.position))).map(({ name, scale, position }) => ({ name, scale, position }));
+    const next = { ...(valid && !same(valid, store.get().view) ? valid : {}), ...(changed.length ? { channels: changed } : {}) };
+    const before = snapshot(next);
+    history.end(); history.record(before, next); apply(next); notify();
   });
   for (const action of ["undo", "redo"]) store.onCommand(`view.${action}`, () => {
-    const next = history[action](store.get().view);
-    if (next) { replay = true; try { store.command("viewport.intent", next); } finally { replay = false; } }
+    const next = history[action](snapshot);
+    if (next) apply(next);
     notify();
   });
   store.onCommand("view.reset", () => { const f = fullRange(store.get().file); if (f) store.command("viewport.intent", f); });
@@ -105,7 +125,7 @@ export function nearestCursor(cursors, view, r, x, y, pointerType) {
 }
 /** 主圖互動由此集中管理，繪圖仍由 mainplot 負責。 */
 export function bindGestures(canvas, { store, ui }, geometry, draw) {
-  let drag = null, mode = DEFAULT_MODE, space = false, edgeDownAt = -Infinity, hover = null, pointer = null;
+  let drag = null, mode = DEFAULT_MODE, zoomKind = DEFAULT_ZOOM_KIND, space = false, edgeDownAt = -Infinity, hover = null, pointer = null;
   const listeners = [];
   canvas.tabIndex = 0;
   const on = (el, key, fn, opts) => { if (!el?.addEventListener) return; el.addEventListener(key, fn, opts); listeners.push(() => el.removeEventListener?.(key, fn, opts)); };
@@ -132,6 +152,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   const offGroup = store.onCommand("view.historyGroup", (p) => { draggingView = !!p?.continuous; });
   on(canvas, "mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
   const offMode = store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { end(); mode = v; updateHover(); canvas.style.cursor = mode === "zoom" ? "crosshair" : "grab"; } });
+  const offKind = store.onCommand("view.zoomKind", (v) => { if (ZOOM_KINDS.includes(v)) { end(); zoomKind = v; } });
   on(canvas, "pointerdown", (e) => {
     if (drag || !store.get().file && !store.get().channels.length) return;
     if (e.button !== 0 && e.button !== 1) return;
@@ -143,7 +164,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
     if (!type) return;
     e.preventDefault?.();
-    drag = { type, x, y, current: x, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
+    drag = { type, x, y, current: x, currentY: y, zoomKind, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
     if (type === "pan") store.command("view.historyGroup", { key: "pan", continuous: true });
     canvas.setPointerCapture(e.pointerId);
   });
@@ -155,7 +176,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
       canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag;
     if (e.pointerId !== d.id) return;
-    d.current = x; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
+    d.current = x; d.currentY = y; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
     if (!d.moved) return;
     if (d.type === "zoom") draw();
     else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r));
@@ -164,7 +185,12 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   });
   on(canvas, "pointerup", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    if (drag.type === "zoom") { const v = zoomToRect(drag.view, drag.x, local(e)[0], geometry(), viewLimits(store.get().file)); if (v) store.command("viewport.intent", v); }
+    if (drag.type === "zoom") {
+      const d = drag, [x, y] = local(e), r = geometry();
+      const view = d.zoomKind !== "vertical" ? zoomToRect(d.view, d.x, x, r, viewLimits(store.get().file)) : null;
+      const channels = d.zoomKind !== "horizontal" ? verticalRect(store.get().channels, d.y, y, r, RECT_MIN_PX) : [];
+      if (view || channels.length) store.command("view.zoomRect", { view, channels });
+    }
     end();
   });
   for (const name of ["pointercancel", "lostpointercapture"]) on(canvas, name, end);
@@ -205,8 +231,14 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
       if (drag?.type !== "zoom" || !drag.moved) return;
       const r = geometry(), a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
       g.save(); g.fillStyle = "rgba(90,160,255,0.25)"; g.strokeStyle = "#78a0ff"; g.setLineDash([]);
-      g.fillRect(a, r.t, b - a, r.h); g.strokeRect(a, r.t, b - a, r.h); g.restore();
+      const top = drag.zoomKind === "horizontal" ? r.t : clamp(Math.min(drag.y, drag.currentY), r.t, r.t + r.h);
+      const bottom = drag.zoomKind === "horizontal" ? r.t + r.h : clamp(Math.max(drag.y, drag.currentY), r.t, r.t + r.h);
+      const left = drag.zoomKind === "vertical" ? r.l : a, width = drag.zoomKind === "vertical" ? r.w : b - a;
+      g.fillRect(left, top, width, bottom - top);
+      if (drag.zoomKind === "vertical") { g.beginPath(); g.moveTo(left, top); g.lineTo(left + width, top); g.moveTo(left, bottom); g.lineTo(left + width, bottom); g.stroke(); }
+      else g.strokeRect(left, top, width, bottom - top);
+      g.restore();
     },
-    dispose() { end(); listeners.forEach((off) => off()); offMode(); offFile(); offGroup(); offHover(); },
+    dispose() { end(); listeners.forEach((off) => off()); offMode(); offKind(); offFile(); offGroup(); offHover(); },
   };
 }

@@ -128,8 +128,66 @@ def p3b_markers(c: Cdp, prep: str) -> None:
         c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
 
 
+def p3b2_zoom(c: Cdp, prep: str) -> None:
+    """真實 CDP 拖曳：可見通道範圍、一次復原、Y 真值與重投影。"""
+    import json
+    original = c.js("(async()=>{" + prep + """
+        const C=await import('/js/analysis/cursors.js');
+        return {channels:S.state.channels,view:S.state.view,mode:S.state.markerMode,cursors:S.state.cursors,
+            source:C.cursorSource(S).channel?.name};
+    })()""")
+    try:
+        c.js("(async()=>{" + prep + """
+            S.set({markerMode:null});
+            for(const ch of S.state.channels.filter(ch=>ch.visible))S.updateChannel(ch.name,{scale:1,position:1},'user');
+            const source=document.querySelector('.cursors__source');
+            source.value=S.state.channels.find(ch=>ch.visible).name;source.dispatchEvent(new Event('change'));
+            S.command('cursor.intent',{which:'y1',value:2});S.command('cursor.intent',{which:'y2',value:0});
+            S.command('view.mode','zoom');document.querySelector('[data-zoom-kind=vertical]').click();
+        })()""")
+        c.pump(0.3)
+        before = c.js("(async()=>{" + prep + """
+            const M=await import('/js/analysis/mainplot.js'),C=await import('/js/analysis/cursors.js');
+            const cv=document.querySelector('.analysis__main canvas');cv.scrollIntoView({block:'nearest'});
+            const b=cv.getBoundingClientRect(),r=M.layoutRect(b.width,b.height);
+            return {channels:S.state.channels,view:S.state.view,y1:C.cursorSource(S).y1,y2:C.cursorSource(S).y2,
+                x:b.x+b.width*0.55,a:b.y+r.t+r.h*0.3,z:b.y+r.t+r.h*0.6};
+        })()""")
+        c.mouse('mousePressed', before['x'], before['a'])
+        c.mouse('mouseMoved', before['x'], before['z'], buttons=1)
+        c.mouse('mouseReleased', before['x'], before['z'])
+        c.pump(0.3)
+        result = c.js("(async()=>{" + prep + """
+            const C=await import('/js/analysis/cursors.js'),src=C.cursorSource(S),b=""" + json.dumps(before) + """;
+            const near=(a,b)=>Math.abs(a-b)<1e-10;
+            return {view:JSON.stringify(S.state.view)===JSON.stringify(b.view),
+                physical:near(src.y1,b.y1)&&near(src.y2,b.y2),
+                projected:near((S.state.cursors.y1-src.channel.position)*src.channel.scale,b.y1),
+                fit:b.channels.filter(ch=>ch.visible).every(ch=>{
+                    const next=S.state.channels.find(n=>n.name===ch.name);
+                    const lo=(-1-ch.position)*ch.scale,hi=(2-ch.position)*ch.scale;
+                    return next.scale<ch.scale&&lo/next.scale+next.position>=-5&&hi/next.scale+next.position<=5;
+                })};
+        })()""")
+        assert all(result.values()), result
+        c.js("document.querySelector('.analysis__hmodes button[title^=復原視圖]').click()")
+        restored = c.js("(async()=>{" + prep + """
+            const C=await import('/js/analysis/cursors.js');
+            return {channels:S.state.channels,view:S.state.view,y1:C.cursorSource(S).y1,y2:C.cursorSource(S).y2};
+        })()""")
+        for key in ('channels', 'view', 'y1', 'y2'):
+            assert restored[key] == before[key], (key, before, restored)
+    finally:
+        c.js("(async()=>{" + prep + "const old=" + json.dumps(original) + ";" + """
+            S.set({channels:old.channels,view:old.view,markerMode:old.mode},'program');
+            if(old.source){const e=document.querySelector('.cursors__source');e.value=old.source;e.dispatchEvent(new Event('change'));}
+            for(const [which,value] of Object.entries(old.cursors))S.command('cursor.intent',{which,value});
+            S.command('view.zoomKind','horizontal');S.command('view.mode','pan');
+        })()""")
+
+
 if __name__ == '__main__':
     import ast
     ast.parse(Path(__file__).read_text(encoding='utf-8'))
-    assert callable(p3a_markers) and callable(p3b_markers)
+    assert callable(p3a_markers) and callable(p3b_markers) and callable(p3b2_zoom)
     print('browser_marker_checks self-check OK（CDP 斷言由 browser_check 執行）')

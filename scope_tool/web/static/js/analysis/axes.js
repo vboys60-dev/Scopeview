@@ -1,6 +1,7 @@
 import { mountSummary } from "./summary.js";
 // Horizontal 列：中心參考點固定 0.5；只發 viewport.intent，不強制吸附非標準尺度。
 import { fmt, parseSI } from "../fmt.js";
+import { DEFAULT_ZOOM_KIND, ZOOM_KINDS } from "./vzoom.js";
 import { DEFAULT_MODE } from "./gestures.js";
 import { fullRange } from "./overview.js";
 export const horizontalOf = (v) => ({ scale: (v.t1 - v.t0) / 10, position: (v.t0 + v.t1) / 2 });
@@ -29,16 +30,20 @@ export function formatHorizontal(value, scale) {
 const h = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
 export function mount(el, { store }) {
   const button = (text, fn, title = text) => { const b = h("button", text, "btn btn--small"); b.type = "button"; b.title = title; b.onclick = fn; return b; };
-  let mode = DEFAULT_MODE;
+  let mode = DEFAULT_MODE, zoomKind = DEFAULT_ZOOM_KIND;
+  const kinds = ZOOM_KINDS.map((v, i) => button(["水平", "垂直", "雙向"][i], () => store.command("view.zoomKind", v)));
+  const kindGroup = h("span"); kindGroup.setAttribute("role", "group"); kindGroup.setAttribute("aria-label", "框選種類"); kindGroup.append(...kinds);
+  const syncKind = () => { kindGroup.style.opacity = mode === "zoom" ? "1" : "0.55"; kinds.forEach((b, i) => { b.disabled = mode !== "zoom"; b.dataset.zoomKind = ZOOM_KINDS[i]; b.setAttribute("aria-pressed", String(zoomKind === ZOOM_KINDS[i])); }); };
+  store.onCommand("view.zoomKind", (v) => { if (ZOOM_KINDS.includes(v)) { zoomKind = v; syncKind(); } });
   const modes = ["pan", "zoom"].map((v, i) => button(i ? "⬚ 框選放大" : "✥ 平移", () => store.command("view.mode", v)));
   const syncMode = () => modes.forEach((b, i) => b.setAttribute("aria-pressed", String(mode === (i ? "zoom" : "pan"))));
-  store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { mode = v; syncMode(); } });
-  syncMode();
+  store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { mode = v; syncMode(); syncKind(); } });
+  syncMode(); syncKind();
   const undo = button("↶", () => store.command("view.undo"), "復原視圖（Ctrl/Cmd+Z）"), redo = button("↷", () => store.command("view.redo"), "重做視圖（Shift+Ctrl/Cmd+Z 或 Ctrl/Cmd+Y）");
   undo.disabled = redo.disabled = true;
   store.onCommand("view.history", (s) => { undo.disabled = !s.undo; redo.disabled = !s.redo; });
   const reset = button("完整時間", () => store.command("view.reset"));
-  const modeGroup = h("div", undefined, "analysis__hmodes"); modeGroup.append(...modes, undo, redo); el.append(modeGroup);
+  const modeGroup = h("div", undefined, "analysis__hmodes"); modeGroup.append(...modes, kindGroup, undo, redo); el.append(modeGroup);
   function field(label, key) {
     const wrap = h("label", undefined, "analysis__hfield"), input = h("input", undefined, "input");
     input.type = "text"; input.setAttribute("aria-label", label); input.dataset.axis = key;
