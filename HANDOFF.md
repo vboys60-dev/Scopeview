@@ -22,31 +22,26 @@
 - **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/web版驗收清單.md`。
 - 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
-## 分析頁 GUI 改善（2026-10-24，P1／P2a／P2b／P3a／P3b／浮動面板 已完成、實測並全部合入 main，HEAD `fb12038`）
+## 分析頁 GUI 改善（2026-10-24 完成並合入 main；2026-10-25 垂直框選修正 `285838c`）
 
-- 計劃書：`docs/分析頁GUI改善計劃書.md`（§8 決策已定案）。範圍：A 區量測欄、B 區結果、C 區主圖；操作模型參考 N8900A。
-- 已 commit／標籤：`p1-gui`（`5ed726b` 小修）→ `p2a-gui`（`82d02a9` 模式列／框選放大／Undo-Redo／Horizontal 列）→ `p2b-gui`（P2b-1 版面、P2b-2a Vertical 欄位與左軸電壓，合併於 `49d155f`）→ `8848ff5` FFT 控制列標籤同行 → `p2b3-gui`（`e18bf96` B 區縮小與頁籤）→ `p3a-gui`（`346664d` 游標來源脫鉤／Y 物理值真值／最近優先命中／摘要列）→ `p3b1-gui`（`4bfbfc3` 游標分頁 Marker 結果表／TSV 複製／觸控 ±12px）→ `p3b2-gui`（`0b8b61d` 垂直／雙向框選）。→ `float-gui`（`fb12038` 浮動量測面板）。以上皆已 fast-forward 合入 main；舊階段分支已刪。
-- 目前行為摘要：拖曳＝平移、滾輪＝縮放時間；「框選放大」模式／Shift 暫時框選／Space 或中鍵暫時平移；Ctrl/Cmd+Z、Shift+Z、Ctrl+Y；Horizontal 列（時間/格、位置±1 格、完整時間）；Vertical 列（單位/格 微調與粗調、中心電位 O=−position×scale、歸零、適配＝以畫面中心為基準、dx 徽章）；左軸顯示目前通道實際電壓（通道色），零位把手對齊 0 V；三條 splitter（A｜圖區、圖區｜B、主圖｜FFT）、`clampLayout`（`layout.js`，門檻用視窗尺寸、預算用容器尺寸；窄於 900 視窗改「波形／FFT」分頁與窄軌抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`（B 實際寬度≥820 並排，否則分頁；寬版點「游標」分頁會獨佔全寬，量測面板暫隱）、量測表欄位選單（預設隱藏範圍／次數）、游標緊湊網格。偏好只存記憶體＋localStorage（不保證跨啟動）。
-- 新檔與 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage`；L5 `vertical bpanel summary cursor_table`＋`css/vertical.css`；L4 另有 `vzoom`；L8 `p1_check p2_check p2b_check p2b2_check p2b3_check p3_check p3b_check p3b2_check`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`。新 command（`view.*`、`layout.*`）是前端 `store.command` 字串，不在凍結契約。
-- 驗證現況：`selfcheck_node.js` 含各階段變異測試全過；`e2e_check`、`browser_check`（含多尺寸、splitter、Vertical 列、B 區尺寸斷言）在沙箱外通過。Codex 沙箱不能綁 localhost，這兩項必須由 Claude 在沙箱外跑。
-- 已知／待辦：
-  - P3 已完成：游標來源與 `selected` 脫鉤（私有狀態在 `cursors.js`，隱藏／刪除時依單位回退、重新可見還原使用者選擇）；Y 真值＝來源通道＋物理值，`store.cursors.y` 仍是格數投影（來源 scale/position 變動以變更前換算重投影）；最近優先命中（線 ±8 px、觸控 ±12 px）；Horizontal 摘要列（`summary.js`）；游標分頁 Marker_Results 表與 TSV 複製（`cursor_table.js`）；框選種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`：最小合法檔位、整個 10 格適配、雙向一次 Undo、視圖歷史只記實際改動的通道）。Track Measurements 仍 disabled（契約無事件座標）。
-  - 已知小項：複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發一次「寬版點 FFT 峰值分頁未切換」（4/5 次通過後未再重現，原因未查）；種類＝垂直時 Shift 暫時框選沿用該種類。
-  - 浮動量測面板（`float-gui`／`fb12038`，已合 main）：同節點搬移 B 頁籤／動作列／內容，Pointer Capture 拖移與四邊／四角縮放、鍵盤移動／縮放、停靠／內容收折、<900 自動停靠，獨立記憶體＋localStorage 偏好。`floatpanel_math.js`／`floatpanel.js` 歸 L4；`float_check.mjs`／`browser_float_checks.py` 歸 L8。浮動時主圖視為 B 收折；量測全欄預設，窄框欄內換行且不縮字；停靠欄位偏好保留。Node 自檢＋浮動變異 40/40、`e2e_check`、`browser_check`（連跑 5 次）通過；Opus 審查已修（鍵盤事件不再被吞、自動停靠／夾回不覆寫偏好、欄位選單不溢出、不蓋頁籤列）。偶發 console `/fft 409` 為測試步驟與開檔的競態（防抖重取），已在測試端等待消除；產品端已加固（`700e95e`：`fftpane.js` 開檔中 `store.opening` 時不重取，開檔結束補取）。已實測。
-  - 小項（收折列 ΔX 格式、測試檔行數已於 P3 解決）：500 µV V/div 下限與需求文字的 1 mV 不同（沿用 P1）；FFT 分隔線拖曳時仍重取頻譜（既有行為）。
-  - 真機：Mac 觸控板手感、Windows 899px 斷點與中鍵自動捲動；WKWebView 捏合可能不送 `ctrl+wheel`。
-- 工作方式：Codex 編碼（`codex exec -s workspace-write -C <dir> -o <out.md> "$(cat brief.md)" < /dev/null`，背景執行）→ 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查（含變異測試）→ Codex 修正輪 → Claude 提交與標籤。平行任務用 git worktree。
+- 計劃書：`docs/分析頁GUI改善計劃書.md`。範圍：A 量測欄、B 結果、C 主圖；操作模型參考 N8900A。標籤 `p1-gui`→`p2a-gui`→`p2b-gui`→`p2b3-gui`→`p3a-gui`→`p3b1-gui`→`p3b2-gui`→`float-gui`（`fb12038`），皆已 fast-forward 合入 main。
+- 行為：拖曳＝平移、滾輪＝縮放時間；框選放大（Shift 暫時框選、Space／中鍵暫時平移）、種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`）；Undo／Redo；Horizontal／Vertical 列（單位/格、位置、適配、dx 徽章）；左軸顯示目前通道電壓；三條 splitter、`clampLayout`（<900 窗改分頁／抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`；浮動量測面板（`floatpanel*.js`）。偏好只存記憶體＋localStorage。
+- **垂直框選修正（2026-10-25）**：原本 V/格吸附到檔位表下一檔，選框高度 >約 40–50% 時檔位不變、垂直看似沒反應（水平無吸附所以正常）。`verticalZoom` 改為連續 V/格＝選框高度÷10，夾在檔位表上下限；`p3b2_check.mjs` 同步改斷言。使用者已在 pywebview 實測確認。Codex 另指出兩個未證實的結構風險（未修）：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不保存不重播，掛載順序不同會不同步；`channel.scale_intent` 唯一 handler 在 `chanbar.js`，未掛載則指令靜默消失。
+- 檔案 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage vzoom floatpanel*`；L5 `vertical bpanel summary cursor_table`；L8 各 `*_check.mjs`、`web/browser_*_checks.py`。`view.*`／`layout.*` 是前端 command 字串，不在凍結契約。
+- 驗證：`selfcheck_node.js`（含變異測試）、`e2e_check`、`browser_check` 通過；後兩者 Codex 沙箱不能綁 localhost，須 Claude 在沙箱外跑。
+- 已知小項：Track Measurements 仍 disabled（契約無事件座標）；500 µV V/div 下限與需求文字的 1 mV 不同；FFT 分隔線拖曳仍重取頻譜；複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發「寬版點 FFT 峰值分頁未切換」一次；真機未驗 Mac 觸控板手感、Windows 899px 斷點。
+- **待處理（使用者 2026-10-25 說先擱置）量測問題**，以 `wave6000-10Mhz_20261022_125915.h5` 重現：
+  1. 上升／下降時間、斜率顯示「—」：取樣間隔 2.5 ns、邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`）故 100k 個邊緣全不合格。是設計門檻，非計算錯誤。
+  2. 等約 30 秒：每次新增量測就重算全部項目、分析執行緒只有一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消、每項各自做邊緣偵測（單項約 0.38 s，過衝／前衝約 0.6 s）；連點 9 項實算 45 次。可能修法：只算新增項、共用邊緣偵測、後端丟掉舊請求。
+- 工作方式：Codex 編碼 → 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查 → Claude 提交。
 
-## 離線分析修正線：Jitter／ΔY/ΔX／草案（2026-10-24）
+## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
-- 已 commit：`1014c05` 游標表 ΔY/ΔX（Web `cursors.js`＋Qt `analysis_results.py`，空單位顯示 `1/s`）；`52b5c90` `marker.py` versus 模式不給斜率；`e928c31`、`4b7840d` 兩份草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`（Opus 兩輪複審後修訂，僅文件）；`35fd551`、`4b7840d` `docs/DSOX6004A_Jitter驗證紀錄.md`。
-- DSO-X 6004A 驗證（10 MHz 方波）：Clock TIE 只用上升緣；示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps；σ 對 50% 中點門檻極敏感。先前「參考時脈可能含追蹤」證據不足（恆等式，σ 比與頻率無關），PLL 開工前先用 `scope_trend_1M.json` 比對頻譜比值。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
-- **契約 v3 先不升**（使用者決定）：要改的是 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`），不是 `scope_tool/contracts.py`（儀器契約，禁改）；只改 JSON 會讓 `l0_check.mjs`、`selfcheck_node.js`、`api.py contract_check`、`analysis_check.py` 失敗，合入須同一筆含 mock 同步＋Analysis 3 個 stub。**更正（2026-10-24）**：GUI P2 的 `view.undo`／`view.redo`／`layout.*` 是前端 `store.command` 字串，不在凍結契約內（`f2ed9ec` 已登記於 RULES.md），與 v3 無共用契約改動，不需一起升版；v3 只為 Jitter／眼圖新增 3 個 RPC。草案 `草案_Jitter眼圖Web契約.md` 已同步改成此說法（2026-10-25 確認）。
-- 建議順序：①GUI P2 先做完並 commit（它在改 `tab_analysis.js` 等 L4 檔，Jitter 面板會動同批檔）→ ②v3 一筆落地（`api_contract.json`、`web-api契約.md`、`mock_catalog.js`、`mock_backend.js`＋Analysis 3 個 stub）→ ③Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）與前端面板分開實作。
-- 草案要點：revision 以私有 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；刪等待槽；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 的 BAD_REQUEST 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、w 失鎖門檻另訂（暫 ±1500 ppm）；RMS 2 冪縮放驗收 ≤5e−15·|a|。`analysis/*` 歸 T7。
-- RMS 2 冪縮放已完成（`ef6936f`，`analysis/rms.py`＋`measure_check.py`；公開 `measure` 在 ~1.8e308 資料會先卡在 top/base 直方圖，屬已知限制）。
-- 頻譜比值檢查已完成（`docs/DSOX6004A_Jitter驗證紀錄.md` 第四輪）：示波器／離線 TIE 增益各頻帶平坦約 0.85，無追蹤跡象，PLL 前置條件已清。
-- PLL 事件層原型已完成：`analysis/pll.py`（139 行）＋`pll_check.py`（100 行），`python3 -B -m scope_tool.analysis.pll_check` 印 OK（B 定義、±1000 ppm 頻偏、SJ 掃頻 0.1B／B／10B 振幅 ≤5%／相位 ≤5°、交替碼／PRBS7／8b10b、長碼 ≤32／33 UI、0.2／0.6 UI 階躍、2000 ppm 與短記錄無假零；降 Kp 變異測試會失敗）。只有事件層，未接 clock／眼圖／GUI／契約；門檻皆待校準。實測 1400 ppm 會重鎖一次、2000 ppm 失鎖。
+- 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`；`docs/DSOX6004A_Jitter驗證紀錄.md`（至第四輪）。
+- DSO-X 6004A（10 MHz 方波）：示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps，σ 對 50% 中點門檻極敏感。頻譜比值檢查（第四輪）：增益各頻帶平坦約 0.85，無追蹤跡象，不能用此樣本校準 PLL 頻寬。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
+- **契約 v3 先不升**（使用者決定）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
+- 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
+- 已完成：RMS 2 冪縮放（`ef6936f`；公開 `measure` 在 ~1.8e308 資料會卡在 top/base 直方圖，已知限制）；PLL 事件層原型 `analysis/pll.py`＋`pll_check.py`（印 OK；只有事件層，未接 clock／眼圖／GUI／契約，門檻待校準，1400 ppm 重鎖一次、2000 ppm 失鎖）。
 - 待使用者下令：契約 v3＋Jitter／眼圖 Web 實作（PLL 接線另案）、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
 
 ## Windows 打包
