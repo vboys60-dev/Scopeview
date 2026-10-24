@@ -2,6 +2,7 @@
 // 意圖：viewport.intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
 import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
 import { channelHandles, drawHandles } from "./handles.js";
+import { voltageAxis, voltageLeft } from "./voltage.js";
 import { bindGestures } from "./gestures.js";
 export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
 export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
@@ -53,7 +54,9 @@ export function mount(el, ctx) {
     if (!w || !h) return;
     const s = store.get();
     // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
-    const left = Math.max(MARGIN.l, ...channelHandles(s.channels, rect).map((b) => b.x + b.w + 24));
+    const selected = s.channels.find((c) => c.name === s.selected), axis = voltageAxis(selected);
+    g.font = "11px sans-serif";
+    const left = voltageLeft((text) => g.measureText(text).width, axis, channelHandles(s.channels, rect), MARGIN.l);
     rect = layoutRect(w, h, left);
     const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
@@ -61,7 +64,15 @@ export function mount(el, ctx) {
     g.font = "11px sans-serif";
     const dense = labels.some((label) => g.measureText(label).width + 8 > rect.w / 10);
     drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: !dense || i % 2 === 1 ? labels[i] : "" })),
-      Array.from({ length: 2 * DIVS + 1 }, (_, i) => ({ p: divY(rect, DIVS - i), label: String(DIVS - i) })), col);
+      axis.ticks.map((t) => ({ p: divY(rect, t.division), label: selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * rect.h / 10 < 12 ? "" : t.label })), { ...col, yText: axis.color });
+    if (selected && Math.abs(selected.position) <= DIVS && !Number.isInteger(selected.position)) {
+      g.fillStyle = selected.color; g.textAlign = "right"; g.textBaseline = "middle";
+      const y = divY(rect, selected.position);
+      g.fillText(`0 ${selected.unit}`, rect.l - 4, y);
+      g.strokeStyle = selected.color; g.beginPath(); g.moveTo(rect.l - 3, y); g.lineTo(rect.l + 3, y); g.stroke();
+    }
+    g.fillStyle = axis.color ?? col.text; g.textAlign = "left"; g.textBaseline = "top";
+    g.fillText(axis.title, rect.l + 6, rect.t + 2);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     for (const c of s.channels) {
       const e = cache.get(c.name);

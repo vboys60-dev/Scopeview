@@ -217,7 +217,8 @@ def main() -> None:
                           "cv.scrollIntoView({block:'nearest'});const b=cv.getBoundingClientRect();"
                           "const M=await import('/js/analysis/mainplot.js'),H=await import('/js/analysis/handles.js');"
                           "let r=M.layoutRect(b.width,b.height);"
-                          "r=M.layoutRect(b.width,b.height,Math.max(M.MARGIN.l,...H.channelHandles(S.state.channels,r).map(h=>h.x+h.w+24)));"
+                          "const V=await import('/js/analysis/voltage.js'),g=cv.getContext('2d');g.font='11px sans-serif';"
+                          "r=M.layoutRect(b.width,b.height,V.voltageLeft(t=>g.measureText(t).width,V.voltageAxis(S.state.channels.find(c=>c.name===S.state.selected)),H.channelHandles(S.state.channels,r)));"
                           "return {view:S.state.view,channels:S.state.channels,cursors:S.state.cursors,"
                           "x:b.x+r.l,y:b.y+r.t+r.h*0.6,w:r.w}})()")
             c.js("(" + click + ")('⬚ 框選放大')")
@@ -247,6 +248,43 @@ def main() -> None:
             c.js("(" + click + ")('✥ 平移')")
             c.js("(async()=>{" + prep + "S.command('view.reset')})()")
         step("P2a 框選範圍／Undo／20n／通道與游標不變", p2a_view)
+        # P2b2：截取真正 Canvas fillText，驗證左軸實際文字／顏色與欄位隔離。
+        def p2b2_vertical() -> None:
+            result = c.js("(async()=>{" + prep + "const old=S.state.channels,selected=S.state.selected;"
+                          "const name=old[1].name;document.querySelectorAll('.analysis__chanbar .chip')[1].click();"
+                          "const active=document.querySelector('.vertical__active').textContent;"
+                          "S.updateChannel(name,{scale:0.002},'user');const before=S.state.channels;"
+                          "const proto=CanvasRenderingContext2D.prototype,original=proto.fillText,draws=[];"
+                          "proto.fillText=function(t,x,y,...a){draws.push({t,color:this.fillStyle});return original.call(this,t,x,y,...a)};"
+                          "try{const i=document.querySelector('[data-vertical=position]');i.value='-4m';"
+                          "i.dispatchEvent(new Event('change',{bubbles:true}));"
+                          "const after=S.state.channels,cv=document.querySelector('.analysis__main canvas'),g=cv.getContext('2d');"
+                          "g.fillStyle=after[1].color;return {active,name,position:after[1].position,"
+                          "others:before.every((v,k)=>k===1||JSON.stringify(v)===JSON.stringify(after[k])),"
+                          "axis:draws.some(d=>d.t==='2.0 mV'&&d.color===g.fillStyle)}"
+                          "}finally{proto.fillText=original;S.set({channels:old,selected},'program')}})()")
+            assert result["name"] in result["active"], result
+            assert result["position"] == 2 and result["others"] and result["axis"], result
+        step("P2b2 選取通道2／中心電位／左軸電壓與顏色", p2b2_vertical)
+        # 兩通道的 Vertical 控件必須完整落在列容器內；寬版維持單列。
+        def vertical_bounds() -> None:
+            for width in (1400, 1000):
+                c.send("Emulation.setDeviceMetricsOverride", width=width, height=900, deviceScaleFactor=1, mobile=False)
+                c.pump(0.3)
+                dims = c.js("(()=>{const bar=document.querySelector('.analysis__chanbar'),v=bar.querySelector('.vertical');"
+                            "const r=bar.getBoundingClientRect(),vr=v.getBoundingClientRect();"
+                            "const controls=[...v.querySelectorAll('input,button')].map(e=>({text:e.title,right:e.getBoundingClientRect().right}));"
+                            "return {right:r.right,verticalRight:vr.right,controls,"
+                            "tops:[...bar.children].map(e=>e.getBoundingClientRect().top)}})()")
+                assert dims["controls"], dims
+                assert all(e["right"] <= dims["right"] + 0.5 for e in dims["controls"]), (width, dims)
+                assert all(e["right"] <= dims["verticalRight"] + 0.5 for e in dims["controls"]), (width, dims)
+                if width == 1400:
+                    assert max(dims["tops"]) - min(dims["tops"]) < 12, dims
+                c.shot(out / f"vertical_{width}.png")
+            c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
+            c.pump(0.3)
+        step("P2b2 Vertical 1400／1000 控件無截斷", vertical_bounds)
         # 不同 dx（通道 2 位移）
         step("通道 dx 位移", lambda: (c.js(f"(async()=>{{{prep} S.updateChannel(S.state.channels[1].name,{{time_offset:(S.state.view.t1-S.state.view.t0)*0.05}},'user')}})()"), c.pump(1)))
         # 量測：頻率／Vp-p 按鈕

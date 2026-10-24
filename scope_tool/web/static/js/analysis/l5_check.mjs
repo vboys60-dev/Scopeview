@@ -197,7 +197,7 @@ async function setup(hook) {
   const ch = { vmin: 0, vmax: 2, scale: 0.5, position: -2, unit: "V" };
   const r = scaleChange(ch, 0.2, scales);
   assert.equal(r.scale, 0.2); assert.ok(Math.abs(r.position - -5) < 1e-9);
-  assert.deepEqual(scaleChange({ ...ch, vmin: null }, 0.2, scales), { scale: 0.2 });
+  assert.deepEqual(scaleChange({ ...ch, vmin: null }, 0.2, scales), { scale: 0.2, position: -5 });
   assert.equal(signature([{ name: "A", unit: "V", derived: false }]), "A|V|0");
 }
 

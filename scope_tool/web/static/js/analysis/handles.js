@@ -7,7 +7,7 @@ const contains = (b, x, y) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y
 export function channelHandles(channels, r) {
   const placed = [];
   return channels.filter((c) => c.visible).map((c) => {
-    const y = clamp(yPixel(r, c.position) - 10, r.t, r.t + r.h - 20);
+    const y = clamp(yPixel(r, c.position) - 10, 0, r.t + r.h - 10);
     let lane = 0;
     while (placed.some((b) => b.lane === lane && Math.abs(b.y - y) < 20)) lane++;
     placed.push({ lane, y });

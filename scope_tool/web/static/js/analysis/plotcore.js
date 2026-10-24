@@ -42,27 +42,34 @@ export function logTicks(lo, hi) {
   }
   return out;
 }
-/** 時間文字依格距量化，整軸共用前綴與小數位；不回寫數值座標。 */
+/** 時間／電壓文字依格距量化，整軸共用前綴與小數位；不回寫數值座標。 */
 export function tickLabel(v, unit, step = 0, max = Math.abs(v)) {
-  if (unit !== "s" || !(step > 0)) return fmt(v, unit, 4);
-  const order = Math.floor(Math.log10(step)), res = 10 ** (order - 1);
-  const q = Math.round(v / res) * res;
-  if (q === 0) return "0 s";
-  const e = Math.min(12, Math.max(-12, Math.floor(Math.log10(max) / 3) * 3));
+  if (!(step > 0)) return fmt(v, unit, 4);
+  // 去除浮點運算尾差，再取格距最末有效位與格距十分之一中較細者。
+  const [mantissa, exponent] = Number(step.toPrecision(12)).toExponential().split("e");
+  const last = Number(exponent) - (mantissa.split(".")[1]?.length ?? 0);
+  const resolutionOrder = Math.min(Math.floor(Math.log10(step)) - 1, last);
+  const res = 10 ** resolutionOrder;
+  const q = Math.sign(v) * Math.round(Math.abs(v) / res) * res;
+  if (q === 0) return `0 ${unit}`;
+  const e = unit === "" || unit === "%" || unit.startsWith("dB") ? 0 : Math.min(12, Math.max(-12, Math.floor(Math.log10(max) / 3) * 3));
   const prefix = ["p", "n", "µ", "m", "", "k", "M", "G", "T"][(e + 12) / 3];
-  const decimals = Math.min(100, Math.max(0, e - order + 1));
-  return `${(q / 10 ** e).toFixed(decimals)} ${prefix}s`;
+  const decimals = Math.min(100, Math.max(0, e - resolutionOrder));
+  return `${(q / 10 ** e).toFixed(decimals)} ${prefix}${unit}`;
 }
 /** 超過 9 位有效數字：中心保留完整絕對值，其餘顯示相對中心偏移。 */
 export function timeTickLabels(lo, hi, n = 10) {
   const step = (hi - lo) / n, max = Math.max(Math.abs(lo), Math.abs(hi));
   const relative = step > 0 && Math.floor(Math.log10(max)) - Math.floor(Math.log10(step)) + 2 > 9;
+  // 時窗相減可能帶入尾差；依消去誤差限制有效位數，最多保留九位。
+  const digits = Math.max(1, Math.min(9, Math.floor(Math.log10(step / Math.max(Number.MIN_VALUE, max * Number.EPSILON))) - 1));
+  const labelStep = Number(step.toPrecision(digits));
   const center = lo + (hi - lo) / 2;
   return divTicks(lo, hi, n).map((v, i) => {
-    if (!relative) return tickLabel(v, "s", step, max);
+    if (!relative) return tickLabel(v, "s", labelStep, max);
     if (i === n / 2) return `${center} s`;
     const offset = (i - n / 2) * step;
-    return (offset > 0 ? "+" : "") + tickLabel(offset, "s", step, (hi - lo) / 2);
+    return (offset > 0 ? "+" : "") + tickLabel(offset, "s", labelStep, (hi - lo) / 2);
   });
 }
 
@@ -188,7 +195,11 @@ export function drawGrid(ctx, rect, xt, yt, colors) {
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   for (const t of xt) if (t.label) ctx.fillText(t.label, t.p, rect.t + rect.h + 4);
   ctx.textAlign = "right"; ctx.textBaseline = "middle";
-  for (const t of yt) if (t.label) ctx.fillText(t.label, rect.l - 4, t.p);
+  ctx.fillStyle = colors.yText ?? colors.text;
+  for (const t of yt) if (t.label) {
+    ctx.textBaseline = t.p >= rect.t + rect.h ? "bottom" : "middle";
+    ctx.fillText(t.label, rect.l - 4, t.p);
+  }
   ctx.strokeStyle = colors.axis; ctx.strokeRect(rect.l + 0.5, rect.t + 0.5, rect.w, rect.h);
   ctx.restore();
 }
