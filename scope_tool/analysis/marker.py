@@ -55,7 +55,7 @@ class MarkerResult:
     @property
     def delta_y_over_delta_x(self) -> float | None:
         dx, dy = self.delta_x, self.delta_y
-        if dx is None or dy is None or not np.isfinite([dx, dy]).all() or dx == 0:
+        if self.versus or dx is None or dy is None or not np.isfinite([dx, dy]).all() or dx == 0:
             return None
         slope = dy / dx
         return slope if np.isfinite(slope) else None
@@ -190,6 +190,7 @@ def _self_check() -> None:
               Position(0, np.inf, 1, 2), Position(0, 1, np.nan, 2),
               Position(0, 1, 0, np.inf), Position(0, 1e-308, 0, 1e308)):
         assert MarkerResult(p).delta_y_over_delta_x is None
+    assert MarkerResult(Position(0, 1, 0, 2), versus=True).delta_y_over_delta_x is None  # 非時間軸不給斜率
     assert r.delta_to == DELTA_TO and dict(r.delta_to)["X2"] == "X1"
     r = evaluate(MODES[3], Position(-99, 99), source)
     assert r.position == Position(-1., 1., -1., 3.)
