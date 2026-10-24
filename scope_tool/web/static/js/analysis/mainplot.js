@@ -1,7 +1,8 @@
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
 // 意圖：viewport.intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
-import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
-import { channelHandles, drawHandles, hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
+import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
+import { channelHandles, drawHandles } from "./handles.js";
+import { bindGestures } from "./gestures.js";
 export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
 export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
 /** 顯示格數 → 像素 y（置頂為 +5 格）。 */
@@ -34,7 +35,7 @@ export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
-  let rect = layoutRect(1, 1), drag = null, warned = 0, edgeDownAt = -Infinity;
+  let rect = layoutRect(1, 1), warned = 0, gestures = null;
   const cv = createCanvas(el, (w, h) => { rect = layoutRect(w, h); draw(); fetchSoon(); });
   const { canvas, ctx: g } = cv;
 
@@ -78,6 +79,7 @@ export function mount(el, ctx) {
     }
     g.restore();
     drawHandles(g, s.channels, s.cursors, s.view, rect);
+    gestures?.overlay(g);
   }
 
   function fetchNow() {
@@ -106,55 +108,7 @@ export function mount(el, ctx) {
     if (keys.includes("file")) fetchNow(); else fetchSoon();
   });
 
-  // ---- 互動 ----
-  const local = (e) => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  function hitCursor(x, y) {
-    const s = store.get(), X = Xmap(s.view);
-    for (const k of ["x1", "x2", "y1", "y2"]) {
-      const v = s.cursors[k];
-      if (v === null || v === undefined) continue;
-      if (Math.abs((k[0] === "x" ? X(v) - x : divY(rect, v) - y)) <= 5) return k;
-    }
-    return null;
-  }
-  const inside = (x, y) => x >= rect.l && x <= rect.l + rect.w && y >= rect.t && y <= rect.t + rect.h;
-
-  canvas.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
-    const [x, y] = local(e), s = store.get();
-    const base = { x, y, view: s.view };
-    const handle = hitHandle(s.channels, rect, x, y);
-    const edge = hitCursorEdge(s.cursors, s.view, rect, x, y);
-    if (!handle && edge) { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
-    const which = hitCursor(x, y);
-    drag = handle ? { ...base, type: "handle", name: handle.name, position: handle.position } : which ? { ...base, type: "cursor", which }
-      : inside(x, y) ? { ...base, type: "pan" } : null;
-    if (drag) canvas.setPointerCapture(e.pointerId);
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    const [x, y] = local(e);
-    if (!drag) { const s = store.get(); canvas.style.cursor = hitHandle(s.channels, rect, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, rect, x, y) ? "pointer" : hitCursor(x, y) || inside(x, y) ? "grab" : "default"; return; }
-    const d = drag;
-    if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, rect));
-    else if (d.type === "pan") store.command("viewport.intent", panView(d.view, x - d.x, rect.w));
-    else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? Xmap(d.view).inv(x) : yToDiv(rect, y) });
-  });
-  const end = () => { drag = null; };
-  canvas.addEventListener("pointerup", end);
-  canvas.addEventListener("pointercancel", end);
-  canvas.addEventListener("lostpointercapture", end);
-  canvas.addEventListener("dblclick", (e) => {
-    if (e.timeStamp >= edgeDownAt && e.timeStamp - edgeDownAt <= 500) return;
-    const [x, y] = local(e), s = store.get(), handle = hitHandle(s.channels, rect, x, y);
-    if (handle) moveHandle(store, handle.name, 0);
-    else if (!hitCursorEdge(s.cursors, s.view, rect, x, y)) store.command("view.reset");
-  });
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const [x] = local(e), s = store.get(), factor = wheelFactor(e, rect.h);
-    if (factor === 1) return;
-    store.command("viewport.intent", zoomView(s.view, Xmap(s.view).inv(Math.min(Math.max(x, rect.l), rect.l + rect.w)), factor));
-  }, { passive: false });
+  gestures = bindGestures(canvas, ctx, () => rect, draw);
   draw();
-  return { draw, dispose() { cv.dispose(); fetchSoon.cancel(); } };
+  return { draw, dispose() { gestures.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }

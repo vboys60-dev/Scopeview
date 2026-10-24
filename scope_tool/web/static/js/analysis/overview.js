@@ -74,6 +74,7 @@ export function mount(el, { store, bridge }) {
     const f = full();
     if (!f || e.button !== 0) return;
     const v = store.get().view, x = X(), mode = hitRegion(px(e), x(v.t0), x(v.t1));
+    store.command("view.historyGroup", { key: "overview", continuous: true });
     drag = { mode, x0: px(e), view: v };
     canvas.setPointerCapture(e.pointerId);
     if (mode === "jump") emit(e);
@@ -87,8 +88,14 @@ export function mount(el, { store, bridge }) {
     const v = store.get().view, x = X(), m = full() ? hitRegion(px(e), x(v.t0), x(v.t1)) : "jump";
     canvas.style.cursor = m.startsWith("edge") ? "ew-resize" : m === "move" ? "grab" : "default";
   });
-  const end = () => { drag = null; };
+  const end = () => { if (drag) store.command("view.historyGroup", { end: true }); drag = null; };
   canvas.addEventListener("pointerup", end);
   canvas.addEventListener("pointercancel", end);
-  return { draw, dispose() { cv.dispose(); latest.cancel(); } };
+  canvas.addEventListener("lostpointercapture", end);
+  window.addEventListener?.("blur", end);
+  const escape = (e) => { if (e.key === "Escape") end(); };
+  window.addEventListener?.("keydown", escape);
+  store.on(["file"], end);
+  const offHistory = ["view.undo", "view.redo"].map((name) => store.onCommand(name, end));
+  return { draw, dispose() { end(); offHistory.forEach((off) => off()); window.removeEventListener?.("blur", end); window.removeEventListener?.("keydown", escape); cv.dispose(); latest.cancel(); } };
 }

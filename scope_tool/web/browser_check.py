@@ -173,6 +173,42 @@ def main() -> None:
             c.shot(out / "06_center_collapsed.png")
             c.js("document.querySelector('.analysis__lowertoggle').click()")
         step("B 區收折仍可回中央並保留間距", center_cursors)
+        # P2a：送真實滑鼠事件，驗範圍與只改 view；JS 區塊不用 f-string 避免括號誤植。
+        def p2a_view() -> None:
+            before = c.js("(async()=>{" + prep + " const cv=document.querySelector('.analysis__main canvas');"
+                          "cv.scrollIntoView({block:'nearest'});const b=cv.getBoundingClientRect();"
+                          "const M=await import('/js/analysis/mainplot.js'),H=await import('/js/analysis/handles.js');"
+                          "let r=M.layoutRect(b.width,b.height);"
+                          "r=M.layoutRect(b.width,b.height,Math.max(M.MARGIN.l,...H.channelHandles(S.state.channels,r).map(h=>h.x+h.w+24)));"
+                          "return {view:S.state.view,channels:S.state.channels,cursors:S.state.cursors,"
+                          "x:b.x+r.l,y:b.y+r.t+r.h*0.6,w:r.w}})()")
+            c.js("(" + click + ")('⬚ 框選放大')")
+            x0, x1, y = before["x"] + before["w"] * 0.2, before["x"] + before["w"] * 0.7, before["y"]
+            c.mouse("mousePressed", x0, y)
+            c.mouse("mouseMoved", x1, y, buttons=1)
+            c.mouse("mouseReleased", x1, y)
+            c.pump(0.4)
+            snapshot = "(async()=>{" + prep + "return {view:S.state.view,channels:S.state.channels,cursors:S.state.cursors}})()"
+            after = c.js(snapshot)
+            span = before["view"]["t1"] - before["view"]["t0"]
+            for k, fraction in (("t0", 0.2), ("t1", 0.7)):
+                assert abs(after["view"][k] - (before["view"]["t0"] + fraction * span)) < span * 0.003, (before, after)
+            assert after["channels"] == before["channels"] and after["cursors"] == before["cursors"], after
+            c.js("(" + click + ")('↶')")
+            undone = c.js(snapshot)
+            assert undone["view"] == before["view"], (before, undone)
+            assert undone["channels"] == before["channels"] and undone["cursors"] == before["cursors"], undone
+            c.js("(()=>{const i=document.querySelector('.analysis__horizontal input[data-axis=scale]');"
+                 "if(!i||i.disabled)throw Error('時間/格欄位不可用');i.focus();i.value='20n';"
+                 "i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));i.blur()})()")
+            c.pump(0.3)
+            typed = c.js(snapshot)
+            assert abs((typed["view"]["t1"] - typed["view"]["t0"]) - 10 * 20e-9) < 1e-18, typed
+            assert typed["channels"] == before["channels"] and typed["cursors"] == before["cursors"], typed
+            c.shot(out / "06_p2a_horizontal.png")
+            c.js("(" + click + ")('✥ 平移')")
+            c.js("(async()=>{" + prep + "S.command('view.reset')})()")
+        step("P2a 框選範圍／Undo／20n／通道與游標不變", p2a_view)
         # 不同 dx（通道 2 位移）
         step("通道 dx 位移", lambda: (c.js(f"(async()=>{{{prep} S.updateChannel(S.state.channels[1].name,{{time_offset:(S.state.view.t1-S.state.view.t0)*0.05}},'user')}})()"), c.pump(1)))
         # 量測：頻率／Vp-p 按鈕

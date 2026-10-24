@@ -1,0 +1,184 @@
+// P2a：水平手勢、時間界線與只記 view 的歷史；不寫通道／游標真值。
+import { fullRange } from "./overview.js";
+import { linear, wheelFactor } from "./plotcore.js";
+import { hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
+export const DEFAULT_MODE = "pan";
+export const RECT_MIN_PX = 6;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const same = (a, b) => a.t0 === b.t0 && a.t1 === b.t1;
+export const editableTarget = (el) => !!el && (!!el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A)$/i.test(el.tagName ?? el.tag ?? "") || !!el.closest?.('[contenteditable]:not([contenteditable="false"]), [role="button"]'));
+export function shortcutFor(e, target = e.target) {
+  if (editableTarget(target) || e.isComposing || e.altKey) return null;
+  if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === "z") return e.shiftKey ? "view.redo" : "view.undo";
+  if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === "y") return "view.redo";
+  if (e.code === "Space" || e.key === " ") return "space";
+  return e.key === "Escape" ? "cancel" : null;
+}
+/** pointerdown 時固定動作；零位 > 邊緣游標 > 平移模式游標線 > 模式手勢。 */
+export function gestureFor({ button = 0, mode = DEFAULT_MODE, shiftKey = false, space = false, handle = false, edge = false, cursor = false, inside = true }) {
+  if (button !== 0 && button !== 1) return null;
+  if (handle) return "handle";
+  if (edge) return "edge";
+  if (button === 1 || space) return inside ? "pan" : null;
+  const zoom = mode === "zoom" || shiftKey;
+  if (!zoom && cursor) return "cursor";
+  return inside ? (zoom ? "zoom" : "pan") : null;
+}
+/** 最少十個取樣間隔與浮點精度；極短檔案以全長為上限。 */
+export function viewLimits(file) {
+  const f = fullRange(file);
+  if (!f || !(f.t1 > f.t0)) return null;
+  const span = f.t1 - f.t0;
+  const dt = Math.min(...file.channels.filter((c) => c.points > 1 && c.t1 > c.t0).map((c) => (c.t1 - c.t0) / (c.points - 1)));
+  const precision = Math.max(Math.abs(f.t0), Math.abs(f.t1), span) * Number.EPSILON * 32;
+  return { ...f, minSpan: Math.min(span, Math.max(Number.isFinite(dt) ? 10 * dt : span * 1e-9, precision)), maxSpan: span * 10 };
+}
+export function limitView(v, limits, contained = false) {
+  if (!v || !limits || !Number.isFinite(v.t0) || !Number.isFinite(v.t1) || !(v.t1 > v.t0)) return null;
+  if (v.t1 - v.t0 >= limits.minSpan && v.t1 - v.t0 <= (contained ? limits.t1 - limits.t0 : limits.maxSpan) && (!contained || v.t0 >= limits.t0 && v.t1 <= limits.t1)) return { t0: v.t0, t1: v.t1 };
+  const span = clamp(v.t1 - v.t0, limits.minSpan, contained ? limits.t1 - limits.t0 : limits.maxSpan);
+  let t0 = v.t0 + (v.t1 - v.t0) / 2 - span / 2;
+  if (contained) t0 = clamp(t0, limits.t0, limits.t1 - span);
+  const t1 = t0 + span;
+  return Number.isFinite(t0) && Number.isFinite(t1) && t1 > t0 ? { t0, t1 } : null;
+}
+export function zoomToRect(view, a, b, rect, limits) {
+  a = clamp(a, rect.l, rect.l + rect.w); b = clamp(b, rect.l, rect.l + rect.w);
+  if (Math.abs(b - a) < RECT_MIN_PX) return null;
+  const X = linear(view.t0, view.t1, rect.l, rect.l + rect.w);
+  return limitView({ t0: X.inv(Math.min(a, b)), t1: X.inv(Math.max(a, b)) }, limits, true);
+}
+/** 獨立於 DOM／時鐘；呼叫端提供時間與群組，一段拖曳可跨越 300ms。 */
+export function createHistory(limit = 50) {
+  let past = [], future = [], last = null;
+  return {
+    record(before, after, { key = null, time = 0, continuous = false } = {}) {
+      if (same(before, after)) return;
+      const merge = key && last?.key === key && (continuous || time - last.time <= 300);
+      if (!merge) { past.push({ ...before }); if (past.length > limit) past.shift(); }
+      future = [];
+      last = key ? { key, time } : null;
+    },
+    undo(current) { last = null; if (!past.length) return null; future.push({ ...current }); return past.pop(); },
+    redo(current) { last = null; if (!future.length) return null; past.push({ ...current }); return future.pop(); },
+    end() { last = null; },
+    clear() { past = []; future = []; last = null; },
+    status: () => ({ undo: past.length, redo: future.length }),
+  };
+}
+/** viewport.intent 唯一提交者；Undo/Redo 也經同一路徑，重播時不再記錄。 */
+export function bindViewport(store) {
+  const history = createHistory();
+  let group = {}, replay = false;
+  const notify = () => store.command("view.history", history.status());
+  store.onCommand("view.historyGroup", (p) => { group = p ?? {}; if (p?.end) history.end(); });
+  store.onCommand("viewport.intent", (p) => {
+    const before = store.get().view, next = limitView(p, viewLimits(store.get().file));
+    if (!next) return;
+    if (!replay) history.record(before, next, { ...group, time: Date.now() });
+    store.set({ view: next }, "user"); notify();
+  });
+  for (const action of ["undo", "redo"]) store.onCommand(`view.${action}`, () => {
+    const next = history[action](store.get().view);
+    if (next) { replay = true; try { store.command("viewport.intent", next); } finally { replay = false; } }
+    notify();
+  });
+  store.onCommand("view.reset", () => { const f = fullRange(store.get().file); if (f) store.command("viewport.intent", f); });
+  store.on(["file"], () => { group = {}; history.clear(); notify(); });
+  return history;
+}
+
+/** 主圖互動由此集中管理，繪圖仍由 mainplot 負責。 */
+export function bindGestures(canvas, { store, ui }, geometry, draw) {
+  let drag = null, mode = DEFAULT_MODE, space = false, edgeDownAt = -Infinity;
+  const listeners = [];
+  canvas.tabIndex = 0;
+  const on = (el, key, fn, opts) => { if (!el?.addEventListener) return; el.addEventListener(key, fn, opts); listeners.push(() => el.removeEventListener?.(key, fn, opts)); };
+  const local = (e) => { const b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+  const X = (view) => { const r = geometry(); return linear(view.t0, view.t1, r.l, r.l + r.w); };
+  const inside = (x, y) => { const r = geometry(); return x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h; };
+  function hitCursor(x, y) {
+    const s = store.get(), r = geometry();
+    return ["x1", "x2", "y1", "y2"].find((k) => Number.isFinite(s.cursors[k]) && Math.abs((k[0] === "x" ? X(s.view)(s.cursors[k]) - x : r.t + (5 - s.cursors[k]) * r.h / 10 - y)) <= 5);
+  }
+  const end = () => {
+    const d = drag; drag = null;
+    if (d?.type === "pan") store.command("view.historyGroup", { end: true });
+    if (d && canvas.hasPointerCapture?.(d.id)) canvas.releasePointerCapture(d.id);
+    draw();
+  };
+  let draggingView = false;
+  const offGroup = store.onCommand("view.historyGroup", (p) => { draggingView = !!p?.continuous; });
+  on(canvas, "mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
+  const offMode = store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { end(); mode = v; canvas.style.cursor = mode === "zoom" ? "crosshair" : "grab"; } });
+  on(canvas, "pointerdown", (e) => {
+    if (drag || !store.get().file && !store.get().channels.length) return;
+    if (e.button !== 0 && e.button !== 1) return;
+    canvas.focus?.({ preventScroll: true }); // 先讓欄位 blur 提交，再取得拖曳起始 view。
+    const [x, y] = local(e), s = store.get(), r = geometry();
+    const handle = hitHandle(s.channels, r, x, y), edge = hitCursorEdge(s.cursors, s.view, r, x, y), which = hitCursor(x, y);
+    const type = gestureFor({ ...e, button: e.button, shiftKey: e.shiftKey, mode, space: space && !editableTarget(document.activeElement), handle: !!handle, edge: !!edge, cursor: !!which, inside: inside(x, y) });
+    if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
+    if (!type) return;
+    e.preventDefault?.();
+    drag = { type, x, y, current: x, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
+    if (type === "pan") store.command("view.historyGroup", { key: "pan", continuous: true });
+    canvas.setPointerCapture(e.pointerId);
+  });
+  on(canvas, "pointermove", (e) => {
+    const [x, y] = local(e), r = geometry(), s = store.get();
+    if (!drag) { canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
+    const d = drag;
+    if (e.pointerId !== d.id) return;
+    d.current = x; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
+    if (!d.moved) return;
+    if (d.type === "zoom") draw();
+    else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r));
+    else if (d.type === "pan") { const dt = -(x - d.x) * (d.view.t1 - d.view.t0) / r.w; store.command("viewport.intent", { t0: d.view.t0 + dt, t1: d.view.t1 + dt }); }
+    else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? X(d.view).inv(x) : 5 - (y - r.t) * 10 / r.h });
+  });
+  on(canvas, "pointerup", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (drag.type === "zoom") { const v = zoomToRect(drag.view, drag.x, local(e)[0], geometry(), viewLimits(store.get().file)); if (v) store.command("viewport.intent", v); }
+    end();
+  });
+  for (const name of ["pointercancel", "lostpointercapture"]) on(canvas, name, end);
+  on(window, "blur", () => { space = false; end(); });
+  on(window, "keydown", (e) => {
+    if (canvas.closest?.("[hidden]")) return;
+    if (e.key === "Escape" && drag) { end(); return; }
+    const action = shortcutFor(e, document.activeElement ?? e.target);
+    if (!action) return;
+    if (action === "space") { space = true; e.preventDefault(); }
+    else if (action === "cancel") end();
+    else { e.preventDefault(); end(); store.command(action); }
+  });
+  on(window, "keyup", (e) => { if (e.code === "Space" || e.key === " ") space = false; });
+  on(canvas, "dblclick", (e) => {
+    if (e.timeStamp >= edgeDownAt && e.timeStamp - edgeDownAt <= 500) return;
+    const [x, y] = local(e), s = store.get(), r = geometry(), handle = hitHandle(s.channels, r, x, y);
+    if (handle) moveHandle(store, handle.name, 0);
+    else if (mode === "pan" && !hitCursorEdge(s.cursors, s.view, r, x, y)) store.command("view.reset");
+  });
+  on(canvas, "wheel", (e) => {
+    e.preventDefault();
+    // 拖曳中忽略主圖滾輪，避免中斷 pan／overview 的歷史群組。
+    if (drag || draggingView) return;
+    const [x] = local(e), r = geometry(), v = store.get().view, factor = wheelFactor(e, r.h);
+    if (factor === 1) return;
+    const a = X(v).inv(clamp(x, r.l, r.l + r.w));
+    store.command("view.historyGroup", { key: "wheel" });
+    store.command("viewport.intent", { t0: a - (a - v.t0) * factor, t1: a + (v.t1 - a) * factor });
+    store.command("view.historyGroup");
+  }, { passive: false });
+  const offFile = store.on(["file"], () => { draggingView = false; end(); });
+  return {
+    overlay(g) {
+      if (drag?.type !== "zoom" || !drag.moved) return;
+      const r = geometry(), a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
+      g.save(); g.fillStyle = "rgba(90,160,255,0.25)"; g.strokeStyle = "#78a0ff"; g.setLineDash([]);
+      g.fillRect(a, r.t, b - a, r.h); g.strokeRect(a, r.t, b - a, r.h); g.restore();
+    },
+    dispose() { end(); listeners.forEach((off) => off()); offMode(); offFile(); offGroup(); },
+  };
+}

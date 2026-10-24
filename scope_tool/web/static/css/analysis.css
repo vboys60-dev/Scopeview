@@ -44,3 +44,12 @@
   .analysis--side-collapsed { grid-template-columns: minmax(0, 1fr); }
   .analysis__lowerbody { flex-direction: column; overflow: auto; }
 }
+
+/* P2a：維持單列 28px，窄視窗可橫捲，不壓縮主圖格內高度。 */
+.analysis__horizontal { background: var(--c-surface); color: var(--c-text); display: flex; flex: 0 0 28px; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; }
+.analysis__horizontal .btn { flex-shrink: 0; padding: 1px 4px; min-height: 22px; }
+.analysis__horizontal [aria-pressed="true"] { background: var(--c-primary, #1676c0); color: #fff; }
+.analysis__hfield { flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; }
+.analysis__hfield input { width: 140px; min-width: 14ch; min-height: 22px; height: 24px; padding: 1px 4px; font-size: 12px; }
+.analysis__hrange { padding: 0 4px; }
+.analysis__hmodes { display: inline-flex; position: sticky; left: 0; z-index: 1; flex: 0 0 auto; gap: 4px; background: var(--c-surface, #fff); }

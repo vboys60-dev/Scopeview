@@ -76,8 +76,8 @@
 | L5 表格／側欄／游標 | `static/js/analysis/{chanbar,toolbar,results,measure,cursors}.js` |
 | L6 樣式 | `static/css/app.css`、`static/styleguide.html` |
 | L7 打包 | `packaging/**`、`requirements-web.txt`、`啟動示波器截圖_web.command` |
-| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check}.mjs`、`docs/web版驗收清單.md` |
+| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check}.mjs`、`web/browser_check.py`、`docs/web版驗收清單.md` |
 
-分析頁 GUI 新 command（`view.undo`／`view.redo`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/分析頁GUI改善計劃書.md` 管理。
+分析頁 GUI 新 command（`view.undo`／`view.redo`／`view.mode`／`view.history`／`view.historyGroup`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/分析頁GUI改善計劃書.md` 管理。
 
 凍結（所有 Web lane 唯讀）：`contracts.py config.py instruments/* storage/* analysis/* ui/* main.py`。JS 檔同樣 300 行上限（vendor 豁免）。

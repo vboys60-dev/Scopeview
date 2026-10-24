@@ -1,6 +1,7 @@
 // 離線分析頁：開檔指令 "file.open" 與 "open_waveform"（payload {path?}）等同處理；L3 擷取頁完成後會先切到本分頁再發 open_waveform。
 // 佈局組裝主圖／縮圖／FFT 窗格，掛載 L5 模組（動態載入，缺檔顯示佔位），處理開檔與 viewport.intent。
 import { autoScale } from "./scales.js";
+import { bindViewport } from "./gestures.js";
 import { fullRange } from "./overview.js";
 
 const FALLBACK_COLORS = ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"];
@@ -40,6 +41,7 @@ export function mount(el, ctx) {
       <div class="analysis__chanbar chanbar"></div>
       <div class="analysis__overview" title="來源時間概觀（原始通道共用電壓範圍）"></div>
       <div class="analysis__main plot"></div>
+      <div class="analysis__horizontal"></div>
       <section class="analysis__fftsection" hidden>
         <button type="button" class="btn btn--small analysis__ffttoggle" aria-expanded="true" aria-controls="analysis-fft-body">收折 FFT 窗格</button>
         <div class="analysis__fft" id="analysis-fft-body"></div>
@@ -54,8 +56,10 @@ export function mount(el, ctx) {
   const q = (c) => el.querySelector("." + c);
   const fft = q("analysis__fft"), overview = q("analysis__overview");
 
+  bindViewport(store);
+
   // 自家圖表
-  const own = [["./mainplot.js", q("analysis__main")], ["./overview.js", overview], ["./fftpane.js", fft]];
+  const own = [["./axes.js", q("analysis__horizontal")], ["./mainplot.js", q("analysis__main")], ["./overview.js", overview], ["./fftpane.js", fft]];
   for (const [src, host] of own) import(src).then((m) => m.mount(host, ctx)).catch((e) => { host.textContent = `（圖表載入失敗：${e.message}）`; console.warn(src, e); });
 
   // L5 模組：缺檔或掛載失敗只影響該區塊
@@ -103,10 +107,6 @@ export function mount(el, ctx) {
   store.onCommand("fft.visible", (on) => { fftOn = !!on; renderLayout(); });
   store.on(["measurements", "fftResult"], renderLayout); // 更新數量，絕不改使用者的收折狀態
   renderLayout();
-
-  // viewport.intent 的唯一處理者
-  store.onCommand("viewport.intent", (p) => { const v = cleanView(p); if (v) store.set({ view: v }, "user"); });
-  store.onCommand("view.reset", () => { const f = fullRange(store.get().file); if (f && f.t1 > f.t0) store.set({ view: f }, "user"); });
 
   // 開檔流程：file.open {path?}；未給路徑則用 ui.pickPath。序列化：進行中再開檔一律忽略並提示；
   // store.opening 在開檔期間為 true（toolbar 據此禁用關檔／開檔）。
