@@ -35,6 +35,14 @@
 - P2 前置：lead 先登記新檔名（`gestures.js`、`axes.js`、`layout.js`）與新 command（`view.undo`／`view.redo`／`layout.*`）到契約與 lane 表，再動工。
 - 工作方式：Codex 編碼（`codex exec -s workspace-write -C <repo> ... < /dev/null`，沙箱不能綁 localhost，`e2e_check`／`browser_check` 要在沙箱外跑）→ Opus 審核 → 修正輪。
 
+## 離線分析修正線：Jitter／ΔY/ΔX／草案（2026-10-24）
+
+- 已 commit：`1014c05` 游標表 ΔY/ΔX（Web `cursors.js`＋Qt `analysis_results.py`，空單位顯示 `1/s`）；`52b5c90` `marker.py` versus 模式不給斜率；`e928c31`、`4b7840d` 兩份草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`（Opus 兩輪複審後修訂，僅文件）；`35fd551`、`4b7840d` `docs/DSOX6004A_Jitter驗證紀錄.md`。
+- DSO-X 6004A 驗證（10 MHz 方波）：Clock TIE 只用上升緣；示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps；σ 對 50% 中點門檻極敏感。先前「參考時脈可能含追蹤」證據不足（恆等式，σ 比與頻率無關），PLL 開工前先用 `scope_trend_1M.json` 比對頻譜比值。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
+- **契約 v3 先不升**（使用者決定）：要改的是 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`），不是 `scope_tool/contracts.py`（儀器契約，禁改）；只改 JSON 會讓 `l0_check.mjs`、`selfcheck_node.js`、`api.py contract_check`、`analysis_check.py` 失敗，合入須同一筆含 mock 同步＋Analysis 3 個 stub。**建議與 GUI P2 的新 command 一起升一次版**。
+- 草案要點：revision 以私有 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；刪等待槽；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 的 BAD_REQUEST 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、w 失鎖門檻另訂（暫 ±1500 ppm）；RMS 2 冪縮放驗收 ≤5e−15·|a|。`analysis/*` 歸 T7。
+- 待使用者下令：RMS 2 冪縮放實作（P3）、頻譜比值檢查→PLL 事件層原型、契約 v3＋Jitter／眼圖 Web 實作、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
+
 ## Windows 打包
 
 - `RULES.md` 允許 Windows 版 PyInstaller（Win10／Win11，onedir）；目標機自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包）。
