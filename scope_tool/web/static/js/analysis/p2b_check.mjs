@@ -17,7 +17,7 @@ assert.ok(rule('.analysis__fft').includes(`min-height: ${FFT_MIN_HEIGHT}px;`));
 assert.ok(rule('.analysis__fftplot').includes(`min-height: ${FFT_PLOT_MIN}px;`));
 assert.match(rule('.analysis__fftbar .field'),/flex-direction: row;/);
 assert.match(rule('.analysis__fftbar .field'),/margin-bottom: 0;/);
-assert.match(rule('.analysis__fftbar .field'),/font-size: 12px;/);
+assert.match(rule('.analysis__fftbar .field'),/font-size: 12.5px;/);
 assert.match(rule('.analysis__splitter--lower'),/padding-left: 10px;/,'B 左側保留不被標題列控件覆蓋的拖曳帶');
 const prefs = Object.freeze({ ...defaults(), side:280, lower:180, fft:220, sideCollapsed:false });
 const layout = (vw,vh,p = defaults(),fftOn = false,extra = {}) => clampLayout({ W:vw-24,H:vh-200,vw,vh,prefs:p,fftOn,...extra });
@@ -232,8 +232,8 @@ if (process.argv.includes('--mutations')) {
     ['B 標題列覆蓋拖曳帶','../../css/analysis.css','padding-left: 10px; justify-content: flex-start;','padding-left: 0; justify-content: flex-start;'],
     ['B 向上拖不長高','splitter.js','(coordinate(e)-drag.at)*(vertical ? 1 : -1)',"(coordinate(e)-drag.at)*(vertical || kind === 'lower' ? 1 : -1)"],
     ['FFT 標籤恢復垂直','../../css/analysis.css','flex-direction: row; align-items: center; margin-bottom: 0;','flex-direction: column; align-items: center; margin-bottom: 0;'],
-    ['FFT 標籤恢復留白','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 12px; font-size: 12px;'],
-    ['FFT 標籤字體縮小','../../css/analysis.css','margin-bottom: 0; font-size: 12px;','margin-bottom: 0; font-size: 10px;'],
+    ['FFT 標籤恢復留白','../../css/analysis.css','margin-bottom: 0; font-size: 12.5px;','margin-bottom: 12px; font-size: 12.5px;'],
+    ['FFT 標籤字體縮小','../../css/analysis.css','margin-bottom: 0; font-size: 12.5px;','margin-bottom: 0; font-size: 10px;'],
     ['FFT 控制列預算漂移','layout.js','FFT_BAR_HEIGHT = 40','FFT_BAR_HEIGHT = 56'],
     ['FFT 繪圖下限不足','layout.js','FFT_PLOT_MIN = 120','FFT_PLOT_MIN = 100'],
     ['FFT 總高度漏控制列','layout.js','FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN','FFT_MIN_HEIGHT = FFT_PLOT_MIN'],

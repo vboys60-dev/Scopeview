@@ -1,3 +1,4 @@
+import { disableTrackMeasurements } from "./summary.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
 // 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
@@ -13,11 +14,10 @@ export function channelRecord(info, idx, colors, scales) {
   return { name: info.name, unit: info.unit, derived: !!info.derived, color: colors[idx % colors.length], visible: true, scale, position,
     vmin: info.vmin, vmax: info.vmax, time_offset: 0, t0: info.t0, t1: info.t1, points: info.points };
 }
-const EMPTY_CUR = { x1: null, x2: null, y1: null, y2: null };
 /** 關檔：先通知後端釋放資料（gen+1），再一次重設所有相依狀態（開檔由 L4 處理）。mock 缺此方法（NOT_FOUND）時略過。 */
 export async function closeFile(store, bridge) {
   try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
-  store.set({ file: null, channels: [], selected: null, cursors: EMPTY_CUR, measurements: [], fftResult: null, rfPos: null, markerResult: null }, "program");
+  store.set({ file: null, channels: [], selected: null, measurements: [], fftResult: null, rfPos: null, markerResult: null }, "program");
 }
 const rangeOf = (st) => (st.rangeMode === "cursors" && num(st.cursors.x1) && num(st.cursors.x2) ? [st.cursors.x1, st.cursors.x2] : null);
 const dxOf = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_offset || 0]));
@@ -130,7 +130,8 @@ export function mount(el, ctx) {
 
   // ── 一般控制 ──
   const marker = select([["", "傳統游標 X1/X2"], ...(catalog.marker_modes ?? []).map((m) => [m, m])]);
-  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { store.set({ markerMode: marker.value || null }, "user"); if (marker.value === "Track Measurements") ui.toast("Track Measurements 尚未支援", "info"); };
+  disableTrackMeasurements(marker);
+  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
   const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);

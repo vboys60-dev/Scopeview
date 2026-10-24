@@ -1,3 +1,5 @@
+import { cursorSource, onCursorSource } from "./cursors.js";
+import { fmt } from "../fmt.js";
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
 // 意圖：viewport.intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
 import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
@@ -55,13 +57,13 @@ export function mount(el, ctx) {
     const s = store.get();
     // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
     const selected = s.channels.find((c) => c.name === s.selected), axis = voltageAxis(selected);
-    g.font = "11px sans-serif";
+    g.font = "12.5px sans-serif";
     const left = voltageLeft((text) => g.measureText(text).width, axis, channelHandles(s.channels, rect), MARGIN.l);
     rect = layoutRect(w, h, left);
     const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     const labels = timeTickLabels(s.view.t0, s.view.t1);
-    g.font = "11px sans-serif";
+    g.font = "12.5px sans-serif";
     const dense = labels.some((label) => g.measureText(label).width + 8 > rect.w / 10);
     drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: !dense || i % 2 === 1 ? labels[i] : "" })),
       axis.ticks.map((t) => ({ p: divY(rect, t.division), label: selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * rect.h / 10 < 12 ? "" : t.label })), { ...col, yText: axis.color });
@@ -81,14 +83,15 @@ export function mount(el, ctx) {
       drawPixels(g, e.px, c.color);
     }
     const cu = s.cursors;
-    g.lineWidth = 1; g.font = "11px sans-serif"; g.textBaseline = "top";
+    g.lineWidth = 1; g.font = "12.5px sans-serif"; g.textBaseline = "top";
     for (const [k, color] of [["x1", col.c1], ["x2", col.c2], ["y1", col.c1], ["y2", col.c2]]) {
       const v = cu[k];
       if (v === null || v === undefined) continue;
+      g.lineWidth = gestures?.hovered() === k ? 3 : 1;
       g.strokeStyle = g.fillStyle = color; g.setLineDash(k[0] === "y" ? [5, 4] : []);
       g.beginPath();
       if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); g.fillText("t" + k[1], x + 3, rect.t + 2); }
-      else { const y = Math.round(divY(rect, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText("v" + k[1], rect.l + 3, y + 2); }
+      else { const y = Math.round(divY(rect, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText(`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, rect.l + 3, y + 2); }
     }
     g.fillStyle = g.strokeStyle = col.c1; g.setLineDash([]); g.textBaseline = "bottom";
     for (const k of markerPixels(s.markerResult, X, rect)) {
@@ -127,7 +130,8 @@ export function mount(el, ctx) {
     if (keys.includes("file")) fetchNow(); else fetchSoon();
   });
 
+  const offSource = onCursorSource(store, draw);
   gestures = bindGestures(canvas, ctx, () => rect, draw);
   draw();
-  return { draw, dispose() { gestures.dispose(); cv.dispose(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offSource(); gestures.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }

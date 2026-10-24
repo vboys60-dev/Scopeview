@@ -1,3 +1,4 @@
+import { voltageAt } from "./voltage.js";
 // 游標與 Marker：cursors 的唯一寫入者。store.cursors 的 x＝顯示時間（秒）、y＝顯示格數；
 // 送後端前在此換成來源座標：x_src＝x−dx[ch]、y_src＝(y−position)×scale。對照 ui/analysis_marker.py。
 // 防迴圈：吸附回寫一律 origin="snap"，本模組遇 snap 不再觸發重算；回寫值與現值幾乎相同就不寫。
@@ -7,11 +8,19 @@
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 
+// 私有來源／物理真值；對外只提供快照與通知，不增加 store 契約欄位。
+const sources = new WeakMap();
+const stateOf = (store) => {
+  if (!sources.has(store)) sources.set(store, { channel: null, y1: null, y2: null, readout: null, listeners: new Set() });
+  return sources.get(store);
+};
+export const cursorSource = (store) => { const { channel, y1, y2, readout } = stateOf(store); return { channel, y1, y2, readout }; };
+export function onCursorSource(store, fn) { const s = stateOf(store); s.listeners.add(fn); return () => s.listeners.delete(fn); }
+export const divisionAt = (value, ch) => num(value) && ch ? value / ch.scale + ch.position : null;
 export const dxMap = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_offset || 0]));
-const chan = (st, name) => st.channels.find((c) => c.name === name) ?? null;
 /** 顯示座標 → 來源座標（null 保持 null）。 */
 export function toSource(cur, ch) {
-  const t = (v) => (num(v) ? v - ch.time_offset : null), y = (v) => (num(v) ? (v - ch.position) * ch.scale : null);
+  const t = (v) => (num(v) ? v - (ch.time_offset || 0) : null), y = (v) => (num(v) ? voltageAt(v, ch) : null);
   return { x1: t(cur.x1), x2: t(cur.x2), y1: y(cur.y1), y2: y(cur.y2) };
 }
 /** 來源 (x,y) → 顯示 (x,y)。 */
@@ -43,9 +52,42 @@ export const MODE_AXES = (m) => ({ x: m === null || ["Manual X only", "Manual X 
 
 /** 控制器：不碰 DOM，方便純邏輯測試。onReadout(readout|null) 通知畫面。 */
 export function createController({ store, bridge }, { delay = 40, onReadout = () => {}, onError = () => {} } = {}) {
-  let token = 0, rfToken = 0, timer = null, pendingInit = false;
-  const ctl = { readout: null };
-  const emit = (r) => { ctl.readout = r; onReadout(r); };
+  let token = 0, rfToken = 0, timer = null, pendingInit = false, preferred = null, unit = null;
+  const ctl = { readout: null }, source = stateOf(store);
+  source.channel = store.get().channels.find(c => c.visible) ?? null;
+  const capture = (ch) => {
+    if (!ch) return;
+    for (const k of ["y1", "y2"]) {
+      const value = num(store.get().cursors[k]) ? voltageAt(store.get().cursors[k], ch) : null;
+      if (differs(source[k], value)) source[k] = value;
+    }
+  };
+  capture(source.channel);
+  const sourceSignature = () => JSON.stringify([source.channel?.name, source.channel?.unit, source.y1, source.y2, source.readout]);
+  let notified = sourceSignature();
+  const notify = (force = false) => {
+    const signature = sourceSignature();
+    if (!force && signature === notified) return;
+    notified = signature; source.listeners.forEach(fn => fn());
+  };
+  function changeSource(ch, explicit = false, written = false) {
+    const changedUnit = ch && unit !== null && unit !== ch.unit;
+    source.channel = ch;
+    if (ch) {
+      if (written || (!explicit && changedUnit)) capture(ch); // 異單位自動回退保留畫面格數；明寫值以新通道換算
+      else setSnap(Object.fromEntries(["y1", "y2"].map(k => [k, divisionAt(source[k], ch)])));
+      unit = ch.unit;
+    }
+    notify(); schedule();
+  }
+  unit = source.channel?.unit ?? null;
+  preferred = source.channel?.name ?? null;
+  ctl.setSource = (name) => {
+    const ch = store.get().channels.find(c => c.visible && c.name === name);
+    if (ch) { preferred = name; changeSource(ch, true); }
+    else notify(true); // 拒絕隱藏／不存在的來源，立即復原下拉
+  };
+  const emit = (r) => { ctl.readout = source.readout = r; onReadout(r); notify(); };
 
   function setSnap(patch) { // 只在真的不同時以 snap 回寫
     const cur = store.get().cursors;
@@ -61,7 +103,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
     const my = token, st = store.get(), cur = st.cursors, gen = st.file?.gen;
     const alive = () => my === token && store.get().file?.gen === gen;
     if (!st.file) return emit(null);
-    const mode = st.markerMode, ch = chan(st, st.selected);
+    const mode = st.markerMode, ch = source.channel;
     try {
       if (mode === null) {
         if (!num(cur.x1) && !num(cur.x2)) return emit(null);
@@ -71,8 +113,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         if (num(cur.x1)) p.x1 = r.t1;
         if (num(cur.x2)) p.x2 = r.t2;
         setSnap(p);
-        const v = (y) => (ch && num(y) ? (y - ch.position) * ch.scale : null);
-        const [v1, v2] = [v(cur.y1), v(cur.y2)];
+        const [v1, v2] = [source.y1, source.y2];
         emit({ kind: "legacy", t1: r.t1, t2: r.t2, v1, v2, unit: ch?.unit ?? "", source: ch?.name ?? "", y: r.y, mode });
         store.set({ markerResult: null }, "program");
         return;
@@ -82,7 +123,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         store.set({ markerResult: null }, "program");
         return emit({ kind: "unsupported", reason: "Track Measurements 尚未支援" });
       }
-      const src = toSource(cur, ch), v = st.view;
+      const src = { ...toSource(cur, ch), y1: source.y1, y2: source.y2 }, v = st.view;
       const r = await bridge.call("marker_eval", { mode, channel: ch.name, ...src, screen_width: v.t1 - v.t0, measurements: [] }); // 只有非 Track Measurements 模式會走到這裡
       if (!alive()) return;
       const p = r.position, dx1 = ch.time_offset || 0;
@@ -106,17 +147,23 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
     pendingInit = false; // 以檔案時間範圍（不依賴 view，避免吃到上一檔的舊視圖）
     store.set({ cursors: defaultCursors({ t0: Math.min(...cs.map((c) => c.t0)), t1: Math.max(...cs.map((c) => c.t1)) }) }, "program");
   }
-  const chSig = () => store.get().channels.map((c) => `${c.name}:${c.time_offset}:${c.scale}:${c.position}`).join(",") + "|" + store.get().selected;
+  const chSig = () => store.get().channels.map((c) => `${c.name}:${c.time_offset}:${c.scale}:${c.position}`).join(",");
   let lastSig = chSig();
-  store.on(["file", "view", "cursors", "markerMode", "selected", "channels"], (s, keys, origin) => {
+  store.on(["file", "view", "cursors", "markerMode", "channels"], (s, keys, origin) => {
     if (keys.includes("file")) { // 換檔／關檔：游標清空，等新通道（L4 的 setChannels 在 file 之後）到位再放預設
-      pendingInit = !!s.file; token++; emit(null);
+      pendingInit = !!s.file; token++; preferred = unit = null; source.channel = null; source.y1 = source.y2 = null; emit(null);
       store.set({ cursors: { x1: null, x2: null, y1: null, y2: null }, markerResult: null }, "program");
     }
-    if (keys.includes("channels")) ensureDefaults();
+    if (keys.includes("channels")) {
+      const next = s.channels.find(c => c.visible && c.name === preferred) ?? s.channels.find(c => c.visible && c.name === source.channel?.name) ?? s.channels.find(c => c.visible) ?? null;
+      if (!preferred && next) preferred = next.name;
+      if (next !== source.channel) changeSource(next, false, keys.includes("cursors"));
+      ensureDefaults();
+    }
+    if (keys.includes("cursors")) { capture(source.channel); notify(); }
     if (origin === "snap") return;
     const sig = chSig();
-    const chChanged = keys.some((k) => k === "channels" || k === "selected") && sig !== lastSig;
+    const chChanged = keys.some((k) => k === "channels") && sig !== lastSig;
     lastSig = sig;
     if (keys.some((k) => ["file", "cursors", "markerMode"].includes(k)) || chChanged || (keys.includes("view") && s.markerMode === "Track Waveforms")) schedule();
   });
@@ -146,7 +193,7 @@ export function cursorRows(r, fmt) {
   const f = [[r.t1, "s"], [r.t2, "s"], [dt, "s"], [inv, "Hz"], [r.v1, r.unit], [r.v2, r.unit], [dy, r.unit]];
   const rows = L.map((l, i) => [l, fmt(f[i][0], f[i][1])]);
   const slope = num(dt) && num(dy) && dt !== 0 ? dy / dt : null;
-  rows.push(["ΔY/ΔX", num(slope) ? fmt(slope, r.unit ? `${r.unit}/s` : "1/s") : ""]);
+  rows.push(["ΔY/ΔX", num(slope) ? fmt(slope, r.unit ? `${r.unit}/s` : "1/s") : "—"]);
   rows.push(["換算來源", r.source]);
   if (m) rows.push(["Delta To", "X1↔X2；Y1↔Y2"]);
   return rows;
@@ -156,21 +203,29 @@ export function mount(el, ctx) {
   const { store, ui, fmt } = ctx;
   el.classList.add("cursors");
   const info = h("div", "muted"), inputs = h("div", "cursors__inputs"), tbl = h("div", "cursors__readout"), chTbl = h("table", "table table--num");
-  const boxes = {};
-  for (const [k, label] of [["x1", "X1"], ["x2", "X2"], ["y1", "Y1(格)"], ["y2", "Y2(格)"]]) {
-    const i = h("input", "input"); i.title = k[0] === "x" ? `${label}（時間，如 1.5m）` : `${label}（格數）`;
+  const boxes = {}, labels = {};
+  let sourceSig = "";
+  const source = h("select", "select cursors__source"), sourceLabel = h("label", "cursors__sourcefield", "來源 ");
+  source.setAttribute("aria-label", "游標來源"); sourceLabel.append(source);
+  source.onchange = () => controller.setSource(source.value);
+  for (const [k, label] of [["x1", "X1"], ["x2", "X2"], ["y1", "Y1"], ["y2", "Y2"]]) {
+    const i = h("input", "input"); i.title = k[0] === "x" ? `${label}（時間，如 1.5m）` : `${label}（來源物理值）`;
     i.onchange = () => {
-      const t = i.value.trim(), v = t === "" ? null : k[0] === "x" ? fmt.parseSI(t) : Number(t);
-      if (v === null || Number.isFinite(v)) store.command("cursor.intent", { which: k, value: v }); else syncInputs();
+      const t = i.value.trim(), physical = t === "" ? null : fmt.parseSI(t), v = k[0] === "x" ? physical : divisionAt(physical, cursorSource(store).channel);
+      if ((physical === null || num(physical)) && (v === null || num(v))) store.command("cursor.intent", { which: k, value: v }); else syncInputs();
     };
     boxes[k] = i;
-    const f = h("label", `cursors__field cursors__field--${k[0]}`, label + " "); f.append(i); inputs.append(f);
+    const f = h("label", `cursors__field cursors__field--${k[0]}`); const title = h("span", "", label + " "); f.append(title, i); labels[k] = title; inputs.append(f);
   }
   function syncInputs() {
-    const { cursors, markerMode } = store.get(), ax = MODE_AXES(markerMode);
+    const { cursors, markerMode, channels } = store.get(), ax = MODE_AXES(markerMode), src = cursorSource(store);
+    const visible = channels.filter(c => c.visible), sig = visible.map(c => c.name).join("|");
+    if (sig !== sourceSig) { sourceSig = sig; source.replaceChildren(...visible.map(c => { const o = h("option", "", c.name); o.value = c.name; return o; })); }
+    source.value = src.channel?.name ?? ""; source.disabled = !src.channel;
     for (const k of Object.keys(boxes)) {
       boxes[k].parentNode.hidden = !ax[k[0]];
-      if (document.activeElement !== boxes[k]) boxes[k].value = cursors[k] === null ? "" : k[0] === "x" ? fmt.fmt(cursors[k], "s") : String(Number(cursors[k].toFixed(3)));
+      if (k[0] === "y") { labels[k].textContent = `${k.toUpperCase()} (${src.channel?.unit ?? "—"})`; boxes[k].disabled = !src.channel; }
+      if (document.activeElement !== boxes[k]) boxes[k].value = cursors[k] === null ? "" : k[0] === "x" ? fmt.fmt(cursors[k], "s") : fmt.fmt(src[k], src.channel?.unit ?? "");
     }
   }
   const fill = (t, head, rows) => t.replaceChildren(...[head, ...rows].filter(Boolean).map((r, i) => { const tr = h("tr"); r.forEach((c) => tr.append(h(i === 0 && head ? "th" : "td", "", c))); return tr; }));
@@ -179,7 +234,7 @@ export function mount(el, ctx) {
     info.textContent = r?.kind === "unsupported" ? r.reason : r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
     info.hidden = !info.textContent;
     const rows = cursorRows(r, fmt.fmt);
-    source.title = `換算來源：${r?.source ?? '—'}`; source.setAttribute('aria-label',source.title);
+    source.title = `換算來源：${cursorSource(store).channel?.name ?? "—"}`;
     tbl.replaceChildren(...rows.filter(([label]) => label !== '換算來源').map(([label,value],i) => {
       const cell = h("div", `cursors__value${i === 4 ? " cursors__value--newrow" : ""}`);
       cell.append(h("span", "muted", label), h("span", "cursors__number", value)); return cell;
@@ -188,10 +243,10 @@ export function mount(el, ctx) {
     fill(chTbl, ["通道", "@t1", "@t2", "Δ(t2−t1)"], r?.kind === "legacy"
       ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [c.name, fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
   }
-  createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
-  store.on(["cursors", "markerMode"], syncInputs);
-  const source = h('span','results__info','ⓘ'); source.tabIndex = 0;
-  inputs.append(centerButton(store),source);
+  const controller = createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
+  store.on(["cursors", "markerMode", "channels"], syncInputs);
+  onCursorSource(store, syncInputs);
+  inputs.append(centerButton(store),sourceLabel);
   el.append(inputs, info, chTbl, tbl);
   render(null);
 }

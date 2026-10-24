@@ -10,12 +10,12 @@
 .analysis__overview { min-height: 0; }
 .analysis__fftsection { flex: 0 0 auto; min-height: 0; display: flex; flex-direction: column; }
 .analysis__fft { flex: 0 0 auto; min-height: 160px; display: flex; flex-direction: column; overflow: hidden; }
-.analysis__fftbar { height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; background: var(--c-surface); }
+.analysis__fftbar { height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12.5px; background: var(--c-surface); }
 /* FFT 欄位同行，移除全域 .field 的上下排列與底部留白；連捲軸仍容得下 24px 控件。 */
 .analysis__fftbar > *, .analysis__fftbar .row > * { flex-shrink: 0; }
 .analysis__fftbar .row { flex-wrap: nowrap; }
-.analysis__fftbar .field { flex-direction: row; align-items: center; margin-bottom: 0; font-size: 12px; line-height: 16px; }
-.analysis__fftbar .input, .analysis__fftbar .select { height: 24px; font-size: 12px; }
+.analysis__fftbar .field { flex-direction: row; align-items: center; margin-bottom: 0; font-size: 12.5px; line-height: 16px; }
+.analysis__fftbar .input, .analysis__fftbar .select { height: 24px; font-size: 12.5px; }
 .analysis__fftplot { flex: 1 0 120px; min-height: 120px; position: relative; }
 .analysis__lower { font-size: 13px; grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .analysis__lowerbody { flex: 1 1 0; min-height: 0; display: flex; gap: 8px; overflow: auto; }
@@ -35,11 +35,11 @@
 .analysis--drawer .analysis__splitter--side { z-index: 6; transform: translateX(calc(var(--side-drawer-width) - 36px)); }
 
 /* P2a：維持單列 28px，窄視窗可橫捲，不壓縮主圖格內高度。 */
-.analysis__horizontal { background: var(--c-surface); color: var(--c-text); display: flex; flex: 0 0 28px; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12px; }
+.analysis__horizontal { background: var(--c-surface); color: var(--c-text); display: flex; flex: 0 0 28px; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12.5px; }
 .analysis__horizontal .btn { flex-shrink: 0; padding: 1px 4px; min-height: 22px; }
 .analysis__horizontal [aria-pressed="true"] { background: var(--c-primary, #1676c0); color: #fff; }
 .analysis__hfield { flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; }
-.analysis__hfield input { width: 140px; min-width: 14ch; min-height: 22px; height: 24px; padding: 1px 4px; font-size: 12px; }
+.analysis__hfield input { width: 140px; min-width: 14ch; min-height: 22px; height: 24px; padding: 1px 4px; font-size: 12.5px; }
 .analysis__hrange { padding: 0 4px; }
 .analysis__hmodes { display: inline-flex; position: sticky; left: 0; z-index: 1; flex: 0 0 auto; gap: 4px; background: var(--c-surface, #fff); }
 
@@ -78,10 +78,10 @@
 .cursors__number { font: 13px/18px var(--font-mono); }
 .analysis__cursors .table th, .analysis__cursors .table td { white-space: nowrap; padding: 2px 4px; font-size: 13px; line-height: 18px; }
 
-/* B 區以自身寬度換行；X 的 SI 單位保留完整輸入空間。 */
+/* B 區以自身寬度換行；Y 保留負號、小數與單位（如 -12.34 mV），不足時整欄換行。 */
 .analysis__cursors { container-type: inline-size; }
 .cursors__field--x { flex: 2 1 10ch; min-width: 10ch; }
-.cursors__field--y { flex: 1 1 5ch; min-width: 5ch; }
+.cursors__field--y { flex: 1 1 11ch; min-width: 11ch; }
 .cursors__field--x .input { min-width: 10ch; }
 @container (max-width: 430px) {
   .cursors__readout { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -92,3 +92,7 @@
 .results__table th:last-child, .results__table td:last-child { position: sticky; right: 0; background: var(--c-surface); z-index: 1; }
 
 .analysis__lower .analysis__placeholder { font-size: 13px; }
+
+.analysis__cursorSummary { position: sticky; right: 0; background: var(--c-surface); margin-left: auto; flex: 1 1 240px; min-width: 60px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.cursors__sourcefield { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; }
+.cursors__source { min-width: 0; max-width: 12ch; font-size: 13px; }

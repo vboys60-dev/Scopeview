@@ -88,9 +88,22 @@ export function bindViewport(store) {
   return history;
 }
 
+/** 線命中半徑 ±8px；等距時按 x1、x2、y1、y2 順序決定。 */
+export function nearestCursor(cursors, view, r, x, y) {
+  if (x < r.l || x > r.l + r.w || y < r.t || y > r.t + r.h) return null;
+  const X = linear(view.t0, view.t1, r.l, r.l + r.w);
+  let best = null, distance = 8;
+  for (const k of ["x1", "x2", "y1", "y2"]) {
+    if (!Number.isFinite(cursors[k])) continue;
+    if (k[0] === "x" && (cursors[k] < view.t0 || cursors[k] > view.t1)) continue;
+    const d = Math.abs(k[0] === "x" ? X(cursors[k]) - x : r.t + (5 - cursors[k]) * r.h / 10 - y);
+    if (d <= 8 && (best === null || d < distance)) { best = k; distance = d; }
+  }
+  return best;
+}
 /** 主圖互動由此集中管理，繪圖仍由 mainplot 負責。 */
 export function bindGestures(canvas, { store, ui }, geometry, draw) {
-  let drag = null, mode = DEFAULT_MODE, space = false, edgeDownAt = -Infinity;
+  let drag = null, mode = DEFAULT_MODE, space = false, edgeDownAt = -Infinity, hover = null, pointer = null;
   const listeners = [];
   canvas.tabIndex = 0;
   const on = (el, key, fn, opts) => { if (!el?.addEventListener) return; el.addEventListener(key, fn, opts); listeners.push(() => el.removeEventListener?.(key, fn, opts)); };
@@ -98,24 +111,31 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   const X = (view) => { const r = geometry(); return linear(view.t0, view.t1, r.l, r.l + r.w); };
   const inside = (x, y) => { const r = geometry(); return x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h; };
   function hitCursor(x, y) {
+    if (!inside(x, y)) return null;
     const s = store.get(), r = geometry();
-    return ["x1", "x2", "y1", "y2"].find((k) => Number.isFinite(s.cursors[k]) && Math.abs((k[0] === "x" ? X(s.view)(s.cursors[k]) - x : r.t + (5 - s.cursors[k]) * r.h / 10 - y)) <= 5);
+    return nearestCursor(s.cursors, s.view, r, x, y);
   }
+  const updateHover = () => {
+    const next = !drag && pointer && store.get().file && mode === "pan" && !space && !pointer.shiftKey ? hitCursor(pointer.x, pointer.y) : null;
+    if (next === hover) return false;
+    hover = next; draw(); return true;
+  };
   const end = () => {
     const d = drag; drag = null;
     if (d?.type === "pan") store.command("view.historyGroup", { end: true });
     if (d && canvas.hasPointerCapture?.(d.id)) canvas.releasePointerCapture(d.id);
-    draw();
+    if (!updateHover() && d) draw();
   };
   let draggingView = false;
   const offGroup = store.onCommand("view.historyGroup", (p) => { draggingView = !!p?.continuous; });
   on(canvas, "mousedown", (e) => { if (e.button === 1) e.preventDefault(); });
-  const offMode = store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { end(); mode = v; canvas.style.cursor = mode === "zoom" ? "crosshair" : "grab"; } });
+  const offMode = store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { end(); mode = v; updateHover(); canvas.style.cursor = mode === "zoom" ? "crosshair" : "grab"; } });
   on(canvas, "pointerdown", (e) => {
     if (drag || !store.get().file && !store.get().channels.length) return;
     if (e.button !== 0 && e.button !== 1) return;
     canvas.focus?.({ preventScroll: true }); // 先讓欄位 blur 提交，再取得拖曳起始 view。
     const [x, y] = local(e), s = store.get(), r = geometry();
+    pointer = { x, y, shiftKey: !!e.shiftKey };
     const handle = hitHandle(s.channels, r, x, y), edge = hitCursorEdge(s.cursors, s.view, r, x, y), which = hitCursor(x, y);
     const type = gestureFor({ ...e, button: e.button, shiftKey: e.shiftKey, mode, space: space && !editableTarget(document.activeElement), handle: !!handle, edge: !!edge, cursor: !!which, inside: inside(x, y) });
     if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
@@ -127,7 +147,10 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   });
   on(canvas, "pointermove", (e) => {
     const [x, y] = local(e), r = geometry(), s = store.get();
-    if (!drag) { canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
+    pointer = { x, y, shiftKey: !!e.shiftKey };
+    if (!drag) {
+      updateHover();
+      canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag;
     if (e.pointerId !== d.id) return;
     d.current = x; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
@@ -149,11 +172,11 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     if (e.key === "Escape" && drag) { end(); return; }
     const action = shortcutFor(e, document.activeElement ?? e.target);
     if (!action) return;
-    if (action === "space") { space = true; e.preventDefault(); }
+    if (action === "space") { space = true; updateHover(); e.preventDefault(); }
     else if (action === "cancel") end();
     else { e.preventDefault(); end(); store.command(action); }
   });
-  on(window, "keyup", (e) => { if (e.code === "Space" || e.key === " ") space = false; });
+  on(window, "keyup", (e) => { if (e.code === "Space" || e.key === " ") { space = false; updateHover(); } });
   on(canvas, "dblclick", (e) => {
     if (e.timeStamp >= edgeDownAt && e.timeStamp - edgeDownAt <= 500) return;
     const [x, y] = local(e), s = store.get(), r = geometry(), handle = hitHandle(s.channels, r, x, y);
@@ -171,14 +194,17 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     store.command("viewport.intent", { t0: a - (a - v.t0) * factor, t1: a + (v.t1 - a) * factor });
     store.command("view.historyGroup");
   }, { passive: false });
+  on(canvas, "pointerleave", () => { pointer = null; updateHover(); });
+  const offHover = store.on(["cursors", "view", "channels"], updateHover);
   const offFile = store.on(["file"], () => { draggingView = false; end(); });
   return {
+    hovered: () => hover,
     overlay(g) {
       if (drag?.type !== "zoom" || !drag.moved) return;
       const r = geometry(), a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
       g.save(); g.fillStyle = "rgba(90,160,255,0.25)"; g.strokeStyle = "#78a0ff"; g.setLineDash([]);
       g.fillRect(a, r.t, b - a, r.h); g.strokeRect(a, r.t, b - a, r.h); g.restore();
     },
-    dispose() { end(); listeners.forEach((off) => off()); offMode(); offFile(); offGroup(); },
+    dispose() { end(); listeners.forEach((off) => off()); offMode(); offFile(); offGroup(); offHover(); },
   };
 }

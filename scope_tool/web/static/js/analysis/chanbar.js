@@ -41,7 +41,7 @@ export function mount(el, ctx) {
     const vis = h("input", "check"); vis.type = "checkbox"; vis.title = "顯示／隱藏";
     vis.onchange = () => store.updateChannel(c.name, { visible: vis.checked }, "user");
     const name = h("span", "chip__name", c.name);
-    name.title = "點一下：選為量測／游標換算來源；雙擊：換色";
+    name.title = "點一下：選為目前通道／量測來源；雙擊：換色";
     name.onclick = () => store.set({ selected: c.name }, "user");
     const col = h("input"); col.type = "color"; col.hidden = true;
     col.oninput = () => store.updateChannel(c.name, { color: col.value }, "user");

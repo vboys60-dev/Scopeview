@@ -1,3 +1,4 @@
+import { mountSummary } from "./summary.js";
 // Horizontal 列：中心參考點固定 0.5；只發 viewport.intent，不強制吸附非標準尺度。
 import { fmt, parseSI } from "../fmt.js";
 import { DEFAULT_MODE } from "./gestures.js";
@@ -62,6 +63,7 @@ export function mount(el, { store }) {
   const zero = button("0", () => { const v = horizontalOf(store.get().view); store.command("viewport.intent", rangeOf(v.scale, 0)); }, "檔案時間 0 置中");
   el.append(zero);
   const range = h("span", undefined, "analysis__hrange"); el.append(range, reset);
+  mountSummary(el, store);
   function render(force = false) {
     const s = store.get(), v = horizontalOf(s.view), f = fullRange(s.file);
     for (const [key, field] of [["scale", scale], ["position", position]]) {

@@ -170,6 +170,8 @@
 
 ## 5. Marker／游標
 
+P3a（2026-10-24）完成：來源脫鉤、Y 物理真值與格數投影、最近者命中／hover、Horizontal 摘要、Track Measurements disabled。B 新欄位／TSV、垂直／雙向框選留 P3b。
+
 - **命中**：線 ±8 px（觸控 ±12 px）、把手點擊區 ≥24 px；**最近者優先**，不再固定 X1 先贏；X 把手在上緣、Y 把手在右緣；hover 顯示可拖並加粗。
 - **模式**（選單移到 Horizontal 列右端，英文模式名保留以便對照 Infiniium）：手動 X／手動 Y／手動 X＋Y、追蹤波形、傳統取樣游標（保留現有吸附語意，標明）、Track Measurements（disabled＋原因）。Track RF 留在 FFT 窗格。
 - **來源與單位**：游標來源在游標面板選擇，存於 `cursors.js` 私有狀態，**與 `selected` 脫鉤**；Y 的真值為「來源＋物理值」，輸入與顯示使用來源單位；`store.cursors.y` 維持格數作為投影，來源通道 scale/position 變動時由 `cursors.js` 用**變更前**的換算取得物理值再重新投影，並以 `differs()` 防迴圈（契約不改）。
@@ -233,6 +235,10 @@ A（240，可收折）│ splitter │  Horizontal 列／通道列／（overview
 交付：模式列、框選放大、Shift／Space／中鍵暫時鍵、Esc、視圖 Undo/Redo；零位把手＋左軸物理電壓；Horizontal 列、Vertical 欄位、`step125Strict`、畫面中心基準；三條 splitter＋`clampLayout`；B 分頁（量測｜游標｜FFT 峰值）。
 
 ### P3：Marker 語意
+
+第二輪修正：自動回退／還原來源時，同單位保留物理值、異單位保留畫面格數；記住使用者來源名稱至換檔。通道與游標同批更新以新通道換算明寫值。下拉訂閱可見性變動，拒絕隱藏來源後同步復原。命中限定圖框與可見 X；拖曳結束、換檔及游標／視圖更新重算 hover，無變化不重繪。通知以來源／物理值／讀值差異去重。新增 DOM、Canvas 粗線、摘要倒數／有號差值與追蹤讀值斷言，22 個暫存變異均被抓到。
+
+P3a 完成項同 §5；新增 `summary.js`（L5，摘要與模式選項）、`p3_check.mjs`（L8，自檢與暫存變異），已登記至 RULES 擁有權表。未新增 command 或修改 intents。Y 真值風險以舊換算捕捉、differs 防迴圈及獨立驗證覆蓋；Node 全自檢、P3a 暫存變異 22/22 通過；Python 自檢 51/52 通過，server 的 localhost 綁定受沙箱限制。browser_check／e2e_check 交沙箱外執行，真機待驗。
 
 交付：游標來源脫鉤、Y 物理值真值；格外把手、最近者優先；摘要列與 B「游標」分頁（可複製）；畫面外箭頭與「歸位」；Track Measurements disabled；進階：垂直／雙向框選（取合法檔位）。
 

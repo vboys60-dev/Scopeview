@@ -85,7 +85,7 @@ assert.equal(load().tab,'peaks','欄位選單不可覆寫頁籤偏好');
 assert.deepEqual(load().columns,[...expected,'count'].sort((a,b) => COLUMNS.indexOf(a)-COLUMNS.indexOf(b)));
 const otherActions = new Element('div'); mountResults(new Element('div'),{ ...ctx,resultActions:otherActions });
 assert.ok(otherActions.children[1].children[1].lastChild.firstChild.checked,'選單重新掛載保留次數');
-store.set({ file:{ gen:1 },channels:[{ name:'CH1',unit:'V',scale:1,position:0,time_offset:0 }],selected:'CH1' });
+store.set({ file:{ gen:1 },channels:[{ name:'CH1',visible:true,unit:'V',scale:1,position:0,time_offset:0 }],selected:'CH1' });
 const stats = { current:954.126,mean:954,min:950,max:960,range:10,std:1,count:42 };
 store.set({ measurements:[1,2].map(id => ({ id,name:'上升時間',channel:'CH1',result:{ ok:true,gen:1,revision:2,unit:'ps',stats } })) });
 assert.equal(table.children.length,3);
@@ -119,7 +119,7 @@ ctx.bridge.call = async (...args) => {
 const cursor = new Element('div'); mountCursors(cursor,ctx);
 assert.equal(cursor.children[2].tagName,'table','各通道讀值優先放在摘要前');
 assert.equal(cursor.children[0].className,'cursors__inputs'); assert.equal(cursor.children[0].children.length,6);
-assert.deepEqual(cursor.children[0].children.slice(0,4).map(e => e.textContent),['X1 ','X2 ','Y1(格) ','Y2(格) ']);
+assert.deepEqual(cursor.children[0].children.slice(0,4).map(e => e.firstChild.textContent),['X1 ','X2 ','Y1 (V)','Y2 (V)']);
 store.command('cursor.intent',{ which:'x1',value:1 }); store.command('cursor.intent',{ which:'x2',value:2 });
 await done;
 assert.equal(cursor.children[3].className,'cursors__readout');

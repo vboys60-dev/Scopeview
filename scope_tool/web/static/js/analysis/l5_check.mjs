@@ -75,9 +75,10 @@ async function setup(hook) {
 // 3. Marker：送後端前換來源座標；Track Waveforms 回寫 snap；markerResult 為顯示座標
 {
   const { bridge, store, sum, channels } = await setup();
-  createController({ store, bridge }, { delay: 5 });
+  const ctl = createController({ store, bridge }, { delay: 5 });
   channels[1].time_offset = 0.0002; channels[1].scale = 0.5; channels[1].position = 1;
   store.set({ file: sum, channels, selected: "CHAN2" }, "program");
+  ctl.setSource("CHAN2"); // P3a：明確指定來源，不再跟著 selected
   store.set({ cursors: { x1: 0.0012, x2: 0.0031, y1: 3, y2: -1 } }, "user");
   store.set({ markerMode: "Track Waveforms" }, "user");
   await sleep(50);
@@ -259,7 +260,7 @@ async function setup(hook) {
   p.on = true; store.set({ file: null }, "program");
   assert.equal(p.on, false); assert.equal(resets, 2, "關檔也重置");
 }
-// 11. 游標表斜率：傳統／Marker 都保留正負號與來源單位，無效值留白。
+// 11. 游標表斜率：傳統／Marker 都保留正負號與來源單位，無效值顯示破折號。
 {
   for (const kind of ["legacy", "marker"]) {
     const row = (dx, dy, unit = "V") => cursorRows({ kind, t1: 0, t2: dx, v1: 0, v2: dy, dx, dy, unit, source: "CHAN1" }, F.fmt);
@@ -267,7 +268,7 @@ async function setup(hook) {
       [0, 4, ""], [null, 4, ""], [undefined, 4, ""], [2, null, ""], [2, undefined, ""],
       [Infinity, 4, ""], [2, Infinity, ""], [NaN, 4, ""], [2, NaN, ""], [1e-308, 1e308, ""]]) {
       const rows = row(dx, dy);
-      assert.deepEqual(rows[7], ["ΔY/ΔX", want]);
+      assert.deepEqual(rows[7], ["ΔY/ΔX", want || "—"]);
       assert.deepEqual(rows[8], ["換算來源", "CHAN1"]);
       assert.equal(rows.length, kind === "marker" ? 10 : 9);
     }

@@ -187,7 +187,7 @@ export function createCanvas(host, onResize, cls = "plot__canvas") {
 /** 通用：畫格線與座標軸文字。xt/yt＝[{p:像素, label}]；rect＝{l,t,w,h}。 */
 export function drawGrid(ctx, rect, xt, yt, colors) {
   ctx.save();
-  ctx.strokeStyle = colors.grid; ctx.fillStyle = colors.text; ctx.font = "11px sans-serif"; ctx.lineWidth = 1;
+  ctx.strokeStyle = colors.grid; ctx.fillStyle = colors.text; ctx.font = "12.5px sans-serif"; ctx.lineWidth = 1;
   ctx.beginPath();
   for (const t of xt) { const x = Math.round(t.p) + 0.5; ctx.moveTo(x, rect.t); ctx.lineTo(x, rect.t + rect.h); }
   for (const t of yt) { const y = Math.round(t.p) + 0.5; ctx.moveTo(rect.l, y); ctx.lineTo(rect.l + rect.w, y); }

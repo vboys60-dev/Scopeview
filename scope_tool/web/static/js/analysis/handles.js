@@ -48,7 +48,7 @@ export function revealCursor(store, edge, ui) {
   store.command("viewport.intent", { t0: edge.value - half, t1: edge.value + half });
 }
 export function drawHandles(g, channels, cursors, view, r) {
-  g.save(); g.font = "11px sans-serif"; g.textBaseline = "middle"; g.textAlign = "center"; g.setLineDash([]);
+  g.save(); g.font = "12.5px sans-serif"; g.textBaseline = "middle"; g.textAlign = "center"; g.setLineDash([]);
   for (const b of channelHandles(channels, r)) {
     g.fillStyle = b.color; g.fillRect(b.x, b.y, b.w - 1, b.h);
     g.fillStyle = "#000"; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2, b.w - 2);
