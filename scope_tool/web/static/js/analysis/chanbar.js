@@ -64,12 +64,12 @@ export function mount(el, ctx) {
 
   function sync() {
     const { channels, selected } = store.get();
-    for (const c of channels) {
+    for (const [i, c] of channels.entries()) {
       const r = rows.get(c.name); if (!r) continue;
       r.sc.textContent = `${fmt.fmt(c.scale, c.unit)}/格`;
       r.badge.hidden = !hasDx(c);
       r.vis.checked = c.visible;
-      r.name.textContent = `●${c.name}`; r.name.style.color = c.color; r.col.value = c.color;
+      r.name.textContent = `${"●▲■◆"[i % 4]}${c.name}`  /* 形狀輔助辨識，不只靠顏色 */; r.name.style.color = c.color; r.col.value = c.color;
       r.box.classList.toggle("chip--selected", c.name === selected);
     }
   }

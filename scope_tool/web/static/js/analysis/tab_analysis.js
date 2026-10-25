@@ -11,7 +11,7 @@ import { mountFloat } from "./floatpanel.js";
 import { mountSplitter } from "./splitter.js";
 import * as fmt from "../fmt.js";
 
-const FALLBACK_COLORS = ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"];
+const FALLBACK_COLORS = ["#F0E442", "#56B4E9", "#E58FC4", "#3DD6A3", "#E69F00", "#b79cff"];
 
 /** FileSummary → 通道記錄（color 依序取用；scale／position 由 autoScale；time_offset 起始 0）。 */
 export function channelsFromFile(info, colors = FALLBACK_COLORS) {

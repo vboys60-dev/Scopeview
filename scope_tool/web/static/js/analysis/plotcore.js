@@ -187,11 +187,12 @@ export function createCanvas(host, onResize, cls = "plot__canvas") {
 /** 通用：畫格線與座標軸文字。xt/yt＝[{p:像素, label}]；rect＝{l,t,w,h}。 */
 export function drawGrid(ctx, rect, xt, yt, colors) {
   ctx.save();
-  ctx.strokeStyle = colors.grid; ctx.fillStyle = colors.text; ctx.font = "12.5px sans-serif"; ctx.lineWidth = 1;
-  ctx.beginPath();
+  ctx.strokeStyle = colors.grid; ctx.fillStyle = colors.text; ctx.font = "12px sans-serif"; ctx.lineWidth = 1;
+  ctx.setLineDash([1, 3]); ctx.beginPath();
   for (const t of xt) { const x = Math.round(t.p) + 0.5; ctx.moveTo(x, rect.t); ctx.lineTo(x, rect.t + rect.h); }
   for (const t of yt) { const y = Math.round(t.p) + 0.5; ctx.moveTo(rect.l, y); ctx.lineTo(rect.l + rect.w, y); }
-  ctx.stroke();
+  ctx.stroke(); ctx.setLineDash([]);
+  if (colors.center) drawCenter(ctx, rect, colors.axis);
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   for (const t of xt) if (t.label) ctx.fillText(t.label, t.p, rect.t + rect.h + 4);
   ctx.textAlign = "right"; ctx.textBaseline = "middle";
@@ -203,7 +204,20 @@ export function drawGrid(ctx, rect, xt, yt, colors) {
   ctx.strokeStyle = colors.axis; ctx.strokeRect(rect.l + 0.5, rect.t + 0.5, rect.w, rect.h);
   ctx.restore();
 }
+/** 中央十字軸與每格 5 等分小刻度（示波器儀器風）。 */
+function drawCenter(ctx, rect, color) {
+  const cx = Math.round(rect.l + rect.w / 2) + 0.5, cy = Math.round(rect.t + rect.h / 2) + 0.5;
+  ctx.strokeStyle = color; ctx.beginPath();
+  ctx.moveTo(cx, rect.t); ctx.lineTo(cx, rect.t + rect.h); ctx.moveTo(rect.l, cy); ctx.lineTo(rect.l + rect.w, cy);
+  for (let i = 1; i < 50; i++) {
+    const x = Math.round(rect.l + rect.w * i / 50) + 0.5, y = Math.round(rect.t + rect.h * i / 50) + 0.5, n = i % 5 ? 3 : 0;
+    if (n) { ctx.moveTo(x, cy - n); ctx.lineTo(x, cy + n); ctx.moveTo(cx - n, y); ctx.lineTo(cx + n, y); }
+  }
+  ctx.stroke();
+}
 export const plotColors = () => ({
   bg: cssVar("--c-plot-bg", "#000"), grid: cssVar("--c-plot-grid", "#333"), axis: cssVar("--c-plot-axis", "#888"),
   text: cssVar("--c-plot-text", "#ccc"), c1: cssVar("--c-cursor1", "#fff"), c2: cssVar("--c-cursor2", "#aaa"),
+  amber: cssVar("--c-amber", "#f5b942"), fft: cssVar("--c-fft-trace", "#b79cff"), peak: cssVar("--c-fft-peak", "#ff8f6b"),
+  ovWin: cssVar("--c-ov-window", "#78a0ff"), ovShade: cssVar("--c-ov-shade", "rgba(120,160,255,.25)"),
 });

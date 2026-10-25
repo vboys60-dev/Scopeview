@@ -59,8 +59,8 @@ export function mount(el, ctx) {
     const ft = log() ? logTicks(fw.f0, fw.f1) : niceTicks(fw.f0, fw.f1);
     drawGrid(g, rect, ft.map((v) => ({ p: F(v), label: tickLabel(v, "Hz") })), niceTicks(yr[0], yr[1], 6).map((v) => ({ p: Y(v), label: tickLabel(v, unit) })), col);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
-    if (env) drawPixels(g, envPixels(env, F, Y), "#c58bff");
-    g.fillStyle = "#ff5b5b"; g.font = "10px sans-serif"; g.textAlign = "center";
+    if (env) drawPixels(g, envPixels(env, F, Y), col.fft);
+    g.fillStyle = col.peak; g.font = "10px sans-serif"; g.textAlign = "center";
     baseline.draw(g);
     for (const p of markers.rows()) { // 峰值：向下三角形＋頻率
       if (p.x < fw.f0 || p.x > fw.f1) continue;

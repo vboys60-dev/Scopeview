@@ -58,16 +58,16 @@ export function mount(el, ctx) {
     const s = store.get();
     // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
     const selected = s.channels.find((c) => c.name === s.selected), axis = voltageAxis(selected);
-    g.font = "12.5px sans-serif";
+    g.font = "12px sans-serif";
     const left = voltageLeft((text) => g.measureText(text).width, axis, channelHandles(s.channels, rect), MARGIN.l);
     rect = layoutRect(w, h, left);
     const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     const labels = timeTickLabels(s.view.t0, s.view.t1);
-    g.font = "12.5px sans-serif";
+    g.font = "12px sans-serif";
     const dense = labels.some((label) => g.measureText(label).width + 8 > rect.w / 10);
     drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: !dense || i % 2 === 1 ? labels[i] : "" })),
-      axis.ticks.map((t) => ({ p: divY(rect, t.division), label: selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * rect.h / 10 < 12 ? "" : t.label })), { ...col, yText: axis.color });
+      axis.ticks.map((t) => ({ p: divY(rect, t.division), label: selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * rect.h / 10 < 12 ? "" : t.label })), { ...col, yText: axis.color, center: true });
     if (selected && Math.abs(selected.position) <= DIVS && !Number.isInteger(selected.position)) {
       g.fillStyle = selected.color; g.textAlign = "right"; g.textBaseline = "middle";
       const y = divY(rect, selected.position);
@@ -84,7 +84,7 @@ export function mount(el, ctx) {
       drawPixels(g, e.px, c.color);
     }
     const cu = s.cursors;
-    g.lineWidth = 1; g.font = "12.5px sans-serif"; g.textBaseline = "top";
+    g.lineWidth = 1; g.font = "12px sans-serif"; g.textBaseline = "top";
     for (const [k, color] of [["x1", col.c1], ["x2", col.c2], ["y1", col.c1], ["y2", col.c2]]) {
       const v = cu[k];
       if (v === null || v === undefined) continue;

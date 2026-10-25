@@ -1,16 +1,17 @@
 /* 示波器工具 App 樣式（L6）。淺色主題；僅圖區為黑底。無外部字型／URL。 */
 :root {
-  --c-bg: #f3f4f6; --c-surface: #fff; --c-border: #d0d4da;
-  --c-text: #1f2328; --c-text-dim: #6b7280;
-  --c-accent: #1f6feb; --c-accent-text: #fff;
-  --c-danger: #cf222e; --c-ok: #1a7f37; --c-warn: #9a6700; --c-focus: #4493f8;
-  --c-plot-bg: #000; --c-plot-grid: #2a2a2a; --c-plot-axis: #888; --c-plot-text: #ddd;
-  --c-ch1: #ffcc00; --c-ch2: #00d0ff; --c-ch3: #ff5fbf; --c-ch4: #7be36b; --c-ch5: #ff8a3d; --c-ch6: #b79cff;
-  --c-cursor1: #ffffff; --c-cursor2: #ff6b6b;
+  --c-bg: #f3f4f6; --c-surface: #fff; --c-border: #d0d7de;
+  --c-text: #1f2328; --c-text-dim: #57606a;
+  --c-accent: #0969da; --c-accent-text: #fff;
+  --c-danger: #cf222e; --c-ok: #1a7f37; --c-warn: #9a6700; --c-focus: #0969da;
+  --c-plot-bg: #000; --c-plot-grid: #3a3a3a; --c-plot-axis: #8a8a8a; --c-plot-text: #d4d4d4;
+  --c-amber: #f5b942; --c-fft-trace: #b79cff; --c-fft-peak: #ff8f6b; --c-ov-window: #78a0ff; --c-ov-shade: rgba(120,160,255,.25);
+  --c-ch1: #F0E442; --c-ch2: #56B4E9; --c-ch3: #E58FC4; --c-ch4: #3DD6A3; --c-ch5: #E69F00; --c-ch6: #b79cff;
+  --c-cursor1: #ffffff; --c-cursor2: #ff8f6b;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
   --font-ui: "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   --font-mono: ui-monospace, Menlo, Consolas, "Courier New", monospace;
-  --fs-sm: 12px; --fs-base: 14px; --fs-lg: 16px;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-base: 14px; --fs-lg: 16px;
   --radius: 4px; --shadow-dlg: 0 8px 28px rgba(0,0,0,.28); --h-control: 30px;
 }
 *, *::before, *::after { box-sizing: border-box; }

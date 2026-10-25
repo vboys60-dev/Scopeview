@@ -1,7 +1,7 @@
 // L4：框選／平移與視圖歷史；通道只經既有意圖套用。
 import { DEFAULT_ZOOM_KIND, ZOOM_KINDS, verticalRect } from "./vzoom.js";
 import { fullRange } from "./overview.js";
-import { linear, wheelFactor } from "./plotcore.js";
+import { linear, wheelFactor, plotColors } from "./plotcore.js";
 import { hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
 export const DEFAULT_MODE = "pan";
 export const RECT_MIN_PX = 6;
@@ -237,7 +237,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     overlay(g) {
       if (drag?.type !== "zoom" || !drag.moved) return;
       const r = geometry(), a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
-      g.save(); g.fillStyle = "rgba(90,160,255,0.25)"; g.strokeStyle = "#78a0ff"; g.setLineDash([]);
+      g.save(); g.fillStyle = plotColors().ovShade; g.strokeStyle = plotColors().ovWin; g.setLineDash([]);
       const top = drag.zoomKind === "horizontal" ? r.t : clamp(Math.min(drag.y, drag.currentY), r.t, r.t + r.h);
       const bottom = drag.zoomKind === "horizontal" ? r.t + r.h : clamp(Math.max(drag.y, drag.currentY), r.t, r.t + r.h);
       const left = drag.zoomKind === "vertical" ? r.l : a, width = drag.zoomKind === "vertical" ? r.w : b - a;

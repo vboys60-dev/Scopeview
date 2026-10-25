@@ -53,8 +53,8 @@ export function mount(el, { store, bridge }) {
     }
     if (full()) {
       const a = x(s.view.t0), b = x(s.view.t1);
-      g.fillStyle = "rgba(120,160,255,0.25)"; g.fillRect(a, 0, Math.max(b - a, 1), H);
-      g.strokeStyle = "#78a0ff"; g.strokeRect(a + 0.5, 0.5, Math.max(b - a, 1), H - 1);
+      g.fillStyle = col.ovShade; g.fillRect(a, 0, Math.max(b - a, 1), H);
+      g.strokeStyle = col.ovWin; g.strokeRect(a + 0.5, 0.5, Math.max(b - a, 1), H - 1);
     }
   }
   function load() {

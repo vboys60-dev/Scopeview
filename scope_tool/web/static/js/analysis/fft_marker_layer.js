@@ -1,3 +1,4 @@
+import { plotColors } from './plotcore.js';
 // 基準線優先於頻譜平移；預覽只更新模型，放開才定案與判斷是否補抓。
 import { fftMarkerModel } from './fft_markers.js';
 export function fftGesture(rect, x, y, lineY) {
@@ -46,7 +47,7 @@ export function createFftMarkerLayer(canvas, ctx, geometry, ymap, result, draw) 
       if (!available()) return;
       const r = geometry(), y = lineY(), raw = rawY();
       if (!Number.isFinite(y)) return;
-      g.save(); g.strokeStyle = '#f5b942'; g.fillStyle = '#f5b942'; g.lineWidth = 1.5; g.setLineDash([6, 4]);
+      g.save(); g.strokeStyle = plotColors().amber; g.fillStyle = plotColors().amber; g.lineWidth = 1.5; g.setLineDash([6, 4]);
       g.beginPath(); g.moveTo(r.l, y); g.lineTo(r.l + r.w, y); g.stroke();
       if (raw !== y) { // 超出畫面：箭頭＋數值標籤
         const up = raw < y, v = model.displayLevel(result()), u = result().unit;

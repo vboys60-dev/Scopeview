@@ -18,6 +18,6 @@ export const CATALOG = {
   "waveform_formats": ["CSV", "HDF5"],
   "csv_max_points_default": 10000000,
   "fft_impedances": [["Auto：其他／未知 50Ω", 50.0], ["Auto：單端 50Ω", 50.0], ["Auto：差動 100Ω", 100.0], ["Auto：共模 25Ω", 25.0], ["手動", null]],
-  "channel_colors": ["#ffcc00", "#00d0ff", "#ff5fbf", "#7be36b", "#ff8a3d", "#b79cff"],
+  "channel_colors": ["#F0E442", "#56B4E9", "#E58FC4", "#3DD6A3", "#E69F00", "#b79cff"],
   "rf_directions": [-1, 0, 1]
 };

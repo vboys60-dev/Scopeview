@@ -48,7 +48,7 @@ function modal(title, build, ok = "確定") {
 
 export function mount(el, ctx) {
   const { store, bridge, ui, fmt, scales } = ctx, catalog = ctx.appState?.catalog ?? {};
-  const colors = catalog.channel_colors ?? ["#ffcc00"], fail = (e, t) => ui.showError(e, t);
+  const colors = catalog.channel_colors ?? ["#F0E442"], fail = (e, t) => ui.showError(e, t);
   el.classList.add("analysis__toolbar");
   const btn = (t, fn, cls = "btn") => { const b = h("button", cls, t); b.type = "button"; b.onclick = fn; return b; };
   const loaded = [];
