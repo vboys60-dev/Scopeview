@@ -37,18 +37,18 @@
 - **3000G 量測實作（2026-10-25）**：`633ab61` 單來源三項（Rise／Fall／Slew 點數不足輸出 `<`／`>` 標記上界、新增 `-工作週期`、Vavg／Vrms 加 `mode` full／cycles，Vavg 舊「單週期＋靜默退回」已取消）；下一筆雙來源 `延遲`／`相位`／`電壓比`（MeasureEntry 加 `channel2`／`rising2`，catalog `sources:2`，`measure.measure2`，配對取最近邊緣並裁到兩來源時間交集）。契約新增可選欄位 `mode`、`bound`、`channel2`、`rising2`。實量 `wave6000-10Mhz_20261023_011313.h5` CHAN1→CHAN2：延遲 −250 ns、相位 −90°、電壓比 0 dB。「目前」已改取最靠近 t=0 的事件（`stats(values, ref)`＋ndarray `.at` 事件時間；含 0 用 0 否則切片中點；Qt 路徑不變）。未做：可見範圍量測、Top/Base 真機比對（見研究檔第五節）。
 - 工作方式：Codex 編碼 → 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查 → Claude 提交。
 
-## 分析頁 Marker Table（2026-10-25，P1～P4 已 commit，main HEAD `08f364e`）
+## 分析頁 Marker Table（2026-10-25，P1～P4 已 commit，main HEAD `e9785dd`）
 
-- 計劃書：`docs/分析頁MarkerTable計劃書.md`（決定、分階段、檔案 lane 皆在內；契約不升版，新 store 鍵 `markerTable`／`fftMarker`）。commit：`99cc40a` P1/P2 → `2b583bb` P3＋右鍵選單 → P4 `03447e3` → `86a6a04` 獨立點按鈕 → `08f364e` 右鍵／拖曳修正。
+- 計劃書：`docs/分析頁MarkerTable計劃書.md`（決定、分階段、檔案 lane 皆在內；契約不升版，新 store 鍵 `markerTable`／`fftMarker`）。commit：`99cc40a` P1/P2 → `2b583bb` P3＋右鍵選單 → P4 `03447e3` → `86a6a04` 獨立點按鈕 → `08f364e` 右鍵／拖曳修正 → `e9785dd` WKWebView 選單點選修正。
 - 行為：
   - 時域 Marker：連動組 M1（各通道同一時間）＋每通道最多 10 個獨立點。新增＝表格「新增／移動連動 M1」、「＋ 獨立點（目前通道）」，或主圖右鍵選單（含刪除）。拖曳＝點中後跟滑鼠任意移動，放開才向後端吸附到實際取樣點，獨立點拖出範圍夾回曲線端點。註記在表格內編輯。
   - FFT：水平基準線（可拖、單位可選＝`fft_units` 去 Phase，超出畫面時貼邊並標示），峰表一次抓 1000 峰後前端過濾／排序／取前 n，免重跑 FFT；峰不收註記。
   - 版面：B 區頁籤 `量測｜游標｜Marker｜FFT 峰值`；寬≥1200 游標／Marker 並列；標題列「⇥ 右側欄」＝版面 C（`layout.markerSide`，340px 直欄，≥900px 才啟用，窄版／浮動自動退回底部且不改偏好）。
 - 新檔：`markers.js marker_layer.js marker_menu.js marker_table.js fft_markers.js fft_runner.js fft_marker_{controls,layer,table}.js`；檢查 `marker_check.mjs fft_marker_check.mjs dock_check.mjs`、`web/browser_marker_checks.py`（`dock_layout`、`marker_add_button`、`marker_rightclick`）。新 command `marker.*`、`fftMarker.*`、`layout.markerSide` **尚未登記 RULES.md**（lead 管理）。
 - 驗證：`selfcheck_node.js`、`e2e_check` 通過；`browser_check` 只剩既有 P3b-2 `fit: False`（HEAD 前就有，非 Marker 造成）。
-- 踩過的坑：選單 `focusout` 在 `menu.remove()` 時同步重入 `close()`，導致點選項無效（已修，fake DOM 測不到，靠 `marker_rightclick`）；`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算截斷。
-- 未做：JSON 匯出入（只帶 time／ch／link／note）；右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者只驗過右鍵新增與按鈕，其餘待試。
-- 工具備註：Codex 曾卡死約 1.5 小時（CPU 近 0、無檔案變動），改由 Claude 直接完成；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
+- 踩過的坑：WKWebView 點 button 不給焦點，mousedown 使 `focusout` 的 `relatedTarget=null`，舊的 focusout 直接關選單 → 點選項無效；headless Chrome 會給焦點所以 `browser_check` 測不出，回歸保護靠 `marker_check.mjs` 斷言（選單 mousedown preventDefault、relatedTarget=null 不關）。Mac Ctrl+左鍵在 `gestures.js` pointerdown 直接 return 交給 contextmenu（Windows 的 Ctrl+左鍵因此無作用，審查列為低風險未處理）。選單 `focusout` 在 `menu.remove()` 時同步重入 `close()`，導致點選項無效（已修，fake DOM 測不到，靠 `marker_rightclick`）；`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算截斷。
+- 未做：JSON 匯出入（只帶 time／ch／link／note）；右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者驗過獨立點按鈕；右鍵選單點選修正（`e9785dd`）、拖曳 Marker、拖曳基準線待在 pywebview 實測。
+- 工具備註：Codex 曾卡死（CPU 近 0、無檔案變動），原因是 `codex exec` 在等 stdin（輸出停在「Reading additional input from stdin...」），**背景呼叫必須加 `< /dev/null`**；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
 
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
