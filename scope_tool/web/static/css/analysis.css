@@ -149,3 +149,10 @@
 .analysis--dock .analysis__splitter--lower::before { display: none; }
 .analysis--dock .analysis__lowerbody > * { flex: 1 1 0; }
 .analysis__dockbtn { margin-left: 4px; }
+
+/* 介面美化 A：工具列標籤與控制同一行；量測鈕改兩欄。 */
+.analysis__toolbar .field { flex-direction: row; align-items: center; gap: var(--sp-1); margin-bottom: 0; }
+.analysis__toolbar .field .select, .analysis__toolbar .field .input { height: 28px; }
+.analysis__side .field:has(.btn--small) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-1); }
+.analysis__side .field:has(.btn--small) > .field__label { grid-column: 1 / -1; }
+.analysis__side .field:has(.btn--small) .btn--small { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 var(--sp-1); }
