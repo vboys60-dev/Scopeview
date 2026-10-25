@@ -2,7 +2,9 @@
 // FFT 預算與 analysis.css 同步：40px 同行控制列＋至少 120px 繪圖區。
 export const FFT_BAR_HEIGHT = 40, FFT_PLOT_MIN = 120, FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN;
 export const VERSION = 1, STORAGE_KEY = 'scope.analysis.layout.v1';
-export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, overview: null });
+export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, markerSide: false, overview: null });
+/** 版面 C：B 區搬到圖右側的直欄寬度；視窗 <900px 不啟用。 */
+export const DOCK_WIDTH = 340, DOCK_MIN_VW = 900;
 const clip = (n, a, b) => Math.min(b, Math.max(a, n));
 export function validatePrefs(raw) {
   const p = defaults();
@@ -11,6 +13,7 @@ export function validatePrefs(raw) {
     if (typeof raw[k] === 'number' && Number.isFinite(raw[k])) p[k] = clip(raw[k], lo, hi);
   }
   for (const k of ['sideCollapsed','lowerCollapsed','fftCollapsed']) if (typeof raw[k] === 'boolean') p[k] = raw[k];
+  if (typeof raw.markerSide === 'boolean') p.markerSide = raw.markerSide;
   return p;
 }
 let memory = defaults();
@@ -31,11 +34,12 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   const narrow = vw <= 899, drawer = narrow && drawerOpen;
   const sideCollapsed = narrow ? !drawer : (p.sideCollapsed ?? vw < 1100);
   const side = narrow || sideCollapsed ? 36 : p.side;
-  let lowerCollapsed = lowerFloating || (p.lowerCollapsed ?? (vh <= 700 && fftOn));
-  let lower = lowerCollapsed ? 0 : (p.lower ?? clip(H * .21,150,180)) - 28;
+  const canDock = vw >= DOCK_MIN_VW && !lowerFloating, docked = canDock && p.markerSide;
+  let lowerCollapsed = !docked && (lowerFloating || (p.lowerCollapsed ?? (vh <= 700 && fftOn)));
+  let lower = lowerCollapsed || docked ? 0 : (p.lower ?? clip(H * .21,150,180)) - 28;
   let overview = (prefs?.overview ?? vh > 700) ? (fftOn ? 40 : 56) : 0;
   const fftCollapsed = p.fftCollapsed;
-  const separators = 28 + (fftOn ? 28 : 0);
+  const separators = (docked ? 0 : 28) + (fftOn ? 28 : 0);
   const preferredFFT = Math.max(FFT_MIN_HEIGHT,Math.min(200,H-chrome-separators-lower-overview-330));
   let fft = fftOn && !fftCollapsed ? p.fft ?? preferredFFT : 0;
   const room = () => H - chrome - separators - lower - overview - fft;
@@ -49,8 +53,8 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   const usedHeight = chrome + separators + lower + overview + (tabbed ? main : main + fft);
   const scroll = usedHeight > H;
   if (scroll) steps.push('scroll');
-  return { side, sideCollapsed, drawer, drawerWidth:p.side, lower: lower + 28, lowerBody: lower, lowerCollapsed, fft, fftCollapsed, overview, main,
-    mainGrid: main - 30, tabbed, scroll, usedHeight, plotWidth: Math.max(0,W-side-10), steps };
+  return { side, sideCollapsed, drawer, drawerWidth:p.side, lower: docked ? 0 : lower + 28, docked, canDock, dockWidth: docked ? DOCK_WIDTH : 0, lowerBody: lower, lowerCollapsed, fft, fftCollapsed, overview, main,
+    mainGrid: main - 30, tabbed, scroll, usedHeight, plotWidth: Math.max(0,W-side-10-(docked ? DOCK_WIDTH : 0)), steps };
 }
 /** splitter 數值邏輯：拖曳與方向鍵共用，絕不以越界觸發收折。 */
 export function resizeValue(kind, start, delta, max = Infinity) {

@@ -24,7 +24,7 @@
 - **P1 時域 Marker 資料與圖上繪製**：新檔 `markers.js`（模型＋吸附，呼叫 `cursor_readout`／`marker_eval`）、`marker_layer.js`（主圖繪製／命中／右鍵／拖曳），gestures／mainplot 只加掛鉤。
 - **P2 時域 Marker Table 與版面 A**：`marker_table.js`；bpanel 加 `marker` 頁籤（`TABS`），≥820 與游標並列。
 - **P3 FFT 基準線與 FFT Marker Table**：`fft_markers.js`＋基準線繪製／拖曳；toolbar 的門檻／數量改接 `fftMarker`，峰表前端過濾。
-- **P4 版面 C 右側欄**：layout 加側欄模式與切換鈕，<900px 收抽屜。
+- **P4 版面 C 右側欄（已完成）**：`layout.markerSide` 偏好＋B 標題列「⇥ 右側欄」鈕；`clampLayout` 回傳 `docked`／`dockWidth`（340px），B 區搬到圖右側整欄，游標／Marker 上下疊；視窗 <900px 或浮動時自動退回底部，偏好不被覆寫。檢查：`dock_check.mjs`、`browser_marker_checks.dock_layout`。
 - 每階段：Codex 編碼→沙箱外跑 `selfcheck_node.js`、`e2e_check`、`browser_check`→Opus 唯讀審查→提交。每階段留 `*_check.mjs`（lane L8）。
 
 ## 檔案與 lane（使用者 2026-10-25 授權本計劃跨 lane，比照 P3b-2／gui-float）

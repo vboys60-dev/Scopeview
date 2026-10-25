@@ -191,3 +191,34 @@ if __name__ == '__main__':
     ast.parse(Path(__file__).read_text(encoding='utf-8'))
     assert callable(p3a_markers) and callable(p3b_markers) and callable(p3b2_zoom)
     print('browser_marker_checks self-check OK（CDP 斷言由 browser_check 執行）')
+
+
+def dock_layout(c: Cdp, prep: str) -> None:
+    """版面 C：B 區移到圖右側、游標／Marker 上下疊、<900px 自動退回底部，偏好不被覆寫。"""
+    check = """(async()=>{""" + prep + """
+        const R=s=>document.querySelector(s).getBoundingClientRect(),wait=()=>new Promise(r=>setTimeout(r,250));
+        const state=()=>{const l=R('.analysis__lower'),p=R('.analysis__plot'),m=R('.analysis__markers'),k=R('.analysis__cursors');
+            return {dock:document.querySelector('.analysis').classList.contains('analysis--dock'),right:l.left>=p.right-1,
+                full:Math.abs(l.height-R('.analysis').height+R('.analysis__toolbar').height)<40,stack:m.top>=k.bottom-1||k.top>=m.bottom-1,
+                page:document.documentElement.scrollWidth<=innerWidth+1,w:Math.round(l.width)}};
+        try {
+            S.command('layout.markerSide',true);
+            document.querySelector('[data-result-tab=marker]').click();await wait();
+            const on=state();
+            window.__vw=innerWidth;
+            return {on,pref:JSON.parse(localStorage.getItem('scope.analysis.layout.v1')).markerSide};
+        } finally { }
+    })()"""
+    res = c.js(check)
+    assert res["on"]["dock"] and res["on"]["right"] and res["on"]["stack"] and res["on"]["page"], res
+    assert res["pref"] is True and 300 <= res["on"]["w"] <= 360, res
+    c.send('Emulation.setDeviceMetricsOverride', width=800, height=860, deviceScaleFactor=1, mobile=False)
+    c.pump(0.6)
+    narrow = c.js("(()=>({dock:document.querySelector('.analysis').classList.contains('analysis--dock'),"
+                  "pref:JSON.parse(localStorage.getItem('scope.analysis.layout.v1')).markerSide}))()")
+    c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
+    c.pump(0.6)
+    c.js("(async()=>{(await import('/js/analysis/store.js')).store.command('layout.markerSide',false)})()")
+    c.pump(0.4)
+    after = c.js("document.querySelector('.analysis').classList.contains('analysis--dock')")
+    assert narrow["dock"] is False and narrow["pref"] is True and after is False, (narrow, after)

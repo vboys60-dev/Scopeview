@@ -140,3 +140,12 @@
 .analysis__markers .table td, .analysis__markers .table th, .analysis__markers .btn, .analysis__markers .input { white-space: nowrap; padding: 2px 4px; font-size: 13px; line-height: 18px; }
 .marker-table__note { width: 100px; min-width: 60px; }
 .analysis__markers tr.is-selected { background: var(--c-focus, #cce8ff); }
+
+/* 版面 C：B 區搬到圖右側直欄（clampLayout.docked）；游標／Marker 上下疊，各表獨立捲動。 */
+.analysis.analysis--dock { grid-template-areas: "tool tool tool tool" "side split plot dock" "side split plot dock"; }
+.analysis--dock .analysis__lower { grid-area: dock; border-left: 1px solid var(--c-border); }
+.analysis--dock .analysis__lowerbody { flex-direction: column; }
+.analysis--dock .analysis__splitter--lower { flex: 0 0 auto; height: auto; min-height: 28px; flex-wrap: wrap; padding: 2px 4px; cursor: default; }
+.analysis--dock .analysis__splitter--lower::before { display: none; }
+.analysis--dock .analysis__lowerbody > * { flex: 1 1 0; }
+.analysis__dockbtn { margin-left: 4px; }

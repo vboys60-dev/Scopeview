@@ -56,8 +56,8 @@ export function mountTabs(host, panels, { initial = load(), persist = save, acti
     panels.measure.parentNode.dataset.resultTabbed = String(single);
     panels.measure.parentNode.dataset.markerPaired = String(!!panels.marker && !effectiveTabbed && ['cursor','marker'].includes(prefs.tab));
   }
-  return { update({ width, height, count = 0, fftOn = false, lowerCollapsed = false }) {
-    tabbed = useTabs(width,height); pairTabbed = width < PAIR_MIN_WIDTH || height < 150; collapsed = lowerCollapsed;
+  return { update({ width, height, count = 0, fftOn = false, lowerCollapsed = false, docked = false }) {
+    tabbed = useTabs(width,height); pairTabbed = !docked && (width < PAIR_MIN_WIDTH || height < 150); collapsed = lowerCollapsed; // docked：右側欄，游標／Marker 上下疊
     buttons.peaks.textContent = `FFT 峰值${fftOn && count ? ` (${count})` : ''}`;
     render();
   }, get tab() { return prefs.tab; } };

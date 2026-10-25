@@ -53,6 +53,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
     else change({ ...prefs,[kind+'Collapsed']:!effective[kind+'Collapsed'] });
   });
   store.onCommand('layout.reset', (kind) => { if (valid(kind)) { if (kind === 'side') drawerOpen = false; change(resetPref(prefs,kind)); } });
+  store.onCommand('layout.markerSide', (on) => change({ ...prefs,markerSide:on ?? !prefs.markerSide }));
   store.onCommand('layout.restore', change);
   store.onCommand('layout.dragging', dragging);
   store.onCommand('preview.visible', (on) => { prefs = { ...prefs,overview:!!on }; schedule(); });
@@ -125,7 +126,7 @@ export function mount(el, ctx) {
   // 原 P1 按鈕移入 splitter，只有同一份偏好與 effective 狀態。
   const root = q("analysis"), fftSection = q("analysis__fftsection");
   let fftOn = false, effective, frame = 0, activeTab = 'wave', floatPanel;
-  const controller = bindLayoutCommands(store,{ schedule, lowerLocked:() => !!floatPanel?.floating, dragging:(on) => { root.dataset.dragging = String(on); } });
+  const controller = bindLayoutCommands(store,{ schedule, lowerLocked:() => !!floatPanel?.floating || !!effective?.docked, dragging:(on) => { root.dataset.dragging = String(on); } });
   const buttons = { side:q('analysis__sidetoggle'), lower:q('analysis__lowertoggle'), fft:q('analysis__ffttoggle') };
   const tabs = document.createElement('div'); tabs.className = 'analysis__plotTabs'; tabs.setAttribute('role','tablist');
   tabs.innerHTML = '<button type="button" role="tab" data-pane="wave">波形</button><button type="button" role="tab" data-pane="fft">FFT</button>';
@@ -143,6 +144,10 @@ export function mount(el, ctx) {
   const lowerHeader = buttons.lower.parentNode;
   const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), marker:q('analysis__markers'), peaks:q('analysis__peaks') },{ actions });
   lowerHeader.append(actions);
+  const dockBtn = document.createElement('button'); dockBtn.type = 'button'; dockBtn.className = 'btn btn--small analysis__dockbtn';
+  dockBtn.onclick = () => store.command('layout.markerSide');
+  for (const name of ['pointerdown','dblclick','keydown']) dockBtn.addEventListener(name,e => e.stopPropagation());
+  lowerHeader.append(dockBtn);
   const lowerBody = q('analysis__lowerbody');
   floatPanel = mountFloat(el,{ store, lower:q('analysis__lower'), header:lowerHeader, body:lowerBody,
     tabs:lowerHeader.querySelector('.analysis__resultTabs'), actions, schedule });
@@ -155,7 +160,10 @@ export function mount(el, ctx) {
     effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, chrome });
     controller.update(effective);
     const e = effective, plot = q('analysis__plot');
-    root.style.gridTemplateColumns = `${e.side}px 10px minmax(0,1fr)`;
+    root.style.gridTemplateColumns = `${e.side}px 10px minmax(0,1fr)${e.docked ? ` ${e.dockWidth}px` : ''}`;
+    root.classList.toggle('analysis--dock',e.docked);
+    dockBtn.hidden = !e.canDock; dockBtn.textContent = e.docked ? '⇤ 底部' : '⇥ 右側欄';
+    dockBtn.title = e.docked ? '結果移回底部' : '結果移到右側欄'; dockBtn.setAttribute('aria-pressed',String(e.docked));
     root.style.gridTemplateRows = `auto minmax(0,1fr) ${e.lower}px`;
     root.classList.toggle('analysis--side-collapsed',e.sideCollapsed);
     root.classList.toggle('analysis--drawer',e.drawer);
@@ -165,8 +173,8 @@ export function mount(el, ctx) {
     root.dataset.tabbed = String(e.tabbed);
     q('analysis__side').hidden = e.sideCollapsed;
     lowerBody.hidden = floating ? floating.collapsed : e.lowerCollapsed;
-    buttons.lower.hidden = !!floating;
-    q('analysis__lower').style.height = e.lower+'px';
+    buttons.lower.hidden = !!floating || e.docked;
+    q('analysis__lower').style.height = e.docked ? '' : e.lower+'px';
     overview.hidden = !e.overview; overview.style.height = e.overview+'px';
     tabs.hidden = !e.tabbed;
     const waveHidden = e.tabbed && activeTab === 'fft';
@@ -177,7 +185,7 @@ export function mount(el, ctx) {
     fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
     plot.style.overflowY = e.scroll ? 'auto' : 'hidden';
     for (const tab of tabs.children) tab.setAttribute('aria-selected',String(tab.dataset.pane === activeTab));
-    resultTabs.update({ width:floating?.width ?? lowerBody.clientWidth, height:floating?.height ?? e.lower, lowerCollapsed:floating ? floating.collapsed : e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftMarker?.shown ?? store.get().fftResult.peaks?.length ?? 0 : 0 });
+    resultTabs.update({ width:floating?.width ?? lowerBody.clientWidth, height:floating?.height ?? e.lower, lowerCollapsed:floating ? floating.collapsed : e.lowerCollapsed, fftOn, docked:e.docked, count:store.get().fftResult?.ok ? store.get().fftMarker?.shown ?? store.get().fftResult.peaks?.length ?? 0 : 0 });
     const st = store.get();
     buttons.side.textContent = e.sideCollapsed ? '›' : '‹'; buttons.side.title = e.sideCollapsed ? '展開量測欄' : '收折量測欄';
     buttons.side.setAttribute('aria-label',buttons.side.title);
