@@ -47,7 +47,7 @@
 - 新檔：`markers.js marker_layer.js marker_menu.js marker_table.js fft_markers.js fft_runner.js fft_marker_{controls,layer,table}.js`；檢查 `marker_check.mjs fft_marker_check.mjs dock_check.mjs`、`web/browser_marker_checks.py`（`dock_layout`、`marker_add_button`、`marker_rightclick`）。新 command `marker.*`、`fftMarker.*`、`layout.markerSide` **尚未登記 RULES.md**（lead 管理）。
 - 驗證：`selfcheck_node.js`、`e2e_check` 通過；`browser_check` 只剩既有 P3b-2 `fit: False`（HEAD 前就有，非 Marker 造成）。
 - 踩過的坑：WKWebView 點 button 不給焦點，mousedown 使 `focusout` 的 `relatedTarget=null`，舊的 focusout 直接關選單 → 點選項無效；headless Chrome 會給焦點所以 `browser_check` 測不出，回歸保護靠 `marker_check.mjs` 斷言（選單 mousedown preventDefault、relatedTarget=null 不關）。Mac Ctrl+左鍵在 `gestures.js` pointerdown 直接 return 交給 contextmenu（Windows 的 Ctrl+左鍵因此無作用，審查列為低風險未處理）。選單 `focusout` 在 `menu.remove()` 時同步重入 `close()`，導致點選項無效（已修，fake DOM 測不到，靠 `marker_rightclick`）；`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算截斷。
-- 未做：JSON 匯出入（只帶 time／ch／link／note）；右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者驗過獨立點按鈕；右鍵選單點選修正（`e9785dd`）、拖曳 Marker、拖曳基準線待在 pywebview 實測。
+- **使用者決定不做 JSON 匯出入**（2026-10-25）。未做：右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者驗過獨立點按鈕；右鍵選單點選修正（`e9785dd`）、拖曳 Marker、拖曳基準線待在 pywebview 實測。
 - 工具備註：Codex 曾卡死（CPU 近 0、無檔案變動），原因是 `codex exec` 在等 stdin（輸出停在「Reading additional input from stdin...」），**背景呼叫必須加 `< /dev/null`**；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
 
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案

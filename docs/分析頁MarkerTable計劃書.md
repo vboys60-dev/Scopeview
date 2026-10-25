@@ -17,7 +17,7 @@
    - **峰值不收註記**（重算後峰 id 不穩）。不開放內插開關（後端寫死 `interpolate=True`），表格加註腳「頻率已內插」。
    - 表格欄：`# ｜頻率｜振幅｜高於基準線`；峰數超過抓取上限時顯示「已截斷」。點峰值列→沿用 `rf.intent` 標示。
    - 效能：改基準線／n 不再重跑 FFT。以寬鬆參數抓一次（`peak_count=1000`、Decreasing Magnitude、level＝目前最低基準），之後在前端依基準線過濾、排序、取前 n；只有基準線拉到抓取值以下才重抓。RF 跳峰門檻改跟基準線一致。
-5. 與既有游標分開：`store.cursors` 只由 `cursors.js` 寫入，Marker 不碰；X1/X2 的 ΔY/ΔX 維持現狀。JSON 匯出入只帶 time／ch／link／note。
+5. 與既有游標分開：`store.cursors` 只由 `cursors.js` 寫入，Marker 不碰；X1/X2 的 ΔY/ΔX 維持現狀。~~JSON 匯出入~~：使用者 2026-10-25 決定不做。
 
 ## 分階段
 
