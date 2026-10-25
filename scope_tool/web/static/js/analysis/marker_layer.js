@@ -1,4 +1,5 @@
 // 圖上只做投影／命中與拖曳預覽，放開才送模型吸附。
+import { createMarkerMenu, markerMenuItems } from './marker_menu.js';
 import { markerModel } from './markers.js';
 import { linear, nearestDist } from './plotcore.js';
 const inside = (r, x, y) => x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h;
@@ -16,7 +17,7 @@ export function nearestChannel(channels, cache, x, y, selected) {
   return hits[0]?.name ?? selected;
 }
 export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
-  const { store } = ctx, model = markerModel(ctx);
+  const { store } = ctx, model = markerModel(ctx), menu = createMarkerMenu();
   const points = () => markerPoints(model, store.get(), geometry());
   const time = x => { const r = geometry(), v = store.get().view; return linear(v.t0, v.t1, r.l, r.l + r.w).inv(x); };
   const context = e => {
@@ -24,11 +25,10 @@ export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
     if (!inside(geometry(), x, y) || !store.get().file) return;
     e.preventDefault();
     const st = store.get(), ch = nearestChannel(st.channels, cache, x, y, st.selected);
-    if (!st.markerTable.some(p => p.link)) model.add({ ch, t: time(x), link: true });
-    else model.add({ ch, t: time(x) });
+    menu.open(e.clientX, e.clientY, markerMenuItems(st, ch, time(x), hitMarker(points(), x, y), model));
   };
   canvas.addEventListener('contextmenu', context);
-  const off = model.on(draw);
+  const off = model.on(draw), offFile = store.on(['file'], menu.close);
   return {
     hit: (x, y) => hitMarker(points(), x, y),
     hover(x, y) { const p = hitMarker(points(), x, y); model.hover(p?.key ?? null); return p; },
@@ -46,6 +46,6 @@ export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
       }
       g.restore();
     },
-    dispose() { off(); canvas.removeEventListener?.('contextmenu', context); },
+    dispose() { menu.close(); offFile(); off(); canvas.removeEventListener?.('contextmenu', context); },
   };
 }

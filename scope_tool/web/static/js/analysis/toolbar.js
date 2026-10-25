@@ -1,3 +1,6 @@
+import { createFft } from './fft_runner.js';
+export { createFft, fftParams } from './fft_runner.js';
+import { bindFftMarkerControls } from './fft_marker_controls.js';
 import { disableTrackMeasurements } from "./summary.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
@@ -19,46 +22,10 @@ export async function closeFile(store, bridge) {
   try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
   store.set({ file: null, channels: [], selected: null, measurements: [], fftResult: null, rfPos: null, markerResult: null }, "program");
 }
-const rangeOf = (st) => (st.rangeMode === "cursors" && num(st.cursors.x1) && num(st.cursors.x2) ? [st.cursors.x1, st.cursors.x2] : null);
-const dxOf = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_offset || 0]));
 /** CSV 範圍：游標顯示時間直接切原始軸、不扣 dx（與 Qt、契約一致）；無游標值＝全部。 */
 export function csvRange(st) {
   const [a, b] = [st.cursors.x1, st.cursors.x2];
   return num(a) && num(b) ? [a, b] : null;
-}
-/** FFT 參數；阻抗 Ω 缺或 ≤0 回 null。 */
-export function fftParams(st, p, catalog) {
-  const imp = (catalog.fft_impedances ?? [])[p.imp]?.[1] ?? p.manualR;
-  if (!(imp > 0) || !st.file || !p.source) return null;
-  return { source: p.source, range: rangeOf(st), dx: dxOf(st.channels), window: p.window, unit: p.unit, r_ohm: imp, peak_count: p.peakCount, peak_level: p.peakLevel, peak_sort: p.peakSort };
-}
-
-/** FFT 控制器（不碰 DOM）：參數或範圍變動 → 防抖 → bridge.job("fft")；過期結果丟棄；結果帶 peak_level 供 cursors.js 的 RF 使用。 */
-export function createFft({ store, bridge }, catalog, p, { delay = 150, onError = () => {}, onReset = () => {} } = {}) {
-  let token = 0, timer = null, lastGen = store.get().file?.gen;
-  /** manual＝使用者手動觸發（可用 modal）；自動重跑失敗只 toast 並在 FFT 窗格顯示原因，不擋畫面。 */
-  async function run(manual = false) {
-    const my = token, st = store.get(), gen = st.file?.gen, args = p.on ? fftParams(st, p, catalog) : null;
-    if (!args) return store.set({ fftResult: null, rfPos: null }, "program");
-    try {
-      const r = await bridge.job("fft", args);
-      if (my !== token || store.get().file?.gen !== gen || (r.gen !== undefined && r.gen !== gen)) return;
-      store.set({ fftResult: { ...r, peak_level: args.peak_level }, ...(r.unit === "°" ? { rfPos: null } : {}) }, "program"); // Phase 無 RF
-    } catch (e) { if (my === token) { onError(e, manual); store.set({ fftResult: { ok: false, reason: e.message, spectrum_id: null, peaks: [] } }, "program"); } }
-  }
-  const invalidate = () => { token++; clearTimeout(timer); }; // 取消勾選時使進行中的 job 失效
-  const schedule = () => { token++; clearTimeout(timer); timer = setTimeout(() => run(false), delay); };
-  let sig = "";
-  store.on(["file", "rangeMode", "cursors", "channels"], (st, keys) => {
-    if ((st.file?.gen) !== lastGen) { // 開新檔或關檔：FFT 勾選重置為關閉，進行中的 job 失效
-      lastGen = st.file?.gen; p.on = false; invalidate(); onReset();
-    }
-    const s = JSON.stringify([st.file?.gen, rangeOf(st), dxOf(st.channels)]);
-    if (s === sig) return;
-    sig = s;
-    if (p.on) schedule();
-  });
-  return { run, schedule, invalidate };
 }
 
 function modal(title, build, ok = "確定") {
@@ -146,13 +113,14 @@ export function mount(el, ctx) {
   const fft = createFft(ctx, catalog, p, { onError: (e, manual) => (manual ? fail(e, "FFT 失敗") : ui.toast(`FFT 失敗：${e.message}`, "error", 6000)),
     onReset: () => { on.checked = false; store.command("fft.visible", false); syncFft(); } });
   const on = h("input", "check"); on.type = "checkbox";
-  const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map((k) => [k, k])), unit = select((catalog.fft_units ?? []).map((k) => [k, k]));
+  const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map((k) => [k, k])), unit = select((catalog.fft_units ?? []).filter(k => k !== "Phase").map((k) => [k, k]));
   const imp = select((catalog.fft_impedances ?? []).map(([t], i) => [i, t])), man = h("input", "input"), sort = select((catalog.peak_sorts ?? []).map((k) => [k, k]));
   const lvl = h("input", "input"), cnt = h("input", "input"); man.value = "50"; lvl.value = "-40"; cnt.value = "5"; [man, lvl, cnt].forEach((i) => { i.style.width = "5em"; });
   const nums = (inp, key, ok) => { inp.onchange = () => { const v = Number(inp.value); if (ok(v)) p[key] = v; else inp.value = String(p[key]); fft.schedule(); }; };
-  nums(man, "manualR", (v) => v > 0); nums(lvl, "peakLevel", Number.isFinite); nums(cnt, "peakCount", (v) => Number.isInteger(v) && v >= 1);
+  nums(man, "manualR", (v) => v > 0);
   const sel = (s, key, conv = (x) => x) => { s.onchange = () => { p[key] = conv(s.value); syncFft(); fft.schedule(); }; };
-  sel(src, "source"); sel(win, "window"); sel(unit, "unit"); sel(imp, "imp", Number); sel(sort, "peakSort");
+  sel(src, "source"); sel(win, "window"); sel(imp, "imp", Number);
+  bindFftMarkerControls(ctx, p, { unit, lvl, cnt, sort, imp, man }, catalog);
   on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(true); else { fft.invalidate(); store.set({ fftResult: null, rfPos: null }, "program"); } syncFft(); };
   function syncFft() {
     man.disabled = (catalog.fft_impedances ?? [])[p.imp]?.[1] !== null;
@@ -161,7 +129,7 @@ export function mount(el, ctx) {
   const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
   const loadedAll = [on, src, win, unit, imp, man, sort, lvl, cnt];
   el.append(fieldOf("FFT 計算", on));
-  fftRow.append(fieldOf("來源", src), fieldOf("視窗", win), fieldOf("單位", unit), imp, man, fieldOf("Peak Sort", sort), fieldOf("Peak Level", lvl), fieldOf("峰數", cnt));
+  fftRow.append(fieldOf("來源", src), fieldOf("視窗", win), fieldOf("單位", unit), imp, man, fieldOf("排序", sort), fieldOf("基準線", lvl), fieldOf("顯示數量 n", cnt));
   const root = el.closest(".analysis") ?? el.parentNode, place = () => { const bar = root.querySelector(".analysis__fftbar"); if (bar) bar.append(fftRow); return !!bar; };
   if (!place()) { const mo = new MutationObserver(() => { if (place()) mo.disconnect(); }); mo.observe(root, { childList: true, subtree: true }); setTimeout(() => { if (!fftRow.parentNode) el.append(fftRow); }, 3000); }
 

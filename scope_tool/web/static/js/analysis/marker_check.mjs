@@ -1,6 +1,7 @@
 // 無框架驗證：資料上限、全精度後端路徑、換檔與手勢優先序。
 import assert from 'node:assert/strict';
 import { createStore } from './store.js';
+import { markerMenuItems, menuPosition } from './marker_menu.js';
 import { markerModel } from './markers.js';
 import { markerCells, mount as mountTable } from './marker_table.js';
 import { gestureFor, bindGestures, bindViewport } from './gestures.js';
@@ -94,7 +95,7 @@ assert.equal(nearestChannel(channels, new Map(), 0, 0, 'CH2'), 'CH2');
 assert.ok(TABS.includes('marker'));
 assert.ok(panelVisible('marker', 'cursor', false)); assert.ok(panelVisible('cursor', 'marker', false));
 assert.equal(panelVisible('marker', 'cursor', true), false);
-// 實際事件接線：右鍵只新增一次；Marker 拖曳不得寫入游標或平移。
+// 實際事件接線：右鍵只開選單，明確選擇才新增；拖曳不得寫入游標或平移。
 class Surface {
   constructor(tag = 'div') { this.tagName = tag; this.listeners = {}; this.style = {}; this.children = []; this.dataset = {}; this.attrs = {}; }
   append(...nodes) { for (const n of nodes) { this.children.push(n); n.parentNode = this; } }
@@ -104,21 +105,39 @@ class Surface {
   addEventListener(n, fn) { (this.listeners[n] ??= []).push(fn); }
   removeEventListener(n, fn) { this.listeners[n] = this.listeners[n]?.filter(f => f !== fn); }
   emit(n, p) { for (const fn of this.listeners[n] ?? []) fn(p); }
-  getBoundingClientRect() { return { left: 0, top: 0 }; }
+  getBoundingClientRect() { return { left: 0, top: 0, width: 240, height: 90 }; }
+  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(n => n !== this); }
+  contains(n) { return this === n || this.children.some(c => c.contains(n)); }
+  querySelector() { return this.children.find(c => !c.disabled); }
   focus() { globalThis.document.activeElement = this; }
   setPointerCapture() {} hasPointerCapture() { return false; }
 }
-globalThis.window = new Surface(); globalThis.document = { activeElement: null, createElement: tag => new Surface(tag) };
+globalThis.window = new Surface(); globalThis.innerWidth = 800; globalThis.innerHeight = 600;
+globalThis.document = Object.assign(new Surface(), { activeElement: null, body: new Surface(), createElement: tag => new Surface(tag) });
 const canvas = new Surface(), rect = { l: 0, t: 0, w: 100, h: 100 };
 const layer = createMarkerLayer(canvas, ctx, () => rect, new Map(), () => {});
 const gestures = bindGestures(canvas, ctx, () => rect, () => {}, layer);
 let prevented = false;
 const count = store.get().markerTable.length;
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() { prevented = true; } });
-assert.ok(prevented); assert.equal(store.get().markerTable.length, count); // CH1 已滿，不得繞過上限。
+assert.ok(prevented); assert.equal(store.get().markerTable.length, count);
+let menu = document.body.children.at(-1);
+assert.equal(menu.children[0].textContent, '移動 M1 到此');
+assert.equal(menu.children[1].disabled, true); assert.match(menu.children[1].textContent, /10/);
+assert.deepEqual(menuPosition(790, 590, 240, 90, 800, 600), { left: 550, top: 500 });
+assert.deepEqual(menuPosition(1, 1, 900, 700, 800, 600), { left: 0, top: 0 });
 store.set({ selected: 'CH2' });
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
+assert.equal(store.get().markerTable.length, count);
+menu = document.body.children.at(-1); menu.children[1].onclick();
 assert.equal(store.get().markerTable.length, count + 1);
+assert.equal(document.body.children.length, 0);
+canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
+document.emit('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} });
+assert.equal(document.body.children.length, 0);
+canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
+document.emit('pointerdown', { target: canvas }); assert.equal(document.body.children.length, 0);
+assert.equal(markerMenuItems(store.get(), 'CH2', 3, { id: 'M1' }, model).at(-1).text, '刪除');
 await model.refresh();
 model.move({ id: 'M1', t: 4 }); await model.refresh();
 const before = { ...store.get().cursors }, view = { ...store.get().view };

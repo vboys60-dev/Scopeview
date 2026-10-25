@@ -1,3 +1,5 @@
+import { createFftMarkerLayer } from './fft_marker_layer.js';
+import { fftMarkerModel } from './fft_markers.js';
 // FFT 頻譜窗格：顯示 store.fftResult（由 L5 以 fft job 寫入）；頻譜資料走 /fft 二進位。
 // 對數軸、峰值標記、RF 位置（store.rfPos）；RF 操作只發 rf.intent。FFT 參數控制列由 L5 掛在 .analysis__fftbar。
 import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
@@ -44,6 +46,9 @@ export function mount(el, ctx) {
   const Fmap = () => { const w = win(); return (log() ? logmap : linear)(w.f0, w.f1, rect.l, rect.l + rect.w); };
   const Ymap = () => linear(yr[1], yr[0], rect.t, rect.t + rect.h);
 
+  const markers = fftMarkerModel(ctx);
+  const baseline = createFftMarkerLayer(canvas, ctx, () => rect, Ymap, res, draw);
+
   function draw() {
     const [w, h] = cv.size();
     if (!w || !h) return;
@@ -56,7 +61,8 @@ export function mount(el, ctx) {
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     if (env) drawPixels(g, envPixels(env, F, Y), "#c58bff");
     g.fillStyle = "#ff5b5b"; g.font = "10px sans-serif"; g.textAlign = "center";
-    for (const p of r.peaks ?? []) { // 峰值：向下三角形＋頻率
+    baseline.draw(g);
+    for (const p of markers.rows()) { // 峰值：向下三角形＋頻率
       if (p.x < fw.f0 || p.x > fw.f1) continue;
       const x = F(p.x), y = Y(p.y);
       g.beginPath(); g.moveTo(x - 4, y - 12); g.lineTo(x + 4, y - 12); g.lineTo(x, y - 4); g.fill();
@@ -104,7 +110,7 @@ export function mount(el, ctx) {
   });
   const lx = (e) => e.clientX - canvas.getBoundingClientRect().left;
   canvas.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0 || !res()) return;
+    if (e.button !== 0 || !res() || baseline.owns() || baseline.hit(e)) return;
     drag = { x: lx(e), view: win(), moved: false };
     canvas.setPointerCapture(e.pointerId);
   });
@@ -131,6 +137,9 @@ export function mount(el, ctx) {
     if (log()) setView({ f0: a * (w.f0 / a) ** f, f1: a * (w.f1 / a) ** f });
     else setView({ f0: Math.max(a - (a - w.f0) * f, 0), f1: a + (w.f1 - a) * f });
   }, { passive: false });
+  const cancelPan = () => { drag = null; };
+  canvas.addEventListener('pointercancel', cancelPan);
+  canvas.addEventListener('lostpointercapture', cancelPan);
   refreshAll();
-  return { draw, dispose() { cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
+  return { draw, dispose() { baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
 }

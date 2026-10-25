@@ -1,10 +1,12 @@
-import { mountCursorTable } from "./cursor_table.js";
-import { voltageAt } from "./voltage.js";
 // 游標與 Marker：cursors 的唯一寫入者。store.cursors 的 x＝顯示時間（秒）、y＝顯示格數；
 // 送後端前在此換成來源座標：x_src＝x−dx[ch]、y_src＝(y−position)×scale。對照 ui/analysis_marker.py。
 // 防迴圈：吸附回寫一律 origin="snap"，本模組遇 snap 不再觸發重算；回寫值與現值幾乎相同就不寫。
 // 處理 cursor.intent、rf.intent；寫 store.markerResult={mode, points:[{x,y,label}]}（顯示座標，主圖繪製）。
 // 待真人驗證：拖曳手感、DOM 排版。
+
+import { fftMarkerModel } from './fft_markers.js';
+import { mountCursorTable } from "./cursor_table.js";
+import { voltageAt } from "./voltage.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const num = (v) => typeof v === "number" && Number.isFinite(v);
@@ -177,7 +179,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
     if (!fr?.spectrum_id || ![-1, 0, 1].includes(direction) || !num(x)) return;
     const my = ++rfToken, sid = fr.spectrum_id;
     try {
-      const r = await bridge.call("fft_track_rf", { spectrum_id: sid, x, direction, level: fr.peak_level ?? -40 });
+      const r = await bridge.call("fft_track_rf", { spectrum_id: sid, x, direction, level: store.get().fftMarker ? fftMarkerModel({ store }).displayLevel(fr, false) : fr.peak_level ?? -40 });
       if (my !== rfToken || store.get().fftResult?.spectrum_id !== sid) return; // 過期丟棄
       store.set({ rfPos: { x: r.x, y: r.y, available: r.available, reason: r.reason } }, "user");
     } catch (e) { if (e.code !== "STALE") onError(e); }

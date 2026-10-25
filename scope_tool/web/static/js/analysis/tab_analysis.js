@@ -62,7 +62,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
 }
 
 export function lowerSummary(st, fftOn) {
-  return `量測 ${st.measurements.length}／FFT 峰值 ${fftOn && st.fftResult?.ok ? st.fftResult.peaks?.length ?? 0 : 0}${st.markerMode === 'Manual Y only' ? '' : '／ΔX ' + fmt.fmt(Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? st.cursors.x2-st.cursors.x1 : null, 's')}`;
+  return `量測 ${st.measurements.length}／FFT 峰值 ${fftOn && st.fftResult?.ok ? st.fftMarker?.shown ?? st.fftResult.peaks?.length ?? 0 : 0}${st.markerMode === 'Manual Y only' ? '' : '／ΔX ' + fmt.fmt(Number.isFinite(st.cursors.x1) && Number.isFinite(st.cursors.x2) ? st.cursors.x2-st.cursors.x1 : null, 's')}`;
 }
 
 export function mount(el, ctx) {
@@ -177,7 +177,7 @@ export function mount(el, ctx) {
     fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
     plot.style.overflowY = e.scroll ? 'auto' : 'hidden';
     for (const tab of tabs.children) tab.setAttribute('aria-selected',String(tab.dataset.pane === activeTab));
-    resultTabs.update({ width:floating?.width ?? lowerBody.clientWidth, height:floating?.height ?? e.lower, lowerCollapsed:floating ? floating.collapsed : e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftResult.peaks?.length ?? 0 : 0 });
+    resultTabs.update({ width:floating?.width ?? lowerBody.clientWidth, height:floating?.height ?? e.lower, lowerCollapsed:floating ? floating.collapsed : e.lowerCollapsed, fftOn, count:store.get().fftResult?.ok ? store.get().fftMarker?.shown ?? store.get().fftResult.peaks?.length ?? 0 : 0 });
     const st = store.get();
     buttons.side.textContent = e.sideCollapsed ? '›' : '‹'; buttons.side.title = e.sideCollapsed ? '展開量測欄' : '收折量測欄';
     buttons.side.setAttribute('aria-label',buttons.side.title);
@@ -189,7 +189,7 @@ export function mount(el, ctx) {
     lowerHeader.tabIndex = floating ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
   }
   store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
-  store.on(['measurements','fftResult','cursors'],schedule);
+  store.on(['measurements','fftResult','fftMarker','cursors'],schedule);
   const observer = new ResizeObserver(schedule);
   for (const host of [root,q('analysis__toolbar'),q('analysis__chanbar')]) observer.observe(host);
   schedule();

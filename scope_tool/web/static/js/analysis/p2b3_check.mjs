@@ -160,7 +160,7 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   state.command('measure.clear');
 }
 store.set({ fftResult:{ ok:true,unit:'dBV',peaks:[{ x:100,y:2 }] } });
-assert.equal(panels.peaks.lastChild.children.length,2); assert.equal(panels.measure.children.length,1,'FFT 表不能回到量測面板');
+assert.equal(panels.peaks.children.find(e => e.tagName === 'table').children.length,2); assert.equal(panels.measure.children.length,1,'FFT 表不能回到量測面板');
 let readoutDone;
 const done = new Promise(resolve => { readoutDone = resolve; });
 const originalCall = ctx.bridge.call;

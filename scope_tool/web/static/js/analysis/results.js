@@ -1,3 +1,4 @@
+import { mountFftMarkerTable } from './fft_marker_table.js';
 // 量測結果表與 FFT 峰值表（讀 store.measurements／fftResult）。對照 ui/analysis_results.py。
 // 過期丟棄：result.gen ≠ 目前檔案 gen 的列一律顯示「…」；匯出只在整批同 gen／同 revision 時才送（後端另驗 STALE）。
 
@@ -67,9 +68,8 @@ export function mount(el, ctx) {
   }
   const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(note, menu, bClear, bExp);
   if (!ctx.resultActions) el.append(bar);
-  const fftInfoEl = h("div", "results__fftinfo muted"), fftTbl = h("table", "table table--num results__table");
   const fftBox = ctx.fftPeaks ?? h("div", "analysis__peaks");
-  fftBox.append(fftInfoEl, fftTbl);
+  mountFftMarkerTable(fftBox, ctx, fftInfo);
   el.append(meas);
   if (!ctx.fftPeaks) el.append(fftBox);
 
@@ -95,12 +95,6 @@ export function mount(el, ctx) {
     bExp.disabled = !exportable(list, file);
   }
   const unitFor = (tpl, u) => String(tpl ?? "").replace("{u}", u);
-  function renderFft() {
-    const r = store.get().fftResult;
-    fftInfoEl.textContent = fftInfo(r, fmt);
-    const peaks = r?.ok ? r.peaks ?? [] : [];
-    fftTbl.replaceChildren(tr(["#", "頻率", "大小"], "th"), ...peaks.map((p, i) => tr([String(i + 1), fmt.fmt(p.x, "Hz"), fmt.fmt(p.y, r.unit)])));
-  }
   bClear.onclick = () => store.command("measure.clear");
   bExp.onclick = async () => {
     const { measurements: list, file } = store.get(), ex = exportable(list, file);
@@ -111,7 +105,6 @@ export function mount(el, ctx) {
     } catch (e) { if (e.code === "STALE") ui.toast("結果已過期，等量測重新計算後再匯出", "error"); else ui.showError(e, "匯出失敗"); }
   };
   store.on(["measurements", "file", "channels"], renderMeas);
-  store.on(["fftResult"], renderFft);
   store.onCommand('layout.float.state',on=>{ floating=on; if (!on) prefs=load(); renderMeas(); });
-  renderMeas(); renderFft();
+  renderMeas();
 }

@@ -1,0 +1,45 @@
+// 右鍵選單獨立管理生命週期；座標以視窗為準，碰到邊緣就翻轉。
+export function menuPosition(x, y, w, h, vw, vh) {
+  return { left: Math.max(0, Math.min(x + w > vw ? x - w : x, vw - w)),
+    top: Math.max(0, Math.min(y + h > vh ? y - h : y, vh - h)) };
+}
+export function markerMenuItems(state, ch, t, hit, model) {
+  const full = state.markerTable.filter(p => !p.link && p.ch === ch).length >= 10;
+  return [
+    { text: state.markerTable.some(p => p.link) ? '移動 M1 到此' : '在此放 M1（連動，各通道）', run: () => model.add({ ch, t, link: true }) },
+    { text: `在 ${ch} 新增獨立 Marker${full ? '（已達 10 點上限）' : ''}`, disabled: full, run: () => model.add({ ch, t }) },
+    ...(hit ? [{ text: hit.link ? '刪除連動組（M1 全部通道）' : '刪除', run: () => model.remove(hit.id) }] : []),
+  ];
+}
+export function createMarkerMenu() {
+  let menu = null, previous = null;
+  const close = () => {
+    if (!menu) return;
+    menu.remove(); menu = null;
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', key, true);
+    window.removeEventListener('resize', close);
+    window.removeEventListener('blur', close);
+  };
+  // 點外面只關選單，這次點擊不穿透到主圖。
+  const outside = e => { if (!menu?.contains(e.target)) { e.stopPropagation?.(); e.preventDefault?.(); close(); } };
+  const focusout = e => { if (!menu?.contains(e.relatedTarget)) close(); };
+  const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); previous?.focus?.({ preventScroll: true }); } };
+  return { close, open(x, y, items) {
+    close(); previous = document.activeElement;
+    menu = document.createElement('div'); menu.className = 'marker-menu'; menu.setAttribute('role', 'menu');
+    Object.assign(menu.style, { position: 'fixed', zIndex: '10000', display: 'grid', padding: '4px', background: 'var(--c-surface)', color: 'var(--c-text)', border: '1px solid var(--c-border)', borderRadius: '4px', boxShadow: '0 2px 8px #0004', maxWidth: '100vw', maxHeight: '100vh', overflow: 'auto' });
+    for (const item of items) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn--small';
+      b.textContent = item.text; b.disabled = !!item.disabled; b.setAttribute('role', 'menuitem');
+      b.onclick = () => { close(); item.run(); previous?.focus?.({ preventScroll: true }); }; menu.append(b);
+    }
+    document.body.append(menu);
+    const r = menu.getBoundingClientRect(), p = menuPosition(x, y, r.width, r.height, innerWidth, innerHeight);
+    menu.style.left = `${p.left}px`; menu.style.top = `${p.top}px`;
+    document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', key, true);
+    menu.addEventListener('focusout', focusout);
+    window.addEventListener('resize', close); window.addEventListener('blur', close);
+    menu.querySelector('button:not(:disabled)')?.focus();
+  } };
+}
