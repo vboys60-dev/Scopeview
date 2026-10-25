@@ -53,6 +53,7 @@ class ExportMixin:
                 w.writerows(meta)
                 w.writerow([])
                 w.writerow(["量測", "單位", "目前", "平均", "最小", "最大", "範圍", "標準差", "次數", "備註"])
+                # 雙來源的 channel2 與兩個方向併入 _label，與畫面一致。
                 for r in snap["results"]:
                     s = r["stats"]
                     prefix = r["bound"] + " " if r.get("bound") else ""

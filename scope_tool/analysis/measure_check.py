@@ -171,6 +171,7 @@ def _self_check() -> None:
         for bad_t, bad_v in ((t.astype(dtype), v), (t, v.astype(dtype))):
             rejected(bad_t, bad_v, "浮點型別")
     assert unit_of("上升斜率", "V²") == "V²/s" and unit_of("頻率", "V") == "Hz" and uniform_dt(t) == dt
+    _dual_check()
     _other_regression()
     _rms_public_check()
     print("analysis.measure self-check OK")
@@ -228,6 +229,56 @@ def _rms_public_check() -> None:
                 else:
                     assert np.float64(got).view(np.uint64) == np.float64(helper(v)).view(np.uint64)
                     print(f"RMS public {name} {label} {a:g}: OK {got:.17g}")
+
+
+def _dual_check() -> None:
+    from time import perf_counter
+    from scope_tool.analysis.measure import DUAL, measure2
+
+    t = np.arange(4000, dtype=float) / 1000
+    v = np.tile(np.r_[np.zeros(100), np.ones(100)], 20)
+    for shift in (0.05, -0.05):
+        delay = measure2("延遲", t, v, t + shift, v)
+        phase = measure2("相位", t, v, t + shift, v)
+        assert len(delay) == 20 and len(phase) == 19
+        assert np.allclose(delay, shift, rtol=0, atol=1e-14)
+        assert np.allclose(phase, shift / .2 * 360, rtol=0, atol=1e-10)
+    # 反向邊緣、缺省方向與不包裹（來源 2 僅一個較晚的事件）。
+    assert np.allclose(measure2("延遲", t, v, t + .05, 1-v, rising2=False), .05)
+    assert np.array_equal(measure2("延遲", t, v, t, v, rising=False),
+                          measure2("延遲", t, v, t, v, rising=False, rising2=False))
+    assert measure2("相位", t, v, t, np.r_[np.zeros(3500), np.ones(500)])[0] > 360
+    # 不等長範圍只統計交集內事件；首尾範圍外事件不能進入配對。
+    for name, count, expected in (("延遲", 5, .05), ("相位", 4, 90)):
+        got = measure2(name, t, v, t[1000:2000] + .05, v[1000:2000])
+        assert got.size == count and np.allclose(got, expected)
+        try:
+            measure2(name, t, v, t + 10, v)
+            raise AssertionError("完全不重疊應失敗")
+        except ScopeError as exc:
+            assert str(exc) == "兩來源時間範圍沒有重疊"
+    for offset in (0, 7):
+        ratio = measure2("電壓比", t, v*2+offset, t, v-13)
+        assert ratio.size == 1 and np.isclose(ratio[0], 6.020599913279624)
+    for name, a, b, reason in (("延遲", v, np.ones_like(v), "來源 2"),
+                               ("延遲", np.ones_like(v), v, "來源 1"),
+                               ("電壓比", v, np.ones_like(v), "AC RMS 為 0"),
+                               ("電壓比", np.ones_like(v), v, "AC RMS 為 0")):
+        try:
+            measure2(name, t, a, t, b)
+            raise AssertionError("應回報雙來源量測失敗")
+        except ScopeError as exc:
+            assert reason in str(exc)
+    assert not set(DUAL) & set(MEASUREMENTS)  # Qt 分類清單維持單來源。
+    # 十萬來源 1 事件，包含共用 edges 與最近配對的公開入口效能。
+    big = np.tile(np.array([0., 1., 1., 0.]), 100000)
+    times = np.arange(big.size, dtype=float) * 1e-6
+    start = perf_counter()
+    result = measure2("延遲", times, big, times + 1e-7, big)
+    elapsed = perf_counter() - start
+    assert result.size == 100000 and np.allclose(result, 1e-7, rtol=0, atol=1e-16)
+    assert elapsed < 1, elapsed
+    print(f"measure2: 100000 events {elapsed:.3f} s; Delay ±0.05 s, Phase ±90°, Ratio 6.0206 dB OK")
 
 
 if __name__ == "__main__":

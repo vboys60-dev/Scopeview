@@ -1,3 +1,4 @@
+import { dualResult } from './mock_measure2.js';
 // L0 自檢：以 mock 驗證契約公開語義（連線／BUSY／冪等／游標／Marker／量測／FFT／RF／波形包絡／匯出）。
 import assert from "node:assert/strict";
 import { makeBridge } from "./bridge.js";
@@ -95,6 +96,29 @@ export async function runSemantics() {
     const up = await me("上升斜率", "CHAN1", null); assert.equal(up.results[0].bound, ">");
     const pos = await me("工作週期", "CHAN1", null), neg = await me("-工作週期", "CHAN1", null);
     near(pos.results[0].stats.current + neg.results[0].stats.current, 100);
+    const dual = (name, extra = {}, range = [0, .003], dx = {}) => call(b, "measure", {entries:[{channel:"CHAN1", channel2:"CHAN2", name, rising:true, ...extra}],range,dx,threshold:"10/50/90 %"});
+    for (const [name, unit] of [["延遲","s"],["相位","°"],["電壓比","dB"]]) {
+      const r = await dual(name); assert.equal(r.results[0].channel2,"CHAN2"); assert.equal(r.results[0].unit,unit); assert.ok(r.results[0].ok);
+    }
+    const d0 = (await dual("延遲")).results[0], d1 = (await dual("延遲",{},[0,.003],{CHAN2:.00002})).results[0];
+    near(d1.stats.current-d0.stats.current,.00002,1e-10);
+    assert.equal((await dual("延遲",{channel2:"deleted"})).results[0].reason,"來源通道已刪除");
+    assert.match((await dual("延遲",{},[10,11])).results[0].reason,/沒有資料/);
+    for (const extra of [{channel2:null}, {rising2:null}]) await rej(b.job("measure",{entries:[{channel:"CHAN1",channel2:"CHAN2",name:"延遲",rising:true,...extra}],range:null,dx:{},threshold:"10/50/90 %"}),"BAD_REQUEST");
+    await rej(b.job("measure",{entries:[{channel:"CHAN1",name:"延遲",rising:true}],range:null,dx:{},threshold:"10/50/90 %"}),"BAD_REQUEST");
+    // mock 與後端一致：先驗通道，再驗空範圍；配對只採顯示時間交集內事件。
+    assert.equal((await dual("延遲",{channel2:"deleted"},[10,11])).results[0].reason,"來源通道已刪除");
+    assert.equal((await dual("延遲",{},[10,11])).results[0].reason,"來源 1：所選範圍內沒有資料");
+    const t = Float64Array.from({length:4000},(_,i) => i/1000);
+    const v = Float64Array.from(t,(_,i) => i%200 < 100 ? 0 : 1);
+    const data = {A:{t,v}, B:{t:t.slice(1000,2000).map(x => x+.05),v:v.slice(1000,2000)}};
+    for (const [name,count,value] of [["延遲",5,.05],["相位",4,90]]) {
+      const entry = {channel:"A",channel2:"B",name,rising:true};
+      const result = dualResult(entry,data,null,{},[10,50,90],{});
+      assert.equal(result.stats.count,count); near(result.stats.mean,value,1e-10);
+      const apart = dualResult(entry,data,null,{B:10},[10,50,90],{});
+      assert.equal(apart.reason,"兩來源時間範圍沒有重疊");
+    }
     const full = await me("Vp-p", "CHAN1", null); near(full.results[0].stats.current, 2);
 
     // math

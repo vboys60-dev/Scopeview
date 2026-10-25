@@ -23,27 +23,25 @@ class Edge(NamedTuple):
     b: int        # 邊緣結束後第一個在新狀態的取樣點
 
 
-def _cross(t: np.ndarray, v: np.ndarray, a: int, b: int, thr: float, rising: bool) -> float:
-    """在 [a,b] 內第一個越過 thr 的點，與前一點內插；方法手冊未載明，保留線性。"""
-    seg = v[a:b + 1]
-    j = max(int(np.argmax(seg >= thr if rising else seg <= thr)), 1)
-    i0, i1 = a + j - 1, a + j
-    dv = v[i1] - v[i0]
-    return float(t[i0]) if dv == 0 else float(t[i0] + (thr - v[i0]) / dv * (t[i1] - t[i0]))
-
-
 def edges(t: np.ndarray, v: np.ndarray, lo: float, mid: float, hi: float) -> list[Edge]:
     state = np.where(v < lo, 0, np.where(v > hi, 2, 1)).astype(np.int8)
     idx = np.flatnonzero(state != 1)
     st = state[idx]
-    out = []
-    for k in np.flatnonzero(st[1:] != st[:-1]):
-        a, b, rising = int(idx[k]), int(idx[k + 1]), bool(st[k] == 0)
-        first, last = (lo, hi) if rising else (hi, lo)
-        t_first, t_last = _cross(t, v, a, b, first, rising), _cross(t, v, a, b, last, rising)
-        t_lo, t_hi = (t_first, t_last) if rising else (t_last, t_first)
-        out.append(Edge(rising, t_lo, _cross(t, v, a, b, mid, rising), t_hi, a, b))
-    return out
+    k = np.flatnonzero(st[1:] != st[:-1])
+    a, b, rising = idx[k], idx[k + 1], st[k] == 0
+    times = []
+    # 各閾值的第一次交越用二分搜尋批次取得，保留三閾狀態機與線性內插。
+    for thr in (lo, mid, hi):
+        cross = np.empty(k.size)
+        for up in (True, False):
+            sel = rising == up
+            hits = np.flatnonzero((v[:-1] < thr) & (v[1:] >= thr) if up else
+                                  (v[:-1] > thr) & (v[1:] <= thr)) + 1
+            j = hits[np.searchsorted(hits, a[sel] + 1)]
+            cross[sel] = t[j - 1] + (thr - v[j - 1]) / (v[j] - v[j - 1]) * (t[j] - t[j - 1])
+        times.append(cross)
+    return [Edge(bool(up), float(l), float(m), float(h), int(x), int(y))
+            for up, l, m, h, x, y in zip(rising, *times, a, b)]
 
 
 def _need(values: list[float], reason: str) -> np.ndarray:

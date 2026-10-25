@@ -288,4 +288,12 @@ async function setup(hook) {
   const e = store.get().measurements[1], cells = rowCells(e, "ok", "s", F);
   assert.ok(cells.slice(0, 6).every(x => x.startsWith("< "))); assert.equal(cells[6], "1");
 }
+// 雙來源欄位隨同整批結果送出；來源 2 已刪除則保留失敗列。
+{
+  const { bridge, store, sum, channels } = await setup(), m = createMeasure({store,bridge,appState:{catalog:CATALOG}},{delay:5});
+  store.set({file:sum,channels,selected:"CHAN1"}); m.add("延遲","CHAN1",true,"full","CHAN2",false); await sleep(50);
+  assert.equal(bridge.calls.find(([n]) => n === "measure")[1].entries[0].rising2,false);
+  store.set({channels:channels.slice(0,1)}); await sleep(50);
+  assert.equal(store.get().measurements[0].result.reason,"來源通道已刪除");
+}
 console.log("l5 self-check OK");

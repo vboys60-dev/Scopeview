@@ -692,7 +692,9 @@
    "channel": "str",
    "name": "str",
    "rising": "bool",
-   "mode": "str"
+   "mode": "str",
+   "channel2": "str",
+   "rising2": "bool"
   },
   "Stats": {
    "current": "float|null",
@@ -712,7 +714,8 @@
    "reason": "str|null",
    "gen": "int",
    "revision": "int",
-   "bound": "str|null"
+   "bound": "str|null",
+   "channel2": "str|null"
   },
   "MeasureBatch": {
    "gen": "int",
@@ -757,10 +760,10 @@
  },
  "types_doc": {
   "FFTResult": "ok=false（空區間等）時 spectrum_id 與數值欄為 null、peaks=[]、reason 說明；unit＝輸出單位：衍生來源為「<u> rms」，Phase 為「°」且 peaks=[]",
-  "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外",
+  "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外；channel2 可省略／null，雙來源回傳來源 2 通道名",
   "FileSummary": "info＝[標籤,值][] 檔案資訊表（取代 Qt file_info_rows）；model／series／captured_at 檔內缺值為 null",
   "ChannelInfo": "gen＝產生它時的開檔世代；vmin／vmax 全為 NaN 時 null",
-  "MeasureEntry": "mode 可省略（full），不可為 null：full＝整段、cycles＝整數週期；只對 Vavg／Vrms(DC)／Vrms(AC) 有意義，方向由 rising 決定；不足一完整週期回 No edges，不退回整段"
+  "MeasureEntry": "mode 可省略（full），不可為 null：full＝整段、cycles＝整數週期；只對 Vavg／Vrms(DC)／Vrms(AC) 有意義，方向由 rising 決定；不足一完整週期回 No edges，不退回整段；channel2／rising2 可省略但不可 null；雙來源必填 channel2，rising2 缺省同 rising；單來源忽略兩欄"
  },
  "events": {
   "job": {
@@ -1094,6 +1097,30 @@
     "unit": "%",
     "sloped": true,
     "tip": "平台中點到邊緣前的局部極值超出 base／top 的量，÷ 振幅 × 100"
+   },
+   {
+    "name": "延遲",
+    "category": "雙來源",
+    "unit": "s",
+    "sloped": true,
+    "tip": "來源 2 最近指定方向邊緣時間 − 來源 1 邊緣時間",
+    "sources": 2
+   },
+   {
+    "name": "相位",
+    "category": "雙來源",
+    "unit": "°",
+    "sloped": true,
+    "tip": "延遲 ÷ 來源 1 該事件週期 × 360，不包裹；略過最後事件",
+    "sources": 2
+   },
+   {
+    "name": "電壓比",
+    "category": "雙來源",
+    "unit": "dB",
+    "sloped": false,
+    "tip": "20 log10（來源 1 AC RMS ÷ 來源 2 AC RMS），各用自己的量測範圍",
+    "sources": 2
    }
   ],
   "thresholds": {
@@ -1283,10 +1310,13 @@
  },
  "optional_fields": {
   "MeasureEntry": [
-   "mode"
+   "mode",
+   "channel2",
+   "rising2"
   ],
   "MeasureResult": [
-   "bound"
+   "bound",
+   "channel2"
   ]
  }
 }

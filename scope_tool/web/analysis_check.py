@@ -238,6 +238,8 @@ def _self_check() -> None:
         assert isinstance(err(A.measure, [], None, {}, "bad", exc=BadRequest), BadRequest)
         assert isinstance(err(A.fft, "CHAN1", None, {}, "Bad", "dBV", 50.0, 3, -40.0, SORTS[0], exc=BadRequest),
                           BadRequest)
+    from scope_tool.web.analysis_dual_check import _self_check as dual_check
+    dual_check()
     print("analysis_api self-check OK")
 
 

@@ -3,6 +3,7 @@
 import { BridgeError } from "./bridge.js";
 import { CATALOG } from "./mock_catalog.js";
 import { encodeWave, envelope, span, nearest, makeFile, makeSpectrum, peakBins } from "./mock_dsp.js";
+import { isDual, dualResult } from "./mock_measure2.js";
 export { CATALOG, encodeWave };
 
 // 每個方法的參數名（body 必須帶齊、不得多帶）；與契約 params 的名稱一致，由 l0_check 比對。
@@ -133,12 +134,18 @@ export function createMock(opts = {}) {
     },
     measure: ({ entries, range, dx, threshold }) => {
       inCat(threshold, Object.keys(CATALOG.thresholds), "閾值"); checkRange(range);
-      for (const e of entries) inCat(e.mode === undefined ? "full" : e.mode, ["full", "cycles"], "區間模式");
+      for (const e of entries) {
+        inCat(e.mode === undefined ? "full" : e.mode, ["full", "cycles"], "區間模式");
+        if (isDual(e.name) && !("channel2" in e)) bad("雙來源量測必須指定 channel2");
+        if ("channel2" in e && typeof e.channel2 !== "string") bad("channel2 必須為字串");
+        if ("rising2" in e && typeof e.rising2 !== "boolean") bad("rising2 必須為布林值");
+      }
       return job("measure", () => {
         needFile();
         const r = ++rev, results = entries.map((e) => {
           const base = { channel: e.channel, name: e.name, unit: (CATALOG.measurements.find((m) => m.name === e.name)?.unit ?? "").replace("{u}", data[e.channel]?.unit ?? "V"), gen, revision: r };
-          if (!data[e.channel]) return { ...base, ok: false, stats: null, reason: "通道不存在" };
+          if (isDual(e.name)) return dualResult(e, data, range, dx, CATALOG.thresholds[threshold], base);
+          if (!data[e.channel]) return { ...base, ok: false, stats: null, reason: "來源通道已刪除" };
           const [a, b] = cut(e.channel, range, dx), t = data[e.channel].t.subarray(a, b);
           let v = data[e.channel].v.subarray(a, b);
           if (!v.some(Number.isFinite)) return { ...base, ok: false, stats: null, reason: "所選範圍內沒有資料" };

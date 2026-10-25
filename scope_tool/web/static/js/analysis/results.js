@@ -83,8 +83,9 @@ export function mount(el, ctx) {
       const unit = e.result?.unit || unitFor(defs[e.name]?.unit, ch?.unit ?? "V");
       // 區間量測名稱依 analysis/measure.py 的 INTERVAL；catalog 尚無區間欄位。
       const cycles = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycles";
-      const arrow = defs[e.name]?.sloped || cycles ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${e.name}(${e.channel}${cycles ? " 整數週期" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const dual = defs[e.name]?.sources === 2;
+      const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : defs[e.name]?.sloped || cycles ? (e.rising ? " ↑" : " ↓") : "";
+      const row = tr([`${e.name}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " 整數週期" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
       const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);

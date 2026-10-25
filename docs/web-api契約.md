@@ -95,6 +95,11 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - catalog 新增 `-工作週期`（時間、%、sloped），等於同組邊緣下 `100 - 工作週期`；工作週期為＋寬度／週期，週期由所選方向定義。cycles 結果標籤如 `Vavg(CH1 整數週期 ↑)`，full 不加註；CSV 同樣標示。
 - JSON `optional_fields` 列出 types 中可省略的欄位；存在時仍須符合欄位型別與上述列舉值。
 - `MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
+- 雙來源 catalog：`延遲`（s）、`相位`（°）、`電壓比`（dB），分類「雙來源」、可選欄 `sources:2`（單來源省略或 1）。Qt 的 MEASUREMENTS 不含雙來源。
+- `MeasureEntry.channel2:str`、`rising2:bool` 可省略，不可 null。雙來源缺少 channel2 → BAD_REQUEST；通道不存在／已刪除 → 該列失敗「來源通道已刪除」。rising2 預設同 rising；單來源忽略兩欄。`MeasureResult.channel2:str|null` 可省略／null；雙來源帶來源 2 名稱。
+- 各通道獨立切顯示時間範圍（含各自 dx），獨立由 levels 與共用 threshold 決定三閾值。延遲／相位配對前，來源 1 邊緣先限於兩來源顯示時間交集，裁後無事件回「兩來源時間範圍沒有重疊」。延遲＝每個來源 1 指定邊緣的中閾交越，到來源 2 最近指定方向邊緣之 `t2−t1`（同距取較早），可負。相位＝該延遲／來源 1 到下一個同向邊緣的週期 ×360；最後事件略過，不包裹。
+- 電壓比＝`20 log10(rms_ac(來源1)/rms_ac(來源2))`，各用自己的完整量測區間，事件數 1；任一 AC RMS 為 0 → 失敗並說明來源。任一來源沒有資料／指定邊緣／完整週期都回具名失敗列。
+- 畫面與 CSV 量測欄一致包含來源 2：`延遲(CH1→CH2 ↑↓)`、`相位(CH1→CH2 ↑↑)`、`電壓比(CH1→CH2)`。量測面板來源 1 為目前選取通道，來源 2 可選所有通道，初始預設第一個其他通道；不足兩通道時雙來源按鈕停用並說明。
 
 ### FFT
 

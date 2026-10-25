@@ -15,7 +15,7 @@ import numpy as np
 
 from scope_tool.analysis import marker as markermod
 from scope_tool.analysis import mathfn
-from scope_tool.analysis.measure import INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure as _measure, stats as _stats, unit_of
+from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure as _measure, measure2, stats as _stats, unit_of
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info, read_waveform_file
 from scope_tool.web import decimate
@@ -150,9 +150,13 @@ class Analysis(FftMixin, ExportMixin):
         if threshold not in THRESHOLDS:
             raise BadRequest(f"未知閾值：{threshold}")
         for e in entries:
+            if ("channel2" in e and not isinstance(e["channel2"], str)) or ("rising2" in e and not isinstance(e["rising2"], bool)):
+                raise BadRequest("channel2 必須為字串，rising2 必須為布林值")
             if e.get("mode", "full") not in ("full", "cycles"):
                 raise BadRequest("未知區間模式")
-            if e.get("name") not in MEASUREMENTS:
+            if e.get("name") in DUAL and "channel2" not in e:
+                raise BadRequest("雙來源量測必須指定 channel2")
+            if e.get("name") not in MEASUREMENTS and e.get("name") not in DUAL:
                 raise BadRequest(f"未知量測：{e.get('name')}")
         gen, waves, units = self._need()
         with self._lock:
@@ -169,19 +173,32 @@ class Analysis(FftMixin, ExportMixin):
                 ch, name, rising = e["channel"], e["name"], bool(e.get("rising", True))
                 cycles = name in INTERVAL and e.get("mode") == "cycles"
                 suffix = (" ↑" if rising else " ↓") if name in SLOPED or cycles else ""
+                dual, ch2 = name in DUAL, e.get("channel2")
+                if dual:
+                    suffix = (" ↑" if rising else " ↓") + ("↑" if e.get("rising2", rising) else "↓") if name != "電壓比" else ""
                 w = by.get(ch)
                 row = {"channel": ch, "name": name, "unit": unit_of(name, units.get(ch, "V")), "ok": False,
                        "stats": None, "reason": None, "gen": gen, "revision": rev,
-                       "_label": f"{name}({ch}{' 整數週期' if cycles else ''}{suffix})"}
-                if w is None:
+                       "_label": f"{name}({ch + ('→' + str(ch2) if dual else '')}{' 整數週期' if cycles else ''}{suffix})"}
+                if dual:
+                    row["channel2"] = ch2
+                if w is None or (dual and ch2 not in by):
                     row["reason"] = "來源通道已刪除"
                 else:
                     t, v = self._cut(w, rng, dx)
                     if not len(t) or not np.isfinite(v).any():
-                        row["reason"] = "所選範圍內沒有資料"
+                        row["reason"] = ("來源 1：" if dual else "") + "所選範圍內沒有資料"
                     else:
                         try:
-                            values = _measure(name, t, v, pct, rising, e.get("mode", "full"))
+                            if dual:
+                                # _cut 保留來源時間（供 FFT）；配對前加各自 dx 換成顯示時間。
+                                t2, v2 = self._cut(by[ch2], rng, dx)
+                                if not len(t2) or not np.isfinite(v2).any():
+                                    raise ScopeError("來源 2：所選範圍內沒有資料")
+                                values = measure2(name, t + dx.get(ch, 0), v, t2 + dx.get(ch2, 0), v2,
+                                                  pct, rising, e.get("rising2", rising))
+                            else:
+                                values = _measure(name, t, v, pct, rising, e.get("mode", "full"))
                             s = _stats(values)
                             if getattr(values, "bound", None):
                                 row["bound"] = values.bound

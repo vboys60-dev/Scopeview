@@ -26,6 +26,8 @@ MEASUREMENTS: dict[str, tuple[str, str]] = {
     "Vavg": ("電壓", "{u}"), "Vrms(DC)": ("電壓", "{u}"), "Vrms(AC)": ("電壓", "{u}"),
     "過衝": ("電壓", "%"), "前衝": ("電壓", "%"),
 }
+# 雙來源獨立列出，避免 Qt 固定分類迭代出現無法使用的項目。
+DUAL = {"延遲": ("雙來源", "s"), "相位": ("雙來源", "°"), "電壓比": ("雙來源", "dB")}
 # 支援整段／整數週期模式的量測。
 INTERVAL = {"Vavg", "Vrms(DC)", "Vrms(AC)"}
 # 需要選邊緣方向的量測；上升／下降時間、斜率與正／負寬度已由名稱指定方向。
@@ -78,7 +80,7 @@ def levels(v: np.ndarray) -> tuple[float, float, float, float]:
 
 
 def unit_of(name: str, source_unit: str) -> str:
-    return MEASUREMENTS[name][1].replace("{u}", source_unit)
+    return (DUAL if name in DUAL else MEASUREMENTS)[name][1].replace("{u}", source_unit)
 
 
 def _sample_index(t: np.ndarray, endpoint: float) -> int:
@@ -132,6 +134,45 @@ def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, fl
     if name in ("過衝", "前衝"):
         return edge.shoot(t, v, es, rising, top, base, name == "前衝")
     raise ScopeError(f"未知的量測：{name}")
+
+
+def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.ndarray,
+             pct: tuple[float, float, float] = (10, 50, 90), rising: bool = True,
+             rising2: bool | None = None) -> np.ndarray:
+    """3000G 雙來源量測；時間軸須為各自已套 dx 的顯示時間。"""
+    for i, (t, v) in enumerate(((t1, v1), (t2, v2)), 1):
+        try:
+            validate(t, v)
+        except ScopeError as exc:
+            raise ScopeError(f"來源 {i}：{exc}") from exc
+    if name == "電壓比":
+        a, b = rms_ac(v1), rms_ac(v2)
+        if a == 0 or b == 0:
+            raise ScopeError(f"來源 {1 if a == 0 else 2} 的 AC RMS 為 0，無法計算電壓比。")
+        return np.array([20 * (np.log10(a) - np.log10(b))])
+    if name not in DUAL:
+        raise ScopeError(f"未知的雙來源量測：{name}")
+    mids = []
+    for i, (t, v, up) in enumerate(((t1, v1, rising), (t2, v2, rising if rising2 is None else rising2)), 1):
+        _, _, top, base = levels(v)
+        es = edge.edges(t, v, *(base + (top - base) * p / 100 for p in pct)) if top > base else []
+        m = np.array([e.t_mid for e in es if e.rising == up])
+        if not m.size:
+            raise ScopeError(f"來源 {i}：找不到指定方向的邊緣。")
+        mids.append(m)
+    a, b = mids
+    a = a[(a >= max(t1[0], t2[0])) & (a <= min(t1[-1], t2[-1]))]
+    if not a.size:
+        raise ScopeError("兩來源時間範圍沒有重疊")
+    # 每個來源 1 事件只比較來源 2 插入點的左右鄰居；同距取較早者。
+    j = np.searchsorted(b, a)
+    left, right = np.clip(j - 1, 0, b.size - 1), np.clip(j, 0, b.size - 1)
+    delay = b[np.where(abs(b[left] - a) <= abs(b[right] - a), left, right)] - a
+    if name == "相位":
+        if a.size < 2:
+            raise ScopeError("來源 1：找不到完整週期（需要兩個同方向邊緣）。")
+        return delay[:-1] / np.diff(a) * 360
+    return delay
 
 
 def stats(values: np.ndarray) -> tuple[float, float, float, float, float, float, int]:

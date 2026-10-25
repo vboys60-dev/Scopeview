@@ -123,12 +123,40 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   mountMeasure(input,context);
   const [slope,,mode] = input.children;
   assert.deepEqual(mode.children.map(c => c.value),['full','cycles']);
-  const button = input.children.at(-1).children.find(c => c.tagName === 'button');
+  const button = input.children.find(e => e.firstChild?.textContent === '電壓量測').children.find(c => c.tagName === 'button');
   slope.value = '0'; mode.value = 'cycles'; button.onclick();
   slope.value = '1'; mode.value = 'full'; button.onclick();
   await new Promise(resolve => setTimeout(resolve,200));
   assert.deepEqual(sent[0].entries.map(e => [e.mode,e.rising]),[['cycles',false],['full',true]]);
   assert.equal(state.get().measurements[0].mode,'cycles');
+}
+// 雙來源面板、事件方向、來源失效、標籤與匯出參數。
+{
+  const input = new Element('div'), state = createStore(), sent = [];
+  const defs = ['延遲','相位','電壓比'].map(name => ({name,category:'雙來源',sources:2,sloped:name !== '電壓比',tip:name}));
+  const context = {...ctx,store:state,appState:{catalog:{measurements:defs}},resultActions:new Element('div'),fftPeaks:new Element('div'),
+    bridge:{...ctx.bridge,job:async (_m,args) => { sent.push(args); return {gen:1,revision:7,results:args.entries.map(e => ({...e,ok:true,gen:1,revision:7,unit:'s',stats}))}; }}};
+  state.set({file:{gen:1},channels:[{name:'CH1'}],selected:'CH1'}); mountMeasure(input,context);
+  assert.deepEqual(input.children.slice(3).map(e => e.firstChild.textContent),['時間量測','電壓量測','雙來源量測']);
+  const dualBox = input.children.at(-1);
+  const [label,sourceLabel,source2,edgeLabel,edge2,...buttons] = dualBox.children;
+  assert.ok(buttons.every(b => b.disabled && b.title.includes('兩個來源')));
+  state.set({channels:[{name:'CH1'},{name:'CH2'},{name:'CH3'}]});
+  assert.equal(source2.value,'CH2'); assert.ok(buttons.every(b => !b.disabled));
+  input.firstChild.value='1'; source2.value='CH3'; edge2.value='0'; buttons[0].onclick();
+  input.firstChild.value='0'; edge2.value='same'; buttons[1].onclick();
+  await new Promise(r => setTimeout(r,200));
+  assert.deepEqual(sent[0].entries.map(e => [e.channel,e.channel2,e.rising,e.rising2]),[['CH1','CH3',true,false],['CH1','CH3',false,false]]);
+  const output = new Element('div'); mountResults(output,context);
+  assert.equal(output.firstChild.children[1].firstChild.textContent,'延遲(CH1→CH3 ↑↓)');
+  assert.equal(output.firstChild.children[2].firstChild.textContent,'相位(CH1→CH3 ↓↓)');
+  const exp = context.resultActions.children.find(e => e.className.includes('results__export'));
+  await exp.onclick(); assert.equal(calls.at(-1)[1].rows[0].channel2,'CH3');
+  state.set({channels:[{name:'CH1'},{name:'CH2'}]});
+  await new Promise(r => setTimeout(r,200));
+  assert.ok(state.get().measurements.every(e => !e.result.ok && e.result.reason === '來源通道已刪除'));
+  assert.equal(output.firstChild.children[1].title,'來源通道已刪除');
+  state.command('measure.clear');
 }
 store.set({ fftResult:{ ok:true,unit:'dBV',peaks:[{ x:100,y:2 }] } });
 assert.equal(panels.peaks.lastChild.children.length,2); assert.equal(panels.measure.children.length,1,'FFT 表不能回到量測面板');
