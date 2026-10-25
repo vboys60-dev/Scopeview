@@ -15,11 +15,12 @@ export function shortcutFor(e, target = e.target) {
   if (e.code === "Space" || e.key === " ") return "space";
   return e.key === "Escape" ? "cancel" : null;
 }
-/** pointerdown 時固定動作；零位 > 邊緣游標 > 平移模式游標線 > 模式手勢。 */
-export function gestureFor({ button = 0, mode = DEFAULT_MODE, shiftKey = false, space = false, handle = false, edge = false, cursor = false, inside = true }) {
+/** pointerdown 時固定動作；零位 > 邊緣游標 > Marker 點 > 平移模式游標線 > 模式手勢。 */
+export function gestureFor({ button = 0, mode = DEFAULT_MODE, shiftKey = false, space = false, handle = false, edge = false, cursor = false, marker = false, inside = true }) {
   if (button !== 0 && button !== 1) return null;
   if (handle) return "handle";
   if (edge) return "edge";
+  if (marker && button === 0) return "marker";
   if (button === 1 || space) return inside ? "pan" : null;
   const zoom = mode === "zoom" || shiftKey;
   if (!zoom && cursor) return "cursor";
@@ -124,7 +125,7 @@ export function nearestCursor(cursors, view, r, x, y, pointerType) {
   return best;
 }
 /** 主圖互動由此集中管理，繪圖仍由 mainplot 負責。 */
-export function bindGestures(canvas, { store, ui }, geometry, draw) {
+export function bindGestures(canvas, { store, ui }, geometry, draw, markers = null) {
   let drag = null, mode = DEFAULT_MODE, zoomKind = DEFAULT_ZOOM_KIND, space = false, edgeDownAt = -Infinity, hover = null, pointer = null;
   const listeners = [];
   canvas.tabIndex = 0;
@@ -144,6 +145,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   };
   const end = () => {
     const d = drag; drag = null;
+    if (d?.type === "marker") markers?.end(d.marker, d.current, false);
     if (d?.type === "pan") store.command("view.historyGroup", { end: true });
     if (d && canvas.hasPointerCapture?.(d.id)) canvas.releasePointerCapture(d.id);
     if (!updateHover() && d) draw();
@@ -160,11 +162,12 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     const [x, y] = local(e), s = store.get(), r = geometry();
     pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     const handle = hitHandle(s.channels, r, x, y), edge = hitCursorEdge(s.cursors, s.view, r, x, y), which = hitCursor(x, y, e.pointerType);
-    const type = gestureFor({ ...e, button: e.button, shiftKey: e.shiftKey, mode, space: space && !editableTarget(document.activeElement), handle: !!handle, edge: !!edge, cursor: !!which, inside: inside(x, y) });
+    const marker = markers?.hit(x, y);
+    const type = gestureFor({ ...e, button: e.button, shiftKey: e.shiftKey, mode, space: space && !editableTarget(document.activeElement), handle: !!handle, edge: !!edge, cursor: !!which, marker: !!marker, inside: inside(x, y) });
     if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
     if (!type) return;
     e.preventDefault?.();
-    drag = { type, x, y, current: x, currentY: y, zoomKind, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
+    drag = { type, marker: type === "marker" ? markers.begin(marker) : null, x, y, current: x, currentY: y, zoomKind, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
     if (type === "pan") store.command("view.historyGroup", { key: "pan", continuous: true });
     canvas.setPointerCapture(e.pointerId);
   });
@@ -172,19 +175,21 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     const [x, y] = local(e), r = geometry(), s = store.get();
     pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     if (!drag) {
-      updateHover();
-      canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
+      const marker = markers?.hover(x, y); updateHover();
+      canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "ew-resize" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag;
     if (e.pointerId !== d.id) return;
     d.current = x; d.currentY = y; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
     if (!d.moved) return;
-    if (d.type === "zoom") draw();
+    if (d.type === "marker") markers.move(d.marker, x);
+    else if (d.type === "zoom") draw();
     else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r));
     else if (d.type === "pan") { const dt = -(x - d.x) * (d.view.t1 - d.view.t0) / r.w; store.command("viewport.intent", { t0: d.view.t0 + dt, t1: d.view.t1 + dt }); }
     else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? X(d.view).inv(x) : 5 - (y - r.t) * 10 / r.h });
   });
   on(canvas, "pointerup", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
+    if (drag.type === "marker") { const d = drag; drag = null; markers.end(d.marker, local(e)[0], d.moved); if (canvas.hasPointerCapture?.(d.id)) canvas.releasePointerCapture(d.id); updateHover(); return; }
     if (drag.type === "zoom") {
       const d = drag, [x, y] = local(e), r = geometry();
       const view = d.zoomKind !== "vertical" ? zoomToRect(d.view, d.x, x, r, viewLimits(store.get().file)) : null;
@@ -198,6 +203,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
   on(window, "keydown", (e) => {
     if (canvas.closest?.("[hidden]")) return;
     if (e.key === "Escape" && drag) { end(); return; }
+    if (["Delete", "Backspace"].includes(e.key) && !editableTarget(document.activeElement ?? e.target) && document.activeElement === canvas) { e.preventDefault(); markers?.remove(); return; }
     const action = shortcutFor(e, document.activeElement ?? e.target);
     if (!action) return;
     if (action === "space") { space = true; updateHover(); e.preventDefault(); }
@@ -222,7 +228,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw) {
     store.command("viewport.intent", { t0: a - (a - v.t0) * factor, t1: a + (v.t1 - a) * factor });
     store.command("view.historyGroup");
   }, { passive: false });
-  on(canvas, "pointerleave", () => { pointer = null; updateHover(); });
+  on(canvas, "pointerleave", () => { pointer = null; markers?.hover(-Infinity, -Infinity); updateHover(); });
   const offHover = store.on(["cursors", "view", "channels"], updateHover);
   const offFile = store.on(["file"], () => { draggingView = false; end(); });
   return {

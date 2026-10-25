@@ -205,14 +205,14 @@ def compact_results(c: Cdp, prep: str) -> None:
             c.js(f"document.querySelector('[data-result-tab={key}]').click()")
             state = c.js("(()=>{const keys=['results','cursors','peaks'];return keys.map(k=>"
                          "document.querySelector('.analysis__'+k).getBoundingClientRect().height>0)})()")
-            assert state == [k == cls for k in ("results", "cursors", "peaks")], state
+            assert state == [k == cls for k in ("results", "cursors", "peaks")], (width, height, key, state)
             assert c.js("document.querySelector('.results__actions').hidden") == (key != "measure")
     # 實測 B 寬度：1100×800，兩種展開側欄，X2 與 Y 負值的單位必須完整。
     c.send("Emulation.setDeviceMetricsOverride", width=1100, height=800, deviceScaleFactor=1, mobile=False)
     for side in (240, 360):
         c.js("(async()=>{" + prep + f"S.command('layout.resize',{{kind:'side',value:{side}}});S.command('layout.resize',{{kind:'lower',value:150}})" + "})()")
         c.wait(f"Math.abs(document.querySelector('.analysis__sidepanel').getBoundingClientRect().width-{side})<1")
-        c.wait("(()=>{const b=document.querySelector('.analysis__lowerbody');return b.dataset.resultTabbed===String(b.clientWidth<820||document.querySelector('[data-result-tab=cursor]').getAttribute('aria-selected')==='true')})()")
+        c.wait("(()=>{const b=document.querySelector('.analysis__lowerbody');return b.dataset.resultTabbed===String(b.clientWidth<820)})()")
         c.js("document.querySelector('[data-result-tab=cursor]').click()")
         dims = c.js("(async()=>{" + prep + """
             S.set({cursors:{...S.state.cursors,x2:999.5e-6}},'snap');

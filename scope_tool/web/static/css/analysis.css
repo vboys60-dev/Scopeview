@@ -133,3 +133,10 @@
 .analysis__floatGrip[data-edge="nw"], .analysis__floatGrip[data-edge="se"] { cursor: nwse-resize; }
 .analysis__floatGrip[data-edge="ne"], .analysis__floatGrip[data-edge="sw"] { cursor: nesw-resize; }
 .analysis__floatGrip[data-edge="se"] { border-right: 2px solid var(--c-border); border-bottom: 2px solid var(--c-border); }
+
+/* 時域 Marker 與游標共用 B 區；各表獨立捲動。 */
+.analysis__lowerbody[data-marker-paired="true"] > .analysis__cursors, .analysis__lowerbody[data-marker-paired="true"] > .analysis__markers { flex: 1 1 0; }
+.analysis__markers { flex: 1 1 0; min-width: 0; min-height: 0; overflow: auto; padding: 2px 4px; background: var(--c-surface); font-size: 13px; }
+.analysis__markers .table td, .analysis__markers .table th, .analysis__markers .btn, .analysis__markers .input { white-space: nowrap; padding: 2px 4px; font-size: 13px; line-height: 18px; }
+.marker-table__note { width: 100px; min-width: 60px; }
+.analysis__markers tr.is-selected { background: var(--c-focus, #cce8ff); }

@@ -1,3 +1,4 @@
+import { createMarkerLayer } from "./marker_layer.js";
 import { cursorSource, onCursorSource } from "./cursors.js";
 import { fmt } from "../fmt.js";
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
@@ -38,7 +39,7 @@ export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
-  let rect = layoutRect(1, 1), warned = 0, gestures = null, draggingLayout = false, missed = false, lastWidth = 0;
+  let rect = layoutRect(1, 1), warned = 0, gestures = null, markers = null, draggingLayout = false, missed = false, lastWidth = 0;
   const cv = createCanvas(el, (w, h) => {
     rect = layoutRect(w, h); draw();
     if (w !== lastWidth && !draggingLayout) { lastWidth = w; fetchSoon(); }
@@ -98,6 +99,7 @@ export function mount(el, ctx) {
       g.beginPath(); g.arc(k.px, k.py, 4, 0, 2 * Math.PI); g.stroke();
       if (k.label) g.fillText(k.label, k.px + 6, k.py - 3);
     }
+    markers?.draw(g);
     g.restore();
     drawHandles(g, s.channels, s.cursors, s.view, rect);
     gestures?.overlay(g);
@@ -131,7 +133,8 @@ export function mount(el, ctx) {
   });
 
   const offSource = onCursorSource(store, draw);
-  gestures = bindGestures(canvas, ctx, () => rect, draw);
+  markers = createMarkerLayer(canvas, ctx, () => rect, cache, draw);
+  gestures = bindGestures(canvas, ctx, () => rect, draw, markers);
   draw();
-  return { draw, dispose() { offSource(); gestures.dispose(); cv.dispose(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }
