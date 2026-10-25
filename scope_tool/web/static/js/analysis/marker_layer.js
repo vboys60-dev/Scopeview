@@ -17,6 +17,7 @@ export function nearestChannel(channels, cache, x, y, selected) {
   return hits[0]?.name ?? selected;
 }
 export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
+  let drag = null; // 拖曳中的標記跟著滑鼠任意移動，放開才吸附到曲線取樣點
   const { store } = ctx, model = markerModel(ctx), menu = createMarkerMenu();
   const points = () => markerPoints(model, store.get(), geometry());
   const time = x => { const r = geometry(), v = store.get().view; return linear(v.t0, v.t1, r.l, r.l + r.w).inv(x); };
@@ -33,12 +34,13 @@ export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
     hit: (x, y) => hitMarker(points(), x, y),
     hover(x, y) { const p = hitMarker(points(), x, y); model.hover(p?.key ?? null); return p; },
     begin(p) { model.select(p.key, false); return p; },
-    move(p, x) { model.preview(p.id, time(x)); },
-    end(p, x, commit) { model.preview(null); if (commit) model.move({ id: p.id, t: time(x) }); else model.refresh(); },
+    move(p, x, y) { const r = geometry(); drag = { key: p.key, x: Math.min(r.l + r.w, Math.max(r.l, x)), y: Math.min(r.t + r.h, Math.max(r.t, y)) }; model.preview(p.id, time(x)); },
+    end(p, x, commit) { drag = null; model.preview(null); if (commit) model.move({ id: p.id, t: time(x) }); else model.refresh(); },
     remove() { const p = model.rows().find(p => p.key === model.selected); if (p) model.remove(p.id); },
     draw(g) {
       g.save(); g.setLineDash([]); g.font = '12.5px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'bottom';
-      for (const p of points()) {
+      for (const q of points()) {
+        const p = drag?.key === q.key ? { ...q, x: drag.x, y: drag.y } : q;
         const active = model.selected === p.key || model.hovered === p.key;
         g.strokeStyle = p.channel.color; g.fillStyle = active ? '#fff' : p.channel.color; g.lineWidth = active ? 3 : 1;
         g.beginPath(); g.arc(p.x, p.y, active ? 6 : 4, 0, 2 * Math.PI); g.fill(); g.stroke();

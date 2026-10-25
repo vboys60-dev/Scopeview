@@ -172,6 +172,8 @@ def main() -> None:
         from scope_tool.web.browser_marker_checks import dock_layout
         from scope_tool.web.browser_marker_checks import marker_add_button
         step("Marker 獨立點按鈕可連續新增", lambda: marker_add_button(c, prep))
+        from scope_tool.web.browser_marker_checks import marker_rightclick
+        step("Marker 主圖右鍵選單新增", lambda: marker_rightclick(c, prep))
         step("P4 版面 C 右側欄／窄版退回底部", lambda: dock_layout(c, prep))
         # P2b2：截取真正 Canvas fillText，驗證左軸實際文字／顏色與欄位隔離。
         step("P2b2 選取通道2／中心電位／左軸電壓與顏色", lambda: analysis_checks.p2b2_vertical(c, prep, click, out))

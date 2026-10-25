@@ -238,3 +238,24 @@ def marker_add_button(c: Cdp, prep: str) -> None:
         S.set({markerTable:[]},'program');return r;
     })()""")
     assert res["n"] == 3 and res["rows"] == 3, res
+
+
+def marker_rightclick(c: Cdp, prep: str) -> None:
+    """真實右鍵：主圖中央應彈出 marker-menu，點「新增獨立 Marker」後表格多一點。"""
+    box = c.js("(()=>{const r=document.querySelector('.analysis__main canvas').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
+    c.js("(async()=>{" + prep + "S.set({markerTable:[]},'program')})()")
+    c.send('Input.dispatchMouseEvent', type='mousePressed', x=box['x'], y=box['y'], button='right', clickCount=1)
+    c.send('Input.dispatchMouseEvent', type='mouseReleased', x=box['x'], y=box['y'], button='right', clickCount=1)
+    c.pump(0.5)
+    texts = c.js("[...document.querySelectorAll('.marker-menu button')].map(b=>b.textContent)")
+    assert texts, '右鍵沒有彈出選單'
+    c.js("[...document.querySelectorAll('.marker-menu button')].find(b=>b.textContent.includes('獨立')).click()")
+    c.pump(0.8)
+    n = c.js("(async()=>{" + prep + "return S.state.markerTable.filter(p=>!p.link).length})()")
+    # 拖出範圍：獨立點夾回通道端點，仍有讀值（不會落在曲線外）
+    far = c.js("(async()=>{" + prep + """const id=S.state.markerTable[0].id,ch=S.state.channels.find(x=>x.name===S.state.markerTable[0].ch);
+        S.command('marker.move',{id,t:ch.t0-1e6});await new Promise(r=>setTimeout(r,700));
+        const p=S.state.markerTable[0];return {src:p.t_src,t0:ch.t0,t1:ch.t1}})()""")
+    c.js("(async()=>{" + prep + "S.set({markerTable:[]},'program')})()")
+    assert n == 1, (texts, n)
+    assert far['t0'] - 1e-12 <= far['src'] <= far['t1'], far

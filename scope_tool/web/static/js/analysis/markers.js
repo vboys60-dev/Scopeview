@@ -40,7 +40,8 @@ export function markerModel(ctx) {
       if (!finite(t)) return false;
       store.set({ markerTable: entries().map(p => {
         const ch = store.get().channels.find(c => c.name === p.ch);
-        return p.id !== id || (!p.link && !ch) ? p : p.link ? { ...p, t } : { ...p, t_src: t - (ch.time_offset || 0) };
+        // 獨立點拖出曲線範圍時夾回端點：永遠落在實際資料上
+        return p.id !== id || (!p.link && !ch) ? p : p.link ? { ...p, t } : { ...p, t_src: Math.min(ch.t1, Math.max(ch.t0, t - (ch.time_offset || 0))) };
       }) }, 'user'); return true;
     },
     preview(id, t) { token++; clearTimeout(timer); preview = id ? { id, t } : null; notify(); },

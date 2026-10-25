@@ -15,7 +15,7 @@ export function createMarkerMenu() {
   let menu = null, previous = null;
   const close = () => {
     if (!menu) return;
-    menu.remove(); menu = null;
+    const m = menu; menu = null; m.remove(); // 先清 menu：移除焦點按鈕會同步觸發 focusout，不可重入
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', key, true);
     window.removeEventListener('resize', close);

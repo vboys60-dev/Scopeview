@@ -176,12 +176,12 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     if (!drag) {
       const marker = markers?.hover(x, y); updateHover();
-      canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "ew-resize" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
+      canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "move" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag;
     if (e.pointerId !== d.id) return;
     d.current = x; d.currentY = y; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
     if (!d.moved) return;
-    if (d.type === "marker") markers.move(d.marker, x);
+    if (d.type === "marker") markers.move(d.marker, x, y);
     else if (d.type === "zoom") draw();
     else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r));
     else if (d.type === "pan") { const dt = -(x - d.x) * (d.view.t1 - d.view.t0) / r.w; store.command("viewport.intent", { t0: d.view.t0 + dt, t1: d.view.t1 + dt }); }
