@@ -222,3 +222,19 @@ def dock_layout(c: Cdp, prep: str) -> None:
     c.pump(0.4)
     after = c.js("document.querySelector('.analysis').classList.contains('analysis--dock')")
     assert narrow["dock"] is False and narrow["pref"] is True and after is False, (narrow, after)
+
+
+def marker_add_button(c: Cdp, prep: str) -> None:
+    """「＋ 獨立點」連按三次：真後端吸附後表格出現 3 個獨立點（不是只有 M1）。"""
+    res = c.js("(async()=>{" + prep + """
+        const wait=ms=>new Promise(r=>setTimeout(r,ms));
+        S.set({markerTable:[]},'program');
+        document.querySelector('[data-result-tab=marker]').click();
+        const b=[...document.querySelectorAll('.analysis__markers button')].find(x=>x.textContent.includes('獨立點'));
+        for(let i=0;i<3;i++){b.click();await wait(150);}
+        await wait(600);
+        const t=S.state.markerTable,rows=document.querySelectorAll('.analysis__markers tbody tr, .analysis__markers tr[data-marker-key]');
+        const r={n:t.filter(p=>!p.link).length,ids:t.map(p=>p.id),rows:rows.length};
+        S.set({markerTable:[]},'program');return r;
+    })()""")
+    assert res["n"] == 3 and res["rows"] == 3, res

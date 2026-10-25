@@ -12,14 +12,23 @@ export function mount(el, ctx) {
   const bar = h('div'), title = h('span', 'Marker '), link = h('button', '新增／移動連動 M1');
   link.type = 'button'; link.className = 'btn btn--small'; link.title = '把 M1 放在目前畫面中心；右鍵可在指標處新增';
   link.onclick = () => { const v = store.get().view; store.command('marker.link', { t: (v.t0 + v.t1) / 2 }); };
-  bar.append(title, link);
+  // 獨立點：加在目前通道、畫面中心；已有同位置的點就往右錯開 1/20 畫面，避免疊在一起。
+  const add = h('button', '＋ 獨立點（目前通道）');
+  add.type = 'button'; add.className = 'btn btn--small'; add.title = '在目前通道、畫面中心新增獨立 Marker；也可在主圖按右鍵新增';
+  add.onclick = () => {
+    const st = store.get(), v = st.view, span = v.t1 - v.t0, ch = st.selected;
+    let t = (v.t0 + v.t1) / 2; const used = model.rows().filter(r => !r.link && r.ch === ch).map(r => r.t);
+    while (used.some(u => Math.abs(u - t) < span / 100) && t < v.t1) t += span / 20;
+    store.command('marker.add', { ch, t });
+  };
+  bar.append(title, link, add);
   const table = h('table'); table.className = 'table table--num'; table.setAttribute('aria-label', 'Marker Table');
   el.append(bar, table); let editing = false, signature = '';
   const highlight = () => {
     for (const tr of table.children) if (tr.dataset.markerKey) tr.className = tr.dataset.markerKey === model.selected || tr.dataset.markerKey === model.hovered ? 'is-selected' : '';
   };
   function render() {
-    link.disabled = !store.get().file;
+    link.disabled = add.disabled = !store.get().file;
     const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row)]));
     if (editing || next === signature) { highlight(); return; }
     signature = next;
