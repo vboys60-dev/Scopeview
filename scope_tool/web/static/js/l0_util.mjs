@@ -22,8 +22,11 @@ export function tc(v, t, p = "$") {
   assert.ok(T[t] !== undefined, `${p} 未知型別 ${t}`);
   if (typeof T[t] === "string") return tc(v, T[t], p);
   assert.ok(basic.object(v), `${p} 應為 ${t}`);
-  assert.deepEqual(Object.keys(v).sort(), Object.keys(T[t]).sort(), `${p}（${t}）欄位`);
-  for (const [k, ft] of Object.entries(T[t])) tc(v[k], ft, `${p}.${k}`);
+  const optional = contract.optional_fields?.[t] ?? [];
+  assert.ok(Object.keys(v).every(k => k in T[t]), `${p}（${t}）未知欄位`);
+  for (const [k, ft] of Object.entries(T[t])) if (k in v || !optional.includes(k)) tc(v[k], ft, `${p}.${k}`);
+  if (t === "MeasureEntry" && "mode" in v) assert.ok(["full", "cycles"].includes(v.mode), `${p}.mode`);
+  if (t === "MeasureResult" && v.bound != null) assert.ok(["<", ">"].includes(v.bound), `${p}.bound`);
 }
 /** 依契約呼叫並檢查：參數鍵齊全、參數型別、回傳型別。 */
 export async function call(b, m, params) {

@@ -23,7 +23,7 @@ export function rowCells(e, state, unit, fmt) {
   if (state === "pending") return Array(7).fill("…");
   if (state === "fail") return Array(7).fill("—");
   const s = e.result.stats;
-  return [...STAT_KEYS.map((k) => fmt.fmt(s[k], unit)), String(s.count)];
+  return [...STAT_KEYS.map((k) => (e.result.bound ? `${e.result.bound} ` : "") + fmt.fmt(s[k], unit)), String(s.count)];
 }
 export function fftInfo(r, fmt) {
   if (!r) return "";
@@ -81,8 +81,10 @@ export function mount(el, ctx) {
     for (const e of list) {
       const ch = channels.find((c) => c.name === e.channel), state = rowState(e, file);
       const unit = e.result?.unit || unitFor(defs[e.name]?.unit, ch?.unit ?? "V");
-      const arrow = defs[e.name]?.sloped ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${e.name}(${e.channel}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      // 區間量測名稱依 analysis/measure.py 的 INTERVAL；catalog 尚無區間欄位。
+      const cycles = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycles";
+      const arrow = defs[e.name]?.sloped || cycles ? (e.rising ? " ↑" : " ↓") : "";
+      const row = tr([`${e.name}(${e.channel}${cycles ? " 整數週期" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
       const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);

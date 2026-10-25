@@ -7,7 +7,7 @@ import { fmt, parseSI } from "./fmt.js";
 import bridgeHttp, { makeBridge, decodeWave, BridgeError } from "./bridge.js";
 import { createMock, encodeWave, CATALOG } from "./mock_backend.js";
 
-import { rd, contract, near, sleep, rej } from "./l0_util.mjs";
+import { rd, contract, near, sleep, rej, tc } from "./l0_util.mjs";
 import { runSemantics } from "./l0_sem.mjs";
 
 // ---- 契約本身 ----
@@ -33,6 +33,17 @@ import { runSemantics } from "./l0_sem.mjs";
   for (const f of readdirSync(new URL(".", import.meta.url))) if (/\.(js|mjs)$/.test(f)) {
     const src = rd(f); assert.ok(src.split("\n").length <= 300, `${f} 超過 300 行`); assert.ok(!/https?:\/\//.test(src) || f === "l0_check.mjs", `${f} 含外部 URL`);
   }
+}
+
+// 可選欄位省略／null 與存在時的型別、列舉值仍要驗證。
+{
+  const entry = { channel: "CH1", name: "Vavg", rising: true };
+  tc(entry, "MeasureEntry"); tc({ ...entry, mode: "cycles" }, "MeasureEntry");
+  for (const mode of [null, 1, "bad"]) assert.throws(() => tc({ ...entry, mode }, "MeasureEntry"));
+  const row = { channel: "CH1", name: "上升時間", unit: "s", ok: false, stats: null, reason: "x", gen: 1, revision: 1 };
+  for (const bound of [null, "<", ">"]) tc({ ...row, bound }, "MeasureResult");
+  tc(row, "MeasureResult");
+  for (const bound of [1, true, "bad"]) assert.throws(() => tc({ ...row, bound }, "MeasureResult"));
 }
 
 // ---- store ----

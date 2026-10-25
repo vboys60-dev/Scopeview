@@ -20,13 +20,16 @@ MEASUREMENTS: dict[str, tuple[str, str]] = {
     "上升斜率": ("時間", "{u}/s"), "下降斜率": ("時間", "{u}/s"),
     "週期": ("時間", "s"), "頻率": ("時間", "Hz"),
     "+寬度": ("時間", "s"), "-寬度": ("時間", "s"), "工作週期": ("時間", "%"),
+    "-工作週期": ("時間", "%"),
     "Vmax": ("電壓", "{u}"), "Vmin": ("電壓", "{u}"), "Vp-p": ("電壓", "{u}"),
     "Vtop": ("電壓", "{u}"), "Vbase": ("電壓", "{u}"), "Vamp": ("電壓", "{u}"),
     "Vavg": ("電壓", "{u}"), "Vrms(DC)": ("電壓", "{u}"), "Vrms(AC)": ("電壓", "{u}"),
     "過衝": ("電壓", "%"), "前衝": ("電壓", "%"),
 }
+# 支援整段／整數週期模式的量測。
+INTERVAL = {"Vavg", "Vrms(DC)", "Vrms(AC)"}
 # 需要選邊緣方向的量測；上升／下降時間、斜率與正／負寬度已由名稱指定方向。
-SLOPED = {"週期", "頻率", "工作週期", "過衝", "前衝"}
+SLOPED = {"週期", "頻率", "工作週期", "-工作週期", "過衝", "前衝"}
 THRESHOLDS = {"10/50/90 %": (10.0, 50.0, 90.0), "20/50/80 %": (20.0, 50.0, 80.0)}
 STAT_COLUMNS = ("目前", "平均", "最小", "最大", "範圍", "標準差", "次數")
 
@@ -86,45 +89,46 @@ def _sample_index(t: np.ndarray, endpoint: float) -> int:
 
 
 def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, float] = (10, 50, 90),
-            rising: bool = True) -> np.ndarray:
+            rising: bool = True, mode: str = "full") -> np.ndarray:
     """回傳該量測在範圍內每個事件的值（整段量測長度 1）；量測不出來丟 ScopeError（訊息即原因）。"""
     validate(t, v)
     vmin, vmax, top, base = levels(v)
-    # 均勻次取樣比例手冊未載明，保留全部樣本；AC RMS 使用同段平均。
-    avg = float(v.mean())
+    interval = name in INTERVAL
+    if interval and mode == "cycles":
+        if top <= base:
+            raise ScopeError("No edges：範圍內不足一個完整週期")
+        # 相對時間避免遠離原點時 ULP 吸附過寬；右端不重複計入。
+        et = t - t[0]
+        es = edge.edges(et, v, *(base + (top - base) * p / 100 for p in pct))
+        mids = [e.t_mid for e in es if e.rising == rising]
+        if len(mids) < 2:
+            raise ScopeError("No edges：範圍內不足一個完整週期")
+        v = v[_sample_index(et, mids[0]):_sample_index(et, mids[-1])]
+    if interval:
+        # 均勻次取樣比例手冊未載明，保留所選區間全部樣本。
+        # RMS_Voltage：AC RMS 使用同段平均。
+        value = float(v.mean()) if name == "Vavg" else (rms_dc(v) if name == "Vrms(DC)" else rms_ac(v))
+        return np.array([value])
     single = {"Vmax": vmax, "Vmin": vmin, "Vp-p": vmax - vmin, "Vtop": top, "Vbase": base,
-              "Vamp": top - base, "Vrms(DC)": rms_dc(v),
-              "Vrms(AC)": rms_ac(v)}
+              "Vamp": top - base}
     if name in single:
         return np.array([single[name]])
     amp = top - base
     if amp <= 0:
-        if name == "Vavg":
-            return np.array([avg])
         raise ScopeError("波形沒有振幅（top = base），找不到邊緣。")
     lo, mid, hi = (base + amp * p / 100 for p in pct)
-    et = t - t[0] if name == "Vavg" else t
-    es = edge.edges(et, v, lo, mid, hi)
-    if name == "Vavg":
-        # 手冊單週期模式從觸發參考點邊緣起算，也允許整個螢幕模式。
-        # 離線無觸發參考，改取最左完整邊緣（偏離手冊）至下一同向邊緣的中閾交越。
-        # 平均式與次取樣比例手冊未載明，保留樣本算術平均；右端不重複計入。
-        for a, b in zip(es, es[2:]):
-            if a.rising == b.rising:
-                start, stop = _sample_index(et, a.t_mid), _sample_index(et, b.t_mid)
-                return np.array([float(v[start:stop].mean())])
-        # 無完整週期時的處理手冊未載明，保留原本整段平均（含直流）。
-        return np.array([avg])
+    es = edge.edges(t, v, lo, mid, hi)
     if name in ("上升時間", "下降時間", "上升斜率", "下降斜率"):
-        return edge.transition(es, name.startswith("上升"), lo, hi, name.endswith("斜率"))
+        return edge.transition(es, name.startswith("上升"), lo, hi, name.endswith("斜率"), t)
     if name == "週期":
         return edge.periods(es, rising)
     if name == "頻率":
         return 1 / edge.periods(es, rising)
     if name in ("+寬度", "-寬度"):
         return edge.widths(es, name == "+寬度")
-    if name == "工作週期":
-        return edge.duty(es, rising)
+    if name in ("工作週期", "-工作週期"):
+        duty = edge.duty(es, rising)
+        return 100 - duty if name == "-工作週期" else duty
     if name in ("過衝", "前衝"):
         return edge.shoot(t, v, es, rising, top, base, name == "前衝")
     raise ScopeError(f"未知的量測：{name}")
@@ -142,7 +146,9 @@ def measure_all(tasks: list[tuple[str, np.ndarray, np.ndarray, bool]],
     out: list[tuple | str] = []
     for name, t, v, rising in tasks:
         try:
-            out.append(stats(measure(name, t, v, pct, rising)))
+            values = measure(name, t, v, pct, rising)
+            bound = getattr(values, "bound", None)
+            out.append(f"點數不足，僅得{'下界' if bound == '>' else '上界'} {bound}" if bound else stats(values))
         except ScopeError as exc:
             out.append(str(exc))
     return out

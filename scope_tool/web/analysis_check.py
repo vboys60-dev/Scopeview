@@ -84,6 +84,32 @@ def _self_check() -> None:
         assert isinstance(err(A.export_measurements, rev["results"], 9, rev["revision"], str(tmp),
                               exc=StaleError), StaleError)
 
+        # 區間模式、界限旗標與快照 CSV：使用獨立 Analysis，不改上面世代斷言。
+        import csv
+        from scope_tool.contracts import Waveform
+        B = Analysis()
+        bt = np.arange(250) * 2.5e-9
+        bv = np.tile(np.r_[0., np.ones(20), np.zeros(19)], 7)[:250]
+        B._gen, B._waves, B._units = 1, [Waveform("CH1", bt, bv)], {"CH1": "V"}
+        rows = [{"channel": "CH1", "name": name, "rising": True, "mode": mode}
+                for mode in ("full", "cycles") for name in ("Vavg", "Vrms(DC)", "Vrms(AC)")]
+        rows += [{"channel": "CH1", "name": name, "rising": True}
+                 for name in ("上升時間", "下降時間", "上升斜率", "下降斜率", "-工作週期")]
+        batch = B.measure(rows, None, {}, "10/50/90 %")
+        for i, helper in enumerate((np.mean, lambda v: np.sqrt(np.mean(v*v)), np.std)):
+            assert np.isclose(batch["results"][i]["stats"]["current"], helper(bv))
+            assert np.isclose(batch["results"][i+3]["stats"]["current"], helper(bv[1:241]))
+        for row, bound in zip(batch["results"][6:10], ("<", "<", ">", "<")):
+            assert row["ok"] and row["bound"] == bound
+        assert batch["results"][9]["stats"]["current"] < 0
+        dest = B.export_measurements(batch["results"], 1, batch["revision"], str(tmp))
+        with Path(dest["path"]).open(encoding="utf-8-sig", newline="") as f:
+            exported = [r for r in csv.reader(f) if r and r[0].startswith("上升時間(")]
+        assert all(x.startswith("< ") for x in exported[0][2:8]) and exported[0][8].isdigit()
+        assert "Vavg(CH1 整數週期 ↑)" in Path(dest["path"]).read_text(encoding="utf-8-sig")
+        failed = B.measure(rows[3:6], [0, bt[30]], {}, "10/50/90 %")
+        assert all(not r["ok"] and r["reason"] == "No edges：範圍內不足一個完整週期" for r in failed["results"])
+
         # 游標
         cr = A.cursor_readout(0.0012341, 0.002, {"CHAN2": 1e-6})
         assert cr["index1"] == 1234 and cr["y"]["CHAN2"]["y1"] is not None
@@ -192,6 +218,10 @@ def _self_check() -> None:
         good = dict(entries=[{"channel": "CHAN1", "name": "Vmax", "rising": True}], range=None, dx={},
                     threshold="10/50/90 %")
         vp("measure", good)
+        vp("measure", dict(good, entries=[dict(good["entries"][0], mode="cycles")]))
+        for mode in (None, 1, "bad"):
+            assert isinstance(err(vp, "measure", dict(good, entries=[dict(good["entries"][0], mode=mode)]),
+                                  exc=BadRequest), BadRequest)
         for bad in (dict(good, threshold="x"), dict(good, range=[1]), dict(good, dx={"a": "b"}),
                     dict(good, entries=[{"channel": "C"}]), {k: v for k, v in good.items() if k != "dx"},
                     dict(good, extra=1)):

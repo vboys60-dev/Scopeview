@@ -277,4 +277,15 @@ async function setup(hook) {
   }
   assert.deepEqual(cursorRows(null, F.fmt), []);
 }
+// 區間隨項目固定並送出；界限值全部統計欄帶前綴，次數保持整數。
+{
+  const { bridge, store, sum, channels } = await setup();
+  const m = createMeasure({ store, bridge }, { delay: 5 });
+  store.set({ file: sum, channels, selected: "CHAN1" }, "program");
+  m.add("Vavg", "CHAN1", false, "cycles"); m.add("上升時間", "CHAN1", true); await sleep(50);
+  const entries = bridge.calls.find(([name]) => name === "measure")[1].entries;
+  assert.equal(entries[0].mode, "cycles"); assert.equal(entries[0].rising, false); assert.equal(entries[1].mode, "full");
+  const e = store.get().measurements[1], cells = rowCells(e, "ok", "s", F);
+  assert.ok(cells.slice(0, 6).every(x => x.startsWith("< "))); assert.equal(cells[6], "1");
+}
 console.log("l5 self-check OK");

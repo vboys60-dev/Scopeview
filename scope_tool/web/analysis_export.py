@@ -55,7 +55,8 @@ class ExportMixin:
                 w.writerow(["量測", "單位", "目前", "平均", "最小", "最大", "範圍", "標準差", "次數", "備註"])
                 for r in snap["results"]:
                     s = r["stats"]
-                    w.writerow([r["_label"], r["unit"], *(repr(s[k]) for k in
+                    prefix = r["bound"] + " " if r.get("bound") else ""
+                    w.writerow([r["_label"], r["unit"], *((prefix if k != "count" else "") + repr(s[k]) for k in
                                 ("current", "mean", "min", "max", "range", "std", "count"))] + [""] if s
                                else [r["_label"], r["unit"], *[""] * 7, r["reason"] or ""])
         except OSError as e:

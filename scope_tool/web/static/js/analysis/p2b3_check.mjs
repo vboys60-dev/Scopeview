@@ -106,6 +106,30 @@ assert.ok(clear.title && exp.title); assert.equal(exp.textContent,'匯出結果'
 assert.equal(actions.firstChild.attrs['aria-label'],actions.firstChild.title); assert.equal(exp.disabled,false); await exp.onclick();
 assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2);
 clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true);
+// 結果標籤保留區間與方向；界限值的畫面與匯出列一致。
+store.set({ measurements:[{ id:3,name:'Vavg',channel:'CH1',mode:'cycles',rising:false,
+  result:{ ok:true,gen:1,revision:3,unit:'V',stats,bound:'<' } }] });
+assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1 整數週期 ↓)');
+assert.deepEqual(table.children[1].children.slice(1,-1).map(c => c.textContent),['< 954 V','< 10 V','42']);
+await exp.onclick(); assert.equal(calls.at(-1)[1].rows[0].bound,'<');
+store.set({ measurements:[{ ...store.get().measurements[0],mode:'full' }] });
+assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclick();
+// 量測面板實際下拉／按鈕：每筆保存加入當下的模式與方向，隨 entries 送出。
+{
+  const input = new Element('div'), state = createStore(), sent = [];
+  state.set({ file:{gen:1},channels:[{name:'CH1',unit:'V'}],selected:'CH1' });
+  const context = { ...ctx,store:state,appState:{ catalog:{measurements:[{name:'Vavg',category:'電壓',tip:'平均'}]} },
+    bridge:{ job:async (_method,args) => { sent.push(args); return {gen:1,revision:1,results:args.entries.map(e => ({...e,ok:true,gen:1,revision:1,unit:'V',stats}))}; } } };
+  mountMeasure(input,context);
+  const [slope,,mode] = input.children;
+  assert.deepEqual(mode.children.map(c => c.value),['full','cycles']);
+  const button = input.children.at(-1).children.find(c => c.tagName === 'button');
+  slope.value = '0'; mode.value = 'cycles'; button.onclick();
+  slope.value = '1'; mode.value = 'full'; button.onclick();
+  await new Promise(resolve => setTimeout(resolve,200));
+  assert.deepEqual(sent[0].entries.map(e => [e.mode,e.rising]),[['cycles',false],['full',true]]);
+  assert.equal(state.get().measurements[0].mode,'cycles');
+}
 store.set({ fftResult:{ ok:true,unit:'dBV',peaks:[{ x:100,y:2 }] } });
 assert.equal(panels.peaks.lastChild.children.length,2); assert.equal(panels.measure.children.length,1,'FFT 表不能回到量測面板');
 let readoutDone;

@@ -52,13 +52,29 @@ def _need(values: list[float], reason: str) -> np.ndarray:
     return np.array(values, dtype=np.float64)
 
 
-def transition(es: list[Edge], rising: bool, lo: float, hi: float, slope: bool) -> np.ndarray:
-    """上升／下降時間（slope=False）或斜率 ΔV/ΔT（slope=True）；邊緣至少 4 個取樣點。"""
-    d = [e.t_hi - e.t_lo if rising else e.t_lo - e.t_hi
-         for e in es if e.rising == rising and e.b - e.a + 1 >= 4]
+class BoundedValues(np.ndarray):
+    """保留 ndarray 介面，額外標示整組事件的界限。"""
+    bound: str | None = None
+
+
+def transition(es: list[Edge], rising: bool, lo: float, hi: float, slope: bool,
+               t: np.ndarray) -> np.ndarray:
+    """優先用至少 4 點的邊緣；皆不足時以括住樣本給時間上界、上升斜率下界／下降斜率上界。"""
+    selected = [e for e in es if e.rising == rising]
+    good = [e for e in selected if e.b - e.a + 1 >= 4]
+    bounded = not good
+    if bounded:
+        d = [float(t[e.b] - t[e.a]) for e in selected]
+    else:
+        d = [e.t_hi - e.t_lo if rising else e.t_lo - e.t_hi for e in good]
     name = "上升緣" if rising else "下降緣"
-    out = _need(d, f"範圍內沒有至少 4 個取樣點的完整{name}")
-    return ((hi - lo) if rising else (lo - hi)) / out if slope else out
+    out = _need(d, f"範圍內沒有完整{name}")
+    if slope:
+        out = ((hi - lo) if rising else (lo - hi)) / out
+    if bounded:
+        out = out.view(BoundedValues)
+        out.bound = ">" if slope and rising else "<"
+    return out
 
 
 def periods(es: list[Edge], rising: bool) -> np.ndarray:
@@ -120,10 +136,10 @@ def _self_check() -> None:
     v = np.interp(t % 1e-3, [0, 10e-6, 500e-6, 510e-6, 1e-3], [0, 2, 2, 0, 0])
     es = edges(t, v, 0.2, 1.0, 1.8)
     assert all(a.rising != b.rising for a, b in zip(es, es[1:]))
-    assert np.allclose(transition(es, True, 0.2, 1.8, False), 8e-6)
-    assert np.allclose(transition(es, False, 0.2, 1.8, False), 8e-6)
-    assert np.allclose(transition(es, True, 0.2, 1.8, True), 2e5)
-    assert np.allclose(transition(es, False, 0.2, 1.8, True), -2e5)
+    assert np.allclose(transition(es, True, 0.2, 1.8, False, t), 8e-6)
+    assert np.allclose(transition(es, False, 0.2, 1.8, False, t), 8e-6)
+    assert np.allclose(transition(es, True, 0.2, 1.8, True, t), 2e5)
+    assert np.allclose(transition(es, False, 0.2, 1.8, True, t), -2e5)
     p = periods(es, True)
     assert np.allclose(p, 1e-3) and len(p) == 4  # 只用上升緣，不和下降緣混算
     assert np.allclose(widths(es, True), 500e-6) and np.allclose(widths(es, False), 500e-6)

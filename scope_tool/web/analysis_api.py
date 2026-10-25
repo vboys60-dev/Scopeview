@@ -15,7 +15,7 @@ import numpy as np
 
 from scope_tool.analysis import marker as markermod
 from scope_tool.analysis import mathfn
-from scope_tool.analysis.measure import MEASUREMENTS, SLOPED, THRESHOLDS, measure as _measure, stats as _stats, unit_of
+from scope_tool.analysis.measure import INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure as _measure, stats as _stats, unit_of
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info, read_waveform_file
 from scope_tool.web import decimate
@@ -150,6 +150,8 @@ class Analysis(FftMixin, ExportMixin):
         if threshold not in THRESHOLDS:
             raise BadRequest(f"未知閾值：{threshold}")
         for e in entries:
+            if e.get("mode", "full") not in ("full", "cycles"):
+                raise BadRequest("未知區間模式")
             if e.get("name") not in MEASUREMENTS:
                 raise BadRequest(f"未知量測：{e.get('name')}")
         gen, waves, units = self._need()
@@ -165,10 +167,12 @@ class Analysis(FftMixin, ExportMixin):
             out = []
             for e in entries:
                 ch, name, rising = e["channel"], e["name"], bool(e.get("rising", True))
+                cycles = name in INTERVAL and e.get("mode") == "cycles"
+                suffix = (" ↑" if rising else " ↓") if name in SLOPED or cycles else ""
                 w = by.get(ch)
                 row = {"channel": ch, "name": name, "unit": unit_of(name, units.get(ch, "V")), "ok": False,
                        "stats": None, "reason": None, "gen": gen, "revision": rev,
-                       "_label": f"{name}({ch}{(' ↑' if rising else ' ↓') if name in SLOPED else ''})"}
+                       "_label": f"{name}({ch}{' 整數週期' if cycles else ''}{suffix})"}
                 if w is None:
                     row["reason"] = "來源通道已刪除"
                 else:
@@ -177,7 +181,10 @@ class Analysis(FftMixin, ExportMixin):
                         row["reason"] = "所選範圍內沒有資料"
                     else:
                         try:
-                            s = _stats(_measure(name, t, v, pct, rising))
+                            values = _measure(name, t, v, pct, rising, e.get("mode", "full"))
+                            s = _stats(values)
+                            if getattr(values, "bound", None):
+                                row["bound"] = values.bound
                             row["ok"] = True
                             row["stats"] = dict(zip(("current", "mean", "min", "max", "range", "std", "count"), s))
                         except ScopeError as exc:

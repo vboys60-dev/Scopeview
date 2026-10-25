@@ -89,7 +89,11 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 
 - `range`＝**顯示時間**，可反序（後端排序）；對每個通道先扣自己的 dx（`source = display − dx[ch]`），兩端含。`null`＝全部。
 - `dx = {通道名: 秒}`，缺鍵＝0；「第一通道」＝`FileSummary.channels[0]`。
-- 空區間（或區間內全為 NaN）→ **具名失敗結果**：measure 該列 `ok=false`＋`reason`、`stats=null`；fft 回 `FFTResult{ok:false, reason, spectrum_id:null, peaks:[]，數值欄 null}`。**不得**回 `count=1` 的成功結果。
+- 空區間（或區間內全為 NaN）→ **具名失敗結果**：measure 該列 `ok=false`＋`reason="所選範圍內沒有資料"`、`stats=null`；fft 回 `FFTResult{ok:false, reason, spectrum_id:null, peaks:[]，數值欄 null}`。**不得**回 `count=1` 的成功結果。
+- `MeasureEntry.mode` 可省略但不可為 null，預設 `"full"`（整段樣本）。`"cycles"` 只對 Vavg、Vrms(DC)、Vrms(AC) 有意義；其他項目忽略。cycles 使用三閾值完整邊緣中，第一到最後一個 `rising` 指定方向的中閾交越，至少兩個同向邊緣（含中間反向緣，至少三緣）。樣本左閉右開，不足回 `No edges：範圍內不足一個完整週期`，不退回整段。Vavg 預設已改為整段算術平均，舊單週期／靜默退回取消。
+- `MeasureResult.bound` 可省略／null，或 `"<"`（時間上界或下降斜率真值更負）、`">"`（上升斜率下界），方向皆表示真值相對顯示值。有 ≥4 點的同方向邊緣時只採可信值；全不足時使用括住樣本時間差及閾值差÷時間差。畫面與 CSV 統計欄加相同前綴（次數除外）。
+- catalog 新增 `-工作週期`（時間、%、sloped），等於同組邊緣下 `100 - 工作週期`；工作週期為＋寬度／週期，週期由所選方向定義。cycles 結果標籤如 `Vavg(CH1 整數週期 ↑)`，full 不加註；CSV 同樣標示。
+- JSON `optional_fields` 列出 types 中可省略的欄位；存在時仍須符合欄位型別與上述列舉值。
 - `MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
 
 ### FFT

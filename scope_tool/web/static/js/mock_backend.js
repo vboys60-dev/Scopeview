@@ -67,7 +67,9 @@ export function createMock(opts = {}) {
 
   const FN = { 加: (x, y) => x + y, 減: (x, y) => x - y, 乘: (x, y) => x * y, 除: (x, y) => x / y, 反相: (x) => -x, 絕對值: Math.abs, 平方: (x) => x * x, 開根號: Math.sqrt, log10: Math.log10 };
   const MEAS = { Vmax: (v) => v.reduce((a, b) => Math.max(a, b)), Vmin: (v) => v.reduce((a, b) => Math.min(a, b)),
-    "Vp-p": (v) => MEAS.Vmax(v) - MEAS.Vmin(v), Vavg: (v) => v.reduce((a, b) => a + b, 0) / v.length, 頻率: () => 1000, 週期: () => 1e-3 };
+    "Vp-p": (v) => MEAS.Vmax(v) - MEAS.Vmin(v), Vavg: (v) => v.reduce((a, b) => a + b, 0) / v.length, 頻率: () => 1000, 週期: () => 1e-3,
+    "Vrms(DC)": v => Math.sqrt(MEAS.Vavg(v.map(x => x * x))),
+    "Vrms(AC)": v => { const avg = MEAS.Vavg(v); return Math.sqrt(MEAS.Vavg(v.map(x => (x - avg) ** 2))); } };
   const specInfo = (p, extra) => ({ ok: true, reason: null, gen, spectrum_id: null, source: p.source, unit: p.unit, window: p.window, df: 100, rbw: 150, enbw: 150, enbw_bins: 1.5, cg: 0.5,
     n: 20000, effective_n: 32768, r_ohm: p.r_ohm, f_min: 0, f_max: 1e6, peaks: [], ...extra });
 
@@ -131,15 +133,52 @@ export function createMock(opts = {}) {
     },
     measure: ({ entries, range, dx, threshold }) => {
       inCat(threshold, Object.keys(CATALOG.thresholds), "閾值"); checkRange(range);
+      for (const e of entries) inCat(e.mode === undefined ? "full" : e.mode, ["full", "cycles"], "區間模式");
       return job("measure", () => {
         needFile();
         const r = ++rev, results = entries.map((e) => {
           const base = { channel: e.channel, name: e.name, unit: (CATALOG.measurements.find((m) => m.name === e.name)?.unit ?? "").replace("{u}", data[e.channel]?.unit ?? "V"), gen, revision: r };
           if (!data[e.channel]) return { ...base, ok: false, stats: null, reason: "通道不存在" };
-          const [a, b] = cut(e.channel, range, dx), v = data[e.channel].v.subarray(a, b).filter(Number.isFinite);
-          if (!v.length) return { ...base, ok: false, stats: null, reason: "所選範圍內沒有資料" };
-          if (!MEAS[e.name]) return { ...base, ok: false, stats: null, reason: "mock 未實作此量測" };
-          const x = MEAS[e.name](v);
+          const [a, b] = cut(e.channel, range, dx), t = data[e.channel].t.subarray(a, b);
+          let v = data[e.channel].v.subarray(a, b);
+          if (!v.some(Number.isFinite)) return { ...base, ok: false, stats: null, reason: "所選範圍內沒有資料" };
+          if (v.some(x => !Number.isFinite(x))) return { ...base, ok: false, stats: null, reason: "資料含 NaN 或無限大。" };
+          // 區間量測名稱依 analysis/measure.py 的 INTERVAL；catalog 尚無區間欄位。
+          const interval = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name), es = [];
+          const low = MEAS.Vmin(v), amp = MEAS.Vmax(v) - low, [lp, mp, hp] = CATALOG.thresholds[threshold];
+          let prev = -1, state = -1;
+          for (let i = 0; amp > 0 && i < v.length; i++) {
+            const st = v[i] < low + amp * lp / 100 ? 0 : v[i] > low + amp * hp / 100 ? 2 : 1;
+            if (st === 1) continue;
+            if (state >= 0 && st !== state) {
+              const rising = state === 0, cross = p => {
+                let j = prev + 1; const level = low + amp * p / 100;
+                while (j < i && (rising ? v[j] < level : v[j] > level)) j++;
+                return t[j-1] + (level-v[j-1]) / (v[j]-v[j-1]) * (t[j]-t[j-1]);
+              };
+              es.push({ rising, a: prev, b: i, mid: cross(mp), duration: Math.abs(cross(hp)-cross(lp)) });
+            }
+            prev = i; state = st;
+          }
+          if (interval && e.mode === "cycles") {
+            const mids = es.filter(x => x.rising === e.rising);
+            if (mids.length < 2) return { ...base, ok: false, stats: null, reason: "No edges：範圍內不足一個完整週期" };
+            v = v.subarray(t.findIndex(x => x >= mids[0].mid), t.findIndex(x => x >= mids.at(-1).mid));
+          }
+          let x;
+          if (["上升時間", "下降時間", "上升斜率", "下降斜率"].includes(e.name)) {
+            const selected = es.filter(x => x.rising === e.name.startsWith("上升"));
+            if (!selected.length) return { ...base, ok: false, stats: null, reason: "沒有完整邊緣" };
+            const good = selected.filter(x => x.b-x.a+1 >= 4), slope = e.name.endsWith("斜率");
+            const times = good.length ? good.map(x => x.duration) : selected.map(x => t[x.b]-t[x.a]);
+            x = slope ? MEAS.Vavg(times.map(dt => (e.name.startsWith("上升") ? 1 : -1) * amp * (hp-lp) / 100 / dt)) : MEAS.Vavg(times);
+            if (!good.length) base.bound = slope && e.name.startsWith("上升") ? ">" : "<";
+          } else if (["工作週期", "-工作週期"].includes(e.name)) {
+            const duties = es.slice(0, -2).flatMap((q, i) => q.rising === e.rising ? [(e.rising ? es[i+1].mid-q.mid : es[i+2].mid-es[i+1].mid) / (es[i+2].mid-q.mid) * 100] : []);
+            if (!duties.length) return { ...base, ok: false, stats: null, reason: "沒有完整週期" };
+            x = e.name === "工作週期" ? MEAS.Vavg(duties) : 100 - MEAS.Vavg(duties);
+          } else if (!MEAS[e.name]) return { ...base, ok: false, stats: null, reason: "mock 未實作此量測" };
+          else x = MEAS[e.name](v);
           return { ...base, ok: true, stats: { current: x, mean: x, min: x, max: x, range: 0, std: 0, count: 1 }, reason: null };
         });
         last = { gen, revision: r };

@@ -60,7 +60,11 @@ def _ok(v: Any, t: str) -> bool:
         return _ok(v, spec)
     if not isinstance(v, dict):
         return False
-    return t != "MeasureEntry" or all(k in v and _ok(v[k], ft) for k, ft in spec.items())
+    if t == "MeasureEntry":
+        return (all((k not in v and k in _C["optional_fields"][t]) or
+                    (k in v and _ok(v[k], ft)) for k, ft in spec.items())
+                and v.get("mode", "full") in ("full", "cycles"))
+    return True
 
 
 def validate_params(method: str, kwargs: dict) -> None:

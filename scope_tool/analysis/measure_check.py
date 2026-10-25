@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from scope_tool.analysis import edge
-from scope_tool.analysis.measure import (MEASUREMENTS, THRESHOLDS, _sample_index, levels,
+from scope_tool.analysis.measure import (MEASUREMENTS, THRESHOLDS, levels,
                                          measure, measure_all, stats, uniform_dt, unit_of)
 from scope_tool.contracts import ScopeError
 
@@ -28,58 +28,53 @@ def _self_check() -> None:
     tri = np.abs((t % 1e-3) / 1e-3 - 0.5)
     _, vmax, top, base = levels(tri)
     assert top == vmax and base == tri.min()
-    # 非整數週期：Vavg 用首個完整週期；RMS 用整段，誤差見各案例。
-    short_t = t[:2300]
-    for signal, expected, tol in ((v[:2300], 1.0, 1e-9),
-                                  (sine[:2300], 0.0, 1e-9), (tri[:2300], 0.25, 1e-6)):
-        assert abs(measure("Vavg", short_t, signal)[0] - expected) < tol
-    short_v = v[:2300] + 3
-    for name, expected in (("Vrms(DC)", np.sqrt(np.mean(short_v ** 2))), ("Vrms(AC)", np.std(short_v))):
-        assert abs(measure(name, short_t, short_v)[0] - expected) < 1e-12
-    assert abs(measure("Vavg", t[200:2300], v[200:2300])[0] - 1) < 1e-9  # 首緣下降
-    assert measure("Vavg", t[:200], v[:200])[0] == v[:200].mean()  # 無完整週期保留整段
-    assert measure("Vavg", t, np.full_like(t, 3))[0] == 3
-    shifted = v + np.repeat(np.arange(5) * 0.02, 1000)
-    cycle_avgs = [shifted[k + 6:k + 1006].mean() for k in (0, 1000, 2000, 3000)]
-    assert np.all(np.diff(cycle_avgs) > 0.01) and abs(measure("Vavg", t, shifted)[0] - cycle_avgs[0]) < 1e-12
-    # 25.5% PWM：平移起點與閾值組合不影響樣本平均。
-    pwm = np.interp(t % 1e-3, [0, 10e-6, 255e-6, 265e-6, 1e-3], [0, 2, 2, 0, 0])
-    avgs = [measure("Vavg", t + offset, pwm, pct)[0]
-            for offset in (0, -5e-3, 1e-3, 1.0, 3.3e-3, 123.0) for pct in THRESHOLDS.values()]
-    assert np.ptp(avgs) < 1e-12 and np.max(np.abs(np.array(avgs) - 0.51)) < 1e-12
-    # 交越掃過取樣間隔，以獨立切片驗證整數與樣本間端點。
-    dc = np.repeat(np.arange(5) * 0.02, 1000)
+    # 2.5 週期：整段含尾端半週期，整數週期僅取首末同向緣之間。
+    ct = np.arange(250, dtype=float) * 1e-9
+    cv = np.tile(np.r_[0., np.ones(50), np.zeros(49)], 3)[:250]
+    helpers = {"Vavg": np.mean, "Vrms(DC)": lambda x: np.sqrt(np.mean(x*x)), "Vrms(AC)": np.std}
+    for name, helper in helpers.items():
+        assert np.isclose(measure(name, ct, cv)[0], helper(cv))
+        assert np.isclose(measure(name, ct, cv, mode="full")[0], helper(cv))
+        for rising, start, stop in ((True, 1, 201), (False, 51, 151)):
+            assert np.isclose(measure(name, ct, cv, rising=rising, mode="cycles")[0], helper(cv[start:stop]))
+        for times, signal in ((ct[:100], cv[:100]), (ct, np.ones_like(cv))):
+            try:
+                measure(name, times, signal, mode="cycles")
+                raise AssertionError("不足一週期不可退回整段")
+            except ScopeError as exc:
+                assert str(exc) == "No edges：範圍內不足一個完整週期"
+    assert measure("Vavg", ct, cv, mode="cycles")[0] == 0.5
+    assert measure("Vavg", ct, cv)[0] == 149 / 250
+    # 相位、中閾、方向與時間平移：以首末同向緣的獨立樣本切片驗證。
     for pct in THRESHOLDS.values():
-        for phase in np.r_[np.linspace(0, 1, 101), 1e-6, 1 - 1e-6]:
+        for phase in (0., 0.1, 0.5, 0.999999):
             signal = np.interp((np.arange(t.size) - phase) % 1000,
                                [0, 10, 255, 265, 1000], [0, 2, 2, 0, 0])
-            start, stop = (5, 1005) if phase == 0 else (6, 1006)
-            assert abs(measure("Vavg", t, signal, pct)[0] - signal[start:stop].mean()) < 1e-12
-            assert abs(signal[start:stop].mean() - 0.51) < 1e-12
-            # 每週期不同 DC；由線性斜率獨立推算索引，不依賴邊緣或吸附函式。
-            signal = signal + dc
+            signal += np.repeat(np.arange(5) * 0.02, 1000)
             _, _, top, base = levels(signal)
-            if phase in (0, 1):
-                # 固定中閾為 1 V，以不同 DC 的平均區分 [5:1005] 與 [6:1006]。
-                fixed = (pct[0], (1 - base) / (top - base) * 100, pct[2])
-                assert abs(measure("Vavg", t, signal, fixed)[0] - signal[start:stop].mean()) < 1e-12
-            bounds = phase + (top + base) / 0.4 + np.array([0, 999.9])
-            bounds = np.where(abs(bounds - np.rint(bounds)) < 1e-10, np.rint(bounds), bounds)
-            start, stop = np.ceil(bounds).astype(int)
-            assert abs(measure("Vavg", t, signal, pct)[0] - signal[start:stop].mean()) < 1e-12
-    # 遠端時間不影響首週期吸附：局部交越不可使用整段 ULP。
+            for rising in (True, False):
+                # 每點斜率 ±0.2 V；第 k 週期偏移 0.02k V，中閾由平台推算。
+                mid = (top + base) / 2
+                crossing = (mid - np.array([0., 0.08])) / 0.2
+                bounds = phase + np.array([0, 4000]) + (crossing if rising else 265 - crossing)
+                bounds = np.where(abs(bounds - np.rint(bounds)) < 1e-10, np.rint(bounds), bounds)
+                start, stop = np.ceil(bounds).astype(int)
+                expected = signal[start:stop].mean()
+                for offset in (0., -5e-3, 123.):
+                    assert abs(measure("Vavg", t+offset, signal, pct, rising, "cycles")[0] - expected) < 1e-12
+    # 遠端樣本不可放寬局部 ULP 吸附；首末上升交越落在索引 5～6、4004～4005。
     pt = np.arange(5000) * 1e-12
     pv = np.interp((np.arange(5000) + 0.1) % 1000,
                    [0, 10, 250, 270, 1000], [0, 2, 2, 0, 0]) + np.repeat(np.arange(5) * 0.02, 1000)
-    _, _, top, base = levels(pv)
+    expected = pv[6:4005].mean()
     for last in (4.999e-9, 100., 1000.):
         pt[-1] = last
-        es = edge.edges(pt, pv, *(base + (top - base) * p / 100 for p in (10, 50, 90)))
-        assert tuple(_sample_index(pt, es[k].t_mid) for k in (0, 2)) == (6, 1006)
-        assert abs(pv[6:1006].mean() - 0.51012) < 1e-12 and abs(measure("Vavg", pt, pv)[0] - 0.51012) < 1e-12
-    # 皮秒取樣平移 1000 s：Vavg 必須先轉相對時間，避免絕對時間 ULP 誤吸附。
+        assert abs(measure("Vavg", pt, pv, mode="cycles")[0] - expected) < 1e-12
+    # 1.6 ps 取樣平移 1000 s 後仍採相同樣本，不以絕對時間 ULP 吸附。
     tiny_t = np.arange(5000) * 1.6e-12
-    assert abs(measure("Vavg", tiny_t, pv)[0] - measure("Vavg", tiny_t + 1000, pv)[0]) < 1e-12
+    for offset in (0., 1000.):
+        assert abs(measure("Vavg", tiny_t + offset, pv, mode="cycles")[0] - expected) < 1e-12
+    assert measure("Vavg", t, np.full_like(t, 3))[0] == 3
     # 直方圖左閉右開：相鄰格的邊界值不能混入峰值（誤差 < 1e-12 V）。
     hist = np.r_[np.zeros(50), 1, np.full(20, 0.75), np.full(19, 193 / 256)]
     assert abs(levels(hist)[2] - 0.75) < 1e-12
@@ -108,7 +103,7 @@ def _self_check() -> None:
     v25 = np.interp(t % 1e-3, [0, 10e-6, 250e-6, 260e-6, 1e-3], [0, 2, 2, 0, 0])
     for pct in THRESHOLDS.values():
         for direction in (True, False):
-            for name, expected, tol in (("週期", 1e-3, 1e-12), ("頻率", 1000, 1e-6), ("工作週期", 25, 1e-8)):
+            for name, expected, tol in (("週期", 1e-3, 1e-12), ("頻率", 1000, 1e-6), ("工作週期", 25, 1e-8), ("-工作週期", 75, 1e-8)):
                 assert np.allclose(measure(name, t, v25, pct, direction), expected, rtol=0, atol=tol)
         for name, expected in (("+寬度", 250e-6), ("-寬度", 750e-6),
                                *((name, (pct[2] - pct[0]) * 1e-7) for name in ("上升時間", "下降時間"))):
@@ -123,20 +118,41 @@ def _self_check() -> None:
     expected = (4 - (1 - 0.93) / 0.3 * 2 - 1) * dt
     for name, signal, pct in (("上升時間", rv, (0, 50, 90)), ("下降時間", 1 - rv, (10, 50, 100))):
         assert abs(measure(name, rt, signal, pct)[0] - expected) < 1e-12
-    # 邊緣不足四點仍可量週期，但不能量上升／下降時間。
+    # 邊緣不足四點：時間上界／上升斜率下界；下降斜率真值更負。
     for signal in (np.array([0., 1.]), np.array([0., 0.5, 1.])):
         for name, samples in (("上升時間", signal), ("下降時間", 1 - signal),
                               ("上升斜率", signal), ("下降斜率", 1 - signal)):
-            try:
-                measure(name, t[:len(samples)], samples)
-                raise AssertionError("不足四點應該丟出 ScopeError")
-            except ScopeError as exc:
-                assert "4 個取樣點" in str(exc)
+            got = measure(name, t[:len(samples)], samples)
+            slope = name.endswith("斜率")
+            assert isinstance(got, np.ndarray) and got.bound == (">" if slope and name.startswith("上升") else "<")
+            assert got[:1].bound is None
+            reason = measure_all([(name, t[:len(samples)], samples, True)], (10, 50, 90))[0]
+            assert reason == f"點數不足，僅得{'下界' if got.bound == '>' else '上界'} {got.bound}"
+            expected = (len(samples)-1)*dt
+            if slope:
+                expected = (0.8 if name.startswith("上升") else -0.8) / expected
+            assert np.isclose(got[0], expected)
         # 重複短邊緣仍能量週期；兩點／三點案例的週期分別是 2／4 µs。
         samples = np.tile(np.r_[signal, signal[-2:0:-1]], 3)
         for direction in (True, False):
             assert np.allclose(measure("週期", t[:len(samples)], samples, rising=direction),
                                2 * (len(signal) - 1) * dt, rtol=0, atol=1e-12)
+    # 混合品質只採可信緣；沒有完整同方向緣仍失敗。
+    mt = np.arange(11, dtype=float)
+    mv = np.array([0., 1., 1., 0., 0., 0.25, 0.5, 0.75, 1., 1., 0.])
+    mixed = measure("上升時間", mt, mv)
+    assert not getattr(mixed, "bound", None) and len(mixed) == 1 and np.isclose(mixed[0], 3.2)
+    try:
+        measure("上升時間", np.arange(4, dtype=float), np.array([1., 1., 0., 0.]))
+    except ScopeError:
+        pass
+    else:
+        raise AssertionError("不完整邊緣應失敗")
+    fast_t = np.arange(4000) * 2.5e-9
+    fast_v = np.interp(np.arange(4000) % 40, [0, 1.3, 20, 21.3, 40], [0, 1, 1, 0, 0])
+    fast = measure("上升時間", fast_t, fast_v)
+    assert fast.bound == "<" and np.allclose(fast, 5e-9, rtol=0, atol=1e-20)
+    print(f"10 MHz / 2.5 ns synthetic: {fast.bound} {fast[0]*1e9:g} ns")
     assert stats(np.array([3.0, 1.0, 2.0])) == (3.0, 2.0, 1.0, 3.0, 2.0, float(np.std([3, 1, 2])), 3)
     flat = np.ones_like(t)
     assert measure("Vp-p", t, flat)[0] == 0

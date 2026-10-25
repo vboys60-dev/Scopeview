@@ -81,8 +81,20 @@ export async function runSemantics() {
     r = await me("Vmax", "CHAN1", [5, 6]); assert.ok(!r.results[0].ok && r.results[0].stats === null && r.results[0].reason); // 空區間：具名失敗
     r = await me("Vmax", "CHAN2", [9.9999, 10.0001], { CHAN2: 10 }); assert.ok(r.results[0].ok); near(r.results[0].stats.current, 0.5 * Math.sin(2 * Math.PI * 1000 * 1e-4), 1e-3);
     assert.ok(!(await me("Vmax", "CHAN2", [9.9999, 10.0001])).results[0].ok); // 沒扣 dx 時該區間無資料
-    assert.ok(!(await me("Vmax", "CHAN2", [-1.0002e-3, -0.9910e-3])).results[0].ok); // 區間只有 NaN
+    assert.equal((await me("Vmax", "CHAN2", [-1.0002e-3, -0.9910e-3])).results[0].reason, "所選範圍內沒有資料"); // 區間只有 NaN
     assert.ok(!(await me("頻譜不存在", "CHAN1", null)).results[0].ok);
+    const bounded = await me("上升時間", "CHAN1", null); assert.equal(bounded.results[0].bound, "<");
+    const down = await me("下降斜率", "CHAN1", null); assert.equal(down.results[0].bound, "<"); assert.ok(down.results[0].stats.current < 0);
+    const modeMe = (name, mode, range = null) => call(b, "measure", { entries: [{ channel: "CHAN1", name, rising: true, mode }], range, dx: DX, threshold: "10/50/90 %" });
+    for (const name of ["Vavg", "Vrms(DC)", "Vrms(AC)"]) {
+      assert.ok((await modeMe(name, "full")).results[0].ok);
+      assert.ok((await modeMe(name, "cycles")).results[0].ok);
+      assert.match((await modeMe(name, "cycles", [0, 1e-4])).results[0].reason, /No edges/);
+    }
+    await rej(b.job("measure", { entries: [{ channel: "CHAN1", name: "Vavg", rising: true, mode: null }], range: null, dx: DX, threshold: "10/50/90 %" }), "BAD_REQUEST");
+    const up = await me("上升斜率", "CHAN1", null); assert.equal(up.results[0].bound, ">");
+    const pos = await me("工作週期", "CHAN1", null), neg = await me("-工作週期", "CHAN1", null);
+    near(pos.results[0].stats.current + neg.results[0].stats.current, 100);
     const full = await me("Vp-p", "CHAN1", null); near(full.results[0].stats.current, 2);
 
     // math

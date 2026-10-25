@@ -1,5 +1,5 @@
 // 量測項目管理：新增／刪除、防抖 150 ms 呼叫 bridge.measure，結果寫入 store.measurements。
-// store.measurements 每筆：{id, channel, name, rising, result: MeasureResult|null（null＝計算中）}。
+// store.measurements 每筆：{id, channel, name, rising, mode, result: MeasureResult|null（null＝計算中）}。
 // 來源通道與邊緣方向在加入時固定；範圍、閾值、dx、游標（rangeMode=cursors 時）變動都會重算；過期（token／gen）結果丟棄。
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -32,7 +32,7 @@ export function createMeasure({ store, bridge }, { delay = 150, onError = () => 
     let results = [];
     try {
       if (live.length) {
-        const r = await bridge.job("measure", { entries: live.map(({ channel, name, rising }) => ({ channel, name, rising })), range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
+        const r = await bridge.job("measure", { entries: live.map(({ channel, name, rising, mode = "full" }) => ({ channel, name, rising, mode })), range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
         if (my !== token || store.get().file?.gen !== gen || r.gen !== gen) return; // 過期丟棄
         results = r.results; lastRev = r.revision;
       }
@@ -45,9 +45,9 @@ export function createMeasure({ store, bridge }, { delay = 150, onError = () => 
     const byId = new Map(live.map((e, i) => [e.id, results[i] ?? failure("沒有結果", gen, lastRev)]));
     setEntries(store.get().measurements.map((e) => ({ ...e, result: byId.get(e.id) ?? failure("來源通道已刪除", gen, lastRev) })));
   }
-  function add(name, channel, rising) {
+  function add(name, channel, rising, mode = "full") {
     if (!channel) return;
-    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, result: null }] }, "program");
+    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, result: null }] }, "program");
     schedule();
   }
   function remove(id) { store.set({ measurements: store.get().measurements.filter((e) => e.id !== id) }, "program"); schedule(); }
@@ -75,8 +75,10 @@ export function mount(el, ctx) {
   store.onCommand("measure.clear", () => m.clear());
   const slope = h("select", "select");
   slope.append(new Option("上升緣 ↑", "1"), new Option("下降緣 ↓", "0"));
-  slope.title = "週期、頻率、工作週期、過衝、前衝使用的邊緣方向";
-  el.append(slope);
+  slope.title = "週期、頻率、工作週期、過衝、前衝及整數週期使用的邊緣方向";
+  const mode = h("select", "select"); mode.title = "Vavg／Vrms 的區間";
+  mode.append(new Option("整段（Full Screen）", "full"), new Option("整數週期（N Cycles）", "cycles"));
+  el.append(slope, h("label", "field__label", "區間"), mode);
   for (const category of ["時間", "電壓"]) {
     const box = h("div", "field"); box.append(h("div", "field__label", `${category}量測`));
     for (const it of (cat.measurements ?? []).filter((x) => x.category === category)) {
@@ -85,7 +87,7 @@ export function mount(el, ctx) {
       b.onclick = () => {
         const st = store.get();
         if (!st.file) return;
-        m.add(it.name, st.selected, slope.value === "1");
+        m.add(it.name, st.selected, slope.value === "1", mode.value);
       };
       box.append(b);
     }

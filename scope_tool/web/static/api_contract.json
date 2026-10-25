@@ -691,7 +691,8 @@
   "MeasureEntry": {
    "channel": "str",
    "name": "str",
-   "rising": "bool"
+   "rising": "bool",
+   "mode": "str"
   },
   "Stats": {
    "current": "float|null",
@@ -710,7 +711,8 @@
    "stats": "Stats|null",
    "reason": "str|null",
    "gen": "int",
-   "revision": "int"
+   "revision": "int",
+   "bound": "str|null"
   },
   "MeasureBatch": {
    "gen": "int",
@@ -755,9 +757,10 @@
  },
  "types_doc": {
   "FFTResult": "ok=false（空區間等）時 spectrum_id 與數值欄為 null、peaks=[]、reason 說明；unit＝輸出單位：衍生來源為「<u> rms」，Phase 為「°」且 peaks=[]",
-  "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null",
+  "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外",
   "FileSummary": "info＝[標籤,值][] 檔案資訊表（取代 Qt file_info_rows）；model／series／captured_at 檔內缺值為 null",
-  "ChannelInfo": "gen＝產生它時的開檔世代；vmin／vmax 全為 NaN 時 null"
+  "ChannelInfo": "gen＝產生它時的開檔世代；vmin／vmax 全為 NaN 時 null",
+  "MeasureEntry": "mode 可省略（full），不可為 null：full＝整段、cycles＝整數週期；只對 Vavg／Vrms(DC)／Vrms(AC) 有意義，方向由 rising 決定；不足一完整週期回 No edges，不退回整段"
  },
  "events": {
   "job": {
@@ -950,28 +953,28 @@
     "category": "時間",
     "unit": "s",
     "sloped": false,
-    "tip": "上升緣從下閾值到上閾值的時間（邊緣至少 4 點）"
+    "tip": "上升緣從下閾值到上閾值的時間（點數不足時顯示上界 <）"
    },
    {
     "name": "下降時間",
     "category": "時間",
     "unit": "s",
     "sloped": false,
-    "tip": "下降緣從上閾值到下閾值的時間（邊緣至少 4 點）"
+    "tip": "下降緣從上閾值到下閾值的時間（點數不足時顯示上界 <）"
    },
    {
     "name": "上升斜率",
     "category": "時間",
     "unit": "{u}/s",
     "sloped": false,
-    "tip": "上下閾值電壓差 ÷ 上升時間"
+    "tip": "上下閾值電壓差 ÷ 上升時間（點數不足時顯示下界 >）"
    },
    {
     "name": "下降斜率",
     "category": "時間",
     "unit": "{u}/s",
     "sloped": false,
-    "tip": "上下閾值電壓差 ÷ 下降時間"
+    "tip": "上下閾值電壓差 ÷ 下降時間（點數不足時顯示 <，真值更負）"
    },
    {
     "name": "週期",
@@ -1006,7 +1009,14 @@
     "category": "時間",
     "unit": "%",
     "sloped": true,
-    "tip": "+寬度 ÷ 週期 × 100（逐週期）"
+    "tip": "＋工作週期＝＋寬度 ÷ 週期 × 100，週期由所選邊緣方向定義"
+   },
+   {
+    "name": "-工作週期",
+    "category": "時間",
+    "unit": "%",
+    "sloped": true,
+    "tip": "−寬度 ÷ 週期 × 100，週期由所選邊緣方向定義"
    },
    {
     "name": "Vmax",
@@ -1055,21 +1065,21 @@
     "category": "電壓",
     "unit": "{u}",
     "sloped": false,
-    "tip": "第一個完整週期的平均"
+    "tip": "樣本平均；區間可選整段或整數週期"
    },
    {
     "name": "Vrms(DC)",
     "category": "電壓",
     "unit": "{u}",
     "sloped": false,
-    "tip": "含直流的有效值"
+    "tip": "含直流的有效值；區間可選整段或整數週期"
    },
    {
     "name": "Vrms(AC)",
     "category": "電壓",
     "unit": "{u}",
     "sloped": false,
-    "tip": "扣掉平均後的有效值"
+    "tip": "扣掉平均後的有效值；區間可選整段或整數週期"
    },
    {
     "name": "過衝",
@@ -1269,6 +1279,14 @@
    -1,
    0,
    1
+  ]
+ },
+ "optional_fields": {
+  "MeasureEntry": [
+   "mode"
+  ],
+  "MeasureResult": [
+   "bound"
   ]
  }
 }
