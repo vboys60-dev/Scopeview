@@ -1,5 +1,7 @@
 # 3000G 使用手冊第 15 章「量測」vs 本專案實作（唯讀研究，第 1 輪）
 
+> 歷史研究快照：下文「最左事件為目前」描述修正前行為。Web 版已於 2026-10-25 改為依顯示時間選最靠近 t=0 的事件（含界限值）；範圍未跨 0 改取範圍中點為參考，同距取較早。Qt 凍結版保留舊行為。
+
 - 手冊：Keysight InfiniiVision 3000G X-Series User's Guide，第 15 章，PDF 頁 249–282（頁碼＝PDF 頁＝印刷頁，兩者一致）。
 - 程式：`scope_tool/analysis/measure.py`、`edge.py`、`rms.py`、`scope_tool/web/analysis_api.py`、`scope_tool/web/static/js/analysis/measure.js`（另參考 `scope_tool/ui/analysis_controls.py` 的 `_TIPS`、`measure_check.py`）。
 - 對照基準：`docs/reference/Infiniium手冊-量測功能與算法.md`（以下簡稱「Infiniium 整理」）。

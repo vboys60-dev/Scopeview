@@ -14,6 +14,8 @@ from scope_tool.web.analysis_util import BadRequest, StaleError
 
 
 def _self_check() -> None:
+    from scope_tool.web.analysis_current_check import _self_check as current_check
+    current_check()
     import inspect
     import json
     import tempfile

@@ -73,6 +73,7 @@ const ctx = { store, fmt, resultActions:actions, fftPeaks:panels.peaks,
   ui:{ toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
   bridge:{ call:async (method,args) => { calls.push([method,args]); return method === 'cursor_readout' ? { t1:1,t2:2,y:{} } : { path:'/tmp/results.csv' }; } } };
 mountMeasure(new Element('div'),ctx); mountResults(panels.measure,ctx);
+assert.ok(actions.firstChild.title.includes('最靠近顯示時間 t=0') && actions.firstChild.title.includes('同距取較早'));
 const table = panels.measure.firstChild;
 assert.ok(table.className.includes('results__table'));
 assert.deepEqual(table.firstChild.children.map(c => c.textContent),['量測','目前','平均','最小','最大','標準差','']);

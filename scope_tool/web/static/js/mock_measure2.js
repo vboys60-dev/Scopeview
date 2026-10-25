@@ -1,5 +1,6 @@
 // mock 雙來源量測：各自切片、三閾交越、最近事件與逐事件統計。
 import { bound, span } from './mock_dsp.js';
+import { eventStats } from './mock_measure.js';
 import { CATALOG } from './mock_catalog.js';
 export const isDual = name => CATALOG.measurements.some(m => m.name === name && m.sources === 2);
 export function dualResult(e, data, range, dx, pct, base) {
@@ -16,7 +17,7 @@ export function dualResult(e, data, range, dx, pct, base) {
     if (!v.every(Number.isFinite)) return fail(`來源 ${i+1}：資料含 NaN 或無限大。`);
     signals.push({ t,v });
   }
-  let values;
+  let values, at;
   if (e.name === '電壓比') {
     const rms = signals.map(({v}) => { const avg = v.reduce((s,x) => s+x,0)/v.length; return Math.sqrt(v.reduce((s,x) => s+(x-avg)**2,0)/v.length); });
     if (rms.some(x => x === 0)) return fail(`來源 ${rms[0] === 0 ? 1 : 2} 的 AC RMS 為 0，無法計算電壓比。`);
@@ -41,12 +42,13 @@ export function dualResult(e, data, range, dx, pct, base) {
     const [t1,t2] = signals.map(s => s.t);
     const a = mids[0].filter(t => t >= Math.max(t1[0],t2[0]) && t <= Math.min(t1.at(-1),t2.at(-1))), b = mids[1];
     if (!a.length) return fail('兩來源時間範圍沒有重疊');
+    at = a;
     values = a.map(t => { const j=bound(b,t), l=b[Math.max(0,j-1)], r=b[Math.min(j,b.length-1)]; return (Math.abs(l-t)<=Math.abs(r-t) ? l : r)-t; });
     if (e.name === '相位') {
       if (a.length < 2) return fail('來源 1：找不到完整週期（需要兩個同方向邊緣）。');
+      at = a.slice(0,-1);
       values = values.slice(0,-1).map((d,i) => d/(a[i+1]-a[i])*360);
     }
   }
-  const mean = values.reduce((s,x) => s+x,0)/values.length, min = Math.min(...values), max = Math.max(...values);
-  return { ...base, ok:true, reason:null, stats:{ current:values[0],mean,min,max,range:max-min,std:Math.sqrt(values.reduce((s,x) => s+(x-mean)**2,0)/values.length),count:values.length } };
+  return { ...base, ok:true, reason:null, stats:eventStats(values,at,signals[0].t) };
 }

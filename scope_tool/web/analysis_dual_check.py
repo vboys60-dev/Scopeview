@@ -13,6 +13,8 @@ from scope_tool.web.analysis_util import BadRequest
 
 
 def _self_check() -> None:
+    from scope_tool.web.analysis_current_check import api_check
+    api_check(True)
     a = Analysis()
     t = np.arange(4000, dtype=float) / 1000
     v = np.tile(np.r_[np.zeros(100), np.ones(100)], 20)

@@ -171,6 +171,8 @@ def _self_check() -> None:
         for bad_t, bad_v in ((t.astype(dtype), v), (t, v.astype(dtype))):
             rejected(bad_t, bad_v, "浮點型別")
     assert unit_of("上升斜率", "V²") == "V²/s" and unit_of("頻率", "V") == "Hz" and uniform_dt(t) == dt
+    from scope_tool.analysis.measure_current_check import _self_check as current_check
+    current_check()
     _dual_check()
     _other_regression()
     _rms_public_check()

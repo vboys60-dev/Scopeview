@@ -40,7 +40,7 @@ export function mount(el, ctx) {
   const cols = () => ["量測", ...COLUMNS.filter(k => visibleColumns().includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
   const meas = h("table", "table table--num results__table");
   const note = h("span", "results__info", "ⓘ"); note.tabIndex = 0;
-  note.title = "『目前』＝範圍內最左邊的事件（離線單檔）";
+  note.title = "『目前』＝最靠近顯示時間 t=0 的事件；範圍不含 0 時用範圍中點，同距取較早；無事件時間時取首事件（離線單檔）";
   note.setAttribute("aria-label",note.title);
   const bClear = h("button", "btn btn--small results__clear", "清除全部"), bExp = h("button", "btn btn--small results__export", "匯出結果");
   bClear.title = "清除全部量測"; bExp.title = "匯出結果 CSV";

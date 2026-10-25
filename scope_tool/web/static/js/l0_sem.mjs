@@ -1,5 +1,6 @@
-import { dualResult } from './mock_measure2.js';
 // L0 自檢：以 mock 驗證契約公開語義（連線／BUSY／冪等／游標／Marker／量測／FFT／RF／波形包絡／匯出）。
+import './mock_current_check.mjs';
+import { dualResult } from './mock_measure2.js';
 import assert from "node:assert/strict";
 import { makeBridge } from "./bridge.js";
 import { createMock } from "./mock_backend.js";

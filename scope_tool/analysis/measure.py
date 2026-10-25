@@ -125,12 +125,13 @@ def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, fl
     if name == "週期":
         return edge.periods(es, rising)
     if name == "頻率":
-        return 1 / edge.periods(es, rising)
+        periods = edge.periods(es, rising)
+        return edge.timed(1 / periods, periods.at)
     if name in ("+寬度", "-寬度"):
         return edge.widths(es, name == "+寬度")
     if name in ("工作週期", "-工作週期"):
         duty = edge.duty(es, rising)
-        return 100 - duty if name == "-工作週期" else duty
+        return edge.timed(100 - duty, duty.at) if name == "-工作週期" else duty
     if name in ("過衝", "前衝"):
         return edge.shoot(t, v, es, rising, top, base, name == "前衝")
     raise ScopeError(f"未知的量測：{name}")
@@ -171,14 +172,20 @@ def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.n
     if name == "相位":
         if a.size < 2:
             raise ScopeError("來源 1：找不到完整週期（需要兩個同方向邊緣）。")
-        return delay[:-1] / np.diff(a) * 360
-    return delay
+        return edge.timed(delay[:-1] / np.diff(a) * 360, a[:-1])
+    return edge.timed(delay, a)
 
 
-def stats(values: np.ndarray) -> tuple[float, float, float, float, float, float, int]:
-    """(目前, 平均, 最小, 最大, 範圍, 標準差, 次數)；目前＝範圍內最左邊的事件。"""
+def stats(values: np.ndarray, ref: float | None = None) -> tuple[float, float, float, float, float, float, int]:
+    """目前取距參考最近的事件，同距取較早；未給參考／事件時間時沿用首事件。"""
+    at = getattr(values, "at", None)
+    i = 0
+    if ref is not None and at is not None:
+        distance = abs(at - ref)
+        candidates = np.flatnonzero(distance == distance.min())
+        i = candidates[at[candidates].argmin()]
     lo, hi = float(values.min()), float(values.max())
-    return (float(values[0]), float(values.mean()), lo, hi, hi - lo, float(values.std()), len(values))
+    return (float(values[i]), float(values.mean()), lo, hi, hi - lo, float(values.std()), len(values))
 
 
 def measure_all(tasks: list[tuple[str, np.ndarray, np.ndarray, bool]],

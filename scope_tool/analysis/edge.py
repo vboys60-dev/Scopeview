@@ -51,8 +51,16 @@ def _need(values: list[float], reason: str) -> np.ndarray:
 
 
 class BoundedValues(np.ndarray):
-    """保留 ndarray 介面，額外標示整組事件的界限。"""
+    """保留 ndarray 介面，額外標示整組事件的界限與事件時間。"""
     bound: str | None = None
+    at: np.ndarray | None = None
+
+
+def timed(values: np.ndarray, at: list[float] | np.ndarray) -> np.ndarray:
+    """以中閾交越時間標記事件；切片／運算後需重新標記，避免時間錯配。"""
+    out = values.view(BoundedValues)
+    out.at = np.asarray(at, dtype=float)
+    return out
 
 
 def transition(es: list[Edge], rising: bool, lo: float, hi: float, slope: bool,
@@ -69,21 +77,21 @@ def transition(es: list[Edge], rising: bool, lo: float, hi: float, slope: bool,
     out = _need(d, f"範圍內沒有完整{name}")
     if slope:
         out = ((hi - lo) if rising else (lo - hi)) / out
+    out = timed(out, [e.t_mid for e in (good or selected)])
     if bounded:
-        out = out.view(BoundedValues)
         out.bound = ">" if slope and rising else "<"
     return out
 
 
 def periods(es: list[Edge], rising: bool) -> np.ndarray:
     mids = [e.t_mid for e in es if e.rising == rising]
-    return _need(list(np.diff(mids)), "範圍內沒有完整週期（需要兩個同方向邊緣）")
+    return timed(_need(list(np.diff(mids)), "範圍內沒有完整週期（需要兩個同方向邊緣）"), mids[:-1])
 
 
 def widths(es: list[Edge], positive: bool) -> np.ndarray:
     """+寬度＝上升中點到下一個下降中點；-寬度反之。"""
     d = [b.t_mid - a.t_mid for a, b in zip(es, es[1:]) if a.rising == positive]
-    return _need(d, "範圍內沒有完整脈衝")
+    return timed(_need(d, "範圍內沒有完整脈衝"), [a.t_mid for a in es[:-1] if a.rising == positive])
 
 
 def duty(es: list[Edge], rising: bool) -> np.ndarray:
@@ -93,7 +101,7 @@ def duty(es: list[Edge], rising: bool) -> np.ndarray:
         if e0.rising == rising:
             pos = e1.t_mid - e0.t_mid if rising else e2.t_mid - e1.t_mid
             d.append(pos / (e2.t_mid - e0.t_mid) * 100)
-    return _need(d, "範圍內沒有完整週期")
+    return timed(_need(d, "範圍內沒有完整週期"), [e.t_mid for e in es[:-2] if e.rising == rising])
 
 
 def shoot(t: np.ndarray, v: np.ndarray, es: list[Edge], rising: bool,
@@ -101,7 +109,7 @@ def shoot(t: np.ndarray, v: np.ndarray, es: list[Edge], rising: bool,
     """過衝（pre=False）：越過遠端閾值後到平台中點的局部極值；
     前衝（pre=True）：平台中點到越過近端閾值前的局部極值。皆以 top−base 的百分比表示。"""
     amp = top - base
-    out = []
+    out, at = [], []
     for k, e in enumerate(es):
         if e.rising != rising:
             continue
@@ -124,8 +132,9 @@ def shoot(t: np.ndarray, v: np.ndarray, es: list[Edge], rising: bool,
         # 上升緣：過衝看高於 top、前衝看低於 base；下降緣相反。
         # 負值截零規則手冊未載明，保留公式原值。
         high_side = rising != pre
+        at.append(e.t_mid)
         out.append((seg.max() - top if high_side else base - seg.min()) / amp * 100)
-    return _need(out, "範圍內沒有前後都有鄰緣的" + ("上升緣" if rising else "下降緣") + "（無法定平台中心）")
+    return timed(_need(out, "範圍內沒有前後都有鄰緣的" + ("上升緣" if rising else "下降緣") + "（無法定平台中心）"), at)
 
 
 def _self_check() -> None:

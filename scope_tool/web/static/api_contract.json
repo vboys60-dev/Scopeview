@@ -759,6 +759,7 @@
   "Envelope": "bridge.fetchWave／fetchSpectrum 解碼結果 {n, mode, x:Float64Array, lo:Float32Array, hi:Float32Array}"
  },
  "types_doc": {
+  "Stats": "current＝最靠近顯示時間 t=0 的事件；切片不含 0 時取最靠近切片時間中點者，同距取較早。事件時間為起始邊緣中閾交越（延遲／相位用來源 1）；單值取範圍結果，無事件時間時退回首事件；其他統計欄不變",
   "FFTResult": "ok=false（空區間等）時 spectrum_id 與數值欄為 null、peaks=[]、reason 說明；unit＝輸出單位：衍生來源為「<u> rms」，Phase 為「°」且 peaks=[]",
   "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外；channel2 可省略／null，雙來源回傳來源 2 通道名",
   "FileSummary": "info＝[標籤,值][] 檔案資訊表（取代 Qt file_info_rows）；model／series／captured_at 檔內缺值為 null",

@@ -1,5 +1,7 @@
 ## 總覽表
 
+> 歷史研究快照：下文「最左事件為目前」描述修正前行為。Web 版已於 2026-10-25 改為依顯示時間選最靠近 t=0 的事件（含界限值）；範圍未跨 0 改取範圍中點為參考，同距取較早。Qt 凍結版保留舊行為。
+
 本研究全程唯讀，未修改或建立專案檔案。以下頁碼皆為 **PDF 頁碼**；原 PDF 與抽取文字頁碼一致。
 
 來源：:codex-file-citation{path="/Users/lianshi/Downloads/InfiniiVision-3000G-X-Series-Oscilloscopes-Users-Guide.pdf" purpose="source"}

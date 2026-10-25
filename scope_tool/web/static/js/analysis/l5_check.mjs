@@ -1,5 +1,6 @@
 // L5 自檢：node --experimental-default-type=module scope_tool/web/static/js/analysis/l5_check.mjs
 // 只測純邏輯與 mock 後端（座標換算、dx 讀值、防迴圈、過期丟棄、量測防抖）；DOM／手感待真人驗證。
+import '../mock_current_check.mjs';
 import assert from "node:assert/strict";
 import { createStore } from "./store.js";
 import * as scales from "./scales.js";
@@ -286,7 +287,7 @@ async function setup(hook) {
   const entries = bridge.calls.find(([name]) => name === "measure")[1].entries;
   assert.equal(entries[0].mode, "cycles"); assert.equal(entries[0].rising, false); assert.equal(entries[1].mode, "full");
   const e = store.get().measurements[1], cells = rowCells(e, "ok", "s", F);
-  assert.ok(cells.slice(0, 6).every(x => x.startsWith("< "))); assert.equal(cells[6], "1");
+  assert.ok(cells.slice(0, 6).every(x => x.startsWith("< "))); assert.equal(cells[6], "9");
 }
 // 雙來源欄位隨同整批結果送出；來源 2 已刪除則保留失敗列。
 {

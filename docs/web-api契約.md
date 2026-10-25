@@ -94,6 +94,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - `MeasureResult.bound` 可省略／null，或 `"<"`（時間上界或下降斜率真值更負）、`">"`（上升斜率下界），方向皆表示真值相對顯示值。有 ≥4 點的同方向邊緣時只採可信值；全不足時使用括住樣本時間差及閾值差÷時間差。畫面與 CSV 統計欄加相同前綴（次數除外）。
 - catalog 新增 `-工作週期`（時間、%、sloped），等於同組邊緣下 `100 - 工作週期`；工作週期為＋寬度／週期，週期由所選方向定義。cycles 結果標籤如 `Vavg(CH1 整數週期 ↑)`，full 不加註；CSV 同樣標示。
 - JSON `optional_fields` 列出 types 中可省略的欄位；存在時仍須符合欄位型別與上述列舉值。
+- `Stats.current`＝最靠近顯示時間 t=0 的事件；切片不含 0 時取最靠近切片時間中點者，同距取較早。事件時間為起始邊緣中閾交越（延遲／相位用來源 1）；單值取範圍結果，無事件時間時退回首事件。雙來源的參考點依來源 1 切片決定，其他統計欄不變。
 - `MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
 - 雙來源 catalog：`延遲`（s）、`相位`（°）、`電壓比`（dB），分類「雙來源」、可選欄 `sources:2`（單來源省略或 1）。Qt 的 MEASUREMENTS 不含雙來源。
 - `MeasureEntry.channel2:str`、`rising2:bool` 可省略，不可 null。雙來源缺少 channel2 → BAD_REQUEST；通道不存在／已刪除 → 該列失敗「來源通道已刪除」。rising2 預設同 rising；單來源忽略兩欄。`MeasureResult.channel2:str|null` 可省略／null；雙來源帶來源 2 名稱。

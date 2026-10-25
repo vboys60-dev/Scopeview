@@ -199,7 +199,13 @@ class Analysis(FftMixin, ExportMixin):
                                                   pct, rising, e.get("rising2", rising))
                             else:
                                 values = _measure(name, t, v, pct, rising, e.get("mode", "full"))
-                            s = _stats(values)
+                            # 參考與事件皆以顯示時間比較，避免反向平移的浮點誤差破壞同距規則。
+                            d = dx.get(ch, 0.0)
+                            start, end = float(t[0]) + d, float(t[-1]) + d
+                            ref = 0.0 if start <= 0 <= end else (start + end) / 2
+                            if not dual and getattr(values, "at", None) is not None:
+                                values.at = values.at + d
+                            s = _stats(values, ref)
                             if getattr(values, "bound", None):
                                 row["bound"] = values.bound
                             row["ok"] = True
