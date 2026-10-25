@@ -228,6 +228,9 @@ def main() -> None:
                     assert c.js("!document.querySelector('.analysis__overview').hidden")
                     c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
                     c.pump(0.2)
+                    # 版面空間夠時 B 區預設就展開；先確保收折，再驗證展開，不依賴工具列高度
+                    c.js("(()=>{const t=document.querySelector('.analysis__lowertoggle');if(t.getAttribute('aria-expanded')==='true')t.click()})()")
+                    c.pump(0.2)
                     c.js("document.querySelector('.analysis__lowertoggle').click()")
                     c.pump(0.2)
                     assert c.js("document.querySelector('.analysis__lower').getBoundingClientRect().height") >= 120
