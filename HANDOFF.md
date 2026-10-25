@@ -7,10 +7,9 @@
 
 ## 現況（2026-10-22）
 
-- 離線分析已完成並 commit：Stage 0 Jitter／眼圖移出 GUI（`analysis/{clock,jitter,eye}.py`、`ui/analysis_{jitter,eye}.py` 保留未接線）；Stage 1 時間／電壓量測；Stage 2 Marker（B 級，`analysis/marker.py`）；Stage 3 FFT（補零／RBW／阻抗／Phase、`analysis/peaks.py`、Track RF）；`fc3d229` 修 Codex 審查 5 項（游標重吸附重算、RF 跳峰精度與效能、FFT 峰表快取、runner 防抖）。
-- 分析核心 `scope_tool/analysis/` 為純 numpy；UI 為 PySide6 + pyqtgraph（`scope_tool/ui/analysis_*.py`、`tab_analysis.py`）。規格 `docs/離線分析功能規格.md`。
-- **只有 offscreen 自我檢查，沒有真機／真人滑鼠驗證。** 待真機比對項目累積在 `docs/真機驗證清單.md`（階段 1~3 區段）。
-- 已上機：DSO-X 6004A、DSO-X 3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）。3000T、EXR、S 系列未上機。
+- 離線分析（Stage 0～3：量測、Marker、FFT、Track RF）已完成；`analysis/` 為純 numpy，規格 `docs/離線分析功能規格.md`。Jitter／眼圖已移出 GUI（程式保留未接線）。
+- **只有 offscreen／headless 自檢，沒有真機驗證**；待比對項目在 `docs/真機驗證清單.md`。已上機：DSO-X 6004A／3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）；3000T、EXR、S 系列未上機。
+- 啟動：`啟動示波器截圖.command`（Web 版）；Qt 版 `啟動示波器截圖_qt.command`；有「測試儀器（模擬）」。
 - 啟動：Mac 雙擊 `啟動示波器截圖.command`（Web 版）；Qt 版 `啟動示波器截圖_qt.command`；有「測試儀器（模擬）」按鈕。
 
 ## Web 版（pywebview）現況（2026-10-22，已切為預設入口）
@@ -26,15 +25,13 @@
 
 - 計劃書：`docs/分析頁GUI改善計劃書.md`。範圍：A 量測欄、B 結果、C 主圖；操作模型參考 N8900A。標籤 `p1-gui`→`p2a-gui`→`p2b-gui`→`p2b3-gui`→`p3a-gui`→`p3b1-gui`→`p3b2-gui`→`float-gui`（`fb12038`），皆已 fast-forward 合入 main。
 - 行為：拖曳＝平移、滾輪＝縮放時間；框選放大（Shift 暫時框選、Space／中鍵暫時平移）、種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`）；Undo／Redo；Horizontal／Vertical 列（單位/格、位置、適配、dx 徽章）；左軸顯示目前通道電壓；三條 splitter、`clampLayout`（<900 窗改分頁／抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`；浮動量測面板（`floatpanel*.js`）。偏好只存記憶體＋localStorage。
-- **垂直框選修正（2026-10-25）**：原本 V/格吸附到檔位表下一檔，選框高度 >約 40–50% 時檔位不變、垂直看似沒反應（水平無吸附所以正常）。`verticalZoom` 改為連續 V/格＝選框高度÷10，夾在檔位表上下限；`p3b2_check.mjs` 同步改斷言。使用者已在 pywebview 實測確認。Codex 另指出兩個未證實的結構風險（未修）：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不保存不重播，掛載順序不同會不同步；`channel.scale_intent` 唯一 handler 在 `chanbar.js`，未掛載則指令靜默消失。
+- **垂直框選修正**：V/格原本吸附到檔位表下一檔，選框 >約 40–50% 高時看似沒反應；`verticalZoom` 改連續 V/格＝選框高度÷10（夾在檔位上下限），已實測。Codex 指出未修的結構風險：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不重播，掛載順序不同會不同步；`channel.scale_intent` 唯一 handler 在 `chanbar.js`，未掛載則指令靜默消失。
 - 檔案 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage vzoom floatpanel*`；L5 `vertical bpanel summary cursor_table`；L8 各 `*_check.mjs`、`web/browser_*_checks.py`。`view.*`／`layout.*` 是前端 command 字串，不在凍結契約。
 - 驗證：`selfcheck_node.js`（含變異測試）、`e2e_check`、`browser_check` 通過；後兩者 Codex 沙箱不能綁 localhost，須 Claude 在沙箱外跑。
 - 已知小項：Track Measurements 仍 disabled（契約無事件座標）；500 µV V/div 下限與需求文字的 1 mV 不同；FFT 分隔線拖曳仍重取頻譜；複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發「寬版點 FFT 峰值分頁未切換」一次；真機未驗 Mac 觸控板手感、Windows 899px 斷點。
-- **待處理（使用者 2026-10-25 說先擱置）量測問題**，以 `wave6000-10Mhz_20261022_125915.h5` 重現：
-  1. 上升／下降時間、斜率顯示「—」：取樣間隔 2.5 ns、邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`）故 100k 個邊緣全不合格。是設計門檻，非計算錯誤。
-  2. 等約 30 秒：每次新增量測就重算全部項目、分析執行緒只有一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消、每項各自做邊緣偵測（單項約 0.38 s，過衝／前衝約 0.6 s）；連點 9 項實算 45 次。可能修法：只算新增項、共用邊緣偵測、後端丟掉舊請求。
-- **3000G 量測研究（2026-10-25，`ad2bf07`，未改程式）**：`docs/研究_3000G量測計算比對.md`（原始報告 `docs/reference/3000G量測研究原始報告/`）。結論：4 點門檻與 40%／5% 直方圖只在 Infiniium 手冊，3000G 沒有；與手冊確定不同五處＝下降緣 Duty 仍算 +Duty（缺 −Duty）、Vavg 單週期且缺 Full Screen／N Cycles（RMS 缺 N Cycles）、「目前」取最左而非最靠近觸發點、統計單位是事件數非擷取次數、範圍是整檔非顯示資料。Preshoot 依 p261 圖保留（p260 文字式疑誤植）。取消 4 點門檻會高估 38～44%，建議保留門檻但輸出標記過的上界（`< x ns`）取代「—」。方波噪聲約 2% 時 Top／Base 會懸崖式退回極值（Vamp +18%），需真機比對。建議排序見研究檔第五節，待使用者下令才實作。
-- **3000G 量測實作（2026-10-25）**：`633ab61` 單來源三項（Rise／Fall／Slew 點數不足輸出 `<`／`>` 標記上界、新增 `-工作週期`、Vavg／Vrms 加 `mode` full／cycles，Vavg 舊「單週期＋靜默退回」已取消）；下一筆雙來源 `延遲`／`相位`／`電壓比`（MeasureEntry 加 `channel2`／`rising2`，catalog `sources:2`，`measure.measure2`，配對取最近邊緣並裁到兩來源時間交集）。契約新增可選欄位 `mode`、`bound`、`channel2`、`rising2`。實量 `wave6000-10Mhz_20261023_011313.h5` CHAN1→CHAN2：延遲 −250 ns、相位 −90°、電壓比 0 dB。「目前」已改取最靠近 t=0 的事件（`stats(values, ref)`＋ndarray `.at` 事件時間；含 0 用 0 否則切片中點；Qt 路徑不變）。未做：可見範圍量測、Top/Base 真機比對（見研究檔第五節）。
+- **量測問題（使用者 2026-10-25 擱置）**，重現檔 `wave6000-10Mhz_20261022_125915.h5`：①上升／下降時間、斜率顯示「—」：取樣間隔 2.5 ns、邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`），設計門檻非計算錯誤；②等約 30 秒：每次新增量測重算全部、分析執行緒僅一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消、各項各自做邊緣偵測。可能修法：只算新增項、共用邊緣偵測、丟棄舊請求。
+- **3000G 量測研究（`ad2bf07`）**：`docs/研究_3000G量測計算比對.md`。4 點門檻與 40%／5% 直方圖只在 Infiniium 手冊；與手冊不同五處（缺 −Duty、Vavg／RMS 缺 N Cycles／Full Screen、「目前」取最左、統計單位、範圍是整檔）。取消 4 點門檻會高估 38～44%，故保留門檻並輸出 `<`／`>` 上界標記。方波噪聲約 2% 時 Top／Base 會懸崖式退回極值，需真機比對。
+- **3000G 量測實作（`633ab61` 起）**：Rise／Fall／Slew 點數不足輸出標記上界、新增 `-工作週期`、Vavg／Vrms 加 `mode`；雙來源 `延遲`／`相位`／`電壓比`（`MeasureEntry` 加 `channel2`／`rising2`，`measure.measure2`）；「目前」改取最靠近 t=0 的事件。契約新增可選欄位 `mode`、`bound`、`channel2`、`rising2`。未做：可見範圍量測、Top/Base 真機比對。
 - 工作方式：Codex 編碼 → 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查 → Claude 提交。
 
 ## 分析頁 Marker Table（2026-10-25，P1～P4 已 commit，main HEAD `e9785dd`）
@@ -45,19 +42,19 @@
   - FFT：水平基準線（可拖、單位可選＝`fft_units` 去 Phase，超出畫面時貼邊並標示），峰表一次抓 1000 峰後前端過濾／排序／取前 n，免重跑 FFT；峰不收註記。
   - 版面：B 區頁籤 `量測｜游標｜Marker｜FFT 峰值`；寬≥1200 游標／Marker 並列；標題列「⇥ 右側欄」＝版面 C（`layout.markerSide`，340px 直欄，≥900px 才啟用，窄版／浮動自動退回底部且不改偏好）。
 - 新檔：`markers.js marker_layer.js marker_menu.js marker_table.js fft_markers.js fft_runner.js fft_marker_{controls,layer,table}.js`；檢查 `marker_check.mjs fft_marker_check.mjs dock_check.mjs`、`web/browser_marker_checks.py`（`dock_layout`、`marker_add_button`、`marker_rightclick`）。新 command `marker.*`、`fftMarker.*`、`layout.markerSide` **尚未登記 RULES.md**（lead 管理）。
-- 驗證：`selfcheck_node.js`、`e2e_check` 通過；`browser_check` 只剩既有 P3b-2 `fit: False`（HEAD 前就有，非 Marker 造成）。
-- 踩過的坑：WKWebView 點 button 不給焦點，mousedown 使 `focusout` 的 `relatedTarget=null`，舊的 focusout 直接關選單 → 點選項無效；headless Chrome 會給焦點所以 `browser_check` 測不出，回歸保護靠 `marker_check.mjs` 斷言（選單 mousedown preventDefault、relatedTarget=null 不關）。Mac Ctrl+左鍵在 `gestures.js` pointerdown 直接 return 交給 contextmenu（Windows 的 Ctrl+左鍵因此無作用，審查列為低風險未處理）。選單 `focusout` 在 `menu.remove()` 時同步重入 `close()`，導致點選項無效（已修，fake DOM 測不到，靠 `marker_rightclick`）；`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算截斷。
+- 驗證：`selfcheck_node.js`、`e2e_check`、`browser_check` 通過。
+- 踩過的坑：WKWebView 點 button 不給焦點，mousedown 使 `focusout` 的 `relatedTarget=null`，舊 focusout 直接關選單 → 點選項無效（headless Chrome 測不出，靠 `marker_check.mjs` 斷言）；選單 `focusout` 在 `menu.remove()` 時同步重入 `close()` 也會使點選無效（已修，靠 `marker_rightclick`）。Mac Ctrl+左鍵在 `gestures.js` 交給 contextmenu（Windows 的 Ctrl+左鍵因此無作用，低風險未處理）。`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算。
 - **使用者決定不做 JSON 匯出入**（2026-10-25）。未做：右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者已在 pywebview 驗過獨立點按鈕與右鍵選單點選（`e9785dd` 修正後正常，2026-10-25）；拖曳 Marker 與拖曳 FFT 基準線也已實測正常。Marker Table 全部功能真機驗收完成。
 - 工具備註：Codex 曾卡死（CPU 近 0、無檔案變動），原因是 `codex exec` 在等 stdin（輸出停在「Reading additional input from stdin...」），**背景呼叫必須加 `< /dev/null`**；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
 
-## 介面美化（2026-10-25，`660d643` `6e15ec1` `a438ab9`）
-- 範圍＝預覽稿 A（token／對比／版面）＋B 的**圖區部分**（虛點格線、主圖中央十字軸與 5 等分刻度、琥珀色重點色）。**不做整套深色主題**（RULES.md「明確不做」），外框維持亮色、圖區維持黑底。C 案（卡片化、頂欄合併）棄用。預覽稿在 scratchpad，不入庫。
-- 通道色改 Okabe–Ito 色盲安全組（`#F0E442 #56B4E9 #E58FC4 #3DD6A3 #E69F00 #b79cff`），來源是 `api_contract.json` 的 `channel_colors`（L0 檔，與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步改）；chip 加 ●▲■◆ 形狀輔助。Qt 版 `ui/` 的色未動。
-- canvas 色值改讀 CSS token：`app.css` 的 `--c-amber --c-fft-trace --c-fft-peak --c-ov-window --c-ov-shade`，經 `plotcore.js plotColors()`；`drawGrid` 以 `colors.center` 開中央軸（僅主圖）。
-- `analysis.css` 的 `12.5px` 沒改成 12px：`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死該字串。`clampLayout` 的 40px／28px 高度未動。
-- 工具列 `.field` 改標籤與控制同行、量測鈕 `.field:has(.btn--small)` 改兩欄（需 WKWebView／Safari ≥15.4 的 `:has()`）。
-- 修兩個舊 bug：①數學通道只進 `store.channels`、沒進 `file.channels`，`fetchTargets` 不抓所以不繪圖（`toolbar.js` 現在一併寫入）；②視窗高度不足時 `clampLayout` 自動收掉預覽、勾選被彈回，現在 `layout.state` 帶 `blocked`，勾選改停用並提示。
-- `browser_check` 的「P2b 多尺寸」曾失敗（`browser_check.py:233`）：原因是工具列變矮後主圖空間變多，B 區不再被自動收折，測試卻假設進入時是收折的；已改成先確保收折再驗展開。`P3b-2 垂直框選` 的 `fit` 斷言曾因邊界無容差偶發失敗（框選貼齊 ±5 格邊界，滑鼠座標取整數像素，實測差 1e-6 格而失敗；與版面高度有關，美化前 `e45aee3` 穩定出現），已加 0.025 格容差。pywebview 已由使用者實測兩個修正正常。
+## 介面美化（2026-10-25，`660d643`～`d58b1af`）
+- 範圍＝預覽稿 A（token／對比／版面）＋B 的圖區部分（虛點格線、主圖中央十字軸、琥珀重點色）。**不做整套深色主題**（RULES.md「明確不做」）；C 案棄用。
+- 通道色改 Okabe–Ito（`#F0E442 #56B4E9 #E58FC4 #3DD6A3 #E69F00 #b79cff`），來源 `api_contract.json` `channel_colors`（L0，與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步）；chip 加 ●▲■◆。Qt `ui/` 未動。
+- canvas 色值讀 CSS token（`app.css` `--c-amber --c-fft-* --c-ov-*`，經 `plotcore.js plotColors()`）；`drawGrid` 的 `colors.center` 開中央軸（僅主圖）。
+- `analysis.css` 的 `12.5px` 不可改：`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死。`clampLayout` 的 40／28px 未動。工具列 `.field` 同行、量測鈕 `.field:has(.btn--small)` 兩欄（需 Safari／WKWebView ≥15.4）。
+- 修舊 bug：①數學通道要同時進 `file.channels` 與 `channels`（`toolbar.js` 現為單次 `store.set`，同名通道會被擋），否則 `fetchTargets` 不抓、不繪圖；②視窗太矮時 `clampLayout` 收掉預覽，`layout.state`／`layout.query` 皆帶 `blocked`，勾選改停用並提示。
+- `browser_check` 兩處測試修正：「P2b 多尺寸」先確保 B 區收折再測展開（工具列變矮後不再自動收折）；「P3b-2 垂直框選」`fit` 加 0.025 格容差（整數像素框選貼 ±5 格邊界會差 1e-6）。
+- 審查未處理：`browser_check` 收折後未斷言 `aria-expanded`；`:has(.btn--small)` 範圍偏寬（可改專屬 class）。
 
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
