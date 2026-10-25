@@ -50,6 +50,15 @@
 - **使用者決定不做 JSON 匯出入**（2026-10-25）。未做：右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者已在 pywebview 驗過獨立點按鈕與右鍵選單點選（`e9785dd` 修正後正常，2026-10-25）；拖曳 Marker 與拖曳 FFT 基準線也已實測正常。Marker Table 全部功能真機驗收完成。
 - 工具備註：Codex 曾卡死（CPU 近 0、無檔案變動），原因是 `codex exec` 在等 stdin（輸出停在「Reading additional input from stdin...」），**背景呼叫必須加 `< /dev/null`**；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
 
+## 介面美化（2026-10-25，`660d643` `6e15ec1` `a438ab9`）
+- 範圍＝預覽稿 A（token／對比／版面）＋B 的**圖區部分**（虛點格線、主圖中央十字軸與 5 等分刻度、琥珀色重點色）。**不做整套深色主題**（RULES.md「明確不做」），外框維持亮色、圖區維持黑底。C 案（卡片化、頂欄合併）棄用。預覽稿在 scratchpad，不入庫。
+- 通道色改 Okabe–Ito 色盲安全組（`#F0E442 #56B4E9 #E58FC4 #3DD6A3 #E69F00 #b79cff`），來源是 `api_contract.json` 的 `channel_colors`（L0 檔，與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步改）；chip 加 ●▲■◆ 形狀輔助。Qt 版 `ui/` 的色未動。
+- canvas 色值改讀 CSS token：`app.css` 的 `--c-amber --c-fft-trace --c-fft-peak --c-ov-window --c-ov-shade`，經 `plotcore.js plotColors()`；`drawGrid` 以 `colors.center` 開中央軸（僅主圖）。
+- `analysis.css` 的 `12.5px` 沒改成 12px：`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死該字串。`clampLayout` 的 40px／28px 高度未動。
+- 工具列 `.field` 改標籤與控制同行、量測鈕 `.field:has(.btn--small)` 改兩欄（需 WKWebView／Safari ≥15.4 的 `:has()`）。
+- 修兩個舊 bug：①數學通道只進 `store.channels`、沒進 `file.channels`，`fetchTargets` 不抓所以不繪圖（`toolbar.js` 現在一併寫入）；②視窗高度不足時 `clampLayout` 自動收掉預覽、勾選被彈回，現在 `layout.state` 帶 `blocked`，勾選改停用並提示。
+- 已知：`browser_check` 的「P2b 多尺寸／splitter／DPR」一步在 `browser_check.py:233`（B 區高度 ≥120）失敗，退回美化前的 `e45aee3` 同樣失敗，與美化無關、原因未查（疑與視窗環境有關）。其餘前端自檢與後端檢查皆過；pywebview 已由使用者實測兩個修正正常。
+
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
 - 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`；`docs/DSOX6004A_Jitter驗證紀錄.md`（至第四輪）。
