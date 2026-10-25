@@ -74,6 +74,7 @@ export function mount(el, ctx) {
     try {
       const r = await bridge.job("math", spec), cur = store.get();
       if (r.gen !== cur.file?.gen) return; // 已換檔
+      store.set({ file: { ...cur.file, channels: [...cur.file.channels, r] } }, "program"); // 衍生通道也要進檔案通道表，主圖才會抓波形
       store.setChannels([...cur.channels, channelRecord(r, cur.channels.length, colors, scales)]);
     } catch (e) { fail(e, "數學運算失敗"); }
   }
@@ -104,7 +105,10 @@ export function mount(el, ctx) {
   const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
   loaded.push(bClose, bInfo, bMath, bCsv, marker, bReset);
   const prev = h("input", "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
-  store.onCommand('layout.state', (s) => { prev.checked = s.overview; });
+  store.onCommand('layout.state', (s) => {
+    prev.checked = s.overview; prev.disabled = !!s.blocked;
+    prev.title = s.blocked ? "視窗高度不足，無法顯示預覽；請放大視窗或收折下方面板" : "";
+  });
   store.command('layout.query');
   el.append(bOpen, bClose, bInfo, bReset, fieldOf("預覽", prev), fieldOf("Marker", marker), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
 

@@ -142,7 +142,7 @@ for (const kind of ['side','lower','fft']) {
  store.command('layout.toggle','lower'); assert.equal(ctl.prefs.lowerCollapsed,false);
  store.command('layout.toggle','side'); assert.equal(ctl.drawerOpen,true); assert.equal(ctl.prefs.sideCollapsed,null);
  store.command('layout.resize',{ kind:'fft',value:200 }); assert.equal(ctl.prefs.fft,200);
- ctl.update({ ...large,tabbed:true,overview:0 }); assert.deepEqual(report,{ overview:false });
+ ctl.update({ ...large,tabbed:true,overview:0 }); assert.deepEqual(report,{ overview:false,blocked:false }); ctl.update({ ...large,tabbed:true,overview:0,steps:["overview"] }); assert.deepEqual(report,{ overview:false,blocked:true });
  const host = element(), button = element(); const api = mountSplitter(host,{ kind:'fft',button,store,getState:() => ctl.state('fft') });
  api.update(ctl.state('fft')); assert.equal(host.hidden,true); assert.equal(host.attrs['aria-disabled'],'true');
  const before = JSON.stringify(ctl.prefs);

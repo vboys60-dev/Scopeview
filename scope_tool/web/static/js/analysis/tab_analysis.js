@@ -59,7 +59,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
   store.onCommand('preview.visible', (on) => { prefs = { ...prefs,overview:!!on }; schedule(); });
   store.onCommand('layout.query', () => { if (effective) store.command('layout.state',{ overview:!!effective.overview }); });
   return { state, get prefs() { return prefs; }, get drawerOpen() { return drawerOpen; },
-    update(e) { effective = e; store.command('layout.state',{ overview:!!e.overview }); } };
+    update(e) { effective = e; store.command('layout.state',{ overview:!!e.overview, blocked:e.steps.includes('overview') }); } };
 }
 
 export function lowerSummary(st, fftOn) {
