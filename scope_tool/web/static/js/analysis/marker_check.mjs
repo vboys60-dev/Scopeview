@@ -110,7 +110,7 @@ class Surface {
   contains(n) { return this === n || this.children.some(c => c.contains(n)); }
   querySelector() { return this.children.find(c => !c.disabled); }
   focus() { globalThis.document.activeElement = this; }
-  setPointerCapture() {} hasPointerCapture() { return false; }
+  setPointerCapture() { this.captureCount = (this.captureCount ?? 0) + 1; } hasPointerCapture() { return false; }
 }
 globalThis.window = new Surface(); globalThis.innerWidth = 800; globalThis.innerHeight = 600;
 globalThis.document = Object.assign(new Surface(), { activeElement: null, body: new Surface(), createElement: tag => new Surface(tag) });
@@ -129,8 +129,21 @@ assert.deepEqual(menuPosition(1, 1, 900, 700, 800, 600), { left: 0, top: 0 });
 store.set({ selected: 'CH2' });
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
 assert.equal(store.get().markerTable.length, count);
-menu = document.body.children.at(-1); menu.children[1].onclick();
+menu = document.body.children.at(-1);
+// WebKit 按下按鈕不轉移焦點；空的焦點目標不可讓後續點擊失效。
+let mousePrevented = false;
+menu.emit('mousedown', { preventDefault() { mousePrevented = true; } });
+assert.ok(mousePrevented);
+menu.emit('focusout', { relatedTarget: null });
+assert.ok(document.body.children.includes(menu));
+menu.children[1].onclick();
 assert.equal(store.get().markerTable.length, count + 1);
+assert.equal(document.body.children.length, 0);
+canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
+menu = document.body.children.at(-1);
+menu.emit('focusout', { relatedTarget: menu.children[1] });
+assert.ok(document.body.children.includes(menu));
+menu.emit('focusout', { relatedTarget: canvas });
 assert.equal(document.body.children.length, 0);
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
 document.emit('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} });
@@ -142,7 +155,15 @@ await model.refresh();
 model.move({ id: 'M1', t: 4 }); await model.refresh();
 const before = { ...store.get().cursors }, view = { ...store.get().view };
 const event = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1, preventDefault() {} });
+// Ctrl＋左鍵不得攔截事件、取得焦點或啟動 Marker 拖曳與指標擷取。
+const focused = document.activeElement;
+canvas.emit('pointerdown', { ...event(40, 40), ctrlKey: true, preventDefault() { assert.fail('Ctrl＋左鍵不應被攔截'); } });
+canvas.emit('pointermove', event(60, 70)); canvas.emit('pointerup', event(60, 70));
+assert.equal(canvas.captureCount ?? 0, 0); assert.equal(document.activeElement, focused);
+assert.equal(model.rows().find(r => r.id === 'M1').t, 4);
+assert.deepEqual(store.get().cursors, before); assert.deepEqual(store.get().view, view);
 canvas.emit('pointerdown', event(40, 40)); canvas.emit('pointermove', event(60, 70));
+assert.equal(canvas.captureCount, 1);
 assert.equal(model.rows().find(r => r.id === 'M1').t, 6);
 canvas.emit('pointerup', event(60, 70)); await model.refresh();
 assert.equal(store.get().markerTable.find(p => p.id === 'M1').t, 6);

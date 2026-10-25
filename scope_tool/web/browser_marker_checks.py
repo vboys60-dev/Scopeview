@@ -249,7 +249,11 @@ def marker_rightclick(c: Cdp, prep: str) -> None:
     c.pump(0.5)
     texts = c.js("[...document.querySelectorAll('.marker-menu button')].map(b=>b.textContent)")
     assert texts, '右鍵沒有彈出選單'
-    c.js("[...document.querySelectorAll('.marker-menu button')].find(b=>b.textContent.includes('獨立')).click()")
+    button = c.js("""(()=>{const b=[...document.querySelectorAll('.marker-menu button')].find(b=>b.textContent.includes('新增獨立 Marker'));
+        const r=b.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()""")
+    c.send('Input.dispatchMouseEvent', type='mouseMoved', x=button['x'], y=button['y'])
+    c.send('Input.dispatchMouseEvent', type='mousePressed', x=button['x'], y=button['y'], button='left', clickCount=1)
+    c.send('Input.dispatchMouseEvent', type='mouseReleased', x=button['x'], y=button['y'], button='left', clickCount=1)
     c.pump(0.8)
     n = c.js("(async()=>{" + prep + "return S.state.markerTable.filter(p=>!p.link).length})()")
     # 拖出範圍：獨立點夾回通道端點，仍有讀值（不會落在曲線外）

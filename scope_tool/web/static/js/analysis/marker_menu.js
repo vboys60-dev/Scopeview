@@ -23,7 +23,7 @@ export function createMarkerMenu() {
   };
   // 點外面只關選單，這次點擊不穿透到主圖。
   const outside = e => { if (!menu?.contains(e.target)) { e.stopPropagation?.(); e.preventDefault?.(); close(); } };
-  const focusout = e => { if (!menu?.contains(e.relatedTarget)) close(); };
+  const focusout = e => { if (e.relatedTarget && !menu?.contains(e.relatedTarget)) close(); };
   const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); previous?.focus?.({ preventScroll: true }); } };
   return { close, open(x, y, items) {
     close(); previous = document.activeElement;
@@ -38,6 +38,7 @@ export function createMarkerMenu() {
     const r = menu.getBoundingClientRect(), p = menuPosition(x, y, r.width, r.height, innerWidth, innerHeight);
     menu.style.left = `${p.left}px`; menu.style.top = `${p.top}px`;
     document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', key, true);
+    menu.addEventListener('mousedown', e => e.preventDefault()); // 保留焦點，避免 WebKit 在 click 前關閉選單。
     menu.addEventListener('focusout', focusout);
     window.addEventListener('resize', close); window.addEventListener('blur', close);
     menu.querySelector('button:not(:disabled)')?.focus();

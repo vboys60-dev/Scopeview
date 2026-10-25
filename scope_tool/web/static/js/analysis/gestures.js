@@ -156,6 +156,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
   const offMode = store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { end(); mode = v; updateHover(); canvas.style.cursor = mode === "zoom" ? "crosshair" : "grab"; } });
   const offKind = store.onCommand("view.zoomKind", (v) => { if (ZOOM_KINDS.includes(v)) { end(); zoomKind = v; } });
   on(canvas, "pointerdown", (e) => {
+    if (e.ctrlKey && e.button === 0) return; // macOS 的 Ctrl＋左鍵交由右鍵選單處理。
     if (drag || !store.get().file && !store.get().channels.length) return;
     if (e.button !== 0 && e.button !== 1) return;
     canvas.focus?.({ preventScroll: true }); // 先讓欄位 blur 提交，再取得拖曳起始 view。
