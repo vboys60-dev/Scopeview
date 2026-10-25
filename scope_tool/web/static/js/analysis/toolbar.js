@@ -74,8 +74,9 @@ export function mount(el, ctx) {
     try {
       const r = await bridge.job("math", spec), cur = store.get();
       if (r.gen !== cur.file?.gen) return; // 已換檔
-      store.set({ file: { ...cur.file, channels: [...cur.file.channels, r] } }, "program"); // 衍生通道也要進檔案通道表，主圖才會抓波形
-      store.setChannels([...cur.channels, channelRecord(r, cur.channels.length, colors, scales)]);
+      if (cur.channels.some((c) => c.name === r.name)) throw new Error(`通道名稱重複：${r.name}`);
+      // 衍生通道要同時進檔案通道表與通道列（一次寫入），主圖才會抓波形
+      store.set({ file: { ...cur.file, channels: [...cur.file.channels, r] }, channels: [...cur.channels, channelRecord(r, cur.channels.length, colors, scales)] }, "program");
     } catch (e) { fail(e, "數學運算失敗"); }
   }
 

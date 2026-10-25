@@ -160,7 +160,7 @@ def p3b2_zoom(c: Cdp, prep: str) -> None:
         result = c.js("(async()=>{" + prep + """
             const C=await import('/js/analysis/cursors.js'),src=C.cursorSource(S),b=""" + json.dumps(before) + """;
             const near=(a,b)=>Math.abs(a-b)<1e-10;
-            const tol=0.05; // 框選邊界落在整數像素，單像素約 0.02 格；剛好貼邊時會差幾個 1e-6
+            const tol=0.025; // 框選邊界落在整數像素，單像素約 0.02 格；剛好貼邊時會差幾個 1e-6
             return {view:JSON.stringify(S.state.view)===JSON.stringify(b.view),
                 physical:near(src.y1,b.y1)&&near(src.y2,b.y2),
                 projected:near((S.state.cursors.y1-src.channel.position)*src.channel.scale,b.y1),

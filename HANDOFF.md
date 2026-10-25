@@ -57,7 +57,7 @@
 - `analysis.css` 的 `12.5px` 沒改成 12px：`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死該字串。`clampLayout` 的 40px／28px 高度未動。
 - 工具列 `.field` 改標籤與控制同行、量測鈕 `.field:has(.btn--small)` 改兩欄（需 WKWebView／Safari ≥15.4 的 `:has()`）。
 - 修兩個舊 bug：①數學通道只進 `store.channels`、沒進 `file.channels`，`fetchTargets` 不抓所以不繪圖（`toolbar.js` 現在一併寫入）；②視窗高度不足時 `clampLayout` 自動收掉預覽、勾選被彈回，現在 `layout.state` 帶 `blocked`，勾選改停用並提示。
-- `browser_check` 的「P2b 多尺寸」曾失敗（`browser_check.py:233`）：原因是工具列變矮後主圖空間變多，B 區不再被自動收折，測試卻假設進入時是收折的；已改成先確保收折再驗展開。`P3b-2 垂直框選` 的 `fit` 斷言曾因邊界無容差偶發失敗（框選貼齊 ±5 格邊界，滑鼠座標取整數像素，實測差 1e-6 格而失敗；與版面高度有關，美化前 `e45aee3` 穩定出現），已加 0.05 格容差。pywebview 已由使用者實測兩個修正正常。
+- `browser_check` 的「P2b 多尺寸」曾失敗（`browser_check.py:233`）：原因是工具列變矮後主圖空間變多，B 區不再被自動收折，測試卻假設進入時是收折的；已改成先確保收折再驗展開。`P3b-2 垂直框選` 的 `fit` 斷言曾因邊界無容差偶發失敗（框選貼齊 ±5 格邊界，滑鼠座標取整數像素，實測差 1e-6 格而失敗；與版面高度有關，美化前 `e45aee3` 穩定出現），已加 0.025 格容差。pywebview 已由使用者實測兩個修正正常。
 
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
