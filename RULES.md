@@ -93,3 +93,5 @@ FFT P1（2026-10-26，使用者授權，先決條件 A／B／C）：同意 Web �
 FFT P2（2026-10-26，使用者授權）：跨 L0／L4／L5／L8 新增獨立 FFT 大檢視，保留分析頁 FFT 窗格、峰值頁籤及控制列。登記 `static/js/analysis/tab_fft.js`（L4）、`static/js/analysis/fft_state.js`（L5）、`web/browser_fft_checks.py`（L8）；`tab.select` 為 store command。共用單一 runner／參數，不新增 fftView；Python `analysis/*` 仍凍結。
 
 Liquid Glass P1（2026-10-26，使用者授權）：§6 十項採建議預設，Web 改深色單一主題，Qt 不動；跨 L0 index.html／契約、L8 browser_check.py，新增 static/js/glass_smoke.js（L8）。L6 glass.css 分段與 token 名稱於 P1 後凍結；analysis.css／vertical.css 原有行不改，P2／P3 另行實作。
+
+HTML 報告（2026-10-26，使用者授權）：新增 `static/js/analysis/report.js`（L5）、`analysis/report_check.mjs`（L8）；L5 toolbar 的「匯出 CSV…」按鈕改為「匯出…」下拉（波形 CSV…／HTML 報告…）；L0 契約／mock 追加 `export_report`；L1b `analysis_export.py`；L8 `e2e_check.py`／`selfcheck_node.js`。

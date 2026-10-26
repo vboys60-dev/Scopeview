@@ -167,6 +167,9 @@ def main() -> None:
         mm = job_ok("measure", entries=ent, range=None, dx={}, threshold="10/50/90 %")
         exm = ok("export_measurements", rows=[{}] * 2, gen=mm["gen"], revision=mm["revision"], directory=str(tmp))
         assert Path(exm["path"]).exists() and "量測" in Path(exm["path"]).read_text("utf-8-sig")
+        rep = ok("export_report", html="<!doctype html><p>報告 ✓</p>", directory=None)
+        assert Path(rep["path"]).parent == Path(cap["path"]).parent and Path(rep["path"]).read_text("utf-8").endswith("報告 ✓</p>")
+        assert rpc("export_report", html=None, directory=str(tmp))["error"]["code"] == "BAD_REQUEST"
         assert rpc("export_measurements", rows=[{}] * 2, gen=mm["gen"], revision=mm["revision"] - 1,
                    directory=str(tmp))["error"]["code"] == "STALE"
         # 12 BUSY 並行：慢截圖進行中再送 capture_info

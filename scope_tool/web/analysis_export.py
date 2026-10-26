@@ -1,4 +1,4 @@
-"""Analysis 的匯出部分（mixin）：export_csv、export_measurements。"""
+"""Analysis 的匯出部分（mixin）：export_csv、export_measurements、export_report。"""
 from __future__ import annotations
 
 import csv
@@ -62,4 +62,20 @@ class ExportMixin:
                                else [r["_label"], r["unit"], *[""] * 7, r["reason"] or ""])
         except OSError as e:
             raise ScopeError(f"匯出量測結果失敗：{e}") from e
+        return {"path": str(p)}
+
+    def export_report(self, html: str, directory: str) -> dict:
+        """前端組好的自包含 HTML 報告，照來源檔資料夾與時間戳規則寫檔。"""
+        if not isinstance(html, str) or not html:
+            raise BadRequest("html 必須是非空字串")
+        with self._lock:
+            path = self._path
+        out_dir = Path(directory).expanduser() if directory else (path.parent if path else None)
+        if out_dir is None:
+            raise ScopeError("沒有來源檔資料夾，請指定輸出資料夾")
+        try:
+            p = timestamped(out_dir, f"{path.stem if path else 'waveform'}_報告", "html")
+            p.write_text(html, encoding="utf-8")
+        except OSError as e:
+            raise ScopeError(f"匯出報告失敗：{e}") from e
         return {"path": str(p)}

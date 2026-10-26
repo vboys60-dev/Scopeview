@@ -75,6 +75,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | fft_track_rf | spectrum_id, x, direction, level | RFResult | Analysis |
 | export_csv J | range, max_points(null), directory(null) | PathResult | Analysis |
 | export_measurements | rows, gen, revision, directory(null) | PathResult | Analysis |
+| export_report | html, directory(null) | PathResult | Analysis |
 | wait_events | since, timeout | EventsResult | server |
 
 ### 參數語義
@@ -84,6 +85,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - `marker_eval.screen_width` 單位**秒**；`measurements`＝`[x,y,label][]`（來源座標），僅 Track Measurements 使用。
 - `screenshot`／`capture` 的 `directory` 為絕對路徑字串（取自 `config`）。
 - `export_measurements`：`rows`（MeasureResult[]）僅供核對；後端用 `revision` 對應的**快照**寫檔，過期 `gen`／`revision` → `STALE`。
+- `export_report`（2026-10-26 追加，version 維持 2）：前端 `analysis/report.js` 依畫面組出單一自包含 HTML（圖為 PNG data URI、系統字型、不連網），後端只寫檔：`{來源檔名}_報告_YYYYMMDD_HHMMSS.html`、utf-8、`directory=null`＝來源檔資料夾；`html` 非字串或空字串 → `BAD_REQUEST`。量測過期由前端 `exportable()` 擋下，後端不驗快照。RPC body 上限 8 MB（`server.MAX_BODY`）。
 
 ### 範圍、dx 與空區間（measure／fft）
 

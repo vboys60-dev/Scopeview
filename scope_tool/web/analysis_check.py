@@ -85,6 +85,9 @@ def _self_check() -> None:
                               exc=StaleError), StaleError)
         assert isinstance(err(A.export_measurements, rev["results"], 9, rev["revision"], str(tmp),
                               exc=StaleError), StaleError)
+        rep = Path(A.export_report("<!doctype html><title>報告</title>", str(tmp))["path"])
+        assert rep.suffix == ".html" and "_報告_" in rep.name and rep.read_text(encoding="utf-8").endswith("報告</title>")
+        assert isinstance(err(A.export_report, "", str(tmp), exc=BadRequest), BadRequest)
 
         # 區間模式、界限旗標與快照 CSV：使用獨立 Analysis，不改上面世代斷言。
         import csv

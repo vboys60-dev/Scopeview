@@ -2,6 +2,7 @@ import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
 import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
+import { exportReport } from "./report.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
 // 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
@@ -103,9 +104,13 @@ export function mount(el, ctx) {
   marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
-  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math), bCsv = btn("匯出 CSV…", exportCsv);
-  loaded.push(bClose, bInfo, bMath, bCsv, marker, bReset);
-  el.append(bOpen, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
+  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math);
+  // 匯出 CSV／報告共用一個下拉，避免 1400 寬時工具列換行；選完即還原成標題項。
+  const bExport = select([["", "匯出…"], ["csv", "波形 CSV…"], ["report", "HTML 報告…"]]);
+  bExport.title = "匯出波形 CSV 或 HTML 報告";
+  bExport.onchange = () => { const v = bExport.value; bExport.value = ""; if (v === "csv") exportCsv(); else if (v === "report") exportReport(ctx, el.closest(".analysis") ?? document, modal); };
+  loaded.push(bClose, bInfo, bMath, bExport, marker, bReset);
+  el.append(bOpen, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bExport, bMath);
 
   // ── FFT ──
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";

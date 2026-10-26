@@ -15,7 +15,7 @@ const KEYS = {
   open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
   measure: "entries range dx threshold", math: "op a b param", remove_channel: "name",
   fft: "source range dx window unit r_ohm peak_count peak_level peak_sort rbw vbw", fft_track_rf: "spectrum_id x direction level",
-  export_csv: "range max_points directory", export_measurements: "rows gen revision directory", wait_events: "since timeout",
+  export_csv: "range max_points directory", export_measurements: "rows gen revision directory", export_report: "html directory", wait_events: "since timeout",
 };
 const err = (code, msg, retry = false) => new BridgeError(code, msg, retry);
 const fail = (m) => { throw err("SCOPE_ERROR", m); };
@@ -209,6 +209,11 @@ export function createMock(opts = {}) {
       if (!Array.isArray(rows)) bad("rows 必須是陣列");
       if (g !== gen || !last || revision !== last.revision) throw err("STALE", "量測結果已過期，請重新量測");
       return { path: `${directory ?? "/mock/Desktop"}/measurements_20261022_120000.csv` };
+    },
+    export_report: ({ html, directory }) => {
+      if (typeof html !== "string" || !html) bad("html 必須是非空字串");
+      needFile(); globalThis.__lastReport = html; // 供瀏覽器自檢讀回
+      return { path: `${directory ?? "/mock/Desktop"}/demo_報告_20261022_120000.html` };
     },
     wait_events: ({ since }) => ({ seq, events: events.filter((e) => e.seq > since) }),
   };

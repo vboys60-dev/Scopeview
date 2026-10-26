@@ -579,6 +579,29 @@
    "returns": "PathResult",
    "doc": "後端以 revision 對應的快照寫檔，拒絕過期 revision（STALE）；rows 僅用於核對"
   },
+  "export_report": {
+   "owner": "Analysis",
+   "job": false,
+   "lock": false,
+   "params": [
+    {
+     "name": "html",
+     "type": "str",
+     "required": true,
+     "nullable": false,
+     "doc": "前端組好的單一自包含 HTML（圖為 PNG data URI）"
+    },
+    {
+     "name": "directory",
+     "type": "str",
+     "required": true,
+     "nullable": true,
+     "doc": "null＝來源檔所在資料夾"
+    }
+   ],
+   "returns": "PathResult",
+   "doc": "檔名 {來源檔名}_報告_YYYYMMDD_HHMMSS.html，utf-8；不驗量測快照（前端以 exportable 擋過期）"
+  },
   "wait_events": {
    "owner": "server",
    "job": false,
