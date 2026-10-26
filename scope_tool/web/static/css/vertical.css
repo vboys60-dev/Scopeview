@@ -1,10 +1,8 @@
-/* L5：通道 chip 與選取通道欄位；窄視窗自然換行。 */
-.analysis__chanbar > .chip, .analysis__chanbar > button { flex-shrink: 0; }
-.vertical { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; flex-shrink: 1; max-width: 100%; margin-left: auto; }
-.vertical__field { display: inline-flex; align-items: center; gap: 2px; border-left: 1px solid var(--c-border, #ddd); padding-left: 6px; }
-.vertical .input { width: 84px; min-width: 0; height: 24px; min-height: 22px; padding: 1px 4px; font-size: 12px; }
-.vertical .btn { padding: 1px 4px; min-height: 22px; }
+/* L5：各通道 chip 下方欄位；固定欄寬，通道列水平捲動。 */
+.vertical { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 0; }
+.vertical__field { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+.vertical__field > span:first-child { flex: 0 0 52px; color: var(--c-text-dim); }
+.vertical .input { flex: 1 1 0; width: 0; min-width: 48px; height: 22px; min-height: 22px; padding: 1px 4px; font-size: 12px; }
+.vertical .btn { padding: 1px 4px; min-height: 22px; height: 22px; }
 .vertical__badge { border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; color: var(--c-warning, #946000); }
 .vertical__badge[hidden] { display: none; }
-
-.vertical .input[data-vertical="dx"] { width: 64px; }

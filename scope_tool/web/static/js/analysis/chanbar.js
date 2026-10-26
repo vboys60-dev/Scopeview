@@ -1,4 +1,4 @@
-// L5：精簡通道 chip 與目前通道 Vertical 欄位；通道設定經 store.updateChannel。
+// L5：精簡通道 chip 與各通道 Vertical 欄位；通道設定經 store.updateChannel。
 // 處理意圖：channel.shift_intent、channel.scale_intent（絕對值）。DOM／手感待真人驗證。
 import { mount as mountVertical, hasDx } from "./vertical.js";
 
@@ -32,10 +32,8 @@ export function mount(el, ctx) {
   const { store, bridge, ui, fmt } = ctx;
   el.classList.add("chanbar");
   let sig = null, rows = new Map();
-  const vertical = h("div", "vertical");
-  mountVertical(vertical, ctx, { scaleChange, clampScale, fineScale, coarseScale });
 
-  function chip(c) {
+  function column(c) {
     const box = h("div", "chip");
     const vis = h("input", "check"); vis.type = "checkbox"; vis.title = "顯示／隱藏";
     vis.onchange = () => store.updateChannel(c.name, { visible: vis.checked }, "user");
@@ -57,14 +55,18 @@ export function mount(el, ctx) {
       parts.push(rm);
     }
     box.append(...parts);
-    rows.set(c.name, { box, vis, name, col, sc, badge });
-    return box;
+    const verticalEl = h("div", "vertical");
+    const v = mountVertical(verticalEl, ctx, { scaleChange, clampScale, fineScale, coarseScale }, c.name);
+    rows.set(c.name, { box, vis, name, col, sc, badge, v });
+    const colEl = h("div", "chanbar__col"); colEl.append(box, verticalEl);
+    return colEl;
   }
 
   function sync() {
     const { channels, selected } = store.get();
     for (const [i, c] of channels.entries()) {
       const r = rows.get(c.name); if (!r) continue;
+      r.v.render();
       r.sc.textContent = `${fmt.fmt(c.scale, c.unit)}/格`;
       r.badge.hidden = !hasDx(c);
       r.vis.checked = c.visible;
@@ -74,10 +76,10 @@ export function mount(el, ctx) {
   }
   function render() {
     const { channels } = store.get(), s = signature(channels);
-    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(...channels.map(chip), vertical); }
+    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(...channels.map(column)); }
     sync();
   }
-  store.on(["channels", "selected"], render);
+  store.on(["channels", "selected", "file"], render);
   store.onCommand("channel.shift_intent", ({ name, time_offset }) => store.updateChannel(name, { time_offset }, "user"));
   store.onCommand("channel.scale_intent", ({ name, scale, position }) => {
     const patch = {};

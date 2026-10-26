@@ -64,7 +64,7 @@ export function mount(el, { store }) {
     wrap.append(h("span", label), down, input, up); el.append(wrap);
     return { input, down, up };
   }
-  const scale = field("時間/格", "scale"), position = field("位置（中心）", "position");
+  const scale = field("時間/格", "scale"), position = field("時間軸位移", "position");
   const zero = button("0", () => { const v = horizontalOf(store.get().view); store.command("viewport.intent", rangeOf(v.scale, 0)); }, "檔案時間 0 置中");
   el.append(zero);
   const range = h("span", undefined, "analysis__hrange"); el.append(range, reset);

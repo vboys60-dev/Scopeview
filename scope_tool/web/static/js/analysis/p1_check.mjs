@@ -31,7 +31,7 @@ store.set({ channels: [
 store.onCommand("viewport.intent", (v) => { commands.push(["view", v]); store.set({ view: v }, "user"); });
 store.onCommand("channel.scale_intent", (p) => commands.push(["channel", p]));
 const bar = el(); mountChanbar(bar, ctx);
-const vertical = bar.children.at(-1), row = vertical.children[1], input = row.children[2];
+const vertical = bar.children[0].children[1], row = vertical.children[0], input = row.children[2];
 input.value = "137m"; input.onchange(); near(store.get().channels[0].scale, 0.137);
 assert.equal(input.value, "137 mV");
 for (const [value, want] of [["0", 0.0005], ["-5m", 0.0005], ["1p", 0.0005], ["100", 10]]) {
@@ -76,8 +76,10 @@ near(fineScale(1.234, "V²", true, scales), 1.296); // 5%=0.0617 → 0.062
 near(fineScale(1e-12, "V/s", false, scales), 1e-12);
 near(fineScale(5e12, "V/s", true, scales), 5e12);
 near(clampScale(0.137, "V", scales), 0.137);
-store.set({ selected: "CHAN2" }); row.children.find((c) => c.textContent === "+").onclick(); near(store.get().channels[1].scale, 1.296);
-const derivedInput = input; derivedInput.value = "2.317 V²"; derivedInput.onchange();
+store.set({ selected: "CHAN2" });
+const derivedRow = bar.children[1].children[1].children[0];
+derivedRow.children.find((c) => c.textContent === "+").onclick(); near(store.get().channels[1].scale, 1.296);
+const derivedInput = derivedRow.children[2]; derivedInput.value = "2.317 V²"; derivedInput.onchange();
 near(store.get().channels[1].scale, 2.317);
 // P2b：換檔改為保留畫面中心的物理值，與整檔資料中心無關。
 store.set({ selected: "CHAN1" });
@@ -209,7 +211,7 @@ await new Promise((r) => setTimeout(r, 100)); assert.equal(reads.length, 1);
 store.set({ file: null }); assert.equal(reset.disabled, true); assert.equal(topReset.disabled, true);
 const closed = { ...store.get().cursors }; reset.onclick(); topReset.onclick();
 assert.deepEqual(store.get().cursors, closed);
-// 通道重建不會遺失或重複主圖按鈕。
-store.set({ channels: [] }); assert.deepEqual(bar.children, [vertical]);
+// 清空通道也移除所有通道欄與垂直控制。
+store.set({ channels: [] }); assert.deepEqual(bar.children, []);
 plot.dispose();
 console.log("P1 feedback self-check OK：微調／任意輸入、把手實際事件、X 越界復現、Y 時間軸不變、雙處回中央／有號間距／Y 保留／吸附");

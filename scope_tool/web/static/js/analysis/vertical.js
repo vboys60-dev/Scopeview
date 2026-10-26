@@ -1,4 +1,4 @@
-// L5：目前通道的 Vertical 欄位；沿用通道列唯一換檔／微調入口。
+// L5：各通道的 Vertical 欄位；沿用通道列唯一換檔／微調入口。
 import { tickLabel } from "./plotcore.js";
 export const centerPotential = (c) => -c.position * c.scale + 0;
 export const positionOf = (value, scale) => -value / scale + 0;
@@ -15,12 +15,9 @@ export function fitEnvelope(env, unit, scales) {
   return { scale, position };
 }
 const h = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
-export function mount(el, { store, bridge, ui, fmt, scales }, changes) {
+export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
   el.classList.add("vertical");
-  const current = () => store.get().channels.find((c) => c.name === store.get().selected);
-  const active = h("span", "作用中 —", "vertical__active"), badge = h("span", "dx", "vertical__badge");
-  badge.title = "會影響游標區間量測與 FFT";
-  el.append(active);
+  const current = () => store.get().channels.find((c) => c.name === name);
   const button = (text, fn, title = text) => { const b = h("button", text, "btn btn--small"); b.type = "button"; b.title = title; b.onclick = fn; return b; };
   function field(label, key, unit) {
     const wrap = h("div", undefined, "vertical__field"), input = h("input", undefined, "input");
@@ -59,7 +56,7 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes) {
     el.append(wrap);
     return { input, wrap, key, unit };
   }
-  const fields = [field("單位/格", "scale"), field("中心電位", "position"), field("dx", "dx", "s")];
+  const fields = [field("單位/格", "scale"), field("offset", "position"), field("dx", "dx", "s")];
   const fit = button("適配", async () => {
     const c = current(), s = store.get(), file = s.file, view = s.view;
     if (!c || !file) return;
@@ -73,11 +70,9 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes) {
     } catch (e) { if (e?.code !== "STALE" && e?.name !== "AbortError") ui.showError(e); }
     finally { render(); }
   }, "適配目前通道的可見資料範圍（含 dx）");
-  el.append(badge, fit);
+  fields[2].wrap.append(fit);
   function render(force = false) {
     const c = current();
-    active.textContent = c ? `作用中 ●${c.name}` : "作用中 —"; active.style.color = c?.color ?? "";
-    badge.hidden = !hasDx(c); fit.disabled = !c || !store.get().file;
     for (const f of fields) {
       for (const e of f.wrap.children) if (["INPUT", "BUTTON"].includes(e.tagName)) e.disabled = !c;
       if (force || document.activeElement !== f.input) {
@@ -85,6 +80,8 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes) {
         f.input.dataset.rendered = f.input.value;
       }
     }
+    fit.disabled = !c || !store.get().file;
   }
-  store.on(["channels", "selected", "file"], (_s, keys) => render(keys.includes("selected"))); render();
+  render();
+  return { render };
 }

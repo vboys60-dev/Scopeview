@@ -68,34 +68,39 @@ store.set({ file: { gen: 3, channels: [] }, view: { t0: 10, t1: 12 }, selected: 
   { ...base, name: "CH1", color: "#ff0000" }, { ...base, time_offset: 0.25 },
 ] });
 const bar = element(); mountBar(bar, ctx);
-const vertical = bar.children.at(-1), fields = vertical.children.filter((e) => e.children?.some((c) => c.dataset?.vertical));
+const vertical = bar.children[1].children[1], fields = vertical.children.filter((e) => e.className === "vertical__field");
 const input = (key) => fields.flatMap((e) => e.children).find((e) => e.dataset?.vertical === key);
 const press = (key, text) => fields.find((e) => e.children.includes(input(key))).children.find((e) => e.textContent === text).onclick();
-const active = vertical.children[0], fit = vertical.children.at(-1), badge = vertical.children.at(-2);
+const fit = fields[2].children.find((e) => e.textContent === "適配");
 const first = { ...store.get().channels[0] };
 // 真實 checkbox 冒泡與雙擊不得改選取／開啟換色器。
-const chip2 = bar.children[1], check2 = chip2.children[0], color2 = chip2.children[2];
+const chip2 = bar.children[1].children[0], check2 = chip2.children[0], color2 = chip2.children[2];
 check2.checked = false; check2.onchange(); chip2.onclick({ target: check2 });
 assert.equal(store.get().selected, "CH1"); assert.equal(store.get().channels[1].visible, false);
 chip2.ondblclick({ target: check2 }); assert.equal(color2.clicks, undefined);
 check2.checked = true; check2.onchange();
-// 聚焦欄位仍須在切通道時強制重繪。
+// CH2 欄位綁定名稱，選取 CH1 時編輯也不影響 CH1。
+const position1 = bar.children[0].children[1].children[1].children[2], value1 = position1.value;
+input("scale").value = "4m"; input("scale").onchange();
+assert.equal(store.get().channels[1].scale, 0.004); assert.deepEqual(store.get().channels[0], first);
+input("scale").value = "2m"; input("scale").onchange();
 document.activeElement = input("position"); input("position").value = "unfinished";
-bar.children[1].onclick({ target: bar.children[1] });
-assert.equal(store.get().selected, "CH2"); assert.equal(active.textContent, "作用中 ●CH2");
-assert.equal(input("position").value, "4.000 mV"); document.activeElement = null;
+chip2.onclick({ target: chip2 });
+assert.equal(store.get().selected, "CH2"); assert.equal(input("position").value, "unfinished");
+document.activeElement = null;
 input("position").value = "-4m"; input("position").onchange();
 assert.equal(store.get().channels[1].position, 2); assert.deepEqual(store.get().channels[0], first);
+assert.equal(position1.value, value1);
 press("position", "▲"); near(centerPotential(store.get().channels[1]), -0.002);
 press("position", "▼"); near(centerPotential(store.get().channels[1]), -0.004);
 press("position", "歸零"); assert.equal(store.get().channels[1].position, 0);
 input("scale").value = "137m"; input("scale").onchange();
 press("scale", "+"); assert.equal(store.get().channels[1].scale, 0.147);
 press("scale", "▼"); assert.equal(store.get().channels[1].scale, 0.1);
-input("dx").value = "0"; input("dx").onchange(); assert.equal(badge.hidden, true);
-assert.equal(bar.children[1].children.at(-1).hidden, true);
-input("dx").value = "250m"; input("dx").onchange(); assert.equal(badge.hidden, false);
-assert.equal(bar.children[1].children.at(-1).hidden, false);
+input("dx").value = "0"; input("dx").onchange();
+assert.equal(bar.children[1].children[0].children.at(-1).hidden, true);
+input("dx").value = "250m"; input("dx").onchange();
+assert.equal(bar.children[1].children[0].children.at(-1).hidden, false);
 await fit.onclick();
 assert.deepEqual(requests.at(-1), { ch: "CH2", t0: 9.75, t1: 11.75, px: 2048, gen: 3 });
 assert.equal(store.get().channels[1].scale, 0.002); assert.equal(store.get().channels[1].position, -0.5);
@@ -105,13 +110,17 @@ resolveFit = true; const pending = fit.onclick();
 store.set({ view: { t0: 20, t1: 22 } });
 resolveFit({ n: 1, lo: [9], hi: [9] }); await pending; resolveFit = null;
 assert.equal(store.get().channels[1].scale, 0.002);
-// 飛行中通道資料改變或切換通道都必須丟棄。
-for (const change of [() => store.updateChannel("CH2", { position: 1.25 }, "user"), () => store.set({ selected: "CH1" })]) {
+// 飛行中通道資料改變必須丟棄；只切換選取仍套用原通道。
+for (const change of [() => store.updateChannel("CH2", { position: 1.25 }, "user")]) {
   resolveFit = true; const pending = fit.onclick(); change();
   const before = structuredClone(store.get().channels);
   resolveFit({ n: 1, lo: [9], hi: [9] }); await pending; resolveFit = null;
   assert.deepEqual(store.get().channels, before);
 }
+resolveFit = true; const selectedPending = fit.onclick();
+store.set({ selected: "CH1" });
+resolveFit(env); await selectedPending; resolveFit = null;
+assert.equal(store.get().channels[1].position, -0.5); assert.deepEqual(store.get().channels[0], first);
 store.set({ selected: "CH2" }); store.updateChannel("CH2", { position: -0.5 });
 const host = element(), plot = mountPlot(host, ctx); await new Promise((r) => setTimeout(r, 0));
 const c = store.get().channels[1], axis = voltageAxis(c), nominal = layoutRect(800, 308);
@@ -159,7 +168,7 @@ assert.equal(texts.findLast(t => t.text === ax.ticks.at(-1).label).baseline, "bo
 // 衍生通道刪除按鈕的冒泡不選取，雙擊也不開換色器。
 store.set({ channels: [...four, { ...c, name: "F1", derived: true }], selected: "CH1" });
 ctx.bridge.call = async () => ({});
-const derived = bar.children[4], remove = derived.children.at(-1), color = derived.children[2];
+const derived = bar.children[4].children[0], remove = derived.children.at(-1), color = derived.children[2];
 derived.onclick({ target: remove }); derived.ondblclick({ target: remove });
 assert.equal(store.get().selected, "CH1"); assert.equal(color.clicks, undefined);
 await remove.onclick(); assert.equal(store.get().selected, "CH1");
@@ -192,7 +201,7 @@ if (process.argv.includes("--mutations")) {
     ["左邊界忽略把手", "voltage.js", "Math.max(14, ...handles.map((b) => b.x + b.w))", "14"],
     ["適配忽略通道變更", "vertical.js", " || current() !== c", ""],
     ["零位附近不隱藏", "mainplot.js", "< 12 ?", "< 0 ?"],
-    ["切通道不強制重繪", "vertical.js", 'render(keys.includes("selected"))', "render(false)"],
+    ["欄位跟隨選取", "vertical.js", "c.name === name", "c.name === store.get().selected"],
     ["勾選框也選取", "chanbar.js", 'if (e.target.closest?.("input,button")) return;', ""],
     ["雙擊控件開換色", "chanbar.js", 'box.ondblclick = (e) => { if (e.target.closest?.("input,button")) return;', 'box.ondblclick = (e) => {'],
     ["把手超出畫布", "handles.js", "- 10, 0,", "- 10, -10,"],

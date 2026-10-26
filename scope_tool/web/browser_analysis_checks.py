@@ -102,18 +102,18 @@ def p2a_view(c: Cdp, prep: str, click: str, out: Path) -> None:
 def p2b2_vertical(c: Cdp, prep: str, click: str, out: Path) -> None:
     result = c.js("(async()=>{" + prep + "const old=S.state.channels,selected=S.state.selected;"
                   "const name=old[1].name;document.querySelectorAll('.analysis__chanbar .chip')[1].click();"
-                  "const active=document.querySelector('.vertical__active').textContent;"
+                  "const active=document.querySelectorAll('.analysis__chanbar .chip')[1].classList.contains('chip--selected');"
                   "S.updateChannel(name,{scale:0.002},'user');const before=S.state.channels;"
                   "const proto=CanvasRenderingContext2D.prototype,original=proto.fillText,draws=[];"
                   "proto.fillText=function(t,x,y,...a){draws.push({t,color:this.fillStyle});return original.call(this,t,x,y,...a)};"
-                  "try{const i=document.querySelector('[data-vertical=position]');i.value='-4m';"
+                  "try{const i=document.querySelectorAll('.analysis__chanbar .chanbar__col')[1].querySelector('[data-vertical=position]');i.value='-4m';"
                   "i.dispatchEvent(new Event('change',{bubbles:true}));"
                   "const after=S.state.channels,cv=document.querySelector('.analysis__main canvas'),g=cv.getContext('2d');"
                   "g.fillStyle=after[1].color;return {active,name,position:after[1].position,"
                   "others:before.every((v,k)=>k===1||JSON.stringify(v)===JSON.stringify(after[k])),"
                   "axis:draws.some(d=>d.t==='2.0 mV'&&d.color===g.fillStyle)}"
                   "}finally{proto.fillText=original;S.set({channels:old,selected},'program')}})()")
-    assert result["name"] in result["active"], result
+    assert result["active"] is True, result
     assert result["position"] == 2 and result["others"] and result["axis"], result
 
 
@@ -121,16 +121,29 @@ def vertical_bounds(c: Cdp, prep: str, click: str, out: Path) -> None:
     for width in (1400, 1000):
         c.send("Emulation.setDeviceMetricsOverride", width=width, height=900, deviceScaleFactor=1, mobile=False)
         c.pump(0.3)
-        dims = c.js("(()=>{const bar=document.querySelector('.analysis__chanbar'),v=bar.querySelector('.vertical');"
-                    "const r=bar.getBoundingClientRect(),vr=v.getBoundingClientRect();"
-                    "const controls=[...v.querySelectorAll('input,button')].map(e=>({text:e.title,right:e.getBoundingClientRect().right}));"
-                    "return {right:r.right,verticalRight:vr.right,controls,"
-                    "tops:[...bar.children].map(e=>e.getBoundingClientRect().top)}})()")
-        assert dims["controls"], dims
-        assert all(e["right"] <= dims["right"] + 0.5 for e in dims["controls"]), (width, dims)
-        assert all(e["right"] <= dims["verticalRight"] + 0.5 for e in dims["controls"]), (width, dims)
-        if width == 1400:
-            assert max(dims["tops"]) - min(dims["tops"]) < 12, dims
+        dims = c.js("(async()=>{" + prep + """
+            const bar=document.querySelector('.analysis__chanbar'),old=S.state.channels;
+            const columns=[...bar.querySelectorAll('.chanbar__col')];
+            const lefts=()=>[...bar.querySelectorAll('.chip')].map(e=>e.getBoundingClientRect().left);
+            const before=lefts();
+            try {
+                S.updateChannel(old[0].name,{scale:0.0005},'user');
+                return {before,after:lefts(),scrollWidth:document.documentElement.scrollWidth,width:innerWidth,
+                    columns:columns.map(col=>{const r=col.getBoundingClientRect();
+                        return {left:r.left,right:r.right,top:r.top,
+                            controls:[...col.querySelectorAll('.vertical input,.vertical button')].map(e=>{
+                                const b=e.getBoundingClientRect();return {text:e.title,left:b.left,right:b.right}})}})};
+            } finally { S.set({channels:old},'program'); }
+        })()""")
+        assert dims["columns"], dims
+        for col in dims["columns"]:
+            assert col["controls"], (width, col)
+            assert all(e["right"] <= col["right"] + 0.5 and e["left"] >= col["left"] - 0.5
+                       for e in col["controls"]), (width, col)
+        tops = [col["top"] for col in dims["columns"]]
+        assert max(tops) - min(tops) < 1, (width, dims)
+        assert dims["scrollWidth"] <= dims["width"] + 1, (width, dims)
+        assert dims["before"] == dims["after"], (width, dims)
         c.shot(out / f"vertical_{width}.png")
     c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
     c.pump(0.3)
