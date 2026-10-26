@@ -1,0 +1,16 @@
+/* Liquid Glass 覆寫（L6）；僅上色，保留 analysis.css／vertical.css 原文與幾何。 */
+/* == 分析頁 == */
+.analysis__plotTabs [aria-selected="true"],
+.analysis__resultTabs [aria-selected="true"],
+.analysis__horizontal [aria-pressed="true"],
+.analysis__dockbtn[aria-pressed="true"] {
+  background: var(--glass-fill-active); color: var(--c-text); box-shadow: var(--glass-hi); border-color: var(--c-border);
+}
+.analysis__markers tr.is-selected { background: var(--c-surface-hi); }
+.vertical__badge { color: var(--c-warn); }
+
+/* == FFT 頁 == */
+/* P2 實作。 */
+
+/* == 浮層（P3） == */
+/* P3 實作；P1 維持實心、不啟用 blur。 */

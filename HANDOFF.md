@@ -177,3 +177,10 @@
 - 分析頁：離線；示波器式每通道 V／格＋位置（只改顯示）；讀值取原始資料；四游標吸附第一通道取樣點；量測、FFT、數學在背景執行（`worker.Job`），過期結果丟棄。
 - I/O 全在 QThread；逾時截圖 15 s、擷取每個 VISA 操作 60 s；Error 273 → 「請關閉遠端桌面」；不做取消。
 - 不做：掃網段搜尋、傳輸取消、面板 USB CSV 解析、自訂 HDF5 結構。
+
+## Liquid Glass P1（2026-10-26）
+
+- 使用者同意計畫 §6 十項預設與跨 lane 授權。Web 採深色單一主題，Qt 不動；`app.css` 負責 tokens、全域元件、toggle 與系統偏好降級。`--c-surface`／`--c-overlay-solid` 保持實心，圖區 tokens 與既有幾何不變。
+- `glass.css` 最後載入；P1 只補分析頁 segmented、Marker 選中列、垂直 badge 對比。凍結 token 名稱及「分析頁／FFT 頁／浮層（P3）」分段；P2 其餘套色、P3 blur／效能／三宿主實機驗收尚未實作。
+- `browser_check.py` 新增 `glass_smoke`，瀏覽器端計算放在 `static/js/glass_smoke.js`：含漸層最亮停點的祖先 alpha 合成對比、實際 Tab／Space、兩尺寸分析頁幾何與高對比／強制色彩。分頁基線由同瀏覽器暫套原始規則量測，並將 margin 納入總高度；分頁上下 margin 採 3px 以符合基線＋2px 預算（計畫範例 6px 會超出）；不取代實作前的截圖基線。
+- 本次沙箱不跑 browser_check；實際截圖、FFT 邊界、WKWebView／WebView2／QtWebEngine 由後續驗收。Node 一般自檢通過；`--mutations` 停在既有 p2b3 M2「寬版峰值混入其他面板」，未修改 HEAD 匯出副本亦重現。offscreen e2e 已執行，因沙箱禁止 localhost bind 而中止（PermissionError），待沙箱外驗收。

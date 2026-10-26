@@ -30,7 +30,7 @@
 
 ## 三、明確不做（別自作主張加回去）
 
-掃網段搜尋、傳輸中途取消、示波器面板存到 USB 的 CSV 解析、自訂的 HDF5 結構、非 Keysight 機型、多語系、深色主題。
+掃網段搜尋、傳輸中途取消、示波器面板存到 USB 的 CSV 解析、自訂的 HDF5 結構、非 Keysight 機型、多語系。
 
 > 打包：Mac 維持 `啟動示波器截圖.command`；Windows 版允許用 PyInstaller 打包成 exe（使用者 2026-10-22 同意，於 Win10 上打包）。PyInstaller 僅是打包工具，不隨程式執行；其餘硬規則（不新增執行期第三方套件）不變。
 
@@ -74,7 +74,7 @@
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage,vzoom,floatpanel,floatpanel_math}.js`、`static/css/analysis.css` |
 | L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary,cursor_table}.js`、`static/css/vertical.css` |
-| L6 樣式 | `static/css/app.css`、`static/styleguide.html` |
+| L6 樣式 | `static/css/app.css`、`static/css/glass.css`、`static/styleguide.html` |
 | L7 打包 | `packaging/**`、`requirements-web.txt`、`啟動示波器截圖_web.command` |
 | L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check,p3b2_check,float_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`web/browser_float_checks.py`、`docs/web版驗收清單.md` |
 
@@ -91,3 +91,5 @@ P3b-2（gui-p3b2，使用者授權）：L4 axes／gestures／vzoom 框選種類�
 FFT P1（2026-10-26，使用者授權，先決條件 A／B／C）：同意 Web 契約追加 fft.rbw／vbw 與 FFTResult.segments／vbw，version 維持 2；登記新檔 `web/fft_rbw.py` 為 L1b。本階段跨 lane 限 L0 契約／mock／`l0_sem.mjs` 契約自檢、L1b FFT 後端與自檢、L5 `fft_runner.fftParams` 固定補 null、L8 `e2e_check.py`／`l5_check.mjs`及相關規格文件。不做 UI；`analysis/*` 仍凍結。P2～P4 的新檔／狀態／command 留待該階段登記。
 
 FFT P2（2026-10-26，使用者授權）：跨 L0／L4／L5／L8 新增獨立 FFT 大檢視，保留分析頁 FFT 窗格、峰值頁籤及控制列。登記 `static/js/analysis/tab_fft.js`（L4）、`static/js/analysis/fft_state.js`（L5）、`web/browser_fft_checks.py`（L8）；`tab.select` 為 store command。共用單一 runner／參數，不新增 fftView；Python `analysis/*` 仍凍結。
+
+Liquid Glass P1（2026-10-26，使用者授權）：§6 十項採建議預設，Web 改深色單一主題，Qt 不動；跨 L0 index.html／契約、L8 browser_check.py，新增 static/js/glass_smoke.js（L8）。L6 glass.css 分段與 token 名稱於 P1 後凍結；analysis.css／vertical.css 原有行不改，P2／P3 另行實作。

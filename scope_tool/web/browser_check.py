@@ -1,10 +1,7 @@
 """真瀏覽器（Chrome headless + CDP）整條流程驗證：真 Server + FakeDriver，不開視窗。
-
 執行：/opt/anaconda3/bin/python3 -m scope_tool.web.browser_check [截圖目錄]
-需要 Chrome 與 websocket-client。截圖預設存到暫存目錄；console 錯誤或步驟失敗則結束碼非 0。
-"""
+需要 Chrome 與 websocket-client；失敗回傳非 0。"""
 from __future__ import annotations
-
 import base64
 import json
 import subprocess
@@ -13,20 +10,15 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
-
 import websocket  # websocket-client
-
 from scope_tool import config as config_mod
 from scope_tool.web.analysis_api import Analysis
 from scope_tool.web.api import Api
 from scope_tool.web.jobs import Jobs
 from scope_tool.web.server import Server
 from scope_tool.web import browser_analysis_checks as analysis_checks
-
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 9222
-
-
 class Cdp:
     def __init__(self, port: int) -> None:
         for _ in range(50):
@@ -41,7 +33,6 @@ class Cdp:
         self.ws, self.n, self.errors, self.events = websocket.create_connection(url, suppress_origin=True), 0, [], []
         for m in ("Runtime.enable", "Log.enable", "Page.enable"):
             self.send(m)
-
     def send(self, method: str, **params):
         self.n += 1
         self.ws.send(json.dumps({"id": self.n, "method": method, "params": params}))
@@ -52,7 +43,6 @@ class Cdp:
                 if "error" in msg:
                     raise RuntimeError(f"{method}: {msg['error']}")
                 return msg["result"]
-
     def _note(self, msg: dict) -> None:
         m, p = msg.get("method"), msg.get("params", {})
         if m == "Runtime.exceptionThrown":
@@ -62,7 +52,6 @@ class Cdp:
             self.errors.append(f"console.{p['type']}: " + " ".join(str(a.get("value", a.get("description"))) for a in p["args"]))
         elif m == "Log.entryAdded" and "willReadFrequently" not in p["entry"]["text"] and "favicon" not in p["entry"].get("url", "") and p["entry"]["level"] in ("error", "warning"):
             self.errors.append(f"log.{p['entry']['level']}: {p['entry']['text']} {p['entry'].get('url', '')}")
-
     def pump(self, sec: float) -> None:
         self.ws.settimeout(0.1)
         end = time.time() + sec
@@ -72,13 +61,11 @@ class Cdp:
             except Exception:
                 pass
         self.ws.settimeout(None)
-
     def js(self, expr: str):
         r = self.send("Runtime.evaluate", expression=expr, awaitPromise=True, returnByValue=True)
         if "exceptionDetails" in r:
             raise RuntimeError(f"JS 失敗：{r['exceptionDetails'].get('exception', {}).get('description', r['exceptionDetails']['text'])}")
         return r["result"].get("value")
-
     def wait(self, expr: str, sec: float = 15):
         end = time.time() + sec
         while time.time() < end:
@@ -87,14 +74,44 @@ class Cdp:
                 return v
             self.pump(0.3)
         raise TimeoutError(expr)
-
     def shot(self, path: Path) -> None:
         path.write_bytes(base64.b64decode(self.send("Page.captureScreenshot", format="png")["data"]))
-
     def mouse(self, typ: str, x: float, y: float, **kw) -> None:
         self.send("Input.dispatchMouseEvent", type=typ, x=x, y=y, button="left", clickCount=1, **kw)
-
-
+def glass_smoke(c: Cdp) -> None:
+    """驗文字合成對比、鍵盤操作、分析頁幾何及系統降級。"""
+    run = "(async()=>{const {glassSmoke}=await import('/js/glass_smoke.js');return glassSmoke("
+    check = lambda mode: c.js(run + json.dumps(mode) + ")})()")
+    baseline = c.js("(()=>{const s=document.createElement('style');s.textContent='.tabs{width:auto;margin:0;padding:0 var(--sp-3)}.tab{padding:var(--sp-2) var(--sp-4);border-width:0 0 2px;border-style:solid}';document.head.append(s);const h=document.querySelector('.tabs').getBoundingClientRect().height;s.remove();return h})()")
+    try:
+        check("setup"); ratios = check("contrast")
+        assert len(ratios) >= 12 and all(x["ratio"] >= 4.5 for x in ratios), ratios
+        for kind in ("btn", "input", "toggle"):
+            c.js(f"document.querySelector('[data-before={kind}]').focus()")
+            for event in ("keyDown", "keyUp"):
+                c.send("Input.dispatchKeyEvent", type=event, key="Tab", code="Tab", windowsVirtualKeyCode=9)
+            assert c.js(f"document.activeElement.matches('[data-focus={kind}]') && parseFloat(getComputedStyle(document.activeElement).outlineWidth)>=2"), kind
+        before = c.js("document.activeElement.checked")
+        for event in ("keyDown", "keyUp"):
+            c.send("Input.dispatchKeyEvent", type=event, key=" ", code="Space", windowsVirtualKeyCode=32)
+        assert c.js("document.activeElement.checked") != before
+        c.send("Emulation.setEmulatedMedia", features=[{"name": "prefers-contrast", "value": "more"}])
+        assert all(x["alpha"] == 1 for x in check("solid"))
+        c.send("Emulation.setEmulatedMedia", features=[{"name": "forced-colors", "value": "active"}])
+        assert all(x["appearance"] == "auto" and x["thumb"] in ("none", "normal") for x in check("forced"))
+    finally:
+        c.send("Emulation.setEmulatedMedia", features=[])
+        check("cleanup")
+    try:
+        c.js("document.querySelector('[data-tab=analysis]').click()")
+        for width, height in ((1360, 860), (900, 600)):
+            c.send("Emulation.setDeviceMetricsOverride", width=width, height=height, deviceScaleFactor=1, mobile=False)
+            c.pump(.4)
+            assert c.js(f"(()=>{{const e=document.querySelector('.tabs'),s=getComputedStyle(e);return e.getBoundingClientRect().height+parseFloat(s.marginTop)+parseFloat(s.marginBottom)}})() <= {baseline}+2")
+            assert c.js("document.querySelector('.analysis__fftbar').getBoundingClientRect().height <= 40")
+            assert c.js("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    finally:
+        c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False); c.pump(.4)
 def main() -> None:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(tempfile.mkdtemp())
     out.mkdir(parents=True, exist_ok=True)
@@ -106,14 +123,12 @@ def main() -> None:
                                "--window-size=1400,900", "--no-first-run", "about:blank"],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     steps: list[tuple[str, str]] = []
-
     def step(name: str, fn) -> None:
         try:
             fn()
             steps.append((name, "OK"))
         except Exception as e:  # 單步失敗只記錄，繼續下一步
             steps.append((name, f"FAIL {e}"))
-
     try:
         c = Cdp(PORT)
         c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
@@ -124,7 +139,6 @@ def main() -> None:
         click = "(t)=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.replace(' ↕','').trim()===t);if(!b)throw Error('no button '+t);b.click();return true}"
         step("連線測試儀器", lambda: (c.js(f"({click})('測試儀器（模擬）')"), c.wait("document.body.innerText.includes('斷開模擬')")))
         c.shot(out / "02_connected.png")
-        # 擷取（經 bridge，同 UI 的 job 路徑）；通道 2 條、4000 點
         prep = "const B=(await import('/js/bridge.js')).bridge; const S=(await import('/js/analysis/store.js')).store;"
         step("資料截取同頁", lambda: c.wait("(()=>{const p=document.querySelector('#tab-capture');const buttons=[...p.querySelectorAll('button')].map(b=>b.textContent.trim());"
                                            "return !p.hidden&&buttons.includes('開始存圖')&&buttons.includes('開始擷取')&&!document.querySelector('[data-tab=screenshot]')"
@@ -145,7 +159,6 @@ def main() -> None:
         c.shot(out / "04_analysis_loaded.png")
         rect = c.js("(()=>{let b=null;for(const cv of document.querySelectorAll('#tab-analysis canvas')){const r=cv.getBoundingClientRect();if(!b||r.width*r.height>b.w*b.h)b={x:r.x,y:r.y,w:r.width,h:r.height}}return b})()")
         cx, cy = rect["x"] + rect["w"] / 2, rect["y"] + rect["h"] / 2
-        # 滾輪縮放 + 拖曳平移
         def zoom_pan() -> None:
             c.send("Input.dispatchMouseEvent", type="mouseWheel", x=cx, y=cy, deltaX=0, deltaY=-120)
             c.pump(0.5)
@@ -155,7 +168,6 @@ def main() -> None:
         c.shot(out / "05_zoom_pan.png")
         step("重設視圖(雙擊)", lambda: (c.send("Input.dispatchMouseEvent", type="mousePressed", x=cx, y=cy, button="left", clickCount=2),
                                      c.send("Input.dispatchMouseEvent", type="mouseReleased", x=cx, y=cy, button="left", clickCount=2), c.pump(0.5)))
-        # 游標：經 intent 指令放兩條 X、兩條 Y，再看游標面板
         def cursors() -> None:
             c.js(f"(async()=>{{{prep} const f=S.state.file; const v=S.state.view; const w=v.t1-v.t0;"
                  "S.command('cursor.intent',{which:'x1',value:v.t0+w*0.3});S.command('cursor.intent',{which:'x2',value:v.t0+w*0.6});"
@@ -165,9 +177,7 @@ def main() -> None:
         c.shot(out / "06_cursors.png")
         step("游標讀值面板有文字", lambda: c.wait("document.body.innerText.match(/ΔX|Δt|ΔT|X1/)"))
         step("B 區收折仍可回中央並保留間距", lambda: analysis_checks.center_cursors(c, prep, click, out))
-        # P2a：送真實滑鼠事件，驗範圍與只改 view；JS 區塊不用 f-string 避免括號誤植。
         step("P2a 框選範圍／Undo／20n／通道與游標不變", lambda: analysis_checks.p2a_view(c, prep, click, out))
-        # P3a：驗證來源、物理真值與摘要移除。
         step("P3a 來源／Y 真值／摘要移除／禁用模式", lambda: analysis_checks.p3a_markers(c, prep))
         step("P3b 游標結果表／尺寸／TSV 複製", lambda: analysis_checks.p3b_markers(c, prep))
         from scope_tool.web.browser_marker_checks import p3b2_zoom
@@ -178,14 +188,10 @@ def main() -> None:
         from scope_tool.web.browser_marker_checks import marker_rightclick
         step("Marker 主圖右鍵選單新增", lambda: marker_rightclick(c, prep))
         step("P4 版面 C 右側欄／窄版退回底部", lambda: dock_layout(c, prep))
-        # P2b2：截取真正 Canvas fillText，驗證左軸實際文字／顏色與欄位隔離。
         step("P2b2 選取通道2／中心電位／左軸電壓與顏色", lambda: analysis_checks.p2b2_vertical(c, prep, click, out))
         step("通道全域收折／圖區高度／Zoom 位置", lambda: analysis_checks.channel_collapse(c))
-        # 兩通道的 Vertical 控件必須完整落在列容器內；寬版維持單列。
         step("P2b2 Vertical 1400／1000 控件無截斷", lambda: analysis_checks.vertical_bounds(c, prep, click, out))
-        # 不同 dx（通道 2 位移）
         step("通道 dx 位移", lambda: (c.js(f"(async()=>{{{prep} S.updateChannel(S.state.channels[1].name,{{time_offset:(S.state.view.t1-S.state.view.t0)*0.05}},'user')}})()"), c.pump(1)))
-        # 量測：頻率／Vp-p 按鈕
         def measure() -> None:
             for t in ("頻率", "Vp-p"):
                 c.js(f"({click})({json.dumps(t)})")
@@ -194,14 +200,12 @@ def main() -> None:
         c.shot(out / "07_measure.png")
         step("量測結果表有數值", lambda: c.wait("/\\d/.test(document.querySelector('.results')?.innerText||document.body.innerText)"))
         step("P2b3 緊湊結果／分頁／欄位／清除與匯出", lambda: analysis_checks.compact_results(c, prep))
-        # FFT：找工具列的 FFT 按鈕
         def fft() -> None:
             c.js("(()=>{const b=[...document.querySelectorAll('#tab-analysis input[type=checkbox]')].find(i=>/FFT/i.test(i.closest('label,div')?.textContent||''));if(!b)throw Error('no FFT checkbox');b.click()})()")
             c.wait("(async()=>{const S=(await import('/js/analysis/store.js')).store;return S.state.fftResult&&S.state.fftResult.ok})()", 20)
             c.pump(1)
         step("FFT", fft)
         c.shot(out / "08_fft.png")
-        # FFT 標籤：正常寬度與窄版分頁，橫捲前後都不得被控制列上下緣裁切。
         def fft_label_bounds() -> None:
             for end in (False, True):
                 dims = c.js("(()=>{const b=document.querySelector('.analysis__fftbar');"
@@ -214,7 +218,6 @@ def main() -> None:
                 assert dims["height"] <= 40 and dims["plot"] >= 120, dims
                 assert all(e["top"] >= dims["top"] and e["bottom"] <= dims["bottom"]
                            and e["font"] >= 12 for e in dims["labels"]), dims
-        # P2b：實測容器／繪圖高度、分頁、拖曳與共用收折狀態。
         def layout_check() -> None:
             for width, height in ((1360, 860), (900, 600)):
                 c.send("Emulation.setDeviceMetricsOverride", width=width, height=height, deviceScaleFactor=2, mobile=False)
@@ -232,7 +235,6 @@ def main() -> None:
                     assert c.js("!document.querySelector('.analysis__overview').hidden")
                     c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
                     c.pump(0.2)
-                    # 版面空間夠時 B 區預設就展開；先確保收折，再驗證展開，不依賴工具列高度
                     c.js("(()=>{const t=document.querySelector('.analysis__lowertoggle');if(t.getAttribute('aria-expanded')==='true')t.click()})()")
                     c.pump(0.2)
                     c.js("document.querySelector('.analysis__lowertoggle').click()")
@@ -275,12 +277,11 @@ def main() -> None:
         step("FFT 分頁三尺寸／控制列／峰表", lambda: fft_page(c, prep))
         from scope_tool.web.browser_float_checks import float_panel
         step("浮動面板／拖曳／縮放／停靠／窄版／字體", lambda: float_panel(c, prep))
-        # NaN 缺口 CSV
+        step("glass_smoke 對比／鍵盤／幾何／降級", lambda: glass_smoke(c))
         nanp = Path(prof) / "nan.csv"
         nanp.write_text("Time(s),CH1(V)\n" + "".join(f"{i * 1e-6},{'nan' if 40 <= i < 60 else (i % 20) / 10}\n" for i in range(200)), "utf-8")
         step("開含 NaN 的 CSV", lambda: (c.js(f"(async()=>{{{prep} S.command('file.open',{{path:{json.dumps(str(nanp))}}})}})()"), c.pump(2), c.wait(f"{canvas_ink}>100")))
         c.shot(out / "09_nan_csv.png")
-        # 窄視窗版面
         c.send("Emulation.setDeviceMetricsOverride", width=1000, height=700, deviceScaleFactor=1, mobile=False)
         c.pump(1)
         c.shot(out / "10_narrow.png")
@@ -295,7 +296,5 @@ def main() -> None:
     finally:
         chrome.terminate()
         srv.stop()
-
-
 if __name__ == "__main__":
     main()

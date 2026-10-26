@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>樣式指南</title><link rel="stylesheet" href="css/app.css"><link rel="stylesheet" href="css/analysis.css">
+<link rel="stylesheet" href="css/glass.css">
 <style>body{overflow:auto;padding:16px}section{margin-bottom:24px}h2{font-size:16px;margin:0 0 8px}</style></head>
 <body>
 <section><h2>連線列／分頁</h2>
@@ -8,11 +9,12 @@
 <div class="tabs"><button class="tab tab--active">截圖</button><button class="tab">波形擷取</button><button class="tab">離線分析</button></div></section>
 <section><h2>按鈕／狀態</h2><div class="row">
 <button class="btn">一般</button><button class="btn btn--primary">主要</button><button class="btn btn--danger">危險</button><button class="btn btn--small">小</button>
-<button class="btn is-disabled">停用</button><button class="btn is-busy">忙碌</button><button class="btn is-selected">選取</button><button class="btn" data-tip="這是 tooltip">懸停看提示</button></div></section>
+<button class="btn" disabled>停用</button><button class="btn is-busy">忙碌</button><button class="btn is-selected">選取</button><button class="btn" data-tip="這是 tooltip">懸停看提示</button></div></section>
 <section><h2>表單</h2>
 <div class="field"><label class="field__label">標籤</label><input class="input" value="文字"><span class="field__hint">提示文字</span></div>
 <div class="field"><label class="field__label">錯誤</label><input class="input is-error" value="壞值"></div>
-<div class="row"><select class="select"><option>選項</option></select><label class="check"><input type="checkbox" checked>勾選</label></div></section>
+<div class="row"><select class="select"><option>選項</option></select><label class="check"><input type="checkbox" checked>開啟</label><label class="check"><input type="checkbox">關閉</label><label class="check"><input type="checkbox" disabled>停用</label><label class="check"><input type="checkbox" checked disabled>停用開啟</label></div></section>
+<section><h2>Segmented 狀態</h2><div class="analysis__resultTabs"><button class="btn" aria-selected="true">選中</button><button class="btn" aria-selected="false">未選</button><button class="btn" disabled>停用</button></div></section>
 <section><h2>對話框（dialog）</h2><button class="btn" onclick="document.getElementById('d').showModal()">開啟</button>
 <dialog id="d" class="dlg"><h3 class="dlg__title">標題</h3><div class="dlg__body"><p class="dlg__msg">訊息內容</p></div>
 <div class="dlg__actions"><button class="btn" onclick="d.close()">取消</button><button class="btn btn--primary" onclick="d.close()">確定</button></div></dialog></section>

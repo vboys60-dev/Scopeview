@@ -222,7 +222,7 @@ float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 
 ## 8. 樣式 token 與 CSS class 名稱（L6 實作，其他 lane 只能引用）
 
-淺色主題；圖區黑底（不做深色主題）。字型 `PingFang TC, Microsoft JhengHei, sans-serif`；不用 web font／CDN。窄版斷點約 900 px。
+Liquid Glass 深色單一主題；圖區黑底（#000），不提供淺色切換。字型 `PingFang TC, Microsoft JhengHei, sans-serif`；不用 web font／CDN。窄版斷點約 900 px。
 
 Token（`:root` CSS 變數）：
 
@@ -230,9 +230,13 @@ Token（`:root` CSS 變數）：
 |---|---|
 | 色 | `--c-bg --c-surface --c-border --c-text --c-text-dim --c-accent --c-accent-text --c-danger --c-ok --c-warn --c-focus` |
 | 圖區 | `--c-plot-bg(#000) --c-plot-grid --c-plot-axis --c-plot-text --c-ch1 --c-ch2 --c-ch3 --c-ch4 --c-ch5 --c-ch6 --c-cursor1 --c-cursor2` |
+| 材質／背景 | `--bg-app --c-surface-hi --c-overlay --c-overlay-solid --c-border-strong --glass-fill --glass-fill-hover --glass-fill-active --glass-hi --glass-lo --shadow-glass` |
+| 按鈕／圓角 | `--c-primary-fill --c-danger-fill --radius-ctl --radius-lg --radius-pill` |
 | 間距 | `--sp-1 --sp-2 --sp-3 --sp-4`（4／8／12／16 px） |
 | 字 | `--font-ui --font-mono --fs-sm --fs-base --fs-lg` |
 | 其他 | `--radius --shadow-dlg --h-control` |
+
+`--c-surface` 與 `--c-overlay-solid` 永遠實心；玻璃 opt-in、控制項不疊玻璃。`color-scheme: dark`；圖區 tokens、`--radius: 4px` 與幾何 tokens 不變。`glass.css` 最後載入，分為分析頁／FFT 頁／浮層三段；P1 後 token 名稱與分段凍結。降級涵蓋無 backdrop-filter、降低透明度、高對比、強制色彩與降低動態。
 
 通道色：`--c-ch1..6` 的值即 `catalog.channel_colors`（`#ffcc00 #00d0ff #ff5fbf #7be36b #ff8a3d #b79cff`）；通道依序取色，衍生通道接續取用。
 
@@ -249,7 +253,7 @@ Class（BEM 風格，`block__element--modifier`）：
 
 ## 9. 不在契約內（刻意不做）
 
-傳輸中途取消、掃網段搜尋、深色主題、多語系、Jitter／眼圖（保持未接線）。
+傳輸中途取消、掃網段搜尋、多語系、Jitter／眼圖（保持未接線）。
 
 ## 附：lead 裁決（凍結時追加）
 - FFT 空區間：回 `ok=false`＋`reason`，`spectrum_id`／數值欄為 null、`peaks=[]`（不走 SCOPE_ERROR）。
