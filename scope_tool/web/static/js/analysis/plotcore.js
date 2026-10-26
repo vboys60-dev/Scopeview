@@ -48,13 +48,18 @@ export function tickLabel(v, unit, step = 0, max = Math.abs(v)) {
   // 去除浮點運算尾差，再取格距最末有效位與格距十分之一中較細者。
   const [mantissa, exponent] = Number(step.toPrecision(12)).toExponential().split("e");
   const last = Number(exponent) - (mantissa.split(".")[1]?.length ?? 0);
-  const resolutionOrder = Math.min(Math.floor(Math.log10(step)) - 1, last);
+  const floor = Math.floor(Math.log10(step));
+  // 格距超過三位有效數字（例如 282.166 mV/格）時只取兩位，避免刻度拖出十幾位小數。
+  const irregular = last < floor - 2;
+  const resolutionOrder = irregular ? floor - 1 : Math.min(floor - 1, last);
   const res = 10 ** resolutionOrder;
   const q = Math.sign(v) * Math.round(Math.abs(v) / res) * res;
   if (q === 0) return `0 ${unit}`;
-  const e = unit === "" || unit === "%" || unit.startsWith("dB") ? 0 : Math.min(12, Math.max(-12, Math.floor(Math.log10(max) / 3) * 3));
+  let e = unit === "" || unit === "%" || unit.startsWith("dB") ? 0 : Math.min(12, Math.max(-12, Math.floor(Math.log10(max) / 3) * 3));
+  let decimals = Math.min(100, Math.max(0, e - resolutionOrder));
+  // 不整齊的格距：電壓等改用較小前綴（V→mV），讓刻度以整數為主；時間軸保持原樣。
+  if (irregular && unit !== "s" && e > -12 && decimals > 0) { const d = Math.min(decimals, e + 12); e -= 3 * Math.ceil(d / 3); decimals = Math.max(0, e - resolutionOrder); }
   const prefix = ["p", "n", "µ", "m", "", "k", "M", "G", "T"][(e + 12) / 3];
-  const decimals = Math.min(100, Math.max(0, e - resolutionOrder));
   return `${(q / 10 ** e).toFixed(decimals)} ${prefix}${unit}`;
 }
 /** 超過 9 位有效數字：中心保留完整絕對值，其餘顯示相對中心偏移。 */
