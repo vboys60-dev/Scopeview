@@ -1,7 +1,7 @@
 // 無框架斷言：換算公式、前端峰表、補抓條件與真實基準線事件。
 import assert from 'node:assert/strict';
 import { createStore } from './store.js';
-import { FFT_UNITS, convertLevel, selectPeaks, needsRefetch, peaksTruncated, fftMarkerModel } from './fft_markers.js';
+import { FFT_UNITS, inView, convertLevel, selectPeaks, needsRefetch, peaksTruncated, fftMarkerModel } from './fft_markers.js';
 import { fftGesture, createFftMarkerLayer } from './fft_marker_layer.js';
 import { createFft } from './toolbar.js';
 import { bindFftMarkerControls } from './fft_marker_controls.js';
@@ -28,6 +28,8 @@ for (const r of [25, 50, 75, 100, 200]) {
 }
 assert.ok(Number.isNaN(convertLevel(-1, 'Watt', 'dBm')));
 const peaks = [{ x: 30, y: 3 }, { x: 10, y: 3 }, { x: 20, y: 2 }, { x: 40, y: 1 }];
+assert.equal(inView(peaks, null), peaks);
+assert.deepEqual(inView(peaks, { f0: 10, f1: 20 }).map(p => p.x), [10, 20]);
 const params = { level: 1, count: 2, sort: 'Decreasing Magnitude' };
 assert.deepEqual(selectPeaks(peaks, params).map(p => p.x), [10, 30]);
 assert.deepEqual(selectPeaks(peaks, { ...params, sort: 'Increasing Frequency' }).map(p => p.x), [10, 20]);
@@ -123,6 +125,13 @@ assert.deepEqual(table.children[0].children.map(e => e.textContent), ['#', '頻�
 assert.equal(table.children[1].children[3].textContent, '50 dB');
 table.children[1].onclick(); assert.deepEqual(selected, { direction: 0, x: 10 });
 assert.match(tableHost.children.at(-1).textContent, /頻率已內插/);
+const beforeView = calls.length;
+store.set({ fftView: { f0: 15, f1: 25 } }); await wait();
+assert.equal(calls.length, beforeView); assert.equal(model.state().shown, 1);
+assert.deepEqual(model.rows().map(p => p.x), [20]); assert.equal(table.children.length, 2);
+store.set({ fftView: { f0: 5, f1: 15 } });
+assert.equal(model.state().shown, 1); assert.equal(table.children[1].children[1].textContent, '10 Hz');
+store.set({ fftView: null }); assert.equal(model.state().shown, 2);
 store.set({ fftResult: { ok: true, unit: 'dBm', spectrum_id: 'table', peaks: Array.from({ length: 1000 }, (_, x) => ({ x, y: -10 })) } });
 assert.match(tableHost.children.at(-1).textContent, /已截斷/);
 let rfArgs;
@@ -179,7 +188,7 @@ console.log('fft_marker self-check OK');
   s.command('tab.activated', 'analysis'); assert.equal(state.p.on, false); assert.equal(s.get().fftResult, result);
   s.command('tab.activated', 'fft'); await tick(); assert.equal(jobs.length, 1);
   const root = page.children[0], sourceRow = root.children[1], paramsRow = root.children[2];
-  const controls = [sourceRow.children[0].children[0], paramsRow.children[0].children[0], paramsRow.children[1].children[0], paramsRow.children[2].children[0], paramsRow.children[3]];
+  const controls = [sourceRow.children[0].children[0], paramsRow.children[2].children[0], paramsRow.children[3].children[0], paramsRow.children[4].children[0], paramsRow.children[5]];
   for (const [a, b, value] of [[toolbarControls.src, controls[0], 'CH2'], [controls[1], toolbarControls.win, 'Hamming'],
     [toolbarControls.imp, controls[3], '1'], [controls[4], toolbarControls.man, '75'], [toolbarControls.unit, controls[2], 'Vrms']]) {
     a.value = value; a.onchange(); assert.equal(b.value, value);
@@ -200,14 +209,26 @@ console.log('fft_marker self-check OK');
   assert.deepEqual(jobs.at(-1).range, [0.1, 0.2]);
   s.set({ file: { gen: 2 } }); assert.equal(s.get().fftResult, null); assert.equal(state.p.on, true);
   await tick(); assert.equal(jobs.length, n + 3);
-  // 第二張圖有各自的視窗／請求取消器；縮放一張不會改另一張。
+  // P3：四欄與兩張圖共用視窗；手勢與全頻寬雙向同步，不重跑 FFT。
+  const freq = paramsRow.children[0], fields = freq.children.slice(0, 4).map(e => e.children[0]);
+  fields[0].value = '10'; fields[0].onchange(); fields[2].value = '60'; fields[2].onchange();
+  assert.deepEqual(s.get().fftView, { f0: 10, f1: 60 });
+  fields[3].value = 'invalid'; fields[3].onchange(); assert.equal(fields[3].value, '50 Hz');
+  document.activeElement = fields[1]; fields[1].value = '輸入中';
+  s.set({ fftView: { f0: 20, f1: 40 } }); assert.equal(fields[1].value, '輸入中');
+  document.activeElement = null; fields[1].onblur(); assert.equal(fields[1].value, '30 Hz');
+  freq.children[4].onclick(); assert.equal(s.get().fftView, null);
+  assert.equal(paramsRow.children[1].className, 'fftpage__bw');
+  // 第二張圖保有獨立請求取消器，但縮放範圍共享。
   const other = new Element(), pane = mountPane(other, c); await tick();
   const otherCanvas = other.querySelector('.analysis__fftplot').children[0];
   otherCanvas.emit('wheel', { clientX: 64, deltaY: -120, preventDefault() {} }); await tick();
   assert.ok(fetches.at(-1).f1 < 100);
   const pageCanvas = root.children[3].children[0].querySelector('.analysis__fftplot').children[0];
   pageCanvas.emit('wheel', { clientX: 64, deltaY: 120, preventDefault() {} }); await tick();
-  assert.ok(fetches.at(-1).f1 > 100);
+  assert.ok(fetches.at(-1).f1 <= 100);
+  assert.equal(fields[2].value, fmt.fmt(s.get().fftView.f1, 'Hz'));
+  assert.equal(jobs.length, n + 3);
   s.command('tab.activated', 'analysis'); s.set({ file: { gen: 3 } });
   assert.equal(s.get().fftResult, null); await tick(); assert.equal(jobs.length, n + 3);
   // 停算期間改參數仍同步另一處，卻不發工作。

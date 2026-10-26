@@ -24,6 +24,7 @@ export function createStore() {
     view: { t0: 0, t1: 1 }, cursors: { x1: null, x2: null, y1: null, y2: null },
     rangeMode: "all", // 量測／CSV 範圍：all｜cursors
     markerMode: null, // null＝傳統游標；否則 catalog.marker_modes 之一
+    fftView: null, // {f0, f1}（Hz）；null＝全頻寬 0..Nyquist，由 FFT 視窗夾限
     rfPos: null, // {x, y} Track RF 全精度位置（Hz）
     threshold: "10/50/90 %", fftResult: null, measurements: [],
   };

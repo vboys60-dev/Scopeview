@@ -5,6 +5,36 @@ import { fftMarkerModel } from './fft_markers.js';
 import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
 
 export const MARGIN = { l: 64, t: 8, r: 10, b: 22 };
+/** 視窗夾限：保留跨度並平移入界；不足 minSpan 時擴大，反向／非有限回全頻寬。 */
+export function clampView(view, { nyq, minSpan }) {
+  if (!view || !(nyq > 0) || !Number.isFinite(nyq)) return null;
+  const { f0, f1 } = view;
+  if (!Number.isFinite(f0) || !Number.isFinite(f1) || f0 >= f1) return null;
+  const width = Math.min(nyq, Math.max(f1 - f0, Math.min(nyq, Math.max(0, minSpan || 0))));
+  const start = Math.max(0, Math.min(f0, nyq - width));
+  return { f0: start, f1: start + width };
+}
+/** 四欄聯動：先保住輸入值，再推導另一端；Center 碰邊縮跨度，Span 碰邊移中心。 */
+export function applySpanEdit(view, edit, { nyq, minSpan }) {
+  if (!(nyq > 0) || !Number.isFinite(nyq)) return null;
+  const m = Math.min(nyq, Math.max(0, minSpan || 0)), limit = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  const v = clampView(view, { nyq, minSpan: m }) ?? { f0: 0, f1: nyq };
+  let { f0, f1 } = v;
+  const [key, value] = Object.entries(edit)[0] ?? [];
+  if (!Number.isFinite(value) || value <= 0) return v;
+  if (key === 'start') { f0 = limit(value, 0, nyq - m); f1 = Math.max(f1, f0 + m); }
+  if (key === 'stop') { f1 = limit(value, m, nyq); f0 = Math.min(f0, f1 - m); }
+  if (key === 'center') {
+    const c = limit(value, m / 2, nyq - m / 2), width = Math.min(f1 - f0, 2 * c, 2 * (nyq - c));
+    f0 = c - width / 2; f1 = c + width / 2;
+  }
+  if (key === 'span') {
+    const width = limit(value, m, nyq), c = (f0 + f1) / 2;
+    f0 = limit(c - width / 2, 0, nyq - width); f1 = f0 + width;
+  }
+  return { f0, f1 };
+}
+
 /** 頻率視窗：log 時下界須 >0（以 df 或 f_max/1e6 為底）。 */
 export function freqWindow(res, view, log) {
   let f0 = view?.f0 ?? res.f_min ?? 0, f1 = view?.f1 ?? res.f_max ?? 1;
@@ -33,7 +63,7 @@ export function mount(el, ctx) {
     + '<span class="muted" data-status></span></div><div class="analysis__fftplot"></div>';
   const host = el.querySelector(".analysis__fftplot"), status = el.querySelector("[data-status]");
   const logBox = el.querySelector("[data-log]");
-  let env = null, view = null, resId = null, rect = { l: 0, t: 0, w: 1, h: 1 }, drag = null, yr = [0, 1];
+  let env = null, resId = null, rect = { l: 0, t: 0, w: 1, h: 1 }, drag = null, yr = [0, 1];
   const latest = makeLatest();
   const cv = createCanvas(host, (w, h) => {
     rect = { l: MARGIN.l, t: MARGIN.t, w: Math.max(1, w - MARGIN.l - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) };
@@ -42,7 +72,7 @@ export function mount(el, ctx) {
   const { canvas, ctx: g } = cv;
   const res = () => { const r = store.get().fftResult; return r?.ok && r.spectrum_id ? r : null; };
   const log = () => logBox.checked;
-  const win = () => freqWindow(res() ?? {}, view, log());
+  const win = () => freqWindow(res() ?? {}, store.get().fftView, log());
   const Fmap = () => { const w = win(); return (log() ? logmap : linear)(w.f0, w.f1, rect.l, rect.l + rect.w); };
   const Ymap = () => linear(yr[1], yr[0], rect.t, rect.t + rect.h);
 
@@ -90,15 +120,25 @@ export function mount(el, ctx) {
       });
   }
   const fetchSoon = debounce(fetchNow, 200);
-  const setView = (v) => { view = v; draw(); fetchSoon(); };
+  const bounds = () => ({ nyq: res()?.f_max, minSpan: 10 * (res()?.df || 0) });
+  const setView = (v, origin = 'user') => store.set({ fftView: clampView(v, bounds()) }, origin);
   const refreshAll = () => {
     const r = res();
     status.textContent = r ? `RBW ${tickLabel(r.rbw, "Hz")}｜${r.window}｜${r.unit}` : store.get().fftResult?.reason ?? "";
-    if ((r?.spectrum_id ?? null) !== resId) { resId = r?.spectrum_id ?? null; env = null; view = null; latest.cancel(); if (r) fetchNow(); }
+    if ((r?.spectrum_id ?? null) !== resId) { resId = r?.spectrum_id ?? null; env = null; if (r) setView(store.get().fftView, 'program'); latest.cancel(); if (r) fetchNow(); }
     draw();
   };
   store.on(["fftResult"], refreshAll);
-  store.on(["rfPos"], draw);
+  const offView = store.on(['fftView'], () => { env = null; latest.cancel(); draw(); fetchSoon(); });
+  const offRf = store.on(["rfPos"], () => {
+    const rf = store.get().rfPos, v = store.get().fftView, r = res();
+    if (r && v && Number.isFinite(rf?.x) && (rf.x < v.f0 || rf.x > v.f1)) {
+      // 跳峰保留跨度；靠邊時平移入界，避免 Center 欄的縮跨度語意。
+      const half = (v.f1 - v.f0) / 2;
+      setView({ f0: rf.x - half, f1: rf.x + half }, 'program');
+    }
+    draw();
+  });
   store.on(["opening"], () => { if (!store.get().opening) fetchSoon(); }); // 開檔取消時補取被略過的請求
   logBox.addEventListener("change", () => { env = null; fetchSoon(); draw(); });
 
@@ -121,13 +161,13 @@ export function mount(el, ctx) {
     if (!drag.moved) return;
     const w = drag.view, F = (log() ? logmap : linear)(w.f0, w.f1, rect.l, rect.l + rect.w);
     const a = F.inv(rect.l - (x - drag.x)), b = F.inv(rect.l + rect.w - (x - drag.x));
-    if (Number.isFinite(a) && Number.isFinite(b)) setView({ f0: Math.max(a, 0), f1: b });
+    if (Number.isFinite(a) && Number.isFinite(b)) setView({ f0: a, f1: b });
   });
   canvas.addEventListener("pointerup", (e) => {
     if (drag && !drag.moved && res()) store.command("rf.intent", { direction: 0, x: Fmap().inv(lx(e)) }); // 點擊＝吸附最近頻格
     drag = null;
   });
-  canvas.addEventListener("dblclick", () => { view = null; draw(); fetchSoon(); });
+  canvas.addEventListener("dblclick", () => setView(null));
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     if (!res()) return;
@@ -135,11 +175,11 @@ export function mount(el, ctx) {
     if (f === 1) return;
     const w = win(), F = Fmap(), a = F.inv(Math.min(Math.max(lx(e), rect.l), rect.l + rect.w));
     if (log()) setView({ f0: a * (w.f0 / a) ** f, f1: a * (w.f1 / a) ** f });
-    else setView({ f0: Math.max(a - (a - w.f0) * f, 0), f1: a + (w.f1 - a) * f });
+    else setView({ f0: a - (a - w.f0) * f, f1: a + (w.f1 - a) * f });
   }, { passive: false });
   const cancelPan = () => { drag = null; };
   canvas.addEventListener('pointercancel', cancelPan);
   canvas.addEventListener('lostpointercapture', cancelPan);
   refreshAll();
-  return { draw, dispose() { baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offView(); offRf(); baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
 }

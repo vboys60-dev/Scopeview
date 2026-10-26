@@ -18,10 +18,11 @@ export function mountFftMarkerTable(el, ctx, info) {
       return tr;
     });
     table.replaceChildren(row(['#', '頻率', '振幅', '高於基準線'], 'th'), ...rows);
+    // ponytail: 峰快取是全頻譜前 1000；需要時加 fft_peaks RPC 取畫面內的峰。
     // 契約沒有總峰數；滿額即保守提示可能截斷，不宣稱已知實際總數。
-    foot.textContent = `頻率已內插${model.truncated ? '｜已截斷（達 1000 峰抓取上限）' : ''}`;
+    foot.textContent = `頻率已內插${model.truncated ? '｜已截斷（全頻譜達 1000 峰上限，畫面內可能漏列）' : ''}`;
   }
-  const off = store.on(['fftResult', 'fftMarker'], render); render();
+  const off = store.on(['fftResult', 'fftMarker', 'fftView'], render); render();
   return { dispose: off };
 }
 

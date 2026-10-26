@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { linear, logmap, divTicks, niceTicks, logTicks, envPixels, drawPixels, nearestDist, makeLatest, debounce } from "./plotcore.js";
 import { layoutRect, markerPixels, fetchTargets, divY, yToDiv, valueY, panView, zoomView, waveKey } from "./mainplot.js";
 import { fullRange, hitRegion, dragRegion } from "./overview.js";
-import { freqWindow, yRange } from "./fftpane.js";
+import { freqWindow, yRange, clampView, applySpanEdit } from "./fftpane.js";
 import { channelsFromFile, cleanView, bindOpen, openPatch } from "./tab_analysis.js";
 
 const near = (a, b, e = 1e-9) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
@@ -55,6 +55,22 @@ near(freqWindow({ f_min: 0, f_max: 1000, df: 10 }, null, true).f0, 10);
 assert.deepEqual(freqWindow({ f_min: 0, f_max: 1000 }, { f0: 5, f1: 50 }, false), { f0: 5, f1: 50 });
 const [lo, hi] = yRange({ n: 2, lo: Float32Array.of(-100, NaN), hi: Float32Array.of(-20, NaN) }); assert.ok(lo < -100 && hi > -20);
 assert.deepEqual(yRange({ n: 0, lo: [], hi: [] }), [0, 1]);
+// P3 四欄逐列正常／碰邊；視窗夾限與極少頻格。
+const bounds = { nyq: 100, minSpan: 10 }, v = { f0: 20, f1: 60 };
+for (const [edit, expected] of [
+  [{ start: 30 }, [30, 60]], [{ start: 80 }, [80, 90]], [{ start: 110 }, [90, 100]],
+  [{ stop: 50 }, [20, 50]], [{ stop: 5 }, [0, 10]], [{ stop: 110 }, [20, 100]],
+  [{ center: 50 }, [30, 70]], [{ center: 2 }, [0, 10]], [{ center: 98 }, [90, 100]],
+  [{ span: 20 }, [30, 50]], [{ span: 200 }, [0, 100]], [{ span: 1 }, [35, 45]],
+]) assert.deepEqual(Object.values(applySpanEdit(v, edit, bounds)), expected);
+assert.deepEqual(applySpanEdit({ f0: 70, f1: 90 }, { span: 60 }, bounds), { f0: 40, f1: 100 });
+assert.deepEqual(applySpanEdit(null, { start: 20 }, bounds), { f0: 20, f1: 100 });
+assert.deepEqual(applySpanEdit(null, { stop: 80 }, bounds), { f0: 0, f1: 80 });
+for (const [view, expected] of [[{ f0: -10, f1: 30 }, { f0: 0, f1: 40 }],
+  [{ f0: 80, f1: 120 }, { f0: 60, f1: 100 }], [{ f0: 20, f1: 21 }, { f0: 20, f1: 30 }],
+  [{ f0: 60, f1: 20 }, null], [{ f0: 20, f1: 20 }, null], [{ f0: NaN, f1: 30 }, null]])
+  assert.deepEqual(clampView(view, bounds), expected);
+assert.deepEqual(clampView(v, { nyq: 5, minSpan: 10 }), { f0: 0, f1: 5 });
 // 開檔 → 通道記錄
 const cs = channelsFromFile({ channels: [{ name: "CHAN1", unit: "V", derived: false, vmin: -1, vmax: 3, t0: 0, t1: 2 }] });
 assert.equal(cs[0].t1, 2); assert.equal(cs[0].scale, 0.5); near(cs[0].position, -2); assert.equal(cs[0].time_offset, 0);
@@ -68,7 +84,7 @@ assert.equal(mk.length, 1); near(mk[0].px, r.l + r.w / 2); near(mk[0].py, divY(r
 assert.deepEqual(markerPixels(null, f, r), []);
 // 開檔 patch：file 與 channels／selected 同一次 set；fetchTargets 只含新檔內的通道
 const info = { gen: 2, channels: [{ name: "CHAN1", unit: "V", vmin: 0, vmax: 1, t0: 0, t1: 1 }] };
-const patch = openPatch(info); assert.equal(patch.file, info); assert.equal(patch.selected, "CHAN1"); assert.equal(patch.channels.length, 1);
+const patch = openPatch(info); assert.equal(patch.fftView, null); assert.equal(patch.file, info); assert.equal(patch.selected, "CHAN1"); assert.equal(patch.channels.length, 1);
 assert.deepEqual(fetchTargets({ file: info, channels: [{ name: "OLD", visible: true }, { name: "CHAN1", visible: true }, { name: "CHAN2", visible: false }] }).map((c) => c.name), ["CHAN1"]);
 // 可見狀態掛載：RO 同步觸發也不得 ReferenceError；以假 DOM 掛載三個圖表
 {
@@ -159,7 +175,20 @@ assert.deepEqual(fetchTargets({ file: info, channels: [{ name: "OLD", visible: t
   assert.equal(spectra.length, count, "FFT deltaY=0 不得縮放或重抓");
   fftCanvas.listeners.wheel(event(64, 100, { deltaY: -120 }));
   await new Promise(s => setTimeout(s, 220));
-  near(spectra.at(-1).f1, 100 * (2 ** (-120 / 480)));
+  near(store.get().fftView.f1, 100 * (2 ** (-120 / 480)));
+  assert.equal(spectra.at(-1).f1, store.get().fftView.f1);
+  const width = store.get().fftView.f1 - store.get().fftView.f0;
+  fftCanvas.listeners.pointerdown(event(250, 100)); fftCanvas.listeners.pointermove(event(220, 100));
+  fftCanvas.listeners.pointerup(event(220, 100));
+  assert.ok(store.get().fftView.f0 > 0); near(store.get().fftView.f1 - store.get().fftView.f0, width);
+  const kept = store.get().fftView;
+  store.set({ fftResult: { ...store.get().fftResult, spectrum_id: 'new' } });
+  assert.deepEqual(store.get().fftView, kept);
+  store.set({ rfPos: { x: 99, y: 0 } });
+  near(store.get().fftView.f1, 100); near(store.get().fftView.f1 - store.get().fftView.f0, kept.f1 - kept.f0);
+  store.set({ fftResult: { ...store.get().fftResult, spectrum_id: 'smaller', f_max: 50, df: 1 } });
+  assert.deepEqual(store.get().fftView, { f0: 0, f1: 50 });
+  fftCanvas.listeners.dblclick(); assert.equal(store.get().fftView, null);
   console.log(`FFT wheel self-check OK: zero requests=0, f1=${spectra.at(-1).f1}`);
   console.log("mainplot gestures self-check OK");
   hosts.forEach(host => host.plot.dispose());

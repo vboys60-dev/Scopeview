@@ -218,9 +218,10 @@ async function setup(hook) {
   // 關檔
   const { closeFile } = await import("./toolbar.js");
   const seen = [];
+  store.set({ fftView: { f0: 10, f1: 20 } });
   await closeFile(store, { call: async (m) => { seen.push(m); return null; } });
   assert.deepEqual(seen, ["close_waveform"], "關檔先呼叫後端");
-  assert.equal(store.get().file, null);
+  assert.equal(store.get().file, null); assert.equal(store.get().fftView, null);
 }
 {
   const { bridge, store, sum, channels } = await setup(async (m) => { if (m === "fft") await sleep(60); });

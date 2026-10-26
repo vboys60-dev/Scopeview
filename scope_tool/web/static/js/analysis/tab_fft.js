@@ -1,5 +1,5 @@
-// FFT 的獨立大檢視：與分析頁共用結果／參數，繪圖視窗維持各自本地狀態。
-import { mount as mountPane } from './fftpane.js';
+// FFT 的獨立大檢視：與分析頁共用結果／參數，繪圖視窗共用 store.fftView。
+import { mount as mountPane, applySpanEdit } from './fftpane.js';
 import { mountFftControls } from './fft_state.js';
 import { mountFftMarkerTable, fftInfo } from './fft_marker_table.js';
 export function mount(el, ctx) {
@@ -12,6 +12,33 @@ export function mount(el, ctx) {
   const range = h('select', 'select'); range.append(new Option('全部', 'all'), new Option('游標區間', 'cursors'));
   range.title = '量測與 FFT 共用範圍'; range.onchange = () => store.set({ rangeMode: range.value }, 'user');
   const field = (name, ctl) => { const f = h('label', 'field', name + ' '); f.append(ctl); source.append(f); };
+  const frequency = h('div', 'fftpage__frequency row'), bw = h('div', 'fftpage__bw');
+  const spanInputs = ['start', 'center', 'stop', 'span'].map(key => {
+    const input = h('input', 'input'), label = h('label', 'field', key[0].toUpperCase() + key.slice(1) + ' ');
+    input.style.width = '7em'; input.setAttribute('aria-label', key[0].toUpperCase() + key.slice(1));
+    input.onchange = () => {
+      const r = store.get().fftResult, value = fmt.parseSI(input.value);
+      if (r?.ok && Number.isFinite(value) && value > 0)
+        store.set({ fftView: applySpanEdit(store.get().fftView, { [key]: value }, { nyq: r.f_max, minSpan: 10 * r.df }) }, 'user');
+      syncFrequency(input);
+    };
+    input.onblur = () => syncFrequency(input);
+    label.append(input); frequency.append(label); return input;
+  });
+  const full = h('button', 'btn btn--small', '全頻寬'); full.type = 'button';
+  full.onclick = () => store.set({ fftView: null }, 'user'); frequency.append(full);
+  params.append(frequency, bw); // P4 的 RBW／VBW 專用空容器。
+  function syncFrequency(edited = null) {
+    const st = store.get(), r = st.fftResult, ready = !!r?.ok && r.f_max > 0;
+    const v = st.fftView ?? { f0: 0, f1: r?.f_max };
+    const values = [v.f0, (v.f0 + v.f1) / 2, v.f1, v.f1 - v.f0];
+    spanInputs.forEach((input, i) => {
+      input.disabled = !ready;
+      if (edited === input || document.activeElement !== input) input.value = ready ? fmt.fmt(values[i], 'Hz') : '';
+    });
+    full.disabled = !ready;
+  }
+  store.on(['fftResult', 'fftView'], () => syncFrequency()); syncFrequency();
   // 先掛共用來源選單，其餘參數與峰值控制分別放入參數列／右欄。
   mountFftControls(params, ctx, { sourceHost: source, markerHost: marker });
   field('範圍', range);

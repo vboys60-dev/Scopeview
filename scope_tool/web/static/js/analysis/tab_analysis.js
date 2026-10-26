@@ -23,7 +23,7 @@ export function channelsFromFile(info, colors = FALLBACK_COLORS) {
 /** 開檔結果 → 單一 store patch（file、channels、selected、view 一起換）。 */
 export function openPatch(info, colors = FALLBACK_COLORS) {
   const channels = channelsFromFile(info, colors);
-  return { file: info, channels, selected: channels[0]?.name ?? null, fftResult: null, rfPos: null, view: fullRange(info) ?? { t0: 0, t1: 1 } };
+  return { file: info, channels, selected: channels[0]?.name ?? null, fftResult: null, fftView: null, rfPos: null, view: fullRange(info) ?? { t0: 0, t1: 1 } };
 }
 /** 驗證 viewport.intent：兩端為有限數且 t0<t1，否則回 null。 */
 /** 開檔指令名稱（等同處理）。 */

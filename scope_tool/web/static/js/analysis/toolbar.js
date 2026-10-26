@@ -20,7 +20,7 @@ export function channelRecord(info, idx, colors, scales) {
 /** 關檔：先通知後端釋放資料（gen+1），再一次重設所有相依狀態（開檔由 L4 處理）。mock 缺此方法（NOT_FOUND）時略過。 */
 export async function closeFile(store, bridge) {
   try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
-  store.set({ file: null, channels: [], selected: null, measurements: [], fftResult: null, rfPos: null, markerResult: null }, "program");
+  store.set({ file: null, channels: [], selected: null, measurements: [], fftResult: null, fftView: null, rfPos: null, markerResult: null }, "program");
 }
 /** CSV 範圍：游標顯示時間直接切原始軸、不扣 dx（與 Qt、契約一致）；無游標值＝全部。 */
 export function csvRange(st) {

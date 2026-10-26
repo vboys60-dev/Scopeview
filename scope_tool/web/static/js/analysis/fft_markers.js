@@ -17,6 +17,8 @@ export function convertLevel(value, from, to, r = 50) {
   return to === 'Vrms' ? v : to === 'Watt' ? v * v / r : to === 'dBm' ? db - 10 * Math.log10(r * 0.001)
     : db + ({ dBV: 0, dBmV: 60, 'dBµV': 120 }[to] ?? NaN);
 }
+// 畫面內峰先過濾，再套用基準線／排序／數量；null 不複製陣列。
+export const inView = (peaks, view) => view ? peaks.filter(p => p.x >= view.f0 && p.x <= view.f1) : peaks;
 export function selectPeaks(peaks, { level, count, sort }) {
   const rows = peaks.filter(p => p.y > level);
   const compare = sort === 'Increasing Frequency' ? (a, b) => a.x - b.x
@@ -37,7 +39,7 @@ export function fftMarkerModel({ store }, initial = {}) {
     const next = { ...state(), ...p }, r = store.get().fftResult;
     const v = next.preview ?? next.level;
     const level = FFT_UNITS.includes(r?.unit) ? convertLevel(v, next.unit, r.unit, next.r) : v;
-    next.shown = r?.ok && r.unit !== '°' ? selectPeaks(r.peaks ?? [], { ...next, level }).length : 0;
+    next.shown = r?.ok && r.unit !== '°' ? selectPeaks(inView(r.peaks ?? [], store.get().fftView), { ...next, level }).length : 0;
     store.set({ fftMarker: next }, 'user');
   };
   const model = {
@@ -84,12 +86,12 @@ export function fftMarkerModel({ store }, initial = {}) {
     rows() {
       const r = store.get().fftResult, s = state();
       if (!r?.ok || r.unit === '°') return [];
-      return selectPeaks(r.peaks ?? [], { ...s, level: model.displayLevel() });
+      return selectPeaks(inView(r.peaks ?? [], store.get().fftView), { ...s, level: model.displayLevel() });
     },
     get truncated() { const r = store.get().fftResult; return !!r?.ok && peaksTruncated(r.peaks ?? [], model.displayLevel(r)); },
   };
   for (const [name, fn] of [['level', model.level], ['unit', model.unit], ['count', model.count], ['sort', model.sort]]) store.onCommand(`fftMarker.${name}`, name === 'unit' ? u => FFT_UNITS.includes(u) && fn(u) : fn); // 指令不收 Phase／未知單位
   store.on(['file'], model.reset);
-  store.on(['fftResult'], () => patch({}));
+  store.on(['fftResult', 'fftView'], () => patch({}));
   models.set(store, model); return model;
 }
