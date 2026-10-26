@@ -1,9 +1,10 @@
-// P3：直接測產品控制器、DOM 接線與世代競態；P4 再追加標註列／報告。
+// 直接測產品控制器、DOM 接線、標註列與世代競態。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createStore } from './store.js';
 import { REASONS, jumpView, parseAddresses, createDecode, decodeParams, defaultConfig } from './decode.js';
 import { mount, frameContent, tableFrames } from './decode_table.js';
+import { BAND_H, visibleFrames, bandLayout, bitCells, ninthLabel, drawBand, mount as mountBand } from './decode_band.js';
 import { mountTabs, validate } from './bpanel.js';
 const contract = JSON.parse(fs.readFileSync(new URL('../../api_contract.json',import.meta.url)));
 assert.deepEqual(Object.keys(REASONS).sort(),contract.types_doc['DecodeFrame.reasons'].split(' ').sort());
@@ -31,7 +32,8 @@ async function runnerChecks(factory) {
   const m = factory({ store,bridge });
   let pending = m.run(); jobs.at(-1).resolve(summary); await pending;
   assert.equal(store.get().decodeResult.frames[0],frame);
-  m.change({ band:false }); assert.equal(store.get().decodeResult.stale,true); assert.equal(jobs.length,1);
+  m.change({ band:false }); assert.equal(store.get().decodeResult.stale,false);
+  m.change({ i2c:[80] }); assert.equal(store.get().decodeResult.stale,true); assert.equal(jobs.length,1);
   pending = m.run(); m.change(); jobs.at(-1).resolve(summary); await pending;
   assert.equal(store.get().decodeResult,null); assert.equal(calls.length,1);
   pending = m.run(); store.set({ file:{ gen:2 } }); jobs.at(-1).resolve(summary); await pending;
@@ -98,6 +100,63 @@ for (const include of [false,true]) {
   tabs.label('decode','解碼 (7)'); if (include) assert.equal(find(tabHost,e => e.dataset.resultTab === 'decode').textContent,'解碼 (7)');
 }
 assert.equal(validate({ version:1,tab:'decode' }).tab,'decode');
+// P4：排序區間查找、裁切、合併、真實取樣點與精確 10px 門檻。
+const spans = Array.from({ length:1000 },(_,i) => ({ ...frame,i,t0:i*3,t1:i*3+2,fields:[] }));
+spans[0] = { ...spans[0],t0:-100,t1:2 };
+function rangeChecks(findVisible) {
+  let seed = 31;
+  for (let i = 0; i < 1000; i++) {
+    seed = (seed*16807)%2147483647; const a = seed%3000-100, b = a+seed%120;
+    assert.deepEqual(findVisible(spans,a,b),spans.filter(f => f.t1 >= a && f.t0 <= b));
+  }
+  assert.deepEqual(findVisible(spans,2,2),[spans[0]]);
+}
+rangeChecks(visibleFrames);
+const field = { t0:0,t1:8,nbits:9,value:0x5A,ninth:1,ninth_kind:'parity',ok:true };
+const transaction = { ...frame,i:0,t0:-1,t1:10,label:'私有寫',fields:[field] };
+const rect = { l:113,w:800 }, bitView = { t0:0,t1:80 };
+assert.equal(bandLayout([transaction],bitView,rect).fields[0].bitMode,true);
+assert.equal(bandLayout([transaction],{ t0:0,t1:80.01 },rect).fields[0].bitMode,false);
+const layout = bandLayout([transaction],{ t0:0,t1:10 },rect);
+assert.equal(layout.bars[0].x0,rect.l); assert.equal(layout.bars[0].label,transaction.label);
+assert.equal(bandLayout([transaction],{ t0:0,t1:1000 },rect).bars[0].label,'');
+const tiny = bandLayout(spans.slice(1,30),{ t0:0,t1:30000 },rect);
+assert.equal(tiny.bars.length,1); assert.equal(tiny.bars[0].label,'');
+const samples = Array.from({ length:9 },(_,i) => [i,i%2]);
+const cells9 = bitCells(field,samples,t => t*10,2);
+assert.equal(cells9.length,9); assert.equal(cells9[8].label,'P✓'); assert.equal(cells9[0].sample,20);
+assert.equal(bitCells(field,[[0,0],[1,1],[3,0],[8,1]],t => t)[1].x1,2);
+assert.deepEqual(['ack','ack','parity','parity','tbit','tbit'].map((kind,i) => ninthLabel({ ninth_kind:kind,ninth:i%2,ok:i!==3 })),['A','N','P✓','P✗','T0','T1']);
+const css = fs.readFileSync(new URL('../../css/analysis.css',import.meta.url),'utf8');
+assert.equal(+css.match(/\.analysis__decodeband \{[^}]*height: (\d+)px/)[1],BAND_H);
+// 假 Canvas 掛載真 mount：debounce、dx、快取、過期 RPC、點選與 dispose。
+const originalDocument = globalThis.document, realTimeout = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+const ops = [], g = new Proxy({}, { get:(o,k) => o[k] ?? ((...a) => ops.push([k,...a])),set:(o,k,v) => (o[k]=v,true) });
+const canvas = { dataset:{},style:{},getContext:() => g,getBoundingClientRect:() => ({ left:0,top:0 }) };
+globalThis.document = { createElement:() => canvas };
+globalThis.window = { devicePixelRatio:1 };
+globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+const timers = new Map(); let timerId = 0;
+globalThis.setTimeout = fn => { timers.set(++timerId,fn); return timerId; };
+globalThis.clearTimeout = id => timers.delete(id);
+const flush = async () => { const fns = [...timers.values()]; timers.clear(); fns.forEach(fn => fn()); await Promise.resolve(); await Promise.resolve(); };
+const bs = makeStore(), requests = [], hostBand = { hidden:false,append() {},getBoundingClientRect:() => ({ width:1000,height:40 }) };
+const bc = { store:bs,bridge:{ call(name,p) { const d = deferred(); requests.push({ name,p,...d }); return d.promise; } } };
+const bm = mountBand(hostBand,bc);
+bs.set({ view:{ t0:1,t1:11 },channels:[{ name:'CH1',time_offset:2 }],plotRect:rect,
+  decodeResult:{ summary,frames:[transaction],addresses:[],scl:'CH1',stale:false } });
+await Promise.resolve(); await flush();
+assert.equal(requests.length,1); assert.deepEqual(requests[0].p,{ decode_id:'d1',t0:-1,t1:9 });
+bs.set({ view:{ t0:2,t1:12 } }); await flush();
+requests[0].resolve({ bits:samples }); await Promise.resolve(); assert.equal(canvas.dataset.bits,'0');
+requests[1].resolve({ bits:samples }); await Promise.resolve(); await Promise.resolve();
+assert.equal(canvas.dataset.bits,'9'); bm.draw(); await flush(); assert.equal(requests.length,2);
+canvas.onclick({ clientX:rect.l+rect.w/2,clientY:8 }); assert.equal(bs.get().decodeSel,0);
+assert.ok(ops.some(op => op[0] === 'fillText' && op[1] === 'P✓'));
+bs.set({ decodeResult:null }); bm.draw(); assert.equal(canvas.dataset.bits,'0');
+bm.dispose();
+globalThis.document = originalDocument; globalThis.setTimeout = realTimeout; globalThis.clearTimeout = realClear;
+delete globalThis.window; delete globalThis.ResizeObserver;
 // 精準變異產品原文，驗證置中／token 守門的測試確實能抓錯。
 if (process.argv.includes('--mutations')) {
   const source = fs.readFileSync(new URL('./decode.js',import.meta.url),'utf8');
@@ -109,6 +168,9 @@ if (process.argv.includes('--mutations')) {
     const mutated = await import('data:text/javascript;base64,'+Buffer.from(source.replace(from,to)).toString('base64'));
     await assert.rejects(async () => check(mutated));
   }
+  const bandSource = fs.readFileSync(new URL('./decode_band.js',import.meta.url),'utf8');
+  const mutatedBand = await import('data:text/javascript;base64,'+Buffer.from(bandSource.replace(/import .*?;\n/g,'').replace('frames[mid].t1 < t0','frames[mid].t1 <= t0')).toString('base64'));
+  assert.throws(() => rangeChecks(mutatedBand.visibleFrames));
   console.log('decode mutations self-check OK');
 }
 console.log('decode self-check OK');

@@ -205,3 +205,14 @@
 - B 區新增「解碼 (N)」分頁（decode.js／decode_table.js）：設定列、摘要＋篩選、事件表（≤2000 列，點列跳轉）、位址表、設定變更黃色提示、CSV 匯出。標註列勾選只存設定，P4 接繪圖。
 - B 區頁籤群組改靠標題列右側（使用者同意）：多了「解碼」後頁籤會蓋到 lower 分隔線拖曳點，靠右留出左側拖曳空間。
 - selfcheck_node、e2e_check、browser_check（含新「I3C 解碼分頁／CSV／尺寸／過期設定」）全過。
+
+
+## I3C P4（2026-10-26，i3c-p4，未 commit）
+
+- 主圖下方新增黑底 40px 標註列：狀態色 transaction、hex／第九位標記、白色選框、逐 bit 與 SCL 取樣刻度；共用 plotRect、SCL dx、解碼模型；開關不使解碼過期。chrome 加 40px，窄版 FFT 分頁隱藏；工具列、glass.css、vertical.css 與 analysis.css 原有行未動。
+- 報告由有效快照建解碼段落（不依賴分頁可見性），包含目前篩選事件 ≤2000 列、內容 64 字元＋省略號、位址 ≤256 列、可見標註列圖；await 後再比對 file.gen／decodeResult 參照，避免換檔／重算／設定變更競態。
+- Node 全套：`web js self-check OK`；`decode_check.mjs --mutations` 通過（含 visibleFrames 左邊界變異）；analysis_decode 與 browser_decode_checks 合成資料自檢通過。report_check 以 2000 列滿 64 字元、256 列位址、1400×40 高熵 PNG，另含兩張 1400×400 PNG 組完整請求：7,291,883 bytes < 8,000,000。
+- 與計畫文字的小差異：field.t0／t1 是首末取樣時間，bit 間距以寬度÷(nbits−1) 判斷 10px；格界取相鄰實際取樣點中點。這樣非等距 SCL 仍對準刻度。密集的同狀態細 frame／同品質細 field 合併，避免縮小時重複畫同像素；合併區不顯示單筆內容。
+- lead 沙箱外必跑 browser_check／e2e_check；新增瀏覽器檢查涵蓋實際像素左緣差 ≤1px、主圖 ≥270px、單 byte 9 bit／RPC、標註列點選表格、開關與窄版 FFT、真 HTML 匯出、5000 frames 單次 draw <30ms。此輪未啟動 localhost，以上像素／耗時／截圖尚未實跑，請特別看 B 區字體、lower 拖曳命中與 1400／1000 截圖。
+- 額外全套 `selfcheck_node.js --mutations` 停在既有 p2b2_check.mjs「格距忽略最末有效位：找不到變異位置」；另取 HEAD 乾淨靜態檔副本重跑，同樣 exit 1。P4 的 `decode_check.mjs --mutations` 單獨通過；未修改既有軸刻度或該變異測試。
+- 無實測波形；取得實測波形後與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。真機清單原有 357 行，本次只壓縮標題／表格邊界空行以符合每檔 ≤300 行，歷史文字保留。

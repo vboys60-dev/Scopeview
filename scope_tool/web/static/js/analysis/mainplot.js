@@ -61,6 +61,7 @@ export function mount(el, ctx) {
     g.font = "12px sans-serif";
     const left = voltageLeft((text) => g.measureText(text).width, axis, channelHandles(s.channels, rect), MARGIN.l);
     rect = layoutRect(w, h, left);
+    store.set({ plotRect: { l: rect.l, w: rect.w } }, "program");
     const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     const labels = timeTickLabels(s.view.t0, s.view.t1);

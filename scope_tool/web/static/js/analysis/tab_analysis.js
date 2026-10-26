@@ -1,3 +1,4 @@
+import { mount as mountDecodeBand, BAND_H } from './decode_band.js';
 import { mount as mountDecodeTable } from './decode_table.js';
 import { markerModel } from "./markers.js";
 import { mount as mountMarkerTable } from "./marker_table.js";
@@ -81,6 +82,7 @@ export function mount(el, ctx) {
       <div class="analysis__horizontal"></div>
       <div class="analysis__overview" title="來源時間概觀（原始通道共用電壓範圍）"></div>
       <div class="analysis__main plot"></div>
+      <div class="analysis__decodeband" hidden></div>
       <section class="analysis__fftsection" hidden>
         <button type="button" class="btn btn--small analysis__ffttoggle" aria-expanded="true" aria-controls="analysis-fft-body">收折 FFT 窗格</button>
         <div class="analysis__fft" id="analysis-fft-body"></div>
@@ -144,7 +146,8 @@ export function mount(el, ctx) {
   }
   const lowerHeader = buttons.lower.parentNode;
   const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), marker:q('analysis__markers'), peaks:q('analysis__peaks'), decode:q('analysis__decode') },{ actions });
-  mountDecodeTable(q('analysis__decode'), Object.assign(Object.create(ctx), { resultTabs }));
+  const decodeTable = mountDecodeTable(q('analysis__decode'), Object.assign(Object.create(ctx), { resultTabs }));
+  const band = mountDecodeBand(q('analysis__decodeband'), ctx); decodeTable.model.on(schedule);
   lowerHeader.append(actions);
   const dockBtn = document.createElement('button'); dockBtn.type = 'button'; dockBtn.className = 'btn btn--small analysis__dockbtn';
   dockBtn.onclick = () => store.command('layout.markerSide');
@@ -157,7 +160,8 @@ export function mount(el, ctx) {
   function renderLayout() {
     frame = 0;
     const H = Math.max(0,root.clientHeight-q('analysis__toolbar').getBoundingClientRect().height-8);
-    const chrome = q('analysis__chanbar').getBoundingClientRect().height+28;
+    const bandOn = !!store.get().decodeResult?.summary.ok && decodeTable.model.config.band;
+    const chrome = q('analysis__chanbar').getBoundingClientRect().height+28+(bandOn ? BAND_H : 0);
     const floating = floatPanel.update();
     effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, chrome });
     controller.update(effective);
@@ -182,6 +186,7 @@ export function mount(el, ctx) {
     const waveHidden = e.tabbed && activeTab === 'fft';
     q('analysis__main').hidden = waveHidden; q('analysis__horizontal').hidden = waveHidden;
     q('analysis__main').style.height = e.main+'px';
+    q('analysis__decodeband').hidden = !bandOn || waveHidden; band.draw();
     // 分頁共用同一塊空間；Horizontal 列在頻譜分頁留在尺寸預算內。
     fftSection.hidden = !fftOn || (e.tabbed && activeTab !== 'fft');
     fft.hidden = e.fftCollapsed; fft.style.height = e.fft+'px';
@@ -199,7 +204,7 @@ export function mount(el, ctx) {
     lowerHeader.tabIndex = floating ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
   }
   store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
-  store.on(['measurements','fftResult','fftMarker','cursors'],schedule);
+  store.on(['measurements','fftResult','fftMarker','cursors','decodeResult'],schedule);
   const observer = new ResizeObserver(schedule);
   for (const host of [root,q('analysis__toolbar'),q('analysis__chanbar')]) observer.observe(host);
   schedule();

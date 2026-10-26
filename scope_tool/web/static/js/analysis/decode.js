@@ -40,6 +40,7 @@ export function createDecode({ store, bridge, ui = {} }) {
   store.set({ decodeResult:null, decodeSel:null });
   const current = (t, g) => t === token && g === store.get().file?.gen;
   function change(patch = {}) {
+    if (Object.keys(patch).length === 1 && 'band' in patch) { config = { ...config,...patch }; notify(); return; }
     token++; busy = false; message = ''; config = { ...config, ...patch };
     const old = store.get().decodeResult;
     if (old) store.set({ decodeResult:{ ...old, stale:true } });

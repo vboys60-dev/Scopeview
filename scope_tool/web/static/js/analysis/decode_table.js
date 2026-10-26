@@ -1,4 +1,4 @@
-// B 區解碼設定、事件表與位址表；標註列繪圖由 P4 接線。
+// B 區解碼設定、事件表與位址表；與主圖標註列共用解碼模型。
 import { fmt, parseSI } from '../fmt.js';
 import { decodeModel, parseAddresses, reasonText, selectFrame } from './decode.js';
 export const MAX_ROWS = 2000;
@@ -8,7 +8,7 @@ export const eventKind = f => ({ private_write:'私有寫', private_read:'私有
   target_reset:'Target Reset', pattern:'形狀', partial:'不完整區段', error:'錯誤' })[f.kind] ?? f.kind;
 export function frameContent(f) {
   return [f.ccc_name, ...f.fields.filter(x => x.kind !== 'addr').map(x =>
-    (x.ok ? '' : '⚠')+(x.value == null ? x.label : hex(x.value,Math.ceil(x.nbits/4)))+(x.kind === 'pid' ? ' PID' : ''))].filter(Boolean).join(' ') || f.label;
+    (x.ok ? '' : '⚠')+(x.value == null ? x.label : hex(x.value,Math.ceil((x.nbits-(x.ninth_kind ? 1 : 0))/4)))+(x.kind === 'pid' ? ' PID' : ''))].filter(Boolean).join(' ') || f.label;
 }
 export function tableFrames(frames, onlyProblems) {
   // ponytail: 不做虛擬捲動；篩選後最多繪製 2000 列，CSV 由後端輸出全部。
@@ -58,7 +58,7 @@ export function mount(el, ctx) {
     catch (e) { addresses.setCustomValidity(e.message); }
   }
   for (const input of [...Object.values(sources),...Object.values(thresholds).flat(),addresses]) input.addEventListener('input',readSettings);
-  band.addEventListener('change',readSettings);
+  band.addEventListener('change',() => model.change({ band:band.checked }));
   autoBtn.onclick = () => { auto = true; readSettings(); };
   manualBtn.onclick = () => { auto = false; readSettings(); };
   run.onclick = () => { if (addresses.reportValidity()) model.run(); };
@@ -123,6 +123,10 @@ export function mount(el, ctx) {
   }
   // dx 改變只刷新時間，不使既有解碼過期。
   store.on(['channels'],() => { rendered = null; render(); });
+  store.on(['decodeSel'],() => {
+    const row = [...events.body.children].find(e => +e.dataset.decodeFrame === store.get().decodeSel);
+    row?.scrollIntoView?.({ block:'nearest',inline:'nearest' });
+  });
   store.on(['decodeResult','decodeSel','file'],render); model.on(render); render();
   return { model, render };
 }

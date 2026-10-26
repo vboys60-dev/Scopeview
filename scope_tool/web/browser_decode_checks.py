@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""P3 真瀏覽器分頁驗收與搬出的既有 NaN CSV 步驟。# 待真機驗證。"""
+"""P3／P4 真瀏覽器解碼驗收與搬出的既有 NaN CSV 步驟。# 待真機驗證。"""
 import csv
 import json
 import time
@@ -92,17 +92,85 @@ def decode_page(c: Cdp, prep: str, out: Path, directory: str) -> None:
     c.pump(.3)
     assert all(abs(a-b) <= 1 for a, b in zip(baseline, c.js(geometry))), (baseline, c.js(geometry))
     assert c.js('document.documentElement.scrollWidth <= document.documentElement.clientWidth')
+    decode_band(c, prep, directory)
     c.shot(out / 'decode_1400.png')
     c.send('Emulation.setDeviceMetricsOverride', width=1000, height=800, deviceScaleFactor=1, mobile=False)
     c.pump(.4)
     assert c.js('document.documentElement.scrollWidth <= document.documentElement.clientWidth')
     assert c.js("(()=>{const e=document.querySelector('.decode__bar');e.scrollLeft=e.scrollWidth;return e.scrollWidth>e.clientWidth&&e.scrollLeft>0})()")
     c.shot(out / 'decode_1000.png')
+    c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
+    c.pump(.3)
+    c.js("document.querySelector('[data-pane=fft]').click()")
+    c.wait("document.querySelector('.analysis__decodeband').hidden")
+    c.js("document.querySelector('[data-pane=wave]').click()")
+    c.wait("!document.querySelector('.analysis__decodeband').hidden")
+    c.js(f"(async()=>{{{prep} S.command('fft.visible',false)}})()")
     c.js("(()=>{const e=document.querySelector('.decode__addresses');e.value='50, 51';e.dispatchEvent(new Event('input',{bubbles:true}))})()")
     assert c.js(f'(async()=>{{{prep} return S.state.decodeResult.stale}})()')
     assert c.js("document.querySelector('.decode__sum').textContent.includes('設定已變更，請重新解碼') && document.querySelector('[data-decode-action=export]').disabled")
     c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
     assert not c.errors, c.errors
+
+
+def decode_band(c: Cdp, prep: str, directory: str) -> None:
+    """P4：實際 canvas 像素、RPC、互選、報告與 Chrome 重畫效能。"""
+    c.wait("!document.querySelector('.analysis__decodeband').hidden")
+    assert c.js("document.querySelector('.analysis__main').getBoundingClientRect().height >= 270")
+    # 使用實際後端 byte，並記錄真 mount 的 decode_bits 呼叫。
+    c.js(f"""(async()=>{{{prep}
+      window.__decodeOriginalCall=B.call;window.__decodeBitCalls=0;
+      B.call=async function(n,p){{if(n==='decode_bits')window.__decodeBitCalls++;return window.__decodeOriginalCall.call(this,n,p)}};
+      const r=S.state.decodeResult, f=r.frames.find(f=>f.fields.some(x=>x.nbits===9&&x.kind==='data'));
+      const x=f.fields.find(x=>x.nbits===9&&x.kind==='data'), d=S.state.channels.find(c=>c.name===r.scl).time_offset||0;
+      window.__decodeFrame=f.i; S.set({{decodeSel:null}});
+      const pad=(x.t1-x.t0)/80; S.command('viewport.intent',{{t0:x.t0+d-pad,t1:x.t1+d+pad}});
+    }})()""")
+    c.wait("window.__decodeBitCalls>0 && +document.querySelector('.analysis__decodeband canvas').dataset.bits===9")
+    geometry = c.js(f"""(async()=>{{{prep}
+      const cv=document.querySelector('.analysis__decodeband canvas'),g=cv.getContext('2d'),d=devicePixelRatio,
+        l=S.state.plotRect.l,p=g.getImageData(0,0,cv.width,cv.height).data,w=cv.width;
+      const bg=[...p.slice(0,3)];let ink=0,first=null;
+      for(let y=0;y<cv.height;y++)for(let x=0;x<w;x++){{const i=(y*w+x)*4;if(bg.some((v,k)=>p[i+k]!==v))ink++}}
+      for(let x=Math.floor((l-2)*d);x<w;x++){{const i=(Math.round(8*d)*w+x)*4;if(bg.some((v,k)=>p[i+k]!==v)){{first=x/d;break}}}}
+      const main=document.querySelector('.analysis__main canvas').getBoundingClientRect(),b=cv.getBoundingClientRect();
+      cv.dispatchEvent(new MouseEvent('click',{{clientX:b.left+l+S.state.plotRect.w/2,clientY:b.top+8,bubbles:true}}));
+      return {{ink,delta:Math.abs(main.left+l-b.left-first),height:b.height}};
+    }})()""")
+    assert geometry['ink'] > 100 and geometry['delta'] <= 1 and geometry['height'] == 40, geometry
+    c.wait("document.querySelector('.decode__tablewrap tr.is-selected')?.dataset.decodeFrame===String(window.__decodeFrame)")
+    assert c.js("""(()=>{const e=document.querySelector('.analysis__splitter--lower'),r=e.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/4,r.top+r.height/2)===e})()""")
+    # 開關只改顯示；保留有效資料，且 chrome 預算恢復主圖高度。
+    c.js("document.querySelector('.decode__bar input[type=checkbox]').click()")
+    c.wait("document.querySelector('.analysis__decodeband').hidden")
+    assert c.js(f'(async()=>{{{prep} return !S.state.decodeResult.stale}})()')
+    c.js("document.querySelector('.decode__bar input[type=checkbox]').click()")
+    c.wait("!document.querySelector('.analysis__decodeband').hidden")
+    # 實際 exportReport → export_report → 來源資料夾，不開人工對話框。
+    old = set(Path(directory).glob('*.html'))
+    c.js(f"""(async()=>{{{prep}
+      const {{exportReport}}=await import('/js/analysis/report.js'),fmt=await import('/js/fmt.js');
+      const ui={{toast(){{}},showError(e){{throw e}}}};
+      await exportReport({{store:S,bridge:B,fmt,ui}},document.querySelector('.analysis'),async()=>({{title:'I3C P4 驗收',invert:false}}));
+    }})()""")
+    created = set(Path(directory).glob('*.html')) - old
+    assert len(created) == 1, created
+    html = next(iter(created)).read_text('utf-8')
+    assert '解碼（I3C）' in html and '私有寫' in html and '<th>內容</th>' in html
+    assert 'alt="解碼（I3C）"' in html
+    # 直接使用產品 drawBand，5000 筆互不重疊且包含 fields；量一次完整重畫。
+    elapsed = c.js(f"""(async()=>{{{prep}
+      const {{drawBand}}=await import('/js/analysis/decode_band.js'),r=S.state.decodeResult;
+      const frames=Array.from({{length:5000}},(_,i)=>({{i,t0:i,t1:i+.9,kind:'private_write',status:['ok','warn','error'][i%3],label:'私有寫',
+        fields:[{{t0:i+.1,t1:i+.8,value:0x5A,nbits:9,ninth:1,ninth_kind:'parity',ok:i%3!==2}}]}}));
+      const cv=document.createElement('canvas');cv.width=1400;cv.height=40;const g=cv.getContext('2d');
+      const st={{...S.state,view:{{t0:0,t1:5000}},channels:[],plotRect:{{l:84,w:1306}},decodeResult:{{...r,frames}}}};
+      for(let i=0;i<3;i++)drawBand(g,1400,st);
+      const t=performance.now();drawBand(g,1400,st);const ms=performance.now()-t;
+      B.call=window.__decodeOriginalCall;delete window.__decodeOriginalCall;return ms;
+    }})()""")
+    assert elapsed < 30, elapsed
+    print(f'  P4 標註列：左緣差 {geometry["delta"]:.2f}px；5000 frames draw {elapsed:.2f}ms；報告 {next(iter(created))}')
 
 
 if __name__ == '__main__':

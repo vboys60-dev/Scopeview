@@ -2,6 +2,8 @@
 // 圖以 PNG data URI 內嵌、系統字型、不連網。區塊沒有資料就整段省略，編號依實際輸出重排。
 import { fftInfo } from './fft_marker_table.js';
 import { exportable } from './results.js';
+import { eventKind, frameContent, tableFrames, hex } from './decode_table.js';
+import { reasonText } from './decode.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
@@ -85,11 +87,38 @@ async function tallSnapshot(canvas, invert) {
   try { await frames(3); return snapshot(canvas, invert); } finally { host.style.cssText = css; }
 }
 
+/** 解碼資料不依賴分頁可見性；篩選狀態由畫面按鈕讀取，欄位與事件表一致。 */
+export function decodeSection(st, root, F, invert) {
+  const r = st.decodeResult;
+  if (!r?.summary.ok || r.stale || r.summary.gen !== st.file?.gen) return [];
+  const dx = st.channels.find(c => c.name === r.scl)?.time_offset ?? 0;
+  const only = root.querySelector('.decode__sum button:last-child')?.getAttribute('aria-pressed') === 'true';
+  const { rows,total } = tableFrames(r.frames,only);
+  const events = { head:['#','時間','類型','位址','R/W','內容','狀態'], rows:rows.map(f => {
+    const content = frameContent(f);
+    return [f.i+1,F(f.t0+dx,'s'),eventKind(f),hex(f.addr),f.rw == null ? '—' : f.rw ? 'R' : 'W',
+      content.length > 64 ? content.slice(0,64)+'…' : content,f.reasons.map(reasonText).join('、') || (f.kind === 'hdr' ? '資訊' : '正常')];
+  }) };
+  const addresses = { head:['DA','PID','BCR','DCR','起','迄','來源','備註'], rows:r.addresses.slice(0,256).map(a =>
+    [hex(a.da),hex(a.pid,12),hex(a.bcr),hex(a.dcr),a.t_from == null ? '未知（擷取前）' : F(a.t_from+dx,'s'),
+      a.t_to == null ? '—' : F(a.t_to+dx,'s'),a.how === 'observed' ? '觀察到（未確認）' : a.how,a.note ?? '']) };
+  const band = root.querySelector('.analysis__decodeband');
+  const channels = Object.entries(r.summary.channels ?? {}).map(([k,v]) => k.toUpperCase()+' '+v).join('／');
+  const thresholds = Object.entries(r.summary.thresholds).map(([k,v]) => k.toUpperCase()+' '+(v?.map(n => F(n,'V')).join('～') ?? '—')).join('；');
+  const caption = `${channels}；門檻 ${thresholds}；篩選：${only ? '只錯誤／警告' : '全部'}；表格最多 2000 列，位址表最多 256 列。`
+    +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '');
+  return [{ title:'解碼（I3C）',img:band && !band.hidden ? snapshot(band.querySelector('canvas'),invert) : null,caption,tables:[events,addresses] }];
+}
+
 const stamp =(d = new Date()) => { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
 
 /** 目前畫面 → buildReport 的資料。root＝分析頁 .analysis；FFT 圖取畫面上最大的頻譜 canvas（分析頁窗格或 FFT 大檢視）。 */
 export async function collectReport({ store, fmt }, root, { title, dut, note, invert }) {
-  const st = store.get(), f = st.file, v = st.view, q = (s) => root.querySelector(s), F = fmt.fmt;
+  const st = store.get(), decodeRef = st.decodeResult, f = st.file, v = st.view, q = (s) => root.querySelector(s), F = fmt.fmt;
+  // 剛解除 hidden 時 canvas 仍可能為 0；等版面與 ResizeObserver 排定的 fit／重畫完成再截圖。
+  const band = q('.analysis__decodeband');
+  if (band && !band.hidden) await frames(3);
+  const decoded = decodeSection({ ...st,decodeResult:decodeRef },root,F,invert);
   const fftCanvas = [...document.querySelectorAll('.analysis__fft canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];
   const range = st.rangeMode === 'cursors' ? `游標區間 ${F(st.cursors.x1, 's')} ～ ${F(st.cursors.x2, 's')}` : '全部';
   const info = [...(dut ? [['DUT', dut]] : []), ['來源檔', f.path], ...f.info.filter(([k]) => k !== '檔名'),
@@ -101,6 +130,7 @@ export async function collectReport({ store, fmt }, root, { title, dut, note, in
     { title: '量測結果', tables: st.measurements.length ? [tableData(q('.analysis__results .results__table'))] : [] },
     { title: '游標', tables: [tableData(q('.cursor-results__table')), tableData(q('.analysis__cursors > table'))] },
     { title: 'Marker', tables: [tableData(q('.analysis__markers table'))] },
+    ...decoded,
     ...(r?.ok ? [{ title: 'FFT 頻譜', img: fftImg, caption: fftInfo(r, fmt), tables: [tableData(q('.analysis__peaks table'))] }] : []),
   ] };
 }
@@ -126,7 +156,11 @@ export async function exportReport(ctx, root, modal) {
   if (!o) return;
   if (store.get().file?.gen !== f.gen || stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
   try {
-    const r = await bridge.call('export_report', { html: buildReport(await collectReport(ctx, root, o)), directory: null });
+    const decodeRef = store.get().decodeResult;
+    const html = buildReport(await collectReport(ctx, root, o));
+    if (store.get().file?.gen !== f.gen || store.get().decodeResult !== decodeRef) return ui.toast('解碼結果已變更，請重新匯出', 'error');
+    if (stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
+    const r = await bridge.call('export_report', { html, directory: null });
     ui.toast(`已匯出：${r.path}`, 'ok', 6000);
   } catch (e) { ui.showError(e, '匯出報告失敗'); }
 }
