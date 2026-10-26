@@ -1,0 +1,2310 @@
+{
+ "version": 1,
+ "source": "headless Chrome 實測（main HEAD aa67bb0，localStorage 清空＝預設偏好，開啟 wave6000-10Mhz_20261022_125749.h5，單一通道 CHAN1）。measured=false 表示此尺寸下該部件不可見（收折／分頁／捲動區外），座標為等比佔位。Marker／FFT 峰值／FFT／浮動面板為切換後的實測位置，預設隱藏。",
+ "presets": {
+  "2000x1290": {
+   "w": 2000,
+   "h": 1290
+  },
+  "1400x900": {
+   "w": 1400,
+   "h": 900
+  },
+  "1000x800": {
+   "w": 1000,
+   "h": 800
+  }
+ },
+ "defaultPreset": "2000x1290",
+ "components": [
+  {
+   "id": "connbar",
+   "name": "連線列",
+   "group": "外框",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/connbar.js",
+    "scope_tool/web/static/css/app.css"
+   ],
+   "rule": "整列寬、高約 47px；flex-wrap，窄視窗會換行。三個分頁共用。",
+   "rects": {
+    "2000x1290": {
+     "x": 0,
+     "y": 0,
+     "w": 2000,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 0,
+     "y": 0,
+     "w": 1400,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 0,
+     "y": 0,
+     "w": 1000,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tabs",
+   "name": "分頁列（截圖／波形擷取／離線分析）",
+   "group": "外框",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/index.html",
+    "scope_tool/web/static/js/main.js",
+    "scope_tool/web/static/css/app.css"
+   ],
+   "rule": "整列寬、高 40px；分頁頁面 .page 內距 12px。",
+   "rects": {
+    "2000x1290": {
+     "x": 0,
+     "y": 47,
+     "w": 2000,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 0,
+     "y": 47,
+     "w": 1400,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 0,
+     "y": 47,
+     "w": 1000,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "toolbar",
+   "name": "工具列（容器）",
+   "group": "工具列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "頁面頂端整列，flex-wrap；寬度不足時換成兩列（1000px 寬時高 86px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 12,
+     "y": 99,
+     "w": 1976,
+     "h": 48,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 12,
+     "y": 99,
+     "w": 1376,
+     "h": 48,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 12,
+     "y": 99,
+     "w": 976,
+     "h": 86,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_open",
+   "name": "開啟",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js"
+   ],
+   "rule": "主要按鈕（藍底）；發 file.open。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_close",
+   "name": "關閉",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "關檔並重設狀態。",
+   "rects": {
+    "2000x1290": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_info",
+   "name": "檔案資訊",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "開對話框列出檔案屬性。",
+   "rects": {
+    "2000x1290": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_fulltime",
+   "name": "完整時間",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "view.reset；水平控制列另有一顆同功能按鈕。",
+   "rects": {
+    "2000x1290": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_preview",
+   "name": "預覽（總覽縮圖開關）",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/layout.js"
+   ],
+   "rule": "preview.visible；視窗太矮時 clampLayout 自動收掉並停用此勾選。",
+   "rects": {
+    "2000x1290": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_marker",
+   "name": "Marker 模式",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/summary.js"
+   ],
+   "rule": "傳統游標 X1/X2／Manual X only／Manual Y only／Manual X and Y／Track Waveforms；Track Measurements 停用。",
+   "rects": {
+    "2000x1290": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_range",
+   "name": "範圍（量測／FFT）",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "全部／游標區間。",
+   "rects": {
+    "2000x1290": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_threshold",
+   "name": "閾值",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "10/50/90 %、20/50/80 %。",
+   "rects": {
+    "2000x1290": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_csv",
+   "name": "匯出 CSV…",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "對話框：範圍、縮點、上限點數。",
+   "rects": {
+    "2000x1290": {
+     "x": 901,
+     "y": 108,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 901,
+     "y": 108,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 21,
+     "y": 146,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_math",
+   "name": "數學…",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "對話框建立衍生通道（F1…）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1009,
+     "y": 108,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1009,
+     "y": 108,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 130,
+     "y": 146,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_fft",
+   "name": "FFT 計算",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/fft_runner.js"
+   ],
+   "rule": "勾選後在主圖下方開 FFT 窗格。",
+   "rects": {
+    "2000x1290": {
+     "x": 1085,
+     "y": 113,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1085,
+     "y": 113,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 206,
+     "y": 151,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "sidepanel",
+   "name": "左側量測欄（A 區，容器）",
+   "group": "左側量測欄",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設寬 240px，拖曳 180–360px；視窗 <1100px 預設收折為 36px 窄軌；≤899px 改抽屜。內容超出時捲動。",
+   "rects": {
+    "2000x1290": {
+     "x": 12,
+     "y": 155,
+     "w": 240,
+     "h": 1123,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 12,
+     "y": 155,
+     "w": 240,
+     "h": 733,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 12,
+     "y": 193,
+     "w": 36,
+     "h": 595,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "side_mode",
+   "name": "邊緣方向＋區間選擇",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js"
+   ],
+   "rule": "上升緣／下降緣；Vavg/Vrms 區間：整段（Full Screen）／整數週期（N Cycles）。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 164,
+     "w": 176,
+     "h": 60,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 164,
+     "w": 176,
+     "h": 60,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 102,
+     "w": 88,
+     "h": 37,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_time",
+   "name": "時間量測按鈕群",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "兩欄按鈕：上升/下降時間、斜率、週期、頻率、±寬度、±工作週期。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 224,
+     "w": 222,
+     "h": 160,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 224,
+     "w": 222,
+     "h": 160,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 139,
+     "w": 111,
+     "h": 99,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_volt",
+   "name": "電壓量測按鈕群",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "兩欄按鈕：Vmax、Vmin、Vp-p、Vtop、Vbase、Vamp、Vavg、Vrms(DC/AC)、過衝、前衝。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 396,
+     "w": 222,
+     "h": 188,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 396,
+     "w": 222,
+     "h": 188,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 246,
+     "w": 111,
+     "h": 117,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_dual",
+   "name": "雙來源量測",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js"
+   ],
+   "rule": "來源 2、來源 2 邊緣、延遲／相位／電壓比；只有一個通道時停用。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 595,
+     "w": 222,
+     "h": 163,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 595,
+     "w": 222,
+     "h": 163,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 369,
+     "w": 111,
+     "h": 101,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "split_side",
+   "name": "量測欄分隔線（收折鈕 ‹）",
+   "group": "左側量測欄",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬 10px；拖曳改量測欄寬、雙擊重設、按鈕收折。",
+   "rects": {
+    "2000x1290": {
+     "x": 252,
+     "y": 155,
+     "w": 10,
+     "h": 1123,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 252,
+     "y": 155,
+     "w": 10,
+     "h": 733,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 48,
+     "y": 193,
+     "w": 10,
+     "h": 595,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "chanbar",
+   "name": "通道列（容器）",
+   "group": "通道列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/chanbar.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "主圖上方一列（高 24px）；左側通道 chip，右側 Vertical 欄位靠右。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 155,
+     "w": 1726,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 155,
+     "w": 1126,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 193,
+     "w": 930,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_chips",
+   "name": "通道開關 chip",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/chanbar.js"
+   ],
+   "rule": "每通道一顆：顯示勾選、名稱（點選＝目前通道、雙擊換色）、V/格、dx 徽章；衍生通道有 ×。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 155,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 155,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 193,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_center",
+   "name": "游標回中央",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/js/analysis/chanbar.js"
+   ],
+   "rule": "centerButton；游標面板也有一顆同功能按鈕。",
+   "rects": {
+    "2000x1290": {
+     "x": 434,
+     "y": 155,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 434,
+     "y": 155,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 230,
+     "y": 193,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_active",
+   "name": "作用中通道標示",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js"
+   ],
+   "rule": "顯示目前通道名稱與顏色。",
+   "rects": {
+    "2000x1290": {
+     "x": 1295,
+     "y": 158,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 695,
+     "y": 158,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 295,
+     "y": 196,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_scale",
+   "name": "單位/格（V/格）",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/js/analysis/chanbar.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "▼ 輸入 ▲ 粗調、− + 微調。",
+   "rects": {
+    "2000x1290": {
+     "x": 1391,
+     "y": 155,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 791,
+     "y": 155,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 391,
+     "y": 193,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_pos",
+   "name": "中心電位＋歸零",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "▼ 輸入 歸零 ▲。",
+   "rects": {
+    "2000x1290": {
+     "x": 1625,
+     "y": 155,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1025,
+     "y": 155,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 625,
+     "y": 193,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_dx",
+   "name": "dx（時間偏移）",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "通道時間偏移；非 0 時 chip 顯示 dx 徽章。",
+   "rects": {
+    "2000x1290": {
+     "x": 1860,
+     "y": 155,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1260,
+     "y": 155,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 860,
+     "y": 193,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_fit",
+   "name": "適配",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js"
+   ],
+   "rule": "依可見資料自動設 V/格與位置。",
+   "rects": {
+    "2000x1290": {
+     "x": 1952,
+     "y": 155,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1352,
+     "y": 155,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 952,
+     "y": 193,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "overview",
+   "name": "總覽縮圖（overview）",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/overview.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 56px（FFT 開啟時 40px）；視窗高 ≤700px 預設隱藏，空間不足時自動收掉。可拖曳視窗框平移／改範圍。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 179,
+     "w": 1726,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 179,
+     "w": 1126,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 217,
+     "w": 930,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "plot_tabs",
+   "name": "波形／FFT 分頁鈕（窄版）",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "只在 FFT 開啟且高度不足或視窗 <1100px 時出現，主圖與頻譜改為分頁切換。",
+   "rects": {
+    "2000x1290": {
+     "x": 116,
+     "y": 350,
+     "w": 1860,
+     "h": 45,
+     "visible": false,
+     "measured": false
+    },
+    "1400x900": {
+     "x": 81,
+     "y": 244,
+     "w": 1302,
+     "h": 32,
+     "visible": false,
+     "measured": false
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 217,
+     "w": 930,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "mainplot",
+   "name": "主波形圖",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/plotcore.js",
+    "scope_tool/web/static/js/analysis/gestures.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "吃掉剩餘高度，最小 270px；拖曳平移、滾輪縮放、框選放大、右鍵 Marker 選單。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 235,
+     "w": 1726,
+     "h": 835,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 235,
+     "w": 1126,
+     "h": 471,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 273,
+     "w": 930,
+     "h": 337,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "main_vaxis",
+   "name": "電壓軸（主圖左側刻度）",
+   "group": "圖區",
+   "parent": "mainplot",
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/voltage.js"
+   ],
+   "rule": "主圖 canvas 內左邊界 84px（MARGIN.l），含通道把手。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 235,
+     "w": 84,
+     "h": 813,
+     "visible": true,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 235,
+     "w": 84,
+     "h": 449,
+     "visible": true,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 273,
+     "w": 84,
+     "h": 315,
+     "visible": true,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "main_xaxis",
+   "name": "X 軸時間刻度",
+   "group": "圖區",
+   "parent": "mainplot",
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/plotcore.js"
+   ],
+   "rule": "主圖 canvas 內下邊界 22px（MARGIN.b）。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1048,
+     "w": 1726,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 684,
+     "w": 1126,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 588,
+     "w": 930,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "horizontal",
+   "name": "水平控制列（容器）",
+   "group": "水平控制列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "主圖正下方單列 28px，內容過長時橫向捲動。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1070,
+     "w": 1726,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 706,
+     "w": 1126,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 610,
+     "w": 930,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_modes",
+   "name": "平移／框選放大＋框選種類＋復原重做",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js",
+    "scope_tool/web/static/js/analysis/gestures.js",
+    "scope_tool/web/static/js/analysis/vzoom.js"
+   ],
+   "rule": "✥ 平移、⬚ 框選放大、水平／垂直／雙向、↶ ↷；左側 sticky。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1072,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 708,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 612,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_scale",
+   "name": "時間/格",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "◀ 輸入 ▶，1-2-5 步進。",
+   "rects": {
+    "2000x1290": {
+     "x": 562,
+     "y": 1072,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 562,
+     "y": 708,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 358,
+     "y": 612,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_pos",
+   "name": "位置（中心）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "◀ 輸入 ▶，每次一格。",
+   "rects": {
+    "2000x1290": {
+     "x": 797,
+     "y": 1072,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 797,
+     "y": 708,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 593,
+     "y": 612,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_zero",
+   "name": "時間 0 置中",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "按鈕「0」。",
+   "rects": {
+    "2000x1290": {
+     "x": 1063,
+     "y": 1072,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1063,
+     "y": 708,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 859,
+     "y": 612,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_range",
+   "name": "目前範圍文字",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "範圍 t0 ～ t1。",
+   "rects": {
+    "2000x1290": {
+     "x": 1084,
+     "y": 1075,
+     "w": 179,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1084,
+     "y": 711,
+     "w": 179,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 880,
+     "y": 615,
+     "w": 108,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_reset",
+   "name": "完整時間（水平列）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "與工具列「完整時間」重複。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1072,
+     "w": 62,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1267,
+     "y": 708,
+     "w": 62,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 634,
+     "y": 665,
+     "w": 31,
+     "h": 16,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "h_summary",
+   "name": "游標摘要（ΔX、1/ΔX、ΔY）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/summary.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "靠右 sticky，空間不足時截斷（最小 60px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1333,
+     "y": 1075,
+     "w": 655,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1328,
+     "y": 711,
+     "w": 60,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 928,
+     "y": 615,
+     "w": 60,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "fft_split",
+   "name": "FFT 分隔線／收折鈕",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 28px；FFT 開啟時才出現。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 870,
+     "w": 1726,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 546,
+     "w": 1126,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 131,
+     "y": 540,
+     "w": 863,
+     "h": 17,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "fft_bar",
+   "name": "FFT 控制列",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/fftpane.js",
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/fft_marker_controls.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 40px 單列可橫捲：對數頻率、上一峰／吸附／下一峰、來源、視窗、單位、阻抗、排序、基準線、顯示數量 n。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 898,
+     "w": 1726,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 574,
+     "w": 1126,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 245,
+     "w": 930,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "fft_plot",
+   "name": "FFT 頻譜圖",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/fftpane.js",
+    "scope_tool/web/static/js/analysis/fft_marker_layer.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設高約 160–200px（最小 120px 繪圖區），可拖分隔線 160–900px。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 938,
+     "w": 1726,
+     "h": 160,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 614,
+     "w": 1126,
+     "h": 120,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 285,
+     "w": 930,
+     "h": 447,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "lower",
+   "name": "下方結果區（B 區，容器）",
+   "group": "下方結果區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/js/analysis/bpanel.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設高 clip(可用高×0.21, 150, 180)px，可拖 120–600px；可收折；可改「右側欄」（340px，視窗 ≥900px）或浮動。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1098,
+     "w": 1726,
+     "h": 180,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 734,
+     "w": 1126,
+     "h": 154,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 638,
+     "w": 930,
+     "h": 150,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_header",
+   "name": "結果區標題列（分隔線＋收折 ▾）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 28px，同時是調整高度的拖曳線；收折後顯示摘要。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1098,
+     "w": 1726,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 734,
+     "w": 1126,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 638,
+     "w": 930,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_tabs",
+   "name": "結果分頁（量測｜游標｜Marker｜FFT 峰值）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/bpanel.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬 <820 或高 <150 改單一分頁；寬 ≥1200 時游標／Marker 並列；寬版「量測」分頁同時顯示游標面板。",
+   "rects": {
+    "2000x1290": {
+     "x": 294,
+     "y": 1100,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 294,
+     "y": 736,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 90,
+     "y": 640,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_actions",
+   "name": "量測表動作（ⓘ ⋮ 清除全部 匯出結果）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/results.js"
+   ],
+   "rule": "⋮ 選擇欄位（目前/平均/最小/最大/範圍/標準差/次數）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1699,
+     "y": 1100,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1099,
+     "y": 736,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 699,
+     "y": 640,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_dock_btn",
+   "name": "⇥ 右側欄",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js"
+   ],
+   "rule": "切換版面 C（B 區移到主圖右側 340px 直欄）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1881,
+     "y": 1100,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1281,
+     "y": 736,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 881,
+     "y": 640,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_float_btn",
+   "name": "浮動",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/floatpanel.js"
+   ],
+   "rule": "把 B 區改成浮動面板（視窗 ≥900px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1951,
+     "y": 1100,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1351,
+     "y": 736,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 951,
+     "y": 640,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "res_measure",
+   "name": "量測結果表",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/results.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "欄：量測、目前、平均、最小、最大、標準差（可選範圍、次數）；最後一欄 × 刪除。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1126,
+     "w": 993,
+     "h": 152,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 645,
+     "h": 126,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 531,
+     "h": 122,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cursors",
+   "name": "游標面板（容器）",
+   "group": "游標",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬版與量測表並排佔 42%；窄版成獨立分頁。",
+   "rects": {
+    "2000x1290": {
+     "x": 1263,
+     "y": 1126,
+     "w": 725,
+     "h": 152,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 915,
+     "y": 762,
+     "w": 473,
+     "h": 126,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 597,
+     "y": 666,
+     "w": 391,
+     "h": 122,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_inputs",
+   "name": "游標讀值輸入（X1/X2/Y1/Y2＋回中央＋來源）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "容器寬 ≤430px 時改兩欄。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1128,
+     "w": 717,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 919,
+     "y": 764,
+     "w": 465,
+     "h": 74,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 601,
+     "y": 668,
+     "w": 383,
+     "h": 74,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_chtable",
+   "name": "各通道游標讀值表（@X1 @X2 Δ）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js"
+   ],
+   "rule": "每個可見通道一列。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1170,
+     "w": 717,
+     "h": 46,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 919,
+     "y": 840,
+     "w": 465,
+     "h": 46,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 601,
+     "y": 744,
+     "w": 383,
+     "h": 44,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_results",
+   "name": "游標結果表（Marker 水平/垂直/ΔX/1/ΔX/ΔY…＋複製）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursor_table.js"
+   ],
+   "rule": "在游標面板底部，通常需捲動才看得到。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1220,
+     "w": 717,
+     "h": 58,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 887,
+     "y": 851,
+     "w": 502,
+     "h": 97,
+     "visible": false,
+     "measured": false
+    },
+    "1000x800": {
+     "x": 634,
+     "y": 757,
+     "w": 358,
+     "h": 86,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "res_marker",
+   "name": "Marker 表（時域 Marker）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/marker_table.js",
+    "scope_tool/web/static/js/analysis/markers.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "Marker 分頁；寬 ≥1200 與游標並列。新增／移動連動 M1、＋獨立點、註記欄。",
+   "rects": {
+    "2000x1290": {
+     "x": 1129,
+     "y": 1126,
+     "w": 859,
+     "h": 152,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 1126,
+     "h": 126,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 930,
+     "h": 122,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "res_peaks",
+   "name": "FFT 峰值表",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/fft_marker_table.js",
+    "scope_tool/web/static/js/analysis/results.js"
+   ],
+   "rule": "FFT 峰值分頁；Δf／RBW 資訊列＋# 頻率 振幅 高於基準線。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1126,
+     "w": 1726,
+     "h": 152,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 1126,
+     "h": 126,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 930,
+     "h": 122,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "float",
+   "name": "浮動量測面板",
+   "group": "浮動面板",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/floatpanel.js",
+    "scope_tool/web/static/js/analysis/floatpanel_math.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設 x80 y120、960×300，最小 360×160；八向縮放、標題列拖曳；與停靠的 B 區是同一組節點。",
+   "rects": {
+    "2000x1290": {
+     "x": 80,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 80,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 40,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,2706 @@
+<!doctype html>
+<!-- components-data 來自 docs/版面編輯器/components.json，重新產生後需重新嵌入 -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>離線分析版面編輯器</title>
+<style>
+:root{color-scheme:light;--bg:#f3f4f6;--border:#d0d7de;--text:#1f2328;--muted:#57606a;--blue:#0969da}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 "PingFang TC","Microsoft JhengHei",system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;min-width:1000px}button,input,select,textarea{font:inherit;color:inherit}button,select,input[type=number]{border:1px solid var(--border);border-radius:5px;background:#fff;padding:5px 8px}button{cursor:pointer;white-space:nowrap}button:hover:not(:disabled){background:#eef5ff;border-color:#8cbbef}button:disabled{opacity:.4;cursor:default}button.primary{color:#fff;background:var(--blue);border-color:var(--blue)}button.primary:hover{background:#075bbb}input[type=checkbox]{accent-color:var(--blue)}:focus-visible{outline:2px solid var(--blue);outline-offset:2px}textarea{width:100%;resize:vertical;border:1px solid var(--border);border-radius:6px;padding:9px;background:#fff;line-height:1.6}h1{font-size:17px;margin:0 12px 0 0;white-space:nowrap}h2{font-size:14px;margin:0}h3{font-size:15px;margin:0 0 5px}p{margin:8px 0}.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#fff;box-shadow:0 1px 5px #00000006;z-index:1}.toolbar label{display:flex;align-items:center;gap:4px;white-space:nowrap}.toolbar input[type=number]{width:62px}.divider{height:24px;border-left:1px solid var(--border);margin:0 3px}#save-status{font-size:11px;color:var(--muted);margin-left:auto}.main{display:grid;grid-template-columns:260px minmax(320px,1fr) 320px;flex:1;min-height:0}.panel{background:#fff;min-height:0}.left{border-right:1px solid var(--border);display:flex;flex-direction:column}.panel-title{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}.hint{font-size:11px;color:var(--muted)}#comp-list{overflow:auto;flex:1;padding:7px}.row{display:flex;align-items:center;gap:4px;padding:6px 4px;border:1px solid transparent;border-radius:5px;cursor:pointer;min-height:35px}.row:hover{background:#f6f8fa}.row.selected{background:#eaf3ff;border-color:#9dc5fa}.row.hidden .row-name{color:#8c959f}.row-name{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1;min-width:0}.swatch{width:4px;height:20px;flex-shrink:0;border-radius:2px}.row button{font-size:10px;padding:2px 3px}.badge{font-size:10px;border-radius:3px;background:#ffffffc9;color:#57606a;padding:0 3px}.row .badge{background:#fff0bb}.stage{display:flex;flex-direction:column;min-width:0;min-height:0;background:#e6e9ed}.stage-head{padding:10px 16px;display:flex;justify-content:space-between;color:var(--muted);font-size:11px;gap:8px}.viewport{flex:1;min-height:0;overflow:auto;padding:24px;display:flex}#canvas-wrap{position:relative;margin:auto;flex-shrink:0;overflow:clip;overflow-clip-margin:12px}#canvas{position:absolute;left:0;top:0;background-color:#f3f4f6;outline:1px solid #fff;box-shadow:0 8px 28px #29323d25;transform-origin:top left;touch-action:none;isolation:isolate}.comp{position:absolute;border:1px solid var(--edge);background:var(--fill);color:#263648;cursor:move;user-select:none;touch-action:none}.comp.dark{background:#111;color:#e6edf3;border-color:#5f6c7b}.comp.shot{background-color:#fff}.comp.hidden{border-style:dashed}.comp.container{border-style:dashed}.comp.container .comp-text{text-align:right}.comp.locked{cursor:default}#handles-layer{position:absolute;inset:0;pointer-events:none;z-index:2147483647}.selection-box{position:absolute;outline:calc(3px / var(--z)) solid #0969da;outline-offset:0;pointer-events:none}.comp-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(12px / var(--z));line-height:1.1;padding:calc(1px / var(--z)) calc(5px / var(--z));pointer-events:none;height:100%}.comp-text small{font-size:inherit;opacity:.7;margin-left:.5em}.comp-badges{position:absolute;right:0;bottom:0;pointer-events:none;font-size:calc(10px / var(--z));background:#fff9;color:#1f2328}.handle{position:absolute;pointer-events:auto;width:calc(10px / var(--z));height:calc(10px / var(--z));background:#fff;border:calc(1px / var(--z)) solid #0969da;z-index:1;transform:translate(-50%,-50%)}.handle[data-handle=n]{left:50%;top:0;cursor:n-resize}.handle[data-handle=s]{left:50%;top:100%;cursor:s-resize}.handle[data-handle=e]{left:100%;top:50%;cursor:e-resize}.handle[data-handle=w]{left:0;top:50%;cursor:w-resize}.handle[data-handle=ne]{left:100%;top:0;cursor:ne-resize}.handle[data-handle=nw]{left:0;top:0;cursor:nw-resize}.handle[data-handle=se]{left:100%;top:100%;cursor:se-resize}.handle[data-handle=sw]{left:0;top:100%;cursor:sw-resize}.guide{position:absolute;pointer-events:none;background:#e0218a;z-index:100000}.right{border-left:1px solid var(--border);display:flex;flex-direction:column}.properties{overflow:auto;flex:1;padding:16px;min-height:0}.metadata{font-size:12px;color:var(--muted);margin-bottom:16px;overflow-wrap:anywhere}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}.files{font-size:10px;white-space:pre-wrap;word-break:break-all;padding:8px;background:#f6f8fa;border-radius:5px;margin:8px 0}.rule{border-left:3px solid #d8e7fa;padding-left:9px;white-space:pre-wrap}.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}.field label{display:block;color:var(--muted);font-size:12px}.field input{width:100%}.field output{font-size:11px;color:var(--muted)}.baseline{padding:9px;background:#f6f8fa;font-size:11px;border-radius:5px;margin-bottom:10px}.checks{display:flex;gap:16px;margin:12px 0}.z-buttons{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:6px 0 16px}.note-label{display:block;font-weight:600;margin:8px 0}#prop-note{min-height:150px}.global{border-top:1px solid var(--border);padding:12px 16px;background:#fafbfc}.global textarea{min-height:100px;max-height:30vh}dialog{border:1px solid var(--border);border-radius:12px;padding:24px;max-width:calc(100vw - 60px);box-shadow:0 20px 80px #0003;color:var(--text)}dialog::backdrop{background:#17283b55}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}#export-dialog{width:920px;max-height:90vh}#export-dialog textarea{height:24vh;min-height:130px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;resize:vertical;background:#f6f8fa}.export-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 6px}.export-heading div{display:flex;gap:6px}#toast{position:fixed;right:24px;bottom:24px;padding:12px 18px;max-width:460px;border-radius:8px;color:#fff;background:#24364b;box-shadow:0 5px 20px #0002;z-index:200000;pointer-events:none}#toast:empty{display:none}[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header class="toolbar">
+<h1>離線分析版面編輯器</h1>
+<label>畫布 <select id="preset"><option value="2000x1290">2000×1290</option><option value="1400x900">1400×900</option><option value="1000x800">1000×800（窄版）</option></select></label>
+<label>縮放 <select id="zoom"><option value="fit">適應視窗</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select></label>
+<label><input type="checkbox" id="snap" checked>吸附格線</label><input type="number" id="grid-size" value="8" min="2" max="100" aria-label="格線大小">
+<label><input type="checkbox" id="guides" checked>對齊輔助線</label>
+<label><input type="checkbox" id="group-move" checked>拖容器時帶子部件</label>
+<label><input type="checkbox" id="show-shot" checked>顯示真實畫面</label>
+<label><input type="checkbox" id="show-hidden">顯示隱藏部件（虛線）</label>
+<span class="divider"></span><button id="btn-reset">載入現況版面</button><button id="btn-undo" disabled>復原</button><button id="btn-redo" disabled>重做</button><button id="btn-import">匯入 JSON</button><input id="import-file" type="file" accept=".json,application/json" hidden><button id="btn-export" class="primary">輸出</button>
+<span id="save-status" role="status"></span>
+</header>
+<main class="main">
+<aside class="panel left"><div class="panel-title"><h2>部件清單</h2><span id="component-count" class="hint"></span></div><div id="comp-list" role="tree" aria-label="部件清單"></div></aside>
+<section class="stage"><div class="stage-head"><span id="canvas-info"></span><span>方向鍵微調 · Shift 加速 · Alt 暫停吸附</span></div><div class="viewport" id="viewport"><div id="canvas-wrap"><div id="canvas" aria-label="版面畫布"></div></div></div></section>
+<aside class="panel right"><div class="panel-title"><h2>屬性面板</h2><span class="hint">座標單位：px</span></div><div class="properties"><p id="empty-selection" class="hint">點選畫布或清單中的部件</p><div id="selected-properties" hidden>
+<h3 id="prop-name"></h3><div class="metadata"><div id="prop-id" class="mono"></div><div id="prop-group"></div><div id="prop-parent"></div><div id="prop-files" class="files mono"></div><div id="prop-rule" class="rule"></div></div>
+<div class="fields"><div class="field"><label for="prop-x">X 位置</label><input id="prop-x" type="number" step="any"><output id="pct-x"></output></div><div class="field"><label for="prop-y">Y 位置</label><input id="prop-y" type="number" step="any"><output id="pct-y"></output></div><div class="field"><label for="prop-w">寬度</label><input id="prop-w" type="number" min="8" step="any"><output id="pct-w"></output></div><div class="field"><label for="prop-h">高度</label><input id="prop-h" type="number" min="8" step="any"><output id="pct-h"></output></div></div>
+<div class="baseline"><div id="prop-baseline"></div><button id="prop-revert">此部件還原為現況</button></div><div class="checks"><label><input id="prop-visible" type="checkbox">顯示</label><label><input id="prop-locked" type="checkbox">鎖定</label></div>
+<div>疊放順序 <span id="prop-z" class="mono"></span></div><div class="z-buttons"><button id="z-top">最上層</button><button id="z-up">上移一層</button><button id="z-down">下移一層</button><button id="z-bottom">最下層</button></div>
+<label for="prop-note" class="note-label">註解</label><textarea id="prop-note" rows="6" placeholder="例：希望寬度 300px、放在主圖右側；字體放大；為什麼這樣放…"></textarea>
+</div></div><div class="global"><label class="note-label" for="global-note">全域註解</label><textarea id="global-note" rows="4" placeholder="整體想法：例如希望量測欄改到右邊、結果區更高…"></textarea></div></aside>
+</main>
+<dialog id="confirm-dialog" aria-labelledby="confirm-title"><h2 id="confirm-title">載入現況版面</h2><p id="confirm-message"></p><div class="dialog-actions"><button id="confirm-cancel">取消</button><button id="confirm-ok" class="primary">確定</button></div></dialog>
+<dialog id="preset-dialog" aria-labelledby="preset-title"><h2 id="preset-title">切換畫布尺寸</h2><p id="preset-message"></p><div class="dialog-actions"><button id="preset-cancel">取消</button><button id="preset-keep">保留目前位置（超出畫布的會夾回）</button><button id="preset-load" class="primary">載入此尺寸的現況（保留註解）</button></div></dialog>
+<dialog id="export-dialog" aria-labelledby="export-title"><h2 id="export-title">輸出版面修改需求</h2><div class="export-heading"><label for="export-json">layout.json</label><div><button id="copy-json">複製</button><button id="download-json">下載</button></div></div><textarea id="export-json" readonly></textarea><div class="export-heading"><label for="export-md">Markdown 摘要</label><div><button id="copy-md">複製</button><button id="download-md">下載</button></div></div><textarea id="export-md" readonly></textarea><div class="dialog-actions"><button id="export-close" class="primary">關閉</button></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="components-data">
+{
+ "version": 1,
+ "source": "headless Chrome 實測（main HEAD aa67bb0，localStorage 清空＝預設偏好，開啟 wave6000-10Mhz_20261022_125749.h5，單一通道 CHAN1）。measured=false 表示此尺寸下該部件不可見（收折／分頁／捲動區外），座標為等比佔位。Marker／FFT 峰值／FFT／浮動面板為切換後的實測位置，預設隱藏。",
+ "presets": {
+  "2000x1290": {
+   "w": 2000,
+   "h": 1290
+  },
+  "1400x900": {
+   "w": 1400,
+   "h": 900
+  },
+  "1000x800": {
+   "w": 1000,
+   "h": 800
+  }
+ },
+ "defaultPreset": "2000x1290",
+ "components": [
+  {
+   "id": "connbar",
+   "name": "連線列",
+   "group": "外框",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/connbar.js",
+    "scope_tool/web/static/css/app.css"
+   ],
+   "rule": "整列寬、高約 47px；flex-wrap，窄視窗會換行。三個分頁共用。",
+   "rects": {
+    "2000x1290": {
+     "x": 0,
+     "y": 0,
+     "w": 2000,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 0,
+     "y": 0,
+     "w": 1400,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 0,
+     "y": 0,
+     "w": 1000,
+     "h": 47,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tabs",
+   "name": "分頁列（截圖／波形擷取／離線分析）",
+   "group": "外框",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/index.html",
+    "scope_tool/web/static/js/main.js",
+    "scope_tool/web/static/css/app.css"
+   ],
+   "rule": "整列寬、高 40px；分頁頁面 .page 內距 12px。",
+   "rects": {
+    "2000x1290": {
+     "x": 0,
+     "y": 47,
+     "w": 2000,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 0,
+     "y": 47,
+     "w": 1400,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 0,
+     "y": 47,
+     "w": 1000,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "toolbar",
+   "name": "工具列（容器）",
+   "group": "工具列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "頁面頂端整列，flex-wrap；寬度不足時換成兩列（1000px 寬時高 86px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 12,
+     "y": 99,
+     "w": 1976,
+     "h": 48,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 12,
+     "y": 99,
+     "w": 1376,
+     "h": 48,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 12,
+     "y": 99,
+     "w": 976,
+     "h": 86,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_open",
+   "name": "開啟",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js"
+   ],
+   "rule": "主要按鈕（藍底）；發 file.open。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 21,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_close",
+   "name": "關閉",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "關檔並重設狀態。",
+   "rects": {
+    "2000x1290": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 83,
+     "y": 108,
+     "w": 54,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_info",
+   "name": "檔案資訊",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "開對話框列出檔案屬性。",
+   "rects": {
+    "2000x1290": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 145,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_fulltime",
+   "name": "完整時間",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "view.reset；水平控制列另有一顆同功能按鈕。",
+   "rects": {
+    "2000x1290": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 235,
+     "y": 108,
+     "w": 82,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_preview",
+   "name": "預覽（總覽縮圖開關）",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/layout.js"
+   ],
+   "rule": "preview.visible；視窗太矮時 clampLayout 自動收掉並停用此勾選。",
+   "rects": {
+    "2000x1290": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 325,
+     "y": 113,
+     "w": 52,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_marker",
+   "name": "Marker 模式",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/summary.js"
+   ],
+   "rule": "傳統游標 X1/X2／Manual X only／Manual Y only／Manual X and Y／Track Waveforms；Track Measurements 停用。",
+   "rects": {
+    "2000x1290": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 385,
+     "y": 109,
+     "w": 221,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_range",
+   "name": "範圍（量測／FFT）",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "全部／游標區間。",
+   "rects": {
+    "2000x1290": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 614,
+     "y": 109,
+     "w": 122,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_threshold",
+   "name": "閾值",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "10/50/90 %、20/50/80 %。",
+   "rects": {
+    "2000x1290": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 744,
+     "y": 109,
+     "w": 149,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_csv",
+   "name": "匯出 CSV…",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "對話框：範圍、縮點、上限點數。",
+   "rects": {
+    "2000x1290": {
+     "x": 901,
+     "y": 108,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 901,
+     "y": 108,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 21,
+     "y": 146,
+     "w": 101,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_math",
+   "name": "數學…",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js"
+   ],
+   "rule": "對話框建立衍生通道（F1…）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1009,
+     "y": 108,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1009,
+     "y": 108,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 130,
+     "y": 146,
+     "w": 68,
+     "h": 30,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "tb_fft",
+   "name": "FFT 計算",
+   "group": "工具列",
+   "parent": "toolbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/fft_runner.js"
+   ],
+   "rule": "勾選後在主圖下方開 FFT 窗格。",
+   "rects": {
+    "2000x1290": {
+     "x": 1085,
+     "y": 113,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1085,
+     "y": 113,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 206,
+     "y": 151,
+     "w": 81,
+     "h": 21,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "sidepanel",
+   "name": "左側量測欄（A 區，容器）",
+   "group": "左側量測欄",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設寬 240px，拖曳 180–360px；視窗 <1100px 預設收折為 36px 窄軌；≤899px 改抽屜。內容超出時捲動。",
+   "rects": {
+    "2000x1290": {
+     "x": 12,
+     "y": 155,
+     "w": 240,
+     "h": 1123,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 12,
+     "y": 155,
+     "w": 240,
+     "h": 733,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 12,
+     "y": 193,
+     "w": 36,
+     "h": 595,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "side_mode",
+   "name": "邊緣方向＋區間選擇",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js"
+   ],
+   "rule": "上升緣／下降緣；Vavg/Vrms 區間：整段（Full Screen）／整數週期（N Cycles）。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 164,
+     "w": 176,
+     "h": 60,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 164,
+     "w": 176,
+     "h": 60,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 102,
+     "w": 88,
+     "h": 37,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_time",
+   "name": "時間量測按鈕群",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "兩欄按鈕：上升/下降時間、斜率、週期、頻率、±寬度、±工作週期。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 224,
+     "w": 222,
+     "h": 160,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 224,
+     "w": 222,
+     "h": 160,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 139,
+     "w": 111,
+     "h": 99,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_volt",
+   "name": "電壓量測按鈕群",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "兩欄按鈕：Vmax、Vmin、Vp-p、Vtop、Vbase、Vamp、Vavg、Vrms(DC/AC)、過衝、前衝。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 396,
+     "w": 222,
+     "h": 188,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 396,
+     "w": 222,
+     "h": 188,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 246,
+     "w": 111,
+     "h": 117,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "side_dual",
+   "name": "雙來源量測",
+   "group": "左側量測欄",
+   "parent": "sidepanel",
+   "files": [
+    "scope_tool/web/static/js/analysis/measure.js"
+   ],
+   "rule": "來源 2、來源 2 邊緣、延遲／相位／電壓比；只有一個通道時停用。",
+   "rects": {
+    "2000x1290": {
+     "x": 21,
+     "y": 595,
+     "w": 222,
+     "h": 163,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 21,
+     "y": 595,
+     "w": 222,
+     "h": 163,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 10,
+     "y": 369,
+     "w": 111,
+     "h": 101,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "split_side",
+   "name": "量測欄分隔線（收折鈕 ‹）",
+   "group": "左側量測欄",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬 10px；拖曳改量測欄寬、雙擊重設、按鈕收折。",
+   "rects": {
+    "2000x1290": {
+     "x": 252,
+     "y": 155,
+     "w": 10,
+     "h": 1123,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 252,
+     "y": 155,
+     "w": 10,
+     "h": 733,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 48,
+     "y": 193,
+     "w": 10,
+     "h": 595,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "chanbar",
+   "name": "通道列（容器）",
+   "group": "通道列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/chanbar.js",
+    "scope_tool/web/static/css/app.css",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "主圖上方一列（高 24px）；左側通道 chip，右側 Vertical 欄位靠右。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 155,
+     "w": 1726,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 155,
+     "w": 1126,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 193,
+     "w": 930,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_chips",
+   "name": "通道開關 chip",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/chanbar.js"
+   ],
+   "rule": "每通道一顆：顯示勾選、名稱（點選＝目前通道、雙擊換色）、V/格、dx 徽章；衍生通道有 ×。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 155,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 155,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 193,
+     "w": 168,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_center",
+   "name": "游標回中央",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/js/analysis/chanbar.js"
+   ],
+   "rule": "centerButton；游標面板也有一顆同功能按鈕。",
+   "rects": {
+    "2000x1290": {
+     "x": 434,
+     "y": 155,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 434,
+     "y": 155,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 230,
+     "y": 193,
+     "w": 57,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_active",
+   "name": "作用中通道標示",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js"
+   ],
+   "rule": "顯示目前通道名稱與顏色。",
+   "rects": {
+    "2000x1290": {
+     "x": 1295,
+     "y": 158,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 695,
+     "y": 158,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 295,
+     "y": 196,
+     "w": 91,
+     "h": 18,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_scale",
+   "name": "單位/格（V/格）",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/js/analysis/chanbar.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "▼ 輸入 ▲ 粗調、− + 微調。",
+   "rects": {
+    "2000x1290": {
+     "x": 1391,
+     "y": 155,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 791,
+     "y": 155,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 391,
+     "y": 193,
+     "w": 228,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_pos",
+   "name": "中心電位＋歸零",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "▼ 輸入 歸零 ▲。",
+   "rects": {
+    "2000x1290": {
+     "x": 1625,
+     "y": 155,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1025,
+     "y": 155,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 625,
+     "y": 193,
+     "w": 229,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_dx",
+   "name": "dx（時間偏移）",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js",
+    "scope_tool/web/static/css/vertical.css"
+   ],
+   "rule": "通道時間偏移；非 0 時 chip 顯示 dx 徽章。",
+   "rects": {
+    "2000x1290": {
+     "x": 1860,
+     "y": 155,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1260,
+     "y": 155,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 860,
+     "y": 193,
+     "w": 86,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "ch_fit",
+   "name": "適配",
+   "group": "通道列",
+   "parent": "chanbar",
+   "files": [
+    "scope_tool/web/static/js/analysis/vertical.js"
+   ],
+   "rule": "依可見資料自動設 V/格與位置。",
+   "rects": {
+    "2000x1290": {
+     "x": 1952,
+     "y": 155,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1352,
+     "y": 155,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 952,
+     "y": 193,
+     "w": 36,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "overview",
+   "name": "總覽縮圖（overview）",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/overview.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 56px（FFT 開啟時 40px）；視窗高 ≤700px 預設隱藏，空間不足時自動收掉。可拖曳視窗框平移／改範圍。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 179,
+     "w": 1726,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 179,
+     "w": 1126,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 217,
+     "w": 930,
+     "h": 56,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "plot_tabs",
+   "name": "波形／FFT 分頁鈕（窄版）",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "只在 FFT 開啟且高度不足或視窗 <1100px 時出現，主圖與頻譜改為分頁切換。",
+   "rects": {
+    "2000x1290": {
+     "x": 116,
+     "y": 350,
+     "w": 1860,
+     "h": 45,
+     "visible": false,
+     "measured": false
+    },
+    "1400x900": {
+     "x": 81,
+     "y": 244,
+     "w": 1302,
+     "h": 32,
+     "visible": false,
+     "measured": false
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 217,
+     "w": 930,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "mainplot",
+   "name": "主波形圖",
+   "group": "圖區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/plotcore.js",
+    "scope_tool/web/static/js/analysis/gestures.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "吃掉剩餘高度，最小 270px；拖曳平移、滾輪縮放、框選放大、右鍵 Marker 選單。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 235,
+     "w": 1726,
+     "h": 835,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 235,
+     "w": 1126,
+     "h": 471,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 273,
+     "w": 930,
+     "h": 337,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "main_vaxis",
+   "name": "電壓軸（主圖左側刻度）",
+   "group": "圖區",
+   "parent": "mainplot",
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/voltage.js"
+   ],
+   "rule": "主圖 canvas 內左邊界 84px（MARGIN.l），含通道把手。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 235,
+     "w": 84,
+     "h": 813,
+     "visible": true,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 235,
+     "w": 84,
+     "h": 449,
+     "visible": true,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 273,
+     "w": 84,
+     "h": 315,
+     "visible": true,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "main_xaxis",
+   "name": "X 軸時間刻度",
+   "group": "圖區",
+   "parent": "mainplot",
+   "files": [
+    "scope_tool/web/static/js/analysis/mainplot.js",
+    "scope_tool/web/static/js/analysis/plotcore.js"
+   ],
+   "rule": "主圖 canvas 內下邊界 22px（MARGIN.b）。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1048,
+     "w": 1726,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 684,
+     "w": 1126,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 588,
+     "w": 930,
+     "h": 22,
+     "visible": true,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "horizontal",
+   "name": "水平控制列（容器）",
+   "group": "水平控制列",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "主圖正下方單列 28px，內容過長時橫向捲動。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1070,
+     "w": 1726,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 706,
+     "w": 1126,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 610,
+     "w": 930,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_modes",
+   "name": "平移／框選放大＋框選種類＋復原重做",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js",
+    "scope_tool/web/static/js/analysis/gestures.js",
+    "scope_tool/web/static/js/analysis/vzoom.js"
+   ],
+   "rule": "✥ 平移、⬚ 框選放大、水平／垂直／雙向、↶ ↷；左側 sticky。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1072,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 708,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 612,
+     "w": 296,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_scale",
+   "name": "時間/格",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "◀ 輸入 ▶，1-2-5 步進。",
+   "rects": {
+    "2000x1290": {
+     "x": 562,
+     "y": 1072,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 562,
+     "y": 708,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 358,
+     "y": 612,
+     "w": 230,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_pos",
+   "name": "位置（中心）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "◀ 輸入 ▶，每次一格。",
+   "rects": {
+    "2000x1290": {
+     "x": 797,
+     "y": 1072,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 797,
+     "y": 708,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 593,
+     "y": 612,
+     "w": 262,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_zero",
+   "name": "時間 0 置中",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "按鈕「0」。",
+   "rects": {
+    "2000x1290": {
+     "x": 1063,
+     "y": 1072,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1063,
+     "y": 708,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 859,
+     "y": 612,
+     "w": 18,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_range",
+   "name": "目前範圍文字",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "範圍 t0 ～ t1。",
+   "rects": {
+    "2000x1290": {
+     "x": 1084,
+     "y": 1075,
+     "w": 179,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1084,
+     "y": 711,
+     "w": 179,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 880,
+     "y": 615,
+     "w": 108,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "h_reset",
+   "name": "完整時間（水平列）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/axes.js"
+   ],
+   "rule": "與工具列「完整時間」重複。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1072,
+     "w": 62,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1267,
+     "y": 708,
+     "w": 62,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 634,
+     "y": 665,
+     "w": 31,
+     "h": 16,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "h_summary",
+   "name": "游標摘要（ΔX、1/ΔX、ΔY）",
+   "group": "水平控制列",
+   "parent": "horizontal",
+   "files": [
+    "scope_tool/web/static/js/analysis/summary.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "靠右 sticky，空間不足時截斷（最小 60px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1333,
+     "y": 1075,
+     "w": 655,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1328,
+     "y": 711,
+     "w": 60,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 928,
+     "y": 615,
+     "w": 60,
+     "h": 19,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "fft_split",
+   "name": "FFT 分隔線／收折鈕",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 28px；FFT 開啟時才出現。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 870,
+     "w": 1726,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 546,
+     "w": 1126,
+     "h": 28,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 131,
+     "y": 540,
+     "w": 863,
+     "h": 17,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "fft_bar",
+   "name": "FFT 控制列",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/fftpane.js",
+    "scope_tool/web/static/js/analysis/toolbar.js",
+    "scope_tool/web/static/js/analysis/fft_marker_controls.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 40px 單列可橫捲：對數頻率、上一峰／吸附／下一峰、來源、視窗、單位、阻抗、排序、基準線、顯示數量 n。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 898,
+     "w": 1726,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 574,
+     "w": 1126,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 245,
+     "w": 930,
+     "h": 40,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "fft_plot",
+   "name": "FFT 頻譜圖",
+   "group": "FFT 窗格",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/fftpane.js",
+    "scope_tool/web/static/js/analysis/fft_marker_layer.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設高約 160–200px（最小 120px 繪圖區），可拖分隔線 160–900px。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 938,
+     "w": 1726,
+     "h": 160,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 614,
+     "w": 1126,
+     "h": 120,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 285,
+     "w": 930,
+     "h": 447,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "lower",
+   "name": "下方結果區（B 區，容器）",
+   "group": "下方結果區",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js",
+    "scope_tool/web/static/js/analysis/bpanel.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設高 clip(可用高×0.21, 150, 180)px，可拖 120–600px；可收折；可改「右側欄」（340px，視窗 ≥900px）或浮動。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1098,
+     "w": 1726,
+     "h": 180,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 734,
+     "w": 1126,
+     "h": 154,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 638,
+     "w": 930,
+     "h": 150,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_header",
+   "name": "結果區標題列（分隔線＋收折 ▾）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/splitter.js",
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "高 28px，同時是調整高度的拖曳線；收折後顯示摘要。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1098,
+     "w": 1726,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 734,
+     "w": 1126,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 638,
+     "w": 930,
+     "h": 28,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_tabs",
+   "name": "結果分頁（量測｜游標｜Marker｜FFT 峰值）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/bpanel.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬 <820 或高 <150 改單一分頁；寬 ≥1200 時游標／Marker 並列；寬版「量測」分頁同時顯示游標面板。",
+   "rects": {
+    "2000x1290": {
+     "x": 294,
+     "y": 1100,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 294,
+     "y": 736,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 90,
+     "y": 640,
+     "w": 202,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_actions",
+   "name": "量測表動作（ⓘ ⋮ 清除全部 匯出結果）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/results.js"
+   ],
+   "rule": "⋮ 選擇欄位（目前/平均/最小/最大/範圍/標準差/次數）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1699,
+     "y": 1100,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1099,
+     "y": 736,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 699,
+     "y": 640,
+     "w": 174,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_dock_btn",
+   "name": "⇥ 右側欄",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/tab_analysis.js",
+    "scope_tool/web/static/js/analysis/layout.js"
+   ],
+   "rule": "切換版面 C（B 區移到主圖右側 340px 直欄）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1881,
+     "y": 1100,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1281,
+     "y": 736,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 881,
+     "y": 640,
+     "w": 66,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "lower_float_btn",
+   "name": "浮動",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/floatpanel.js"
+   ],
+   "rule": "把 B 區改成浮動面板（視窗 ≥900px）。",
+   "rects": {
+    "2000x1290": {
+     "x": 1951,
+     "y": 1100,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 1351,
+     "y": 736,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 951,
+     "y": 640,
+     "w": 37,
+     "h": 24,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "res_measure",
+   "name": "量測結果表",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/results.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "欄：量測、目前、平均、最小、最大、標準差（可選範圍、次數）；最後一欄 × 刪除。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1126,
+     "w": 993,
+     "h": 152,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 645,
+     "h": 126,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 531,
+     "h": 122,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cursors",
+   "name": "游標面板（容器）",
+   "group": "游標",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "寬版與量測表並排佔 42%；窄版成獨立分頁。",
+   "rects": {
+    "2000x1290": {
+     "x": 1263,
+     "y": 1126,
+     "w": 725,
+     "h": 152,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 915,
+     "y": 762,
+     "w": 473,
+     "h": 126,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 597,
+     "y": 666,
+     "w": 391,
+     "h": 122,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_inputs",
+   "name": "游標讀值輸入（X1/X2/Y1/Y2＋回中央＋來源）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "容器寬 ≤430px 時改兩欄。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1128,
+     "w": 717,
+     "h": 40,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 919,
+     "y": 764,
+     "w": 465,
+     "h": 74,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 601,
+     "y": 668,
+     "w": 383,
+     "h": 74,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_chtable",
+   "name": "各通道游標讀值表（@X1 @X2 Δ）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursors.js"
+   ],
+   "rule": "每個可見通道一列。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1170,
+     "w": 717,
+     "h": 46,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 919,
+     "y": 840,
+     "w": 465,
+     "h": 46,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1400_base.png"
+    },
+    "1000x800": {
+     "x": 601,
+     "y": 744,
+     "w": 383,
+     "h": 44,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/1000_base.png"
+    }
+   }
+  },
+  {
+   "id": "cur_results",
+   "name": "游標結果表（Marker 水平/垂直/ΔX/1/ΔX/ΔY…＋複製）",
+   "group": "游標",
+   "parent": "cursors",
+   "files": [
+    "scope_tool/web/static/js/analysis/cursor_table.js"
+   ],
+   "rule": "在游標面板底部，通常需捲動才看得到。",
+   "rects": {
+    "2000x1290": {
+     "x": 1267,
+     "y": 1220,
+     "w": 717,
+     "h": 58,
+     "visible": true,
+     "measured": true,
+     "shot": "shots/2000_base.png"
+    },
+    "1400x900": {
+     "x": 887,
+     "y": 851,
+     "w": 502,
+     "h": 97,
+     "visible": false,
+     "measured": false
+    },
+    "1000x800": {
+     "x": 634,
+     "y": 757,
+     "w": 358,
+     "h": 86,
+     "visible": false,
+     "measured": false
+    }
+   }
+  },
+  {
+   "id": "res_marker",
+   "name": "Marker 表（時域 Marker）",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/marker_table.js",
+    "scope_tool/web/static/js/analysis/markers.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "Marker 分頁；寬 ≥1200 與游標並列。新增／移動連動 M1、＋獨立點、註記欄。",
+   "rects": {
+    "2000x1290": {
+     "x": 1129,
+     "y": 1126,
+     "w": 859,
+     "h": 152,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 1126,
+     "h": 126,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 930,
+     "h": 122,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "res_peaks",
+   "name": "FFT 峰值表",
+   "group": "下方結果區",
+   "parent": "lower",
+   "files": [
+    "scope_tool/web/static/js/analysis/fft_marker_table.js",
+    "scope_tool/web/static/js/analysis/results.js"
+   ],
+   "rule": "FFT 峰值分頁；Δf／RBW 資訊列＋# 頻率 振幅 高於基準線。",
+   "rects": {
+    "2000x1290": {
+     "x": 262,
+     "y": 1126,
+     "w": 1726,
+     "h": 152,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 262,
+     "y": 762,
+     "w": 1126,
+     "h": 126,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 58,
+     "y": 666,
+     "w": 930,
+     "h": 122,
+     "visible": false,
+     "measured": true
+    }
+   }
+  },
+  {
+   "id": "float",
+   "name": "浮動量測面板",
+   "group": "浮動面板",
+   "parent": null,
+   "files": [
+    "scope_tool/web/static/js/analysis/floatpanel.js",
+    "scope_tool/web/static/js/analysis/floatpanel_math.js",
+    "scope_tool/web/static/css/analysis.css"
+   ],
+   "rule": "預設 x80 y120、960×300，最小 360×160；八向縮放、標題列拖曳；與停靠的 B 區是同一組節點。",
+   "rects": {
+    "2000x1290": {
+     "x": 80,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    },
+    "1400x900": {
+     "x": 80,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    },
+    "1000x800": {
+     "x": 40,
+     "y": 120,
+     "w": 960,
+     "h": 300,
+     "visible": false,
+     "measured": true
+    }
+   }
+  }
+ ]
+}
+</script>
+<script>
+'use strict';
+// 現況資料完整嵌入，執行時不讀檔、不連線。
+const DATA = JSON.parse(document.getElementById('components-data').textContent);
+const $ = id => document.getElementById(id);
+const clone = value => JSON.parse(JSON.stringify(value));
+const definitions = new Map(DATA.components.map(c => [c.id, c]));
+const baseIndex = new Map(DATA.components.map((c, i) => [c.id, i]));
+const colors = {'外框':['#cbd5e155','#94a3b8'],'工具列':['#bfdbfe77','#60a5fa'],'左側量測欄':['#bbf7d077','#4ca879'],'通道列':['#fef08a77','#c6a336'],'圖區':['#cbd5e166','#64748b'],'水平控制列':['#ddd6fe88','#a78bfa'],'FFT 窗格':['#f5d0fe88','#c084fc'],'下方結果區':['#fed7aa77','#e6a05b'],'游標':['#a5f3fc77','#49a8ba'],'浮動面板':['#fecaca88','#e78383']};
+for(const palette of Object.values(colors)) {
+  const hex=palette[0].slice(1), alpha=parseInt(hex.slice(6),16)/255;
+  palette[0]='#'+[0,2,4].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*alpha+255*(1-alpha)).toString(16).padStart(2,'0')).join('');
+}
+const containerIds = new Set(DATA.components.map(c=>c.parent).filter(Boolean));
+const darkIds = new Set(['mainplot','overview','fft_plot','main_vaxis','main_xaxis']);
+const history = [], future = [];
+let selected = null, zoom = 1, drag = null, guideLines = [], saveTimer, toastTimer, noteTimer, noteBefore = null, pendingPreset = null, exportStamp = '';
+function baseline(preset = DATA.defaultPreset) {
+  if (!Object.hasOwn(DATA.presets, preset)) throw new Error('畫布尺寸無效');
+  return {preset, globalNote:'', items:Object.fromEntries(DATA.components.map((c,i) => {
+    const r = c.rects[preset];
+    return [c.id,{x:Math.round(r.x),y:Math.round(r.y),w:Math.round(r.w),h:Math.round(r.h),visible:r.visible,locked:false,note:'',z:i}];
+  }))};
+}
+let state = baseline();
+const size = () => DATA.presets[state.preset];
+const ordered = () => DATA.components.slice().sort((a,b) => state.items[a.id].z-state.items[b.id].z || baseIndex.get(a.id)-baseIndex.get(b.id));
+const clamp = (n,min,max) => Math.max(min,Math.min(max,n));
+function bound(r, dimensions = size()) {
+  r.w = clamp(Math.round(r.w),8,dimensions.w); r.h = clamp(Math.round(r.h),8,dimensions.h);
+  r.x = clamp(Math.round(r.x),0,dimensions.w-r.w); r.y = clamp(Math.round(r.y),0,dimensions.h-r.h);
+  return r;
+}
+function validatedItem(raw, fallback, dimensions, shouldBound = true) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('部件資料格式錯誤');
+  const r = {...fallback};
+  for (const key of ['x','y','w','h']) {
+    if (Object.hasOwn(raw,key)) {
+      if (typeof raw[key] !== 'number' || !Number.isFinite(raw[key])) throw new Error('位置與尺寸必須是有限數字');
+      r[key] = Math.round(raw[key]);
+    }
+  }
+  for (const key of ['visible','locked']) if (Object.hasOwn(raw,key)) {
+    if (typeof raw[key] !== 'boolean') throw new Error('顯示與鎖定必須是布林值');
+    r[key] = raw[key];
+  }
+  if (Object.hasOwn(raw,'note')) {if(typeof raw.note !== 'string') throw new Error('註解必須是文字'); r.note=raw.note;}
+  if (Object.hasOwn(raw,'z')) {if(!Number.isSafeInteger(raw.z)) throw new Error('疊放順序必須是整數'); r.z=raw.z;}
+  if(r.w < 8 || r.h < 8) {if(!shouldBound) throw new Error('保存的尺寸不得小於 8px');}
+  return shouldBound ? bound(r,dimensions) : r;
+}
+function restoreSaved(raw) {
+  if (!raw || raw.version !== 1 || !Object.hasOwn(DATA.presets,raw.preset) || !raw.items || typeof raw.items !== 'object' || Array.isArray(raw.items)) throw new Error('保存格式無效');
+  const result=baseline(raw.preset);
+  if (typeof raw.globalNote === 'string') result.globalNote=raw.globalNote;
+  for (const c of DATA.components) if(Object.hasOwn(raw.items,c.id)) result.items[c.id]=validatedItem(raw.items[c.id],result.items[c.id],DATA.presets[raw.preset],false);
+  return result;
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(() => {
+    try {localStorage.setItem('scopeLayoutEditor.v1',JSON.stringify({...state,version:1})); $('save-status').textContent='已自動保存 '+new Date().toLocaleTimeString('zh-TW',{hour12:false});}
+    catch { $('save-status').textContent='無法保存（瀏覽器禁止 localStorage）'; }
+  },300);
+}
+try {const saved=localStorage.getItem('scopeLayoutEditor.v1'); if(saved) {try {state=restoreSaved(JSON.parse(saved));} catch {state=baseline();}}} catch { $('save-status').textContent='無法保存（瀏覽器禁止 localStorage）'; }
+function updateHistory() {$('btn-undo').disabled=!history.length; $('btn-redo').disabled=!future.length;}
+function record(before) {
+  if(JSON.stringify(before)===JSON.stringify(state)) return;
+  history.push(clone(before)); if(history.length>200) history.shift(); future.length=0; updateHistory(); scheduleSave();
+}
+function flushNotes() {clearTimeout(noteTimer); if(noteBefore) {const before=noteBefore; noteBefore=null; record(before);}}
+function action(fn) {flushNotes(); const before=clone(state); fn(); record(before); render();}
+function undo() {flushNotes(); if(!history.length) return; future.push(clone(state)); state=history.pop(); render(); scheduleSave();}
+function redo() {flushNotes(); if(!future.length) return; history.push(clone(state)); state=future.pop(); render(); scheduleSave();}
+function toast(message) {clearTimeout(toastTimer); const host=document.querySelector('dialog[open]')||document.body; host.append($('toast')); $('toast').textContent=message; toastTimer=setTimeout(() => {$('toast').textContent='';},3000);}
+function el(tag, className, text) {const node=document.createElement(tag); if(className) node.className=className; if(text!==undefined) node.textContent=text; return node;}
+function depth(c) {let n=0; while(c.parent && definitions.has(c.parent)) {n++; c=definitions.get(c.parent);} return n;}
+function renderList() {
+  const fragment=document.createDocumentFragment();
+  for(const c of DATA.components) {
+    const r=state.items[c.id], row=el('div','row'+(selected===c.id?' selected':'')+(!r.visible?' hidden':'')); row.dataset.id=c.id; row.role='treeitem'; row.tabIndex=0; row.setAttribute('aria-selected',String(selected===c.id)); row.setAttribute('aria-level',String(depth(c)+1)); row.style.paddingLeft=(4+depth(c)*13)+'px';
+    const swatch=el('span','swatch'); swatch.style.background=(colors[c.group]||colors['外框'])[1]; row.append(swatch);
+    const name=el('span','row-name',c.name); name.title=c.name+'（'+c.id+'）'; row.append(name);
+    if(r.note) row.append(el('span','badge','註'));
+    for(const [act,text,title,pressed] of [['vis',r.visible?'顯示':'隱藏','切換可見性',r.visible],['lock',r.locked?'鎖定':'未鎖','切換鎖定',r.locked]]) {
+      const button=el('button','',text); button.dataset.act=act; button.title=title; button.setAttribute('aria-label',c.name+'：'+title); button.setAttribute('aria-pressed',String(pressed)); row.append(button);
+    }
+    fragment.append(row);
+  }
+  $('comp-list').replaceChildren(fragment);
+}
+function fitCanvas() {
+  const {w,h}=size(), viewport=$('viewport');
+  zoom=$('zoom').value==='fit'?Math.max(.05,Math.min(1,(viewport.clientWidth-48)/w,(viewport.clientHeight-48)/h)):Number($('zoom').value);
+  const canvas=$('canvas'); canvas.style.width=w+'px'; canvas.style.height=h+'px'; canvas.style.transform='scale('+zoom+')'; canvas.style.setProperty('--z',zoom);
+  $('canvas-wrap').style.width=w*zoom+'px'; $('canvas-wrap').style.height=h*zoom+'px';
+  const grid=gridSize(); canvas.style.backgroundImage=$('snap').checked?'linear-gradient(to right,#a6afb51c 1px,transparent 1px),linear-gradient(to bottom,#a6afb51c 1px,transparent 1px)':'none'; canvas.style.backgroundSize=grid+'px '+grid+'px';
+  $('canvas-info').textContent=w+' × '+h+' px · '+Math.round(zoom*100)+'%';
+}
+function renderCanvas() {
+  const fragment=document.createDocumentFragment();
+  for(const c of ordered()) {
+    const r=state.items[c.id]; if(!r.visible && !$('show-hidden').checked) continue;
+    const node=el('div','comp'+(darkIds.has(c.id)?' dark':'')+(!r.visible?' hidden':'')+(r.locked?' locked':'')+(selected===c.id?' selected':'')+(containerIds.has(c.id)?' container':'')); node.dataset.id=c.id;
+    Object.assign(node.style,{left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px',zIndex:String(orderedIndex(c.id))});
+    const palette=colors[c.group]||colors['外框']; node.style.setProperty('--fill',palette[0]); node.style.setProperty('--edge',palette[1]);
+    const sh=c.rects[state.preset]; 
+    if($('show-shot').checked && sh.shot && (!containerIds.has(c.id) || c.id==='mainplot') && r.visible) {
+      const pw=DATA.presets[state.preset].w, ph=DATA.presets[state.preset].h, sx=r.w/sh.w, sy=r.h/sh.h;
+      Object.assign(node.style,{backgroundImage:'url('+sh.shot+')',backgroundSize:pw*sx+'px '+ph*sy+'px',backgroundPosition:-sh.x*sx+'px '+-sh.y*sy+'px',backgroundRepeat:'no-repeat'});
+      node.classList.add('shot');
+    }
+    node.title=c.name+'（'+c.id+'）'+r.x+','+r.y+' '+r.w+'×'+r.h;
+    const screenW=r.w*zoom, screenH=r.h*zoom;
+    if(screenW>=16 && !node.classList.contains('shot')) {
+      const text=el('div','comp-text',c.name);
+      if(screenH<16) text.style.fontSize=Math.max(8,screenH-3)/zoom+'px';
+      if(screenW>=120) text.append(el('small','',r.w+'×'+r.h));
+      node.append(text);
+    }
+    if(r.note || r.locked) node.append(el('span','comp-badges',[r.note?'註':'',r.locked?'鎖':''].filter(Boolean).join(' ')));
+    fragment.append(node);
+  }
+  for(const line of guideLines) {const g=el('div','guide'); if(line.axis==='x') Object.assign(g.style,{left:line.value+'px',top:'0',width:1/zoom+'px',height:size().h+'px'}); else Object.assign(g.style,{top:line.value+'px',left:'0',height:1/zoom+'px',width:size().w+'px'}); fragment.append(g);}
+  // 把手與選取框共用獨立頂層，不受部件的疊放順序影響。
+  const layer=el('div'); layer.id='handles-layer';
+  if(selected && (state.items[selected].visible || $('show-hidden').checked)) {
+    const r=state.items[selected],box=el('div','selection-box');
+    Object.assign(box.style,{left:r.x+'px',top:r.y+'px',width:r.w+'px',height:r.h+'px'});
+    layer.append(box);
+    if(!r.locked) for(const handle of ['n','s','e','w','ne','nw','se','sw']) {
+      const h=el('div','handle'); h.dataset.handle=handle;
+      Object.assign(h.style,{left:(r.x+(handle.includes('w')?0:handle.includes('e')?r.w:r.w/2))+'px',top:(r.y+(handle.includes('n')?0:handle.includes('s')?r.h:r.h/2))+'px'});
+      layer.append(h);
+    }
+  }
+  fragment.append(layer);
+  $('canvas').replaceChildren(fragment);
+}
+function orderedIndex(id) {return ordered().findIndex(c=>c.id===id);}
+function setValue(id,value) {if($(id).value!==String(value)) $(id).value=value;}
+function renderProperties() {
+  $('empty-selection').hidden=!!selected; $('selected-properties').hidden=!selected;
+  setValue('global-note',state.globalNote);
+  if(!selected) return;
+  const c=definitions.get(selected),r=state.items[selected],b=c.rects[state.preset],{w,h}=size();
+  $('prop-name').textContent=c.name; $('prop-id').textContent=c.id; $('prop-group').textContent='群組：'+c.group; $('prop-parent').textContent='父部件：'+(c.parent?definitions.get(c.parent).name:'（無）'); $('prop-files').textContent=c.files.join('\n'); $('prop-rule').textContent=c.rule;
+  for(const key of ['x','y','w','h']) {setValue('prop-'+key,r[key]); $('pct-'+key).textContent=(r[key]/(['x','w'].includes(key)?w:h)*100).toFixed(2)+'%'; $('prop-'+key).disabled=r.locked;}
+  $('prop-baseline').textContent='現況位置：'+b.x+','+b.y+' '+b.w+'×'+b.h+'（'+(b.visible?'顯示':'隱藏')+'）';
+  $('prop-visible').checked=r.visible; $('prop-locked').checked=r.locked; $('prop-z').textContent=String(r.z); setValue('prop-note',r.note);
+}
+function render() {$('preset').value=state.preset; fitCanvas(); renderList(); renderCanvas(); renderProperties(); updateHistory();}
+function select(id) {flushNotes(); selected=definitions.has(id)?id:null; renderList(); renderCanvas(); renderProperties();}
+function descendants(id) {const result=[]; function walk(parent) {for(const c of DATA.components) if(c.parent===parent) {result.push(c.id); walk(c.id);}} walk(id); return result;}
+function movingIds(id) {return [id,...($('group-move').checked?descendants(id).filter(child=>!state.items[child].locked):[])];}
+// 整組位移共用同一組邊界，確保後代與容器保持相同平移距離。
+function moveFrom(before,ids,dx,dy) {
+  const {w,h}=size(); let minX=-Infinity,maxX=Infinity,minY=-Infinity,maxY=Infinity;
+  for(const id of ids) {const r=before.items[id]; minX=Math.max(minX,-r.x); maxX=Math.min(maxX,w-r.w-r.x); minY=Math.max(minY,-r.y); maxY=Math.min(maxY,h-r.h-r.y);}
+  if(minX>maxX || minY>maxY) {bound(state.items[ids[0]]); return;}
+  dx=clamp(Math.round(dx),minX,maxX); dy=clamp(Math.round(dy),minY,maxY);
+  for(const id of ids) {state.items[id].x=Math.round(before.items[id].x+dx); state.items[id].y=Math.round(before.items[id].y+dy);}
+}
+function gridSize() {return clamp(Number($('grid-size').value)||8,2,100);}
+function targets(axis,excluded) {
+  const extent=axis==='x'?size().w:size().h, values=[0,extent/2,extent];
+  for(const c of DATA.components) if(!excluded.includes(c.id) && state.items[c.id].visible) {const r=state.items[c.id],p=axis==='x'?r.x:r.y,s=axis==='x'?r.w:r.h; values.push(p,p+s/2,p+s);}
+  return values;
+}
+function snapAxis(start,end,axis,mode,excluded,alt) {
+  if(alt) return {start,end};
+  const anchors=mode==='move'?[[start,1],[ (start+end)/2,1],[end,1]]:mode==='start'?[[start,1],[(start+end)/2,.5]]:mode==='end'?[[end,1],[(start+end)/2,.5]]:[];
+  let match=null;
+  if($('guides').checked) for(const target of targets(axis,excluded)) for(const [anchor,factor] of anchors) {const distance=Math.abs(target-anchor)*zoom; if(distance<=6 && (!match || distance<match.distance)) match={target,delta:(target-anchor)/factor,distance};}
+  if(match) {
+    if(mode==='move') {start+=match.delta; end+=match.delta;} else if(mode==='start') start+=match.delta; else if(mode==='end') end+=match.delta;
+    return {start,end,guide:match.target};
+  }
+  if($('snap').checked) {const grid=gridSize(); if(mode==='move') {const delta=Math.round(start/grid)*grid-start; start+=delta; end+=delta;} else if(mode==='start') start=Math.round(start/grid)*grid; else if(mode==='end') end=Math.round(end/grid)*grid;}
+  return {start,end};
+}
+function pointerStart(event) {
+  if(event.button!==0 || drag) return;
+  const handle=event.target.closest('.handle[data-handle]')?.dataset.handle || '',node=event.target.closest('.comp');
+  const id=handle?selected:node?.dataset.id;
+  if(!id) {if(event.target===$('canvas')) select(null); return;}
+  event.preventDefault();
+  select(id); if(state.items[id].locked) return;
+  const ids=handle?[id]:movingIds(id);
+  drag={id,handle,ids,before:clone(state),px:event.clientX,py:event.clientY,pointer:event.pointerId};
+  $('canvas').setPointerCapture(event.pointerId);
+}
+function pointerMove(event) {
+  if(!drag || drag.pointer!==event.pointerId) return;
+  const d=drag,r=d.before.items[d.id],dx=(event.clientX-d.px)/zoom,dy=(event.clientY-d.py)/zoom,{w,h}=size();
+  let left=r.x,top=r.y,right=r.x+r.w,bottom=r.y+r.h;
+  const modeX=d.handle?(d.handle.includes('w')?'start':d.handle.includes('e')?'end':'none'):'move';
+  const modeY=d.handle?(d.handle.includes('n')?'start':d.handle.includes('s')?'end':'none'):'move';
+  if(!d.handle) {left+=dx; right+=dx; top+=dy; bottom+=dy;} else {if(modeX==='start') left=clamp(left+dx,0,right-8); if(modeX==='end') right=clamp(right+dx,left+8,w); if(modeY==='start') top=clamp(top+dy,0,bottom-8); if(modeY==='end') bottom=clamp(bottom+dy,top+8,h);}
+  const sx=snapAxis(left,right,'x',modeX,d.ids,event.altKey),sy=snapAxis(top,bottom,'y',modeY,d.ids,event.altKey);
+  if(!d.handle) moveFrom(d.before,d.ids,sx.start-r.x,sy.start-r.y);
+  else {
+    left=modeX==='start'?clamp(sx.start,0,right-8):left; right=modeX==='end'?clamp(sx.end,left+8,w):right;
+    top=modeY==='start'?clamp(sy.start,0,bottom-8):top; bottom=modeY==='end'?clamp(sy.end,top+8,h):bottom;
+    Object.assign(state.items[d.id],bound({...state.items[d.id],x:left,y:top,w:right-left,h:bottom-top}));
+  }
+  guideLines=[]; const current=state.items[d.id];
+  for(const [axis,snap] of [['x',sx],['y',sy]]) if(snap.guide!==undefined) {const p=axis==='x'?current.x:current.y,s=axis==='x'?current.w:current.h; if([p,p+s/2,p+s].some(n=>Math.abs(n-snap.guide)<.01)) guideLines.push({axis,value:snap.guide});}
+  renderCanvas(); renderProperties(); scheduleSave();
+}
+function pointerEnd(event,cancel=false) {
+  if(!drag || drag.pointer!==event.pointerId) return;
+  const d=drag; drag=null; if(cancel) {state=d.before; scheduleSave();} else record(d.before);
+  if($('canvas').hasPointerCapture(event.pointerId)) $('canvas').releasePointerCapture(event.pointerId);
+  guideLines=[]; render();
+}
+function resetFor(preset) {const next=baseline(preset); next.globalNote=state.globalNote; for(const c of DATA.components) next.items[c.id].note=state.items[c.id].note; state=next;}
+function reorder(where) {if(!selected) return; action(()=>{const ids=ordered().map(c=>c.id),i=ids.indexOf(selected); const dest=where==='top'?ids.length-1:where==='bottom'?0:clamp(i+(where==='up'?1:-1),0,ids.length-1); if(dest===i) return; ids.splice(i,1); ids.splice(dest,0,selected); ids.forEach((id,z)=>{state.items[id].z=z;});});}
+function noteInput(global) {
+  if(!global && !selected) return;
+  if(!noteBefore) noteBefore=clone(state);
+  if(global) state.globalNote=$('global-note').value; else state.items[selected].note=$('prop-note').value;
+  clearTimeout(noteTimer); noteTimer=setTimeout(flushNotes,800); scheduleSave(); renderList(); renderCanvas();
+}
+function importText(text) {
+  try {
+    const data=JSON.parse(text);
+    if(!data || data.schema!=='scope-analysis-layout/1' || !data.canvas || !Object.hasOwn(DATA.presets,data.canvas.preset) || !Array.isArray(data.components)) throw new Error('請選擇本工具輸出的 layout.json');
+    if(data.globalNote!==undefined && typeof data.globalNote!=='string') throw new Error('全域註解必須是文字');
+    const next=baseline(data.canvas.preset); next.globalNote=data.globalNote||''; let unknown=0;
+    for(const raw of data.components) {
+      if(!raw || typeof raw!=='object' || typeof raw.id!=='string') throw new Error('部件缺少有效的 id');
+      if(!definitions.has(raw.id)) {unknown++; continue;}
+      const fallback={...next.items[raw.id],z:state.items[raw.id].z};
+      next.items[raw.id]=validatedItem(raw,fallback,DATA.presets[next.preset]);
+    }
+    action(()=>{state=next;}); toast('匯入成功'+(unknown?'；略過 '+unknown+' 個未知部件':'')); return true;
+  } catch(error) {toast('匯入失敗：'+error.message); return false;}
+}
+function localISO(date=new Date()) {const pad=n=>String(n).padStart(2,'0'), offset=-date.getTimezoneOffset(); return date.getFullYear()+'-'+pad(date.getMonth()+1)+'-'+pad(date.getDate())+'T'+pad(date.getHours())+':'+pad(date.getMinutes())+':'+pad(date.getSeconds())+(offset>=0?'+':'-')+pad(Math.floor(Math.abs(offset)/60))+':'+pad(Math.abs(offset)%60);}
+function stamp(date) {const pad=n=>String(n).padStart(2,'0'); return date.getFullYear()+pad(date.getMonth()+1)+pad(date.getDate())+'_'+pad(date.getHours())+pad(date.getMinutes())+pad(date.getSeconds());}
+function pct(rect) {const {w,h}=size(); return Object.fromEntries(['x','y','w','h'].map(k=>[k,Math.round(rect[k]/(['x','w'].includes(k)?w:h)*10000)/100]));}
+function exportObject(time=localISO()) {
+  const {w,h}=size();
+  return {schema:'scope-analysis-layout/1',exportedAt:time,canvas:{preset:state.preset,width:w,height:h},globalNote:state.globalNote,source:DATA.source,components:ordered().map(c=>{
+    const r=state.items[c.id],b=c.rects[state.preset],z=baseIndex.get(c.id),baseline={x:b.x,y:b.y,w:b.w,h:b.h,visible:b.visible,z};
+    return {id:c.id,name:c.name,group:c.group,parent:c.parent,module:(c.files.find(f=>f.endsWith('.js'))||c.files[0]||'').split('/').pop(),files:clone(c.files),x:r.x,y:r.y,w:r.w,h:r.h,pct:pct(r),z:r.z,visible:r.visible,locked:r.locked,note:r.note,baseline,changed:['x','y','w','h'].some(k=>Math.abs(r[k]-b[k])>=1)||r.visible!==b.visible||r.z!==z};
+  })};
+}
+function exportJSON() {return JSON.stringify(exportObject(),null,2);}
+function markdown(data=exportObject()) {
+  const show=v=>v?'顯示':'隱藏',rect=r=>'('+r.x+', '+r.y+') '+r.w+'×'+r.h;
+  const changed=data.components.filter(c=>c.changed), notes=data.components.filter(c=>!c.changed && c.note.length>0), rest=data.components.filter(c=>!c.changed && !c.note.length);
+  const changedById=new Map(changed.map(c=>[c.id,c])), owners=new Map(), translated=new Map();
+  function sectionOwner(c) {
+    if(owners.has(c.id)) return owners.get(c.id);
+    const b=c.baseline, parent=changedById.get(c.parent);
+    const followsParent=parent && !c.note.length && c.w===b.w && c.h===b.h && c.visible===b.visible && c.z===b.z && c.locked===(b.locked??false)
+      && c.x-b.x===parent.x-parent.baseline.x && c.y-b.y===parent.y-parent.baseline.y;
+    const owner=followsParent?sectionOwner(parent):c.id;
+    owners.set(c.id,owner); return owner;
+  }
+  for(const c of changed) {
+    const owner=sectionOwner(c);
+    if(owner!==c.id) {if(!translated.has(owner)) translated.set(owner,[]); translated.get(owner).push(c);}
+  }
+  const listed=changed.filter(c=>sectionOwner(c)===c.id);
+  const movedCount=data.components.filter(c=>c.x!==c.baseline.x || c.y!==c.baseline.y).length;
+  const lines=['# 離線分析版面修改需求','','- 輸出時間：'+data.exportedAt,'- 畫布：'+data.canvas.width+'×'+data.canvas.height+'（preset '+data.canvas.preset+'）','- 座標：CSS px，畫布左上為原點；現況來源：'+data.source,'- 注意：現有版面是 CSS grid＋`layout.js` 的 `clampLayout` 動態計算，請依註解意圖修改尺寸／停靠規則，不要把座標寫死。','','## 全域註解',data.globalNote||'（無）',''];
+  function detail(c,hasChange) {
+    const b=c.baseline, bp=pct(b), definition=definitions.get(c.id);
+    lines.push('### '+c.group+' › '+c.name+'（`'+c.id+'`）');
+    if(hasChange) {const deltas=['x','y','w','h'].filter(k=>c[k]-b[k]!==0).map(k=>{const n=Math.round((c[k]-b[k])*100)/100; return 'Δ'+k+' '+(n>0?'+':'')+n;}); lines.push('- 位置／尺寸：'+rect(b)+' → '+rect(c)+(deltas.length?'（'+deltas.join('、')+'）':''));}
+    else lines.push('- 位置／尺寸：'+rect(c)+'（未變）');
+    lines.push('- 百分比：'+['x','y','w','h'].map(k=>k+' '+bp[k].toFixed(2)+'%→'+c.pct[k].toFixed(2)+'%').join('、'));
+    if(c.visible!==b.visible) lines.push('- 可見性：'+show(b.visible)+' → '+show(c.visible));
+    if(c.z!==b.z) lines.push('- 疊放順序：z '+b.z+' → '+c.z);
+    if(c.locked) lines.push('- 鎖定：是');
+    if(translated.has(c.id)) lines.push('- 子部件隨容器一起平移：'+translated.get(c.id).map(child=>child.name+'（`'+child.id+'`）').join('、'));
+    lines.push('- 註解：');
+    lines.push(...(c.note?c.note.split(/\r\n|\n|\r/).map(line=>'  > '+line):['  （無註解）']));
+    lines.push('- 建議修改檔案：'+c.files.map(f=>'`'+f+'`').join('、'),'- 現況規則：'+definition.rule,'');
+  }
+  lines.push('## 有變更的部件（'+listed.length+'）','共有 '+movedCount+' 個部件位置有變（含隨容器平移的子部件）。',''); if(!listed.length) lines.push('（無）',''); else listed.forEach(c=>detail(c,true));
+  lines.push('## 只有註解、位置未變的部件（'+notes.length+'）'); if(!notes.length) lines.push('（無）',''); else notes.forEach(c=>detail(c,false));
+  lines.push('## 未變更的部件（'+rest.length+'）'); if(!rest.length) lines.push('（無）'); else rest.forEach(c=>lines.push('- '+c.name+'（`'+c.id+'`）：'+rect(c)+'，'+show(c.visible)));
+  return lines.join('\n')+'\n';
+}
+function exportMarkdown() {return markdown();}
+async function copyText(id) {
+  const field=$(id); let success=false;
+  try {if(navigator.clipboard?.writeText) {await navigator.clipboard.writeText(field.value); success=true;}} catch { /* 剪貼簿受限時改用頁內選取。 */ }
+  if(!success) {try {field.focus(); field.select(); success=document.execCommand('copy');} catch {success=false;}}
+  toast(success?'已複製':'無法複製，請手動選取文字複製');
+}
+function download(id,kind) {
+  const blob=new Blob([$(id).value],{type:kind==='json'?'application/json;charset=utf-8':'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),link=el('a');
+  link.href=url; link.download=(kind==='json'?'layout_':'layout_summary_')+exportStamp+'.'+kind; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+// 事件委派避免重繪後遺失清單與畫布的互動。
+$('comp-list').addEventListener('click',event=>{const row=event.target.closest('.row'); if(!row) return; const id=row.dataset.id,act=event.target.closest('button')?.dataset.act; select(id); if(act) action(()=>{const r=state.items[id]; if(act==='vis') r.visible=!r.visible; else r.locked=!r.locked;});});
+$('comp-list').addEventListener('keydown',event=>{if((event.key==='Enter'||event.key===' ') && event.target.classList.contains('row')) {event.preventDefault(); select(event.target.dataset.id);}});
+$('canvas').addEventListener('pointerdown',pointerStart);
+$('canvas').addEventListener('pointermove',pointerMove);
+$('canvas').addEventListener('pointerup',event=>pointerEnd(event));
+$('canvas').addEventListener('pointercancel',event=>pointerEnd(event,true));
+$('canvas').addEventListener('lostpointercapture',event=>{if(drag) pointerEnd(event);});
+for(const key of ['x','y','w','h']) {
+  const field=$('prop-'+key);
+  const apply=()=>{if(!selected || state.items[selected].locked) return; const value=field.valueAsNumber; if(!Number.isFinite(value)) {renderProperties(); return;} action(()=>{const r=state.items[selected]; r[key]=Math.round(value); bound(r);});};
+  field.addEventListener('change',apply); field.addEventListener('keydown',event=>{if(event.key==='Enter') {event.preventDefault(); apply();}});
+}
+$('prop-visible').addEventListener('change',()=>{if(selected) action(()=>{state.items[selected].visible=$('prop-visible').checked;});});
+$('prop-locked').addEventListener('change',()=>{if(selected) action(()=>{state.items[selected].locked=$('prop-locked').checked;});});
+$('prop-revert').addEventListener('click',()=>{if(selected) action(()=>{const note=state.items[selected].note; state.items[selected]={...baseline(state.preset).items[selected],note};});});
+for(const where of ['top','up','down','bottom']) $('z-'+where).addEventListener('click',()=>reorder(where));
+$('prop-note').addEventListener('input',()=>noteInput(false)); $('global-note').addEventListener('input',()=>noteInput(true));
+$('prop-note').addEventListener('blur',flushNotes); $('global-note').addEventListener('blur',flushNotes);
+$('btn-undo').addEventListener('click',undo); $('btn-redo').addEventListener('click',redo);
+$('btn-reset').addEventListener('click',()=>{flushNotes(); $('confirm-message').textContent='所有部件的位置、大小、可見性、z 順序與鎖定會重設為 '+state.preset+' 的現況；註解保留。'; $('confirm-dialog').showModal();});
+$('confirm-cancel').addEventListener('click',()=>$('confirm-dialog').close());
+$('confirm-ok').addEventListener('click',()=>{$('confirm-dialog').close(); action(()=>resetFor(state.preset));});
+$('preset').addEventListener('change',()=>{flushNotes(); pendingPreset=$('preset').value; $('preset-message').textContent='選擇 '+pendingPreset+' 的版面處理方式。'; $('preset-dialog').showModal();});
+function cancelPreset() {$('preset-dialog').close(); $('preset').value=state.preset; pendingPreset=null;}
+$('preset-cancel').addEventListener('click',cancelPreset); $('preset-dialog').addEventListener('cancel',event=>{event.preventDefault(); cancelPreset();});
+$('preset-load').addEventListener('click',()=>{const preset=pendingPreset; cancelPreset(); if(preset) action(()=>resetFor(preset));});
+$('preset-keep').addEventListener('click',()=>{const preset=pendingPreset; cancelPreset(); if(preset) action(()=>{state.preset=preset; for(const c of DATA.components) bound(state.items[c.id]);});});
+$('btn-import').addEventListener('click',()=>{$('import-file').value=''; $('import-file').click();});
+$('import-file').addEventListener('change',()=>{const file=$('import-file').files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>importText(String(reader.result)); reader.onerror=()=>toast('匯入失敗：無法讀取檔案'); reader.readAsText(file);});
+$('btn-export').addEventListener('click',()=>{flushNotes(); const date=new Date(),data=exportObject(localISO(date)); exportStamp=stamp(date); $('export-json').value=JSON.stringify(data,null,2); $('export-md').value=markdown(data); $('export-dialog').showModal();});
+$('copy-json').addEventListener('click',()=>copyText('export-json')); $('copy-md').addEventListener('click',()=>copyText('export-md'));
+$('download-json').addEventListener('click',()=>download('export-json','json')); $('download-md').addEventListener('click',()=>download('export-md','md'));
+$('export-close').addEventListener('click',()=>$('export-dialog').close());
+for(const id of ['zoom','snap','show-shot','show-hidden','grid-size']) $(id).addEventListener('change',()=>{if(id==='grid-size') $('grid-size').value=gridSize(); fitCanvas(); renderCanvas();});
+document.addEventListener('keydown',event=>{
+  if(event.target.closest('input,textarea,select,[contenteditable=true]') || document.querySelector('dialog[open]')) return;
+  const command=event.ctrlKey||event.metaKey,key=event.key.toLowerCase();
+  if(command && (key==='z'||key==='y')) {event.preventDefault(); if(drag) return; if(key==='y'||event.shiftKey) redo(); else undo(); return;}
+  if(event.key==='Escape') {if(drag) pointerEnd({pointerId:drag.pointer},true); select(null); return;}
+  if(!selected || state.items[selected].locked || drag || command || event.altKey) return;
+  const vector={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[event.key]; if(!vector) return;
+  event.preventDefault(); action(()=>{const before=clone(state),step=event.shiftKey?10:1; moveFrom(before,movingIds(selected),vector[0]*step,vector[1]*step);});
+});
+const viewportObserver=new ResizeObserver(()=>{fitCanvas(); renderCanvas();});
+viewportObserver.observe($('viewport'));
+window.addEventListener('resize',()=>{fitCanvas(); renderCanvas();});
+window.addEventListener('pagehide',()=>{flushNotes(); clearTimeout(saveTimer); try {localStorage.setItem('scopeLayoutEditor.v1',JSON.stringify({...state,version:1}));} catch { /* 禁止保存時不影響操作。 */ }});
+window.__editor={state:()=>clone(state),baseline:preset=>clone(baseline(preset)),exportJSON,exportMarkdown,importText,select,undo,redo};
+$('component-count').textContent=DATA.components.length+' 個部件';
+render(); scheduleSave();
+
+</script>
+</body>
+</html>
