@@ -175,3 +175,44 @@
   .fftpage__body { flex-direction: column; }
   .fftpage__side { flex: 0 0 auto; }
 }
+
+/* I3C 解碼分頁：設定列橫捲，事件表沿用結果表。 */
+/* 頁籤靠右，左側留下連續拖曳帶；不足時只橫捲頁籤，不增加 28px 標題列高度。 */
+.analysis:not(.analysis--dock) .analysis__splitter--lower > .analysis__resultTabs { margin-left: auto; flex: 0 1 auto; min-width: 0; height: 28px; overflow-x: auto; scrollbar-width: none; }
+.analysis__resultTabs > .btn { flex-shrink: 0; }
+.analysis:not(.analysis--dock) .analysis__splitter--lower > .results__actions { margin-left: 0; flex-shrink: 0; }
+.analysis__splitter--lower > .btn { flex-shrink: 0; }
+.analysis__lowerbody > .analysis__decode { flex: 1 1 0; max-width: 100%; }
+.decode { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: 4px; }
+.decode__bar { display: flex; align-items: center; gap: var(--sp-2); overflow-x: auto; white-space: nowrap; flex: 0 0 auto; }
+.decode__bar > * { flex-shrink: 0; }
+.decode__control { display: inline-flex; gap: 4px; align-items: center; }
+.decode__control select { width: 90px; }
+.decode__threshold { width: 11ch; min-width: 90px; }
+.decode__threshold:disabled { color: var(--c-text-dim); }
+.decode__addresses { width: 90px; }
+.decode__band { flex-direction: row-reverse; }
+.decode__segment { display: inline-flex; border: 1px solid var(--c-border); border-radius: 8px; }
+.decode__segment .btn { white-space: nowrap; }
+.decode__segment [aria-pressed="true"] { background: var(--c-surface-hi); color: var(--c-text); }
+.decode__sum, .decode__info { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; color: var(--c-text-dim); }
+.decode__sum > .decode__segment { margin-left: auto; }
+.decode__tablewrap { overflow: auto; max-height: 440px; border: 1px solid var(--c-border); border-radius: 8px; }
+.decode .results__table { table-layout: auto; }
+.decode .results__table th, .decode .results__table td { white-space: nowrap; width: auto; text-align: left; }
+.decode .results__table th:first-child, .decode .results__table td:first-child { width: auto; }
+.decode .results__table th:last-child, .decode .results__table td:last-child { width: auto; }
+.decode .results__table th { position: sticky; top: 0; background: var(--c-surface); }
+.decode__tablewrap .results__table :is(th, td):nth-child(-n+2) { text-align: right; }
+.decode .results__table td:nth-child(4), .decode .results__table td:nth-child(6) { font-family: var(--font-mono); }
+.decode .is-selected td { background: var(--c-surface-hi); }
+.decode .is-selected td:first-child { box-shadow: inset 3px 0 0 var(--c-accent); }
+.decode__ok { color: var(--c-ok); }
+.decode__warn, .decode__stale { color: var(--c-warn); }
+.decode__error { color: var(--c-danger); }
+.decode__infoStatus { color: var(--c-accent); }
+.decode__stale { padding: 2px 8px; border: 1px solid var(--c-warn); border-radius: 8px; }
+.decode--stale .decode__tablewrap, .decode--stale details { opacity: .55; }
+.decode__foot { font-size: 12.5px; color: var(--c-text-dim); }
+.decode__addressesTable { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 4px 8px; }
+.decode__addressesTable summary { cursor: pointer; color: var(--c-text-dim); }

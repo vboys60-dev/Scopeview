@@ -2,7 +2,7 @@
 export const STORAGE_KEY = 'scope.analysis.results.v1';
 export const COLUMNS = ['current','mean','min','max','range','std','count'];
 export const DEFAULT_COLUMNS = ['current','mean','min','max','std'];
-export const TABS = ['measure','cursor','marker','peaks'];
+export const TABS = ['measure','cursor','marker','peaks','decode'];
 const defaults = () => ({ version:1, columns:[...DEFAULT_COLUMNS], tab:'measure' });
 export function validate(raw) {
   if (raw?.version !== 1) return defaults();
@@ -28,7 +28,7 @@ export function mountTabs(host, panels, { initial = load(), persist = save, acti
   let prefs = validate(initial), tabbed = true, pairTabbed = true, collapsed = false;
   const tabs = document.createElement('div'); tabs.className = 'analysis__resultTabs'; tabs.setAttribute('role','tablist');
   const buttons = {};
-  for (const [key,label] of [['measure','量測'],['cursor','游標'],['marker','Marker Table'],['peaks','FFT 峰值']]) {
+  for (const [key,label] of [['measure','量測'],['cursor','游標'],['marker','Marker Table'],['peaks','FFT 峰值'],['decode','解碼']]) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn--small';
     b.dataset.resultTab = key; b.setAttribute('role','tab'); b.textContent = label; b.title = label;
     if (!panels[key]) continue;
@@ -60,5 +60,5 @@ export function mountTabs(host, panels, { initial = load(), persist = save, acti
     tabbed = useTabs(width,height); pairTabbed = !docked && (width < PAIR_MIN_WIDTH || height < 150); collapsed = lowerCollapsed; // docked：右側欄，游標／Marker 上下疊
     buttons.peaks.textContent = `FFT 峰值${fftOn && count ? ` (${count})` : ''}`;
     render();
-  }, get tab() { return prefs.tab; } };
+  }, label(key, text) { if (buttons[key]) { buttons[key].textContent = text; buttons[key].title = text; } }, get tab() { return prefs.tab; } };
 }

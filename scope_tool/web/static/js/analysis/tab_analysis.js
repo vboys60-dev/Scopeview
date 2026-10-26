@@ -1,3 +1,4 @@
+import { mount as mountDecodeTable } from './decode_table.js';
 import { markerModel } from "./markers.js";
 import { mount as mountMarkerTable } from "./marker_table.js";
 // 離線分析頁：開檔指令 "file.open" 與 "open_waveform"（payload {path?}）等同處理；L3 擷取頁完成後會先切到本分頁再發 open_waveform。
@@ -88,7 +89,7 @@ export function mount(el, ctx) {
     <div class="analysis__lower">
       <button type="button" class="btn btn--small analysis__lowertoggle" aria-expanded="true" aria-controls="analysis-lower-body"></button>
       <div class="analysis__lowerbody" id="analysis-lower-body"><div class="analysis__results"></div>
-      <div class="analysis__cursors"></div><div class="analysis__markers"></div><div class="analysis__peaks"></div></div>
+      <div class="analysis__cursors"></div><div class="analysis__markers"></div><div class="analysis__peaks"></div><div class="analysis__decode"></div></div>
     </div>
   </div>`;
   const q = (c) => el.querySelector("." + c);
@@ -142,7 +143,8 @@ export function mount(el, ctx) {
     splitters[kind] = mountSplitter(host,{ kind, button:buttons[kind], store, getState:() => state(kind) });
   }
   const lowerHeader = buttons.lower.parentNode;
-  const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), marker:q('analysis__markers'), peaks:q('analysis__peaks') },{ actions });
+  const resultTabs = mountTabs(lowerHeader,{ measure:q('analysis__results'), cursor:q('analysis__cursors'), marker:q('analysis__markers'), peaks:q('analysis__peaks'), decode:q('analysis__decode') },{ actions });
+  mountDecodeTable(q('analysis__decode'), Object.assign(Object.create(ctx), { resultTabs }));
   lowerHeader.append(actions);
   const dockBtn = document.createElement('button'); dockBtn.type = 'button'; dockBtn.className = 'btn btn--small analysis__dockbtn';
   dockBtn.onclick = () => store.command('layout.markerSide');

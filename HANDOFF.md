@@ -199,3 +199,9 @@
 - analysis_decode、analysis_api（含 analysis_check）與 Node 一般自檢通過；P1 i3c_check 全綠（10M×2：3.833 s；單次／連續五次峰值 RSS 686.8／684.6 MiB）。e2e_check 由 lead 於沙箱外實跑通過。
 - HTTP 檢查含小型合成波形完整四 RPC、同步缺鍵 BAD_REQUEST／巢狀 job BAD_REQUEST、失敗／換檔後三方法 STALE；100k fields 使用從實際解碼結果擴充的合成快照，隔離量測序列化與 HTTP 成本，非解碼效能。lead 實跑（Apple M5）：100k fields 往返 0.146 s、回應 14,478,303 bytes；e2e_check／browser_check 全過；無實測／未與原廠解碼比對。
 - 額外 Node `--mutations` 停在既有 `p2b2_check.mjs`「格距忽略最末有效位：找不到變異位置」；另以 `git archive HEAD` 的未修改靜態檔副本執行，同樣失敗。未更動該測試或軸刻度實作。
+
+## I3C P3（2026-10-26）
+
+- B 區新增「解碼 (N)」分頁（decode.js／decode_table.js）：設定列、摘要＋篩選、事件表（≤2000 列，點列跳轉）、位址表、設定變更黃色提示、CSV 匯出。標註列勾選只存設定，P4 接繪圖。
+- B 區頁籤群組改靠標題列右側（使用者同意）：多了「解碼」後頁籤會蓋到 lower 分隔線拖曳點，靠右留出左側拖曳空間。
+- selfcheck_node、e2e_check、browser_check（含新「I3C 解碼分頁／CSV／尺寸／過期設定」）全過。
