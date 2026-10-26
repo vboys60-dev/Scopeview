@@ -171,7 +171,7 @@ ctx.bridge.call = async (...args) => {
 };
 const cursor = new Element('div'); mountCursors(cursor,ctx);
 assert.equal(cursor.children[2].tagName,'table','傳統各通道讀值維持前置');
-assert.equal(cursor.children[0].className,'cursors__inputs'); assert.equal(cursor.children[0].children.length,6);
+assert.equal(cursor.children[0].className,'cursors__inputs'); assert.equal(cursor.children[0].children.length,5);
 assert.deepEqual(cursor.children[0].children.slice(0,4).map(e => e.firstChild.textContent),['X1 ','X2 ','Y1 (V)','Y2 (V)']);
 store.command('cursor.intent',{ which:'x1',value:1 }); store.command('cursor.intent',{ which:'x2',value:2 });
 await done;

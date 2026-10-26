@@ -42,9 +42,9 @@ function resetCursors(store) {
   for (const k of ["y1", "y2"]) if (num(cursors[k]) && Math.abs(cursors[k]) <= 5) next[k] = cursors[k];
   store.set({ cursors: next }, "user");
 }
-/** 通道列與游標數值面板共用；不另外建立吸附控制器或新增 command。 */
+/** 工具列 Marker 欄使用；不另外建立吸附控制器或新增 command。 */
 export function centerButton(store) {
-  const button = h("button", "btn btn--small", "回中央"); button.type = "button";
+  const button = h("button", "btn btn--small", "X軸Maker歸位"); button.type = "button";
   button.title = "t1／t2 回到目前畫面中間";
   button.onclick = () => resetCursors(store);
   const sync = () => { button.disabled = !store.get().file; };
@@ -252,7 +252,7 @@ export function mount(el, ctx) {
   const controller = createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
   store.on(["cursors", "markerMode", "channels"], syncInputs);
   onCursorSource(store, syncInputs);
-  inputs.append(centerButton(store),sourceLabel);
+  inputs.append(sourceLabel);
   el.append(inputs, info, chTbl, tbl, markerTable.el);
   render(null);
 }

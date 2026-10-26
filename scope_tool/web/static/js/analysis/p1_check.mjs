@@ -5,7 +5,7 @@ import * as scales from "./scales.js";
 import * as fmt from "../fmt.js";
 import { mount as mountChanbar, fineScale, clampScale, coarseScale } from "./chanbar.js";
 import { mount as mountPlot, layoutRect, divY } from "./mainplot.js";
-import { mount as mountCursors } from "./cursors.js";
+import { mount as mountCursors, centerButton } from "./cursors.js";
 import { channelHandles, outsideCursors, cursorEdges } from "./handles.js";
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
 const texts = [], textPositions = [];
@@ -152,8 +152,8 @@ assert.ok(Math.abs(sameSide[0].y - sameSide[1].y) >= 24, "同側越界提示不�
 assert.ok(texts.includes("▲ y1") && texts.includes("▼ y2"));
 const yEdge = cursorEdges(store.get().cursors, store.get().view, rect).find((e) => e.which === "y1");
 const panel = el(); mountCursors(panel, ctx);
-const reset = panel.children[0].children.find((c) => c.textContent === "回中央");
-const topReset = bar.children.find((c) => c.textContent === "回中央");
+assert.ok(!panel.children[0].children.some((c) => c.textContent === "X軸Maker歸位"), "游標面板不再有歸位鈕");
+const topReset = centerButton(store), reset = topReset;
 assert.equal(topReset.disabled, true);
 assert.equal(reset.title, "t1／t2 回到目前畫面中間");
 assert.equal(topReset.title, reset.title);
@@ -210,6 +210,6 @@ store.set({ file: null }); assert.equal(reset.disabled, true); assert.equal(topR
 const closed = { ...store.get().cursors }; reset.onclick(); topReset.onclick();
 assert.deepEqual(store.get().cursors, closed);
 // 通道重建不會遺失或重複主圖按鈕。
-store.set({ channels: [] }); assert.deepEqual(bar.children, [topReset, vertical]);
+store.set({ channels: [] }); assert.deepEqual(bar.children, [vertical]);
 plot.dispose();
 console.log("P1 feedback self-check OK：微調／任意輸入、把手實際事件、X 越界復現、Y 時間軸不變、雙處回中央／有號間距／Y 保留／吸附");

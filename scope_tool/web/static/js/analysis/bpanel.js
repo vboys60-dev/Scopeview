@@ -28,7 +28,7 @@ export function mountTabs(host, panels, { initial = load(), persist = save, acti
   let prefs = validate(initial), tabbed = true, pairTabbed = true, collapsed = false;
   const tabs = document.createElement('div'); tabs.className = 'analysis__resultTabs'; tabs.setAttribute('role','tablist');
   const buttons = {};
-  for (const [key,label] of [['measure','量測'],['cursor','游標'],['marker','Marker'],['peaks','FFT 峰值']]) {
+  for (const [key,label] of [['measure','量測'],['cursor','游標'],['marker','Marker Table'],['peaks','FFT 峰值']]) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn--small';
     b.dataset.resultTab = key; b.setAttribute('role','tab'); b.textContent = label; b.title = label;
     if (!panels[key]) continue;

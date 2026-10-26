@@ -111,7 +111,7 @@ assert.equal(select.children.length,1); assert.equal(select.children[0].disabled
 const domStore = createStore(), panel = new Element('div');
 mount(panel,{store:domStore,bridge,fmt,ui:{toast:()=>{}}});
 domStore.set({file:{gen:2},channels,selected:'CHAN2'});
-const inputs = panel.children[0], y1 = inputs.children[2].children[1], source = inputs.children[5].children[0];
+const inputs = panel.children[0], y1 = inputs.children[2].children[1], source = inputs.children[4].children[0];
 assert.equal(inputs.children[2].children[0].textContent,'Y1 (V)');
 assert.equal(source.value,'CHAN1'); assert.equal(y1.value,fmt.fmt(0.2,'V'));
 for (const value of ['-1.234 V','-500 mV','-12.34 mV']) {

@@ -1,7 +1,6 @@
 // L5：精簡通道 chip 與目前通道 Vertical 欄位；通道設定經 store.updateChannel。
 // 處理意圖：channel.shift_intent、channel.scale_intent（絕對值）。DOM／手感待真人驗證。
 import { mount as mountVertical, hasDx } from "./vertical.js";
-import { centerButton } from "./cursors.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
@@ -33,7 +32,7 @@ export function mount(el, ctx) {
   const { store, bridge, ui, fmt } = ctx;
   el.classList.add("chanbar");
   let sig = null, rows = new Map();
-  const center = centerButton(store), vertical = h("div", "vertical");
+  const vertical = h("div", "vertical");
   mountVertical(vertical, ctx, { scaleChange, clampScale, fineScale, coarseScale });
 
   function chip(c) {
@@ -75,7 +74,7 @@ export function mount(el, ctx) {
   }
   function render() {
     const { channels } = store.get(), s = signature(channels);
-    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(...channels.map(chip), center, vertical); }
+    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(...channels.map(chip), vertical); }
     sync();
   }
   store.on(["channels", "selected"], render);

@@ -77,9 +77,9 @@ export function mount(el, ctx) {
     </div>
     <div class="analysis__plot">
       <div class="analysis__chanbar chanbar"></div>
+      <div class="analysis__horizontal"></div>
       <div class="analysis__overview" title="來源時間概觀（原始通道共用電壓範圍）"></div>
       <div class="analysis__main plot"></div>
-      <div class="analysis__horizontal"></div>
       <section class="analysis__fftsection" hidden>
         <button type="button" class="btn btn--small analysis__ffttoggle" aria-expanded="true" aria-controls="analysis-fft-body">收折 FFT 窗格</button>
         <div class="analysis__fft" id="analysis-fft-body"></div>

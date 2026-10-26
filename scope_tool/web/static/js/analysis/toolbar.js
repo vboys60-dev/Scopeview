@@ -2,6 +2,7 @@ import { createFft } from './fft_runner.js';
 export { createFft, fftParams } from './fft_runner.js';
 import { bindFftMarkerControls } from './fft_marker_controls.js';
 import { disableTrackMeasurements } from "./summary.js";
+import { centerButton } from "./cursors.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
 // 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
@@ -111,7 +112,7 @@ export function mount(el, ctx) {
     prev.title = s.blocked ? "視窗高度不足，無法顯示預覽；請放大視窗或收折下方面板" : "";
   });
   store.command('layout.query');
-  el.append(bOpen, bClose, bInfo, bReset, fieldOf("預覽", prev), fieldOf("Marker", marker), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
+  el.append(bOpen, bClose, bInfo, bReset, fieldOf("Zoom", prev), fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
 
   // ── FFT ──
   const p = { on: false, source: null, window: "Hanning", unit: "dBm", imp: 0, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? [""])[0] };
