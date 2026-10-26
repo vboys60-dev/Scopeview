@@ -210,7 +210,7 @@ if (process.argv.includes("--mutations")) {
     ["雙擊控件開換色", "chanbar.js", 'box.ondblclick = (e) => { if (e.target.closest?.("input,button")) return;', 'box.ondblclick = (e) => {'],
     ["把手超出畫布", "handles.js", "- 10, 0,", "- 10, -10,"],
     ["中心欄位過多位數", "vertical.js", 'tickLabel(centerPotential(c), c.unit, c.scale / 100)', 'fmt.fmt(centerPotential(c), c.unit, 15)'],
-    ["格距忽略最末有效位", "plotcore.js", "Math.min(Math.floor(Math.log10(step)) - 1, last)", "Math.floor(Math.log10(step)) - 1"],
+    ["格距忽略最末有效位", "plotcore.js", "Math.min(floor - 1, last)", "floor - 1"],
     ["負數捨入不對稱", "plotcore.js", "Math.sign(v) * Math.round(Math.abs(v) / res)", "Math.round(v / res)"],
     ["左下文字相黏", "plotcore.js", 't.p >= rect.t + rect.h ? "bottom" : "middle"', '"middle"'],
   );
