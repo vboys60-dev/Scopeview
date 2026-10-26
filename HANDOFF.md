@@ -106,14 +106,16 @@
 1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。
 2. 上機：HD304 四通道 100M 與 `:DIGitize`（先確認設定已還原）、MXR Error 273／LAN／慢時基、3000T、MSO9254A 截圖／擷取／分析、DSO-X 6004A 的 GUI 全流程與 Single／Normal／`:DIGitize`。
 3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
-4. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
+4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/真機驗證清單.md` 第 26 項）；多協定計畫見下方「多協定解碼」。
+5. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
 
 ## 工作流程
 
 - **GUI 測試由使用者主導**：使用者逐步手測，Claude 只記錄編號、不改程式，直到使用者說「沒有其他問題」才規劃→實作→審查→重開。
 - 寫程式交 Codex，Opus 審。Codex：`codex exec -s workspace-write -C "$PWD" "<prompt>" < /dev/null > log 2>&1`（**一定要 `< /dev/null`**；背景啟動器的「completed」不等於 Codex 完成，log 結尾自加 `finished` 再輪詢）。Codex 沙箱連不到 VISA，實機由 Claude 執行。
 - 繁體中文，直白。沒真機的路徑要說清楚只有紙上驗證。
-- commit 結尾加 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` 與 `Claude-Session: https://claude.ai/code/session_0123DNaqbpGaCSVhdH7aNrA5`。
+- commit 結尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` 與 `Claude-Session: https://claude.ai/code/session_01XpTZuJrncCtdhRkN9fnF48`。**使用者明說才 commit。**
+- 「照舊流程」：Opus 子代理寫計畫（docs/，唯讀）→ Codex 審 → Codex 在 worktree 逐階段實作 → lead 驗證（沙箱外跑 e2e_check／browser_check）。UI 功能實作前先給使用者看預覽，說可以才開工。
 
 ## 自我檢查
 
@@ -207,7 +209,7 @@
 - selfcheck_node、e2e_check、browser_check（含新「I3C 解碼分頁／CSV／尺寸／過期設定」）全過。
 
 
-## I3C P4（2026-10-26，i3c-p4，未 commit）
+## I3C P4（2026-10-26，`9b475ed`；位址顯示修正 `2dbcdc6`）
 
 - 主圖下方新增黑底 40px 標註列：狀態色 transaction、hex／第九位標記、白色選框、逐 bit 與 SCL 取樣刻度；共用 plotRect、SCL dx、解碼模型；開關不使解碼過期。chrome 加 40px，窄版 FFT 分頁隱藏；工具列、glass.css、vertical.css 與 analysis.css 原有行未動。
 - 報告由有效快照建解碼段落（不依賴分頁可見性），包含目前篩選事件 ≤2000 列、內容 64 字元＋省略號、位址 ≤256 列、可見標註列圖；await 後再比對 file.gen／decodeResult 參照，避免換檔／重算／設定變更競態。
@@ -216,3 +218,11 @@
 - lead 沙箱外必跑 browser_check／e2e_check；新增瀏覽器檢查涵蓋實際像素左緣差 ≤1px、主圖 ≥270px、單 byte 9 bit／RPC、標註列點選表格、開關與窄版 FFT、真 HTML 匯出、5000 frames 單次 draw <30ms。此輪未啟動 localhost，以上像素／耗時／截圖尚未實跑，請特別看 B 區字體、lower 拖曳命中與 1400／1000 截圖。
 - 額外全套 `selfcheck_node.js --mutations` 停在既有 p2b2_check.mjs「格距忽略最末有效位：找不到變異位置」；另取 HEAD 乾淨靜態檔副本重跑，同樣 exit 1。P4 的 `decode_check.mjs --mutations` 單獨通過；未修改既有軸刻度或該變異測試。
 - 無實測波形；取得實測波形後與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。真機清單原有 357 行，本次只壓縮標題／表格邊界空行以符合每檔 ≤300 行，歷史文字保留。
+- 上述 browser_check／e2e_check 已由 lead 沙箱外實跑通過（左緣差 0px、5000 frames draw 約 13–15ms、報告約 7.3MB）。`2dbcdc6`：byte 模式位址改顯示「7E W」（與預覽一致，非原始 8-bit）；第九位小標放不下就不畫。
+- p2b2 `--mutations` 失敗已解（`dcecaa7`）：`6c969e4` 改寫 plotcore 格距精度後，變異搜尋字串過期；改為 `Math.min(floor - 1, last)`，21/21 通過。軸刻度行為未變。
+
+## 多協定解碼（2026-10-27，規劃中）
+
+- 目標：第 0 步把共用層（`analysis_decode.py:28` 寫死 i3c、decode.js 只有 scl/sda、標註列以 SCL dx 對齊）改為依協定註冊，I3C 行為不變；之後 I2C／SPI／UART（RS-232/485）／CAN 解碼核心各開 worktree 並行，接線逐一合併、每次跑全套驗證。建議分組：先 I2C+UART，再 SPI+CAN。
+- 進度：Opus 正寫 `docs/多協定解碼計畫.md`（研究在 `docs/研究_解碼_*.md`）；接著 Codex 審計畫 → 整理「待使用者決定」→ 協定選擇器／設定表單**先出預覽給使用者核可**才實作。
+- I3C §12 明確不做項目（HDR 內容、CRR、時序合規、glitch 濾波、自動偵測通道、游標區間解碼等）維持不做。
