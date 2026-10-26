@@ -184,3 +184,10 @@
 - `glass.css` 最後載入；P1 只補分析頁 segmented、Marker 選中列、垂直 badge 對比。凍結 token 名稱及「分析頁／FFT 頁／浮層（P3）」分段；P2 其餘套色、P3 blur／效能／三宿主實機驗收尚未實作。
 - `browser_check.py` 新增 `glass_smoke`，瀏覽器端計算放在 `static/js/glass_smoke.js`：含漸層最亮停點的祖先 alpha 合成對比、實際 Tab／Space、兩尺寸分析頁幾何與高對比／強制色彩。分頁基線由同瀏覽器暫套原始規則量測，並將 margin 納入總高度；分頁上下 margin 採 3px 以符合基線＋2px 預算（計畫範例 6px 會超出）；不取代實作前的截圖基線。
 - 本次沙箱不跑 browser_check；實際截圖、FFT 邊界、WKWebView／WebView2／QtWebEngine 由後續驗收。Node 一般自檢通過；`--mutations` 停在既有 p2b3 M2「寬版峰值混入其他面板」，未修改 HEAD 匯出副本亦重現。offscreen e2e 已執行，因沙箱禁止 localhost bind 而中止（PermissionError），待沙箱外驗收。
+
+## Liquid Glass P2/P3 與軸刻度（2026-10-26）
+
+- P2（分析頁／FFT 頁套色）、P3（`.dlg`／toast／`results__choices`／tooltip 毛玻璃，雙前綴 blur＋實心降級）皆已合入 main。浮動面板不加圓角（右下角縮放熱區在 3px 內）。
+- P3 效能：headless Chrome 1400×900、浮層疊圖上拖曳 5 秒×3 次，main 與 P3 皆 60fps（P95 16.7ms、0 掉幀），增幅 0%。限制：非 WKWebView／WebView2、非 10M 點檔；實機驗收見驗收清單 #26，**尚未做**。
+- 軸刻度 `tickLabel`：格距超過三位有效數字時只取兩位、電壓換 mV（`1440 mV`），時間軸不換單位；整齊格距行為不變。
+- 先前「版面小缺：峰標籤與 1 GHz 刻度被裁切」已於 e968c24／77b38a0 修好。
