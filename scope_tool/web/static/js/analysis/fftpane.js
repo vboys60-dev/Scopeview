@@ -124,7 +124,7 @@ export function mount(el, ctx) {
   const setView = (v, origin = 'user') => store.set({ fftView: clampView(v, bounds()) }, origin);
   const refreshAll = () => {
     const r = res();
-    status.textContent = r ? `RBW ${tickLabel(r.rbw, "Hz")}｜${r.window}｜${r.unit}` : store.get().fftResult?.reason ?? "";
+    status.textContent = r ? `RBW ${tickLabel(r.rbw, "Hz")}（${r.segments ?? 1} 段）｜VBW ${r.vbw == null ? "Auto（不平滑）" : tickLabel(r.vbw, "Hz")}｜${r.window}｜${r.unit}` : store.get().fftResult?.reason ?? "";
     if ((r?.spectrum_id ?? null) !== resId) { resId = r?.spectrum_id ?? null; env = null; if (r) setView(store.get().fftView, 'program'); latest.cancel(); if (r) fetchNow(); }
     draw();
   };

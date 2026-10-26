@@ -7,7 +7,8 @@ export function getFftState(ctx) {
   if (states.has(store)) return states.get(store);
   const catalog = ctx.appState?.catalog ?? {}, listeners = new Set();
   const p = { on: false, source: null, window: 'Hanning', unit: 'dBm', imp: 0, manualR: 50,
-    peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? ['Decreasing Magnitude'])[0] };
+    rbw: null, vbw: null, autoRbw: null, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? ['Decreasing Magnitude'])[0] };
+  let autoTimer = null;
   let analysisOn = false, active = ctx.activeTab === 'fft';
   const notify = () => { for (const fn of listeners) fn(); };
   const enabled = () => { p.on = analysisOn || (active && !!store.get().file); };
@@ -20,12 +21,16 @@ export function getFftState(ctx) {
   store.on(['file', 'channels'], source);
   const runner = createFft(ctx, catalog, p, {
     onError: (e, manual) => manual ? ui.showError(e, 'FFT 失敗') : ui.toast(`FFT 失敗：${e.message}`, 'error', 6000),
-    onReset: () => { analysisOn = false; enabled(); store.command('fft.visible', false); notify(); },
+    onReset: () => { clearTimeout(autoTimer); p.autoRbw = null; analysisOn = false; enabled(); store.command('fft.visible', false); notify(); },
   });
   const state = { p, runner, catalog,
     get analysisOn() { return analysisOn; },
     subscribe(fn) { listeners.add(fn); fn(); return () => listeners.delete(fn); },
-    change(key, value) { p[key] = value; runner.schedule(); notify(); },
+    change(key, value) {
+      p[key] = value;
+      if (key === 'rbw') { clearTimeout(autoTimer); if (value === null) p.autoRbw = autoBandwidth(store.get()); }
+      runner.schedule(); notify();
+    },
     setAnalysisOn(on) {
       analysisOn = !!on && !!store.get().file; enabled();
       store.command('fft.visible', analysisOn);
@@ -39,13 +44,27 @@ export function getFftState(ctx) {
     if (p.on) runner.ensure(); else runner.invalidate();
     notify();
   });
-  store.on(['file', 'channels', 'fftMarker'], notify);
+  // 只讀 P3 的 fftView；以最後送出的 Auto 要求值比較，避免新結果造成循環。
+  const followSpan = () => {
+    clearTimeout(autoTimer);
+    if (p.rbw !== null || p.unit === 'Phase') return;
+    const next = autoBandwidth(store.get());
+    if (next === null || (p.autoRbw > 0 && Math.abs(next / p.autoRbw - 1) < 0.05)) return;
+    autoTimer = setTimeout(() => {
+      const value = autoBandwidth(store.get());
+      if (p.rbw !== null || p.unit === 'Phase' || value === null) return;
+      if (p.autoRbw > 0 && Math.abs(value / p.autoRbw - 1) < 0.05) return;
+      p.autoRbw = value; runner.schedule(0); notify();
+    }, 300);
+  };
+  store.on(['fftView', 'fftResult', 'fftMarker'], followSpan);
+  store.on(['file', 'channels', 'fftMarker', 'fftResult'], notify);
   store.on(['fftResult'], st => {
     const r = st.fftResult;
     if (st.rfPos && r?.ok && r.unit !== '°') store.command('rf.intent', { direction: 0, x: st.rfPos.x });
     else if (st.rfPos && !r?.ok) store.set({ rfPos: null }, 'program');
   });
-  enabled(); runner.ensure();
+  followSpan(); enabled(); runner.ensure();
   return state;
 }
 
@@ -56,7 +75,7 @@ export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el } =
   const field = (host, name, control) => { const label = h('label', 'field'); label.textContent = name + ' '; label.append(control); host.append(label); };
   const select = opts => { const s = h('select', 'select'); s.append(...opts.map(([v, t]) => new Option(t, v))); return s; };
   const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map(k => [k, k]));
-  const unit = select((catalog.fft_units ?? []).filter(k => k !== 'Phase').map(k => [k, k]));
+  const unit = select((catalog.fft_units ?? []).map(k => [k, k]));
   const imp = select((catalog.fft_impedances ?? []).map(([t], i) => [i, t]));
   const sort = select((catalog.peak_sorts ?? []).map(k => [k, k]));
   const man = h('input', 'input'), lvl = h('input', 'input'), cnt = h('input', 'input');
@@ -80,4 +99,48 @@ export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el } =
   };
   const dispose = state.subscribe(sync);
   return { src, win, unit, imp, man, sort, lvl, cnt, dispose };
+}
+
+/** 由結果還原取樣率與完整範圍點數；短資料只能整段計算。 */
+export function bandwidthLimits(r) {
+  if (!r?.ok) return null;
+  const fs = r.df * r.effective_n, factor = r.enbw_bins;
+  if (![fs, factor, r.n].every(v => Number.isFinite(v) && v > 0)) return null;
+  return { min: factor * fs / r.n, max: factor * fs / Math.min(64, r.n) };
+}
+export function autoBandwidth(st) {
+  const r = st.fftResult, limits = bandwidthLimits(r), view = st.fftView ?? null;
+  const span = view ? view.f1 - view.f0 : r?.f_max;
+  if (!limits || !Number.isFinite(span) || span <= 0) return null;
+  return Math.max(limits.min, Math.min(limits.max, span / 1000));
+}
+
+/** 大檢視的頻寬欄；參數仍由兩頁共用的 state 持有。 */
+export function mountBandwidthControls(el, ctx) {
+  const state = getFftState(ctx), { p } = state, { fmt, store } = ctx;
+  const controls = {};
+  for (const key of ['rbw', 'vbw']) {
+    const label = document.createElement('label'), input = document.createElement('input');
+    label.className = 'field'; label.textContent = key.toUpperCase() + ' ';
+    input.className = 'input'; input.style.width = '6em'; input.setAttribute('aria-label', key.toUpperCase());
+    input.onchange = () => {
+      const text = input.value.trim(), value = !text || /^auto$/i.test(text) ? null : fmt.parseSI(text);
+      if (value === null || (Number.isFinite(value) && value > 0)) state.change(key, value);
+      input.value = p[key] === null ? 'Auto' : fmt.fmt(p[key], 'Hz');
+    };
+    label.append(input); el.append(label); controls[key] = input;
+  }
+  const hint = document.createElement('span'); hint.className = 'muted'; el.append(hint);
+  const dispose = state.subscribe(() => {
+    const st = store.get(), limits = bandwidthLimits(st.fftResult), phase = p.unit === 'Phase';
+    for (const key of ['rbw', 'vbw']) {
+      const input = controls[key]; input.disabled = !st.file || phase;
+      if (document.activeElement !== input) input.value = p[key] === null ? 'Auto' : fmt.fmt(p[key], 'Hz');
+    }
+    controls.rbw.title = limits ? `可設範圍 ${fmt.fmt(limits.min, 'Hz')}～${fmt.fmt(limits.max, 'Hz')}；Auto＝Span/1000（依範圍限制）` : 'Auto＝Span/1000（有頻譜後連動）';
+    controls.vbw.title = 'Auto＝不平滑；小於 RBW 時沿頻率軸平滑（本工具模擬）';
+    const requested = p.rbw ?? p.autoRbw, actual = st.fftResult?.rbw;
+    hint.textContent = !phase && st.fftResult?.ok && requested > 0 && Number.isFinite(actual) && Math.abs(actual / requested - 1) > 0.01 ? `已限制為 ${fmt.fmt(actual, 'Hz')}` : '';
+  });
+  return { ...controls, hint, dispose };
 }

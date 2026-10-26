@@ -29,5 +29,5 @@ export function mountFftMarkerTable(el, ctx, info) {
 export function fftInfo(r, fmt) {
   if (!r) return "";
   if (!r.ok) return r.reason ?? "FFT 失敗";
-  return `Δf ${fmt.fmt(r.df, "Hz")}｜RBW ${fmt.fmt(r.rbw, "Hz")}｜ENBW ${fmt.fmt(r.enbw, "Hz")}｜${r.window}｜N=${r.n}（${r.effective_n}）｜R=${r.r_ohm} Ω｜${r.unit}`;
+  return `Δf ${fmt.fmt(r.df, "Hz")}｜RBW ${fmt.fmt(r.rbw, "Hz")}（${r.segments ?? 1} 段）｜VBW ${r.vbw == null ? "Auto（不平滑）" : fmt.fmt(r.vbw, "Hz")}｜ENBW ${fmt.fmt(r.enbw, "Hz")}｜${r.window}｜N=${r.n}（${r.effective_n}）｜R=${r.r_ohm} Ω｜${r.unit}`;
 }

@@ -1,6 +1,6 @@
 // FFT 的獨立大檢視：與分析頁共用結果／參數，繪圖視窗共用 store.fftView。
 import { mount as mountPane, applySpanEdit } from './fftpane.js';
-import { mountFftControls } from './fft_state.js';
+import { mountFftControls, mountBandwidthControls } from './fft_state.js';
 import { mountFftMarkerTable, fftInfo } from './fft_marker_table.js';
 export function mount(el, ctx) {
   const { store, fmt } = ctx;
@@ -41,6 +41,8 @@ export function mount(el, ctx) {
   store.on(['fftResult', 'fftView'], () => syncFrequency()); syncFrequency();
   // 先掛共用來源選單，其餘參數與峰值控制分別放入參數列／右欄。
   mountFftControls(params, ctx, { sourceHost: source, markerHost: marker });
+  Object.assign(bw.style, { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' });
+  mountBandwidthControls(bw, ctx);
   field('範圍', range);
   const inputs = ['x1', 'x2'].map(which => {
     const input = h('input', 'input'); input.setAttribute('aria-label', which.toUpperCase());

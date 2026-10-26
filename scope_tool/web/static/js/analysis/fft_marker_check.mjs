@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { createStore } from './store.js';
 import { FFT_UNITS, inView, convertLevel, selectPeaks, needsRefetch, peaksTruncated, fftMarkerModel } from './fft_markers.js';
 import { fftGesture, createFftMarkerLayer } from './fft_marker_layer.js';
-import { createFft } from './toolbar.js';
+import { createFft, fftParams } from './fft_runner.js';
 import { bindFftMarkerControls } from './fft_marker_controls.js';
-import { mountFftMarkerTable } from './fft_marker_table.js';
+import { mountFftMarkerTable, fftInfo } from './fft_marker_table.js';
 import { createController } from './cursors.js';
 import { linear } from './plotcore.js';
 import * as fmt from '../fmt.js';
@@ -242,4 +242,78 @@ console.log('fft_marker self-check OK');
   finishOld(); await tick(); assert.equal(s.get().fftResult, null);
   pane.dispose(); state.runner.invalidate();
   console.log('fft P2 shared state / controls / two panes self-check OK');
+}
+// P4：真實排程與共用參數，虛擬時鐘逐毫秒驗證 Auto 防抖與循環防護。
+{
+  const { getFftState, mountBandwidthControls, autoBandwidth, bandwidthLimits } = await import('./fft_state.js');
+  const realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout, timers = new Map();
+  let now = 0, id = 0;
+  globalThis.setTimeout = (fn, ms) => { timers.set(++id, { fn, at: now + ms }); return id; };
+  globalThis.clearTimeout = key => timers.delete(key);
+  const advance = async ms => {
+    const end = now + ms;
+    while (true) {
+      const next = [...timers].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      now = next[1].at; timers.delete(next[0]); next[1].fn(); await Promise.resolve();
+    }
+    now = end;
+  };
+  try {
+    const s = createStore(), jobs = [], cat = { fft_impedances: [['50 Ω', 50]], fft_units: ['dBm', 'Phase'] };
+    const result = { ok: true, df: 1, effective_n: 65536, n: 65536, enbw_bins: 1.5, f_max: 32768, rbw: 1.5, segments: 1, vbw: null, peaks: [] };
+    s.set({ file: { gen: 1 }, channels: [{ name: 'CH1' }] });
+    assert.equal(autoBandwidth(s.get()), null);
+    const c = { store: s, fmt, activeTab: 'fft', appState: { catalog: cat }, ui: {}, bridge: {
+      async job(method, args) { jobs.push(args); return { ...result, unit: args.unit, rbw: Math.max(args.rbw ?? 1.5, 1.5), spectrum_id: `p4-${jobs.length}` }; },
+    } };
+    const state = getFftState(c), fields = mountBandwidthControls(new Element(), c), other = mountBandwidthControls(new Element(), c);
+    await advance(150); assert.equal(jobs.length, 1); assert.equal(jobs[0].rbw, null);
+    await advance(299); assert.equal(jobs.length, 1);
+    await advance(1); assert.equal(jobs.length, 2); assert.equal(jobs[1].rbw, 32.768);
+    s.set({ fftView: { f0: 0, f1: 20000 } }); await advance(200);
+    s.set({ fftView: { f0: 0, f1: 10000 } }); await advance(299); assert.equal(jobs.length, 2);
+    await advance(1); assert.equal(jobs.length, 3); assert.equal(jobs.at(-1).rbw, 10);
+    s.set({ fftView: { f0: 0, f1: 10499 } }); await advance(1000); assert.equal(jobs.length, 3);
+    await advance(3000); assert.equal(jobs.length, 3); // 新結果再次通知仍不循環
+    fields.rbw.value = '1k'; fields.rbw.onchange(); assert.equal(other.rbw.value, '1 kHz');
+    await advance(150); assert.equal(jobs.length, 4); assert.equal(jobs.at(-1).rbw, 1000);
+    s.set({ fftView: { f0: 0, f1: 2000 } }); await advance(1000); assert.equal(jobs.length, 4);
+    fields.rbw.value = '-1'; fields.rbw.onchange(); assert.equal(state.p.rbw, 1000);
+    fields.rbw.value = 'bad'; fields.rbw.onchange(); assert.equal(state.p.rbw, 1000);
+    fields.vbw.value = '200'; fields.vbw.onchange(); await advance(150); assert.equal(jobs.at(-1).vbw, 200);
+    state.p.unit = 'Phase'; assert.equal(fields.rbw.disabled, true); assert.equal(fields.vbw.disabled, true);
+    assert.deepEqual([fftParams(s.get(), state.p, cat).rbw, fftParams(s.get(), state.p, cat).vbw], [null, null]);
+    await advance(150); state.p.unit = 'dBm'; await advance(150); assert.equal(fields.rbw.disabled, false);
+    fields.rbw.value = 'Auto'; fields.rbw.onchange(); await advance(150); assert.equal(jobs.at(-1).rbw, 2);
+    fields.vbw.value = ''; fields.vbw.onchange(); await advance(150); assert.equal(jobs.at(-1).vbw, null);
+    assert.deepEqual(bandwidthLimits(result), { min: 1.5, max: 1536 });
+    assert.equal(autoBandwidth({ fftResult: result, fftView: { f0: 0, f1: 1 } }), 1.5);
+    assert.equal(autoBandwidth({ fftResult: result, fftView: { f0: 0, f1: 1e9 } }), 1536);
+    // 模擬後端夾限：差超過 1% 才提示，範圍 tooltip 由結果推導。
+    fields.rbw.value = '1'; fields.rbw.onchange(); await advance(150);
+    assert.match(fields.hint.textContent, /已限制為 1.5 Hz/); assert.match(fields.rbw.title, /1.5 Hz～1.536 kHz/);
+    s.set({ fftResult: { ...result, rbw: 1.009 } }); assert.equal(fields.hint.textContent, '');
+    assert.match(fftInfo({ ...result, segments: 8, vbw: 0.5 }, fmt), /RBW 1.5 Hz（8 段）｜VBW 500 mHz/);
+    state.runner.invalidate(); fields.dispose(); other.dispose();
+  } finally { globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear; }
+  console.log('fft P4 RBW / VBW / Auto debounce / manual / loop guard self-check OK');
+}
+// P4：使用產品 mock 回傳的夾限值，而非只造結果。
+{
+  const { createMock } = await import('../mock_backend.js');
+  const { getFftState, mountBandwidthControls } = await import('./fft_state.js');
+  const mock = createMock({ delay: 1 });
+  const job = (method, args) => new Promise((resolve, reject) => { const off = mock.subscribe(e => { if (e.type === 'job') { off(); e.ok ? resolve(e.result) : reject(e.error); } }); mock.rpc(method, args); });
+  const file = await job('open_waveform', { path: '/x/a.h5' }), s = createStore();
+  s.set({ file, channels: file.channels });
+  const c = { store: s, fmt, ui: {}, appState: { catalog: { fft_impedances: [['50 Ω', 50]] } } };
+  const state = getFftState(c), fields = mountBandwidthControls(new Element(), c);
+  fields.rbw.value = '1'; fields.rbw.onchange();
+  s.set({ fftResult: await job('fft', fftParams(s.get(), state.p, state.catalog)) });
+  assert.match(fields.hint.textContent, /已限制為 150 Hz/);
+  fields.rbw.value = '1k'; fields.rbw.onchange();
+  s.set({ fftResult: await job('fft', fftParams(s.get(), state.p, state.catalog)) });
+  assert.equal(fields.hint.textContent, ''); assert.ok(s.get().fftResult.segments > 1);
+  fields.dispose(); console.log('fft P4 mock clamp self-check OK');
 }
