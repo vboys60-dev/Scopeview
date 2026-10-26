@@ -221,8 +221,9 @@
 - 上述 browser_check／e2e_check 已由 lead 沙箱外實跑通過（左緣差 0px、5000 frames draw 約 13–15ms、報告約 7.3MB）。`2dbcdc6`：byte 模式位址改顯示「7E W」（與預覽一致，非原始 8-bit）；第九位小標放不下就不畫。
 - p2b2 `--mutations` 失敗已解（`dcecaa7`）：`6c969e4` 改寫 plotcore 格距精度後，變異搜尋字串過期；改為 `Math.min(floor - 1, last)`，21/21 通過。軸刻度行為未變。
 
-## 多協定解碼（2026-10-27，規劃中）
+## 多協定解碼（2026-10-27，計畫審畢、等預覽核可）
 
 - 目標：第 0 步把共用層（`analysis_decode.py:28` 寫死 i3c、decode.js 只有 scl/sda、標註列以 SCL dx 對齊）改為依協定註冊，I3C 行為不變；之後 I2C／SPI／UART（RS-232/485）／CAN 解碼核心各開 worktree 並行，接線逐一合併、每次跑全套驗證。建議分組：先 I2C+UART，再 SPI+CAN。
-- 進度：Opus 正寫 `docs/多協定解碼計畫.md`（研究在 `docs/研究_解碼_*.md`）；接著 Codex 審計畫 → 整理「待使用者決定」→ 協定選擇器／設定表單**先出預覽給使用者核可**才實作。
+- 計畫 `docs/多協定解碼計畫.md`（未 commit）：Codex 三輪唯讀審查，第三輪結論「可開工」（審查輸出在 session scratchpad `codex_multi_review{,2,3}_out.txt`，計畫內有「審查修訂紀錄」）。2026-10-27 使用者決定 §12 Q1–Q11 全部照建議（CAN FD 不解只跳過、UART 不做自動鮑率也不提示、TX/RX 雙 lane、RS-485 不相減、SPI 無 CS 選填閒置分框、雙線不逐 bit、I2C 範圍照列、設定列兩列以 V1 定案、預覽一次送、契約 version 維持 2、CAN 錯誤／過載旗標不區分）。
+- **目前卡在預覽閘門**：V1–V11 預覽 https://claude.ai/artifact/C7MuiLcS9mdPJoyCfUgMd8 （原始檔在 scratchpad `multi_decode_preview.html`，合成示意資料）。使用者要先開實機對照，說「可以開工」後才做第 0 步（main，序列），再依 §7 分兩波（I2C+UART、SPI+CAN）開 worktree。
 - I3C §12 明確不做項目（HDR 內容、CRR、時序合規、glitch 濾波、自動偵測通道、游標區間解碼等）維持不做。
