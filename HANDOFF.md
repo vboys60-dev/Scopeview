@@ -65,6 +65,14 @@
 - **待使用者**：排好版面後貼回 JSON／Markdown，再照它改真實 GUI（寫程式交 Codex）。
 - Codex CLI 0.163.0 無 `--full-auto`，用 `codex exec --sandbox workspace-write -C "$PWD" - < prompt`；其沙箱禁綁 localhost，browser_check 須自己跑。
 
+## 分析頁版面微調（2026-10-26，`0aed7a5`、`fa18727`、`a0666cc`）
+- 水平控制列（`axes.js`）移到通道列正下方；「位置（中心）」改名「時間軸位移」；游標摘要（`analysis__cursorSummary`、`summary.js` 的 `mountSummary`）已移除；Zoom 勾選框（原工具列「預覽」，`preview.visible`）移到水平列末，class `analysis__preview`。
+- 下方結果區 Marker 分頁改名「Marker Table」（`bpanel.js`）。「回中央」改名「X軸Maker歸位」，由 `cursors.js centerButton` 提供，現放在**工具列** Marker 欄右側；通道列與游標數值面板的舊按鈕已刪（「放在 marker 區塊」是照工具列解讀，使用者若指 Marker Table 分頁需再搬）。
+- 通道列（`chanbar.js`／`vertical.js`／`vertical.css`／`app.css`）：單列 grid、每通道一欄固定 236px（`--chanbar-col`），放不下橫向捲動、不換行，chip 不因 scale 文字位移。每欄含 chip＋自己的 vertical（單位/格、offset［原「中心電位」］、dx＋適配），綁通道名稱、不跟 selected 切換；vertical 不再自行訂閱 store，由 chanbar `sync()` 驅動。電壓控制**預設收折**，最左全域鈕展開／收折，狀態存 localStorage。dx＝該通道時間位移（`time_offset`，會影響游標區間量測與 FFT，非 0 時 chip 顯示 dx 徽章）。
+- 測試斷言已同步：`p1_check`、`p2_check`、`p2b2_check`、`p2b3_check`（游標輸入格 6→5）、`p3_check`、`browser_analysis_checks.py`；`browser_check.py` 的 splitter 取點改為分隔條 1/4 處（原點位會被 FFT 收折鈕／側欄鈕蓋住，非介面壞掉）。
+- 已知：通道多時右側被橫向捲動切掉且無提示；1000 寬水平列尾端（範圍／完整時間）被截斷；展開電壓控制後通道列約 100px，主圖變矮（1400×900 主圖 395px，下限 270px）。
+- 版面編輯器 `docs/版面編輯器/` 的 `components.json`／`shots/` 是這批改動**之前**的快照，現況已不同；使用者排版前若要對得上需重量測、重截圖。
+
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
 - 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`；`docs/DSOX6004A_Jitter驗證紀錄.md`（至第四輪）。
