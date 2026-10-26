@@ -75,6 +75,10 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | fft_track_rf | spectrum_id, x, direction, level | RFResult | Analysis |
 | export_csv J | range, max_points(null), directory(null) | PathResult | Analysis |
 | export_measurements | rows, gen, revision, directory(null) | PathResult | Analysis |
+| decode J | protocol: str, channels: map<str>, thresholds: map<[float,float]\|null>, options: object | DecodeSummary | Analysis |
+| decode_frames | decode_id: str | DecodeFrames | Analysis |
+| decode_bits | decode_id: str, t0: float, t1: float | DecodeBits | Analysis |
+| export_decode | decode_id: str, directory: str(null) | PathResult | Analysis |
 | export_report | html, directory(null) | PathResult | Analysis |
 | wait_events | since, timeout | EventsResult | server |
 
@@ -272,3 +276,24 @@ Class（BEM 風格，`block__element--modifier`）：
 - Track Measurements：MeasureResult 無事件座標，列為已知限制（UI 標「尚未支援」）。
 - CSV 游標區間：游標顯示時間直接切原始軸，不套 dx（與 Qt 一致）。
 - 開檔序列化：開檔進行中，前端禁止再次 file.open／關檔。
+
+### I3C 解碼追加（2026-10-26，version 維持 2）
+
+所有參數 required；目前 protocol 只接受 `i3c`。channels 鍵恰為 scl／sda、值為不同且存在的通道；thresholds 鍵相同，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 只可含 i2c_addrs（0–127 整數陣列）。兩通道整條時間軸相等、有限且嚴格遞增。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗／無轉態回完整 ok=false 摘要，counts 全零、id 與起迄為 null。
+
+型別（欄位型別字串與 api_contract.json 相同）：
+```
+DecodeSummary = {"ok": "bool","reason": "str|null","gen": "int","decode_id": "str|null","protocol": "str","channels": "map<str>","thresholds": "map<[float,float]|null>","t0": "float|null","t1": "float|null","counts": "DecodeCounts","truncated": "bool","warnings": "str[]"}
+DecodeCounts = {"frames": "int","fields": "int","errors": "int","warns": "int"}
+DecodeFrames = {"decode_id": "str","frames": "DecodeFrame[]","addresses": "AddrEntry[]"}
+DecodeFrame = {"i": "int","t0": "float","t1": "float","kind": "str","start": "str|null","addr": "int|null","rw": "int|null","ack": "bool|null","ccc": "int|null","ccc_name": "str|null","label": "str","status": "str","reasons": "str[]","fields": "DecodeField[]"}
+DecodeField = {"t0": "float","t1": "float","kind": "str","addr": "int|null","value": "int|null","nbits": "int","ninth": "int|null","ninth_kind": "str|null","ok": "bool","label": "str"}
+AddrEntry = {"da": "int","pid": "int|null","bcr": "int|null","dcr": "int|null","static": "int|null","t_from": "float|null","t_to": "float|null","how": "str","note": "str|null"}
+DecodeBits = {"bits": "[float,int][]","truncated": "bool"}
+```
+
+列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge kind：addr ccc def data mdb pid bcr dcr da；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。
+
+解碼一開始清舊快照，任何失敗也失效；完成在鎖內驗 gen。decode_id 不重用。同步三方法先驗型別再鎖內驗 id/gen；換／關檔、重新解碼或失敗後舊 id 均 STALE。decode_frames 同步取得大結果，不帶 request_id、不進 job 事件環。decode_bits 使用 SCL 來源時間、不套 dx，兩端含、反序交換；時間須有限，最多前 4096 bit、超出 truncated=true。
+
+export_decode 使用解碼當時的來源檔／通道／門檻／options／時間，directory=null 用該來源資料夾；utf-8-sig、檔名 `{stem}_解碼_YYYYMMDD_HHMMSS.csv`，永不覆蓋，寫入失敗 ScopeError。CSV 為 meta、空行、事件表（每 field 一列，無 field 的 frame 仍一列）、空行、位址表；時間 repr(float)。

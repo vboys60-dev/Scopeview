@@ -20,6 +20,7 @@ from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info, read_waveform_file
 from scope_tool.web import decimate
 
+from scope_tool.web.analysis_decode import DecodeMixin
 from scope_tool.web.analysis_export import ExportMixin
 from scope_tool.web.analysis_fft import FftMixin
 from scope_tool.web.analysis_params import validate_params
@@ -28,7 +29,7 @@ from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _n
 __all__ = ["Analysis", "wave_bytes", "fft_bytes", "validate_params"]  # validate_params 供 server 使用
 
 
-class Analysis(FftMixin, ExportMixin):
+class Analysis(DecodeMixin, FftMixin, ExportMixin):
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._gen = 0
@@ -37,6 +38,7 @@ class Analysis(FftMixin, ExportMixin):
 
     # ---------------------------------------------------------------- 內部狀態
     def _reset(self, path: Path | None) -> None:
+        self._dec = None
         self._path, self._waves, self._units, self._n_raw = path, [], {}, 0
         self._next_f, self._pyr, self._spec, self._snap = 1, {}, None, None
 

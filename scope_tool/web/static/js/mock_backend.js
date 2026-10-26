@@ -5,10 +5,12 @@ import { CATALOG } from "./mock_catalog.js";
 import { encodeWave, envelope, span, nearest, makeFile, makeSpectrum, peakBins } from "./mock_dsp.js";
 import { singleResult } from "./mock_measure.js";
 import { isDual, dualResult } from "./mock_measure2.js";
+import { makeDecode } from "./mock_decode.js";
 export { CATALOG, encodeWave };
 
 // 每個方法的參數名（body 必須帶齊、不得多帶）；與契約 params 的名稱一致，由 l0_check 比對。
 const KEYS = {
+  decode: "protocol channels thresholds options", decode_frames: "decode_id", decode_bits: "decode_id t0 t1", export_decode: "decode_id directory",
   get_state: "", save_config: "patch", pick_folder: "initial", pick_waveform_file: "initial", search: "", add_manual_ip: "ip",
   connect: "resource series_override", connect_fake: "", disconnect: "", capture_info: "",
   screenshot: "directory name image_format inverted area", capture: "directory name channels points retrigger",
@@ -76,6 +78,7 @@ export function createMock(opts = {}) {
     segments: 1, vbw: null, n: 20000, effective_n: 32768, r_ohm: p.r_ohm, f_min: 0, f_max: 1e6, peaks: [], ...extra });
 
   const H = {
+    ...makeDecode({ job, needFile, chan, generation: () => gen }),
     get_state: () => ({ config: { ...config }, connected, model, series, catalog: CATALOG, native_dialogs: false, seq }),
     save_config: ({ patch }) => { for (const k of Object.keys(patch ?? {})) if (!(k in config)) bad(`未知設定鍵：${k}`); return Object.assign(config, patch) && { ...config }; },
     pick_folder: () => null,

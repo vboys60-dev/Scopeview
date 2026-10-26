@@ -66,6 +66,20 @@ export async function runSemantics() {
     cr = await call(b, "cursor_readout", { t1: 0.1e-3, t2: 0.2e-3, dx: { CHAN1: 5e-3 } }); near(cr.t1, 0.1e-3, 0.3e-6); // 第一通道吸附，回顯示時間
     assert.equal(cr.index1, Math.round((0.1e-3 - 5e-3 + 5e-3) / 0.5e-6));
 
+    // 解碼：四方法都經 call 驗證契約型別；失敗與換檔使快照失效。
+    const dp = { protocol: 'i3c', channels: {scl:'CHAN1',sda:'CHAN2'}, thresholds: {scl:null,sda:null}, options:{} };
+    let ds = await call(b, 'decode', dp);
+    const df = await call(b, 'decode_frames', {decode_id:ds.decode_id});
+    assert.equal(df.frames.length,3); assert.deepEqual(df.frames[1].reasons,['parity']);
+    assert.equal((await call(b,'decode_bits',{decode_id:ds.decode_id,t0:29,t1:21})).bits.length,9);
+    assert.ok((await call(b,'export_decode',{decode_id:ds.decode_id,directory:null})).path);
+    await rej(b.call('decode',{}),'BAD_REQUEST');
+    await rej(call(b,'decode',{...dp,channels:{scl:'CHAN1'}}),'BAD_REQUEST');
+    for (const [m,p] of [['decode_frames',{}],['decode_bits',{t0:0,t1:1}],['export_decode',{directory:null}]])
+      await rej(call(b,m,{decode_id:ds.decode_id,...p}),'STALE');
+    await rej(call(b,'decode',{...dp,options:{i2c_addrs:[128]}}),'BAD_REQUEST');
+    ds = await call(b,'decode',dp);
+
     // marker
     const mk = (mode, o = {}) => call(b, "marker_eval", { mode, channel: "CHAN1", x1: 1e-4, x2: 3e-4, y1: 0.2, y2: 0.8, screen_width: 1e-3, measurements: null, ...o });
     let mr = await mk("Manual X only"); assert.deepEqual(mr.position, { x1: 1e-4, x2: 3e-4, y1: null, y2: null }); near(mr.delta_x, 2e-4); near(mr.inverse_delta_x, 5000, 1e-6); assert.equal(mr.delta_y, null);
@@ -174,6 +188,7 @@ export async function runSemantics() {
     await rej(call(b, "export_csv", { range: [0, 1], max_points: 0, directory: "/d" }), "BAD_REQUEST");
     const ef2 = await ff({ range: [5, 6] }); assert.ok(!ef2.ok); await rej(b.fetchSpectrum({ id: fr.spectrum_id, f0: 0, f1: 1e6, px: 100 }), "STALE"); await rej(rf(0, 0), "STALE"); // 失敗清除舊頻譜
   const idA = (await ff()).spectrum_id; await call(b, "open_waveform", { path: "/x/c.h5" }); assert.notEqual((await ff()).spectrum_id, idA); // 換檔不重用 id
+  await rej(call(b,'decode_frames',{decode_id:ds.decode_id}),'STALE');
   assert.equal(await call(b, "close_waveform", {}), null); await rej(wv(), "STALE"); await rej(call(b, "cursor_readout", { t1: 0, t2: 0, dx: DX }), "SCOPE_ERROR");
   await call(b, "open_waveform", { path: "/x/b.h5" }); await rej(exm({}), "STALE"); await rej(wv(), "STALE"); // 開新檔後舊世代全失效
   }

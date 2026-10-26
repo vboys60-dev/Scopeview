@@ -191,3 +191,11 @@
 - P3 效能：headless Chrome 1400×900、浮層疊圖上拖曳 5 秒×3 次，main 與 P3 皆 60fps（P95 16.7ms、0 掉幀），增幅 0%。限制：非 WKWebView／WebView2、非 10M 點檔；實機驗收見驗收清單 #26，**尚未做**。
 - 軸刻度 `tickLabel`：格距超過三位有效數字時只取兩位、電壓換 mV（`1440 mV`），時間軸不換單位；整齊格距行為不變。
 - 先前「版面小缺：峰標籤與 1 GHz 刻度被裁切」已於 e968c24／77b38a0 修好。
+
+## I3C P2（2026-10-26）
+
+- 契約 version=2 追加 decode（job）／decode_frames／decode_bits／export_decode 與七個 Decode／Addr 型別；固定 mock 拆 `mock_decode.js`，l0_sem 經 call 驗四方法型別、BAD_REQUEST／STALE。沒有 UI 修改。JSON 原有超過 300 行，改按方法／型別各一行排版，既有內容不變。
+- `analysis_decode.py` 提供鎖內快照／gen 檢查、任何解碼失敗使舊 id STALE、完整時間軸驗證、實際 bit 時間切片（含兩端／反序／4096 上限）與完整 UTF-8 BOM CSV。來源路徑／通道／門檻／選項／解碼時間固定於快照；analysis_api 僅三處接線。
+- analysis_decode、analysis_api（含 analysis_check）與 Node 一般自檢通過；P1 i3c_check 全綠（10M×2：3.833 s；單次／連續五次峰值 RSS 686.8／684.6 MiB）。e2e_check 由 lead 於沙箱外實跑通過。
+- HTTP 檢查含小型合成波形完整四 RPC、同步缺鍵 BAD_REQUEST／巢狀 job BAD_REQUEST、失敗／換檔後三方法 STALE；100k fields 使用從實際解碼結果擴充的合成快照，隔離量測序列化與 HTTP 成本，非解碼效能。lead 實跑（Apple M5）：100k fields 往返 0.146 s、回應 14,478,303 bytes；e2e_check／browser_check 全過；無實測／未與原廠解碼比對。
+- 額外 Node `--mutations` 停在既有 `p2b2_check.mjs`「格距忽略最末有效位：找不到變異位置」；另以 `git archive HEAD` 的未修改靜態檔副本執行，同樣失敗。未更動該測試或軸刻度實作。

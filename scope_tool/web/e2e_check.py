@@ -25,7 +25,8 @@ from scope_tool.web.server import Server
 def main() -> None:
     jobs = Jobs()
     api = Api(jobs, cfg=dict(config_mod.DEFAULTS), persist=False)
-    srv = Server(api, Analysis(), jobs, token="tok")
+    analysis = Analysis()
+    srv = Server(api, analysis, jobs, token="tok")
     srv.start()
     base = f"http://127.0.0.1:{srv.port}"
     tmp = Path(tempfile.mkdtemp())
@@ -214,6 +215,57 @@ def main() -> None:
         assert b"NaN" not in raw and b"Infinity" not in raw
         nb = dec(wave("CHAN1", 0, 3e-6, 10, fi3["gen"])[1])
         assert np.isnan(nb[3]).any(), "二進位應保留 NaN"
+        # 16 I3C：真 HTTP 小向量、錯誤生命週期與大快照傳輸。
+        from scope_tool.web.i3c_synth import Bus, write_csv
+        source = tmp / 'i3c_20261026_120000.csv'
+        write_csv(source, Bus().start().header(0x30).byte_w(0xA5).stop().target_reset().render())
+        job_ok('open_waveform', path=str(source))
+        dp = dict(protocol='i3c', channels={'scl':'CHAN1', 'sda':'CHAN2'},
+                  thresholds={'scl':None, 'sda':None}, options={})
+        assert rpc('decode', protocol='i3c')['error']['code'] == 'BAD_REQUEST'
+        summary = job_ok('decode', dp)
+        assert summary['ok'] and 'frames' not in summary and 'bits_t' not in summary
+        ident = summary['decode_id']
+        frames = ok('decode_frames', decode_id=ident)['frames']
+        assert len(frames) == summary['counts']['frames']
+        field = next(v for f in frames for v in f['fields'] if v['kind'] == 'data')
+        bits = ok('decode_bits', decode_id=ident, t0=field['t0'], t1=field['t1'])
+        assert len(bits['bits']) == 9 and bits['bits'][-1][1] == field['ninth']
+        exported = ok('export_decode', decode_id=ident, directory=None)
+        assert Path(exported['path']).exists() and Path(exported['path']).name.startswith('i3c_20261026_120000_解碼_')
+        def stale_decode(old: str) -> None:
+            for method, extra in [('decode_frames', {}), ('decode_bits', dict(t0=0,t1=1)),
+                                  ('export_decode', dict(directory=None))]:
+                assert rpc(method, decode_id=old, **extra)['error']['code'] == 'STALE'
+        nested = job('decode', {**dp, 'channels': {'scl':'CHAN1'}})
+        assert not nested['ok'] and nested['error']['code'] == 'BAD_REQUEST'
+        stale_decode(ident)
+        ident = job_ok('decode', dp)['decode_id']
+        failed = job_ok('decode', {**dp, 'thresholds': {'scl':[10,11], 'sda':None}})
+        assert not failed['ok'] and failed['decode_id'] is None
+        stale_decode(ident)
+        ident = job_ok('decode', dp)['decode_id']
+        job_ok('open_waveform', path=str(source))
+        stale_decode(ident)
+        ident = job_ok('decode', dp)['decode_id']
+        # 合成 100k fields 快照只量序列化／HTTP；解碼效能由 P1 向量另驗。
+        with analysis._lock:
+            saved = analysis._dec
+            template = next(f for f in saved['frames'] if f['fields'])
+            fields = [dict(template['fields'][0], t0=float(i), t1=i+0.9) for i in range(100_000)]
+            large = dict(template, t0=0., t1=100_000., fields=fields)
+            analysis._dec = {**saved, 'frames':[large]}
+        try:
+            started = time.perf_counter()
+            status, raw = http('/rpc/decode_frames?k=tok', {'decode_id':ident})
+            elapsed = time.perf_counter() - started
+            assert status == 200
+            envelope = json.loads(raw)
+            assert envelope['ok'] and len(envelope['result']['frames'][0]['fields']) == 100_000
+            print(f'decode_frames HTTP: 100000 fields, {elapsed:.3f} s, {len(raw)} bytes')
+        finally:
+            with analysis._lock:
+                analysis._dec = saved
         print("e2e self-check OK")
     finally:
         srv.stop()
