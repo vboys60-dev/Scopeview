@@ -4,7 +4,7 @@ import { fftMarkerModel } from './fft_markers.js';
 // 對數軸、峰值標記、RF 位置（store.rfPos）；RF 操作只發 rf.intent。FFT 參數控制列由 L5 掛在 .analysis__fftbar。
 import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
 
-export const MARGIN = { l: 64, t: 8, r: 10, b: 22 };
+export const MARGIN = { l: 64, t: 8, r: 24, b: 22 };
 /** 視窗夾限：保留跨度並平移入界；不足 minSpan 時擴大，反向／非有限回全頻寬。 */
 export function clampView(view, { nyq, minSpan }) {
   if (!view || !(nyq > 0) || !Number.isFinite(nyq)) return null;
@@ -96,7 +96,8 @@ export function mount(el, ctx) {
       if (p.x < fw.f0 || p.x > fw.f1) continue;
       const x = F(p.x), y = Y(p.y);
       g.beginPath(); g.moveTo(x - 4, y - 12); g.lineTo(x + 4, y - 12); g.lineTo(x, y - 4); g.fill();
-      g.fillText(tickLabel(p.x, "Hz"), x, y - 15);
+      const tx = tickLabel(p.x, "Hz"), hw = g.measureText(tx).width / 2;
+      g.fillText(tx, Math.min(Math.max(x, rect.l + hw), rect.l + rect.w - hw), y - 15); // 貼邊的峰標籤不被裁切
     }
     const rf = store.get().rfPos;
     if (rf && rf.x >= fw.f0 && rf.x <= fw.f1) {
