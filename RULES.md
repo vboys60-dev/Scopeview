@@ -70,7 +70,7 @@
 | L0 契約 | `docs/web-api契約.md`、`web/static/api_contract.json`、`static/index.html`、`static/js/{bridge,mock_backend,mock_catalog,mock_dsp,ui,fmt,main}.js`、`static/js/{l0_check,l0_util,l0_sem}.mjs`、`static/js/analysis/{store,scales}.js` |
 | L1a 後端橋接 | `web/{__init__,app,server,jobs,api}.py` |
 | L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,analysis_params,decimate,fft_rbw}.py` |
-| L2 連線列＋截圖頁 | `static/js/{connbar,tab_screenshot}.js` |
+| L2 連線列＋截圖＋資料截取容器 | `static/js/{connbar,tab_screenshot,tab_datacapture}.js`；2026-10-26 使用者授權：本案跨 L0 `index.html`/`main.js`/契約 §7、L6 `app.css` 檔尾、L8 `browser_check.py`/驗收清單，見 docs/資料截取合併計畫.md |
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage,vzoom,floatpanel,floatpanel_math}.js`、`static/css/analysis.css` |
 | L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary,cursor_table}.js`、`static/css/vertical.css` |

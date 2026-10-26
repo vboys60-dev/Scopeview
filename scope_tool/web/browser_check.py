@@ -119,13 +119,16 @@ def main() -> None:
         c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
         c.send("Page.navigate", url=srv.url)
         c.pump(1.5)
-        c.wait("document.querySelectorAll('#tabs .tab').length===4")
+        c.wait("!!document.querySelector('#tab-capture .dcap') && document.querySelectorAll('#tabs .tab').length===3")
         c.shot(out / "01_home.png")
         click = "(t)=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.replace(' ↕','').trim()===t);if(!b)throw Error('no button '+t);b.click();return true}"
         step("連線測試儀器", lambda: (c.js(f"({click})('測試儀器（模擬）')"), c.wait("document.body.innerText.includes('斷開模擬')")))
         c.shot(out / "02_connected.png")
         # 擷取（經 bridge，同 UI 的 job 路徑）；通道 2 條、4000 點
         prep = "const B=(await import('/js/bridge.js')).bridge; const S=(await import('/js/analysis/store.js')).store;"
+        step("資料截取同頁", lambda: c.wait("(()=>{const p=document.querySelector('#tab-capture');const buttons=[...p.querySelectorAll('button')].map(b=>b.textContent.trim());"
+                                           "return !p.hidden&&buttons.includes('開始存圖')&&buttons.includes('開始擷取')&&!document.querySelector('[data-tab=screenshot]')"
+                                           "&&document.querySelector('#tabs .tab').textContent.trim()==='資料截取'&&[...p.querySelectorAll('label.check')].some(l=>l.textContent.trim()==='CHAN1'&&l.querySelector('input[type=checkbox]')?.checked)})()"))
         c.js("document.querySelector('[data-tab=capture]').click()")
         c.shot(out / "03_capture_tab.png")
         cap: dict = {}

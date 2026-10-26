@@ -8,12 +8,11 @@ import * as scales from "./analysis/scales.js";
 // 各 lane 的模組約定：export function mount(el, ctx)；模組尚未交付時顯示佔位，不中斷其他頁。
 const MODULES = {
   connbar: { el: "connbar", src: "./connbar.js" },
-  screenshot: { el: "tab-screenshot", src: "./tab_screenshot.js" },
-  capture: { el: "tab-capture", src: "./tab_capture.js" },
+  capture: { el: "tab-capture", src: "./tab_datacapture.js" },
   analysis: { el: "tab-analysis", src: "./analysis/tab_analysis.js" },
   fft: { el: "tab-fft", src: "./analysis/tab_fft.js" },
 };
-const ctx = { bridge, store, ui, fmt, scales, MOCK, appState: null, activeTab: "screenshot" };
+const ctx = { bridge, store, ui, fmt, scales, MOCK, appState: null, activeTab: "capture" };
 
 async function mountAll() {
   for (const [name, m] of Object.entries(MODULES)) {

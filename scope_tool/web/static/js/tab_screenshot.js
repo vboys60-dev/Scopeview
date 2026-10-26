@@ -1,4 +1,4 @@
-// 截圖頁（對照 ui/tab_screenshot.py）：設定 → 截圖工作 → 預覽／存檔路徑／複製或另存。
+// 資料截取頁的截圖區（對照 ui/tab_screenshot.py）：設定 → 截圖工作 → 預覽／存檔路徑／複製或另存。
 // 截圖為單一同步 SCPI 傳輸，無進度可報：只顯示前端自計的已耗時秒數，不顯示百分比，也不提供取消。
 const BUSY_MSG = "儀器忙碌中，請等目前操作完成";
 export const elapsedText = (sec) => `擷取中… 已 ${sec} 秒`;
@@ -52,16 +52,15 @@ export function mount(el, ctx) {
   const area = sel([["full", "全螢幕"], ["graticule", "格線區"]]);
   const bStart = h("button", "btn btn--primary", "開始存圖"), bCopy = h("button", "btn", "複製到剪貼簿"), bSave = h("a", "btn", "另存…");
   bBrowse.type = bStart.type = bCopy.type = "button"; bSave.style.lineHeight = "28px"; bSave.style.textDecoration = "none";
-  const status = h("div", "muted"), seq = h("div", "muted"), img = h("img"), hint = h("div", "legacy-warning", "尚未連線，請先在上方連線儀器。");
+  const status = h("div", "muted"), seq = h("div", "muted"), img = h("img");
   img.alt = "截圖預覽"; img.style.cssText = "max-width:100%;max-height:60vh;display:none;background:#000";
   const row = h("div", "row"); row.append(dir, bBrowse);
   const dirField = h("div", "field"); dirField.append(h("span", "field__label", "存檔目錄"), row);
   const btns = h("div", "row"); btns.append(bStart, bCopy, bSave);
-  el.append(hint, dirField, field("檔名前綴", name), field("格式", fmt), field("顏色", color), field("擷取區域", area), btns, status, seq, img);
+  el.append(dirField, field("檔名前綴", name), field("格式", fmt), field("顏色", color), field("擷取區域", area), btns, status, seq, img);
 
   const view = {
     render(s) {
-      hint.hidden = s.connected;
       for (const [c, v] of [[dir, s.dir], [name, s.name], [fmt, s.fmt], [color, s.inverted ? "1" : "0"], [area, s.area]]) if (c.value !== v) c.value = v;
       for (const c of [dir, bBrowse, name, fmt, color, area]) c.disabled = s.running;
       bStart.disabled = s.running || !s.connected;

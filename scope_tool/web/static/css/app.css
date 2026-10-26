@@ -110,3 +110,6 @@ body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 v
 @media (max-width: 899px) { .dlg { min-width: 0; } }
 
 .chanbar__toggle { align-self: start; position: sticky; left: 0; z-index: 1; background: var(--c-surface); }
+.dcap { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: var(--sp-3); align-items: start; }
+.dcap__card { min-width: 0; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); padding: var(--sp-3); }
+.dcap__title { margin: 0 0 var(--sp-2); font-size: var(--fs-lg); }

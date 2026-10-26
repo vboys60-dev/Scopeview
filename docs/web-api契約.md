@@ -218,7 +218,7 @@ float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 
 ## 7. 頁面模組約定（main.js 掛載）
 
-每個頁面模組 `export function mount(el, ctx)`；`ctx = {bridge, store, ui, fmt, scales, MOCK, appState, activeTab}`。對應：`connbar.js→#connbar`、`tab_screenshot.js→#tab-screenshot`、`tab_capture.js→#tab-capture`、`analysis/tab_analysis.js→#tab-analysis`。模組不存在時 main 顯示佔位，不中斷其他頁。`ctx.appState` 在 `driver` 事件時由 main 更新（connected／model／series）；`desync` 事件由 main 以 toast 提示重新整理。
+每個頁面模組 `export function mount(el, ctx)`；`ctx = {bridge, store, ui, fmt, scales, MOCK, appState, activeTab}`。對應：`connbar.js→#connbar`、`tab_datacapture.js→#tab-capture（內掛 tab_screenshot.js 與 tab_capture.js 的 mount）`、`analysis/tab_analysis.js→#tab-analysis`。模組不存在時 main 顯示佔位，不中斷其他頁。`ctx.appState` 在 `driver` 事件時由 main 更新（connected／model／series）；`desync` 事件由 main 以 toast 提示重新整理。
 
 ## 8. 樣式 token 與 CSS class 名稱（L6 實作，其他 lane 只能引用）
 
