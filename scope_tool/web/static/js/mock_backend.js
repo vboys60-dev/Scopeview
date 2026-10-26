@@ -14,7 +14,7 @@ const KEYS = {
   screenshot: "directory name image_format inverted area", capture: "directory name channels points retrigger",
   open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
   measure: "entries range dx threshold", math: "op a b param", remove_channel: "name",
-  fft: "source range dx window unit r_ohm peak_count peak_level peak_sort", fft_track_rf: "spectrum_id x direction level",
+  fft: "source range dx window unit r_ohm peak_count peak_level peak_sort rbw vbw", fft_track_rf: "spectrum_id x direction level",
   export_csv: "range max_points directory", export_measurements: "rows gen revision directory", wait_events: "since timeout",
 };
 const err = (code, msg, retry = false) => new BridgeError(code, msg, retry);
@@ -73,7 +73,7 @@ export function createMock(opts = {}) {
     "Vrms(DC)": v => Math.sqrt(MEAS.Vavg(v.map(x => x * x))),
     "Vrms(AC)": v => { const avg = MEAS.Vavg(v); return Math.sqrt(MEAS.Vavg(v.map(x => (x - avg) ** 2))); } };
   const specInfo = (p, extra) => ({ ok: true, reason: null, gen, spectrum_id: null, source: p.source, unit: p.unit, window: p.window, df: 100, rbw: 150, enbw: 150, enbw_bins: 1.5, cg: 0.5,
-    n: 20000, effective_n: 32768, r_ohm: p.r_ohm, f_min: 0, f_max: 1e6, peaks: [], ...extra });
+    segments: 1, vbw: null, n: 20000, effective_n: 32768, r_ohm: p.r_ohm, f_min: 0, f_max: 1e6, peaks: [], ...extra });
 
   const H = {
     get_state: () => ({ config: { ...config }, connected, model, series, catalog: CATALOG, native_dialogs: false, seq }),
@@ -176,16 +176,20 @@ export function createMock(opts = {}) {
     fft: (p) => {
       checkRange(p.range); inCat(p.window, Object.keys(CATALOG.fft_windows), "視窗"); inCat(p.unit, CATALOG.fft_units, "單位"); inCat(p.peak_sort, CATALOG.peak_sorts, "峰排序");
       if (!(p.r_ohm > 0) || !Number.isFinite(p.peak_level) || !(p.peak_count >= 1)) bad("r_ohm／peak_level／peak_count 無效");
+      for (const v of [p.rbw, p.vbw]) if (v !== null && (!Number.isFinite(v) || v <= 0)) bad("rbw／vbw 必須是有限正數或 null");
+      if (p.unit === "Phase" && (p.rbw !== null || p.vbw !== null)) bad("Phase 的 rbw／vbw 必須為 null");
       return job("fft", () => {
         needFile();
         const [a, b] = cut(p.source, p.range, p.dx), c = data[p.source];
         const unit = p.unit === "Phase" ? "°" : c.derived ? `${c.unit} rms` : p.unit;
-        if (b - a < 2) { spec = null; return specInfo({ ...p, unit }, { ok: false, reason: "所選範圍內資料不足，無法計算 FFT", df: null, rbw: null, enbw: null, enbw_bins: null, cg: null, n: null, effective_n: null, r_ohm: null, f_min: null, f_max: null }); }
+        if (b - a < 2) { spec = null; return specInfo({ ...p, unit }, { ok: false, reason: "所選範圍內資料不足，無法計算 FFT", df: null, rbw: null, enbw: null, enbw_bins: null, cg: null, segments: null, vbw: null, n: null, effective_n: null, r_ohm: null, f_min: null, f_max: null }); }
         spec = { id: `s${++specNo}`, gen, ...makeSpectrum() };
         const idx = p.unit === "Phase" ? [] : peakBins(spec.y, p.peak_level);
         const sorts = { "Decreasing Magnitude": (i, j) => spec.y[j] - spec.y[i], "Increasing Magnitude": (i, j) => spec.y[i] - spec.y[j], "Increasing Frequency": (i, j) => i - j, "Decreasing Frequency": (i, j) => j - i };
         const peaks = idx.sort(sorts[p.peak_sort]).slice(0, p.peak_count).map((i) => ({ x: spec.x[i], y: spec.y[i] }));
-        return specInfo({ ...p, unit }, { spectrum_id: spec.id, n: b - a, peaks });
+        const rbw = p.rbw === null ? 150 : Math.max(p.rbw, 150);
+        return specInfo({ ...p, unit }, { spectrum_id: spec.id, n: b - a, peaks, rbw, enbw: rbw,
+          segments: p.rbw === null ? 1 : Math.max(1, Math.round(p.rbw / 150)), vbw: p.vbw !== null && p.vbw < rbw ? p.vbw : null });
       });
     },
     fft_track_rf: ({ spectrum_id: id, x, direction, level }) => {

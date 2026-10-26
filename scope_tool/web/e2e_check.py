@@ -135,7 +135,7 @@ def main() -> None:
         assert f2["name"] == "F2"
         # 9 fft／spectrum
         fr = job_ok("fft", source="CHAN1", range=[t0, t1], dx={}, window="Hanning", unit="dBm", r_ohm=50,
-                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude")
+                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=None, vbw=None)
         assert fr["ok"] and fr["spectrum_id"] and fr["peaks"], fr
         assert abs(fr["peaks"][0]["x"] - 1e6) / 1e6 < 0.05, fr["peaks"][0]
         sid = fr["spectrum_id"]
@@ -148,6 +148,9 @@ def main() -> None:
         tr = ok("fft_track_rf", spectrum_id=sid, x=9.5e5, direction=0, level=-200)
         assert tr["available"] and abs(tr["x"] - 1e6) / 1e6 < 0.05, tr
         assert rpc("fft_track_rf", spectrum_id="zz", x=0, direction=0, level=0)["error"]["code"] == "STALE"
+        wr = job_ok("fft", source="CHAN1", range=[t0, t1], dx={}, window="Hanning", unit="dBm", r_ohm=50,
+                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=1e6, vbw=None)
+        assert wr["ok"] and wr["segments"] > 1 and wr["rbw"] == wr["enbw"] and wr["vbw"] is None
         # 10 cursor／marker
         cr = ok("cursor_readout", t1=t0, t2=t1, dx={"CHAN2": 1e-9})
         assert set(cr["y"]) >= {"CHAN1", "CHAN2", "F1", "F2"} and cr["index1"] == 0 and cr["index2"] == N - 1

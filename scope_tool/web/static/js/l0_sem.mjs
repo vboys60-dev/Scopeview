@@ -129,9 +129,16 @@ export async function runSemantics() {
     const f2 = await call(b, "math", { op: "平方", a: "CHAN1", b: null, param: 0 }); assert.equal(f2.name, "F2"); assert.equal(f2.unit, "V²");
 
     // fft
-    const ff = (o = {}) => call(b, "fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", ...o });
+    const ff = (o = {}) => call(b, "fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, ...o });
     let fr = await ff(); assert.ok(fr.ok && fr.peaks.length === 5 && fr.gen === g && fr.peaks[0].x === 1000);
     assert.equal((await ff({ peak_level: -40 })).peaks.length, 4); assert.equal((await ff({ peak_level: -40, peak_sort: "Decreasing Frequency" })).peaks[0].x, 7000);
+    const wr = await ff({ rbw: 600, vbw: 100 }); assert.equal(wr.rbw, 600); assert.equal(wr.enbw, 600); assert.equal(wr.segments, 4); assert.equal(wr.vbw, 100);
+    assert.equal((await ff({ rbw: 10, vbw: 150 })).vbw, null);
+    for (const name of ["rbw", "vbw"]) {
+      for (const v of [0, -1]) await rej(ff({ [name]: v }), "BAD_REQUEST");
+      for (const v of [NaN, Infinity, true, "1"]) await rej(b.job("fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, [name]: v }), "BAD_REQUEST");
+      await rej(ff({ unit: "Phase", [name]: 100 }), "BAD_REQUEST");
+    }
     const ph = await ff({ unit: "Phase" }); assert.ok(ph.unit === "°" && ph.peaks.length === 0 && ph.ok);
     assert.equal((await ff({ source: "F2" })).unit, "V² rms");
     const ef = await ff({ range: [5, 6] }); assert.ok(!ef.ok && ef.reason && ef.spectrum_id === null && ef.peaks.length === 0);

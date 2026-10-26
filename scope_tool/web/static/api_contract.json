@@ -460,6 +460,20 @@
      "type": "str",
      "required": true,
      "nullable": false
+    },
+    {
+     "name": "rbw",
+     "type": "float",
+     "required": true,
+     "nullable": true,
+     "doc": "Hz；null＝Auto（整段一次 FFT，舊行為）；有值＝Welch 段長 L=round(enbw_bins·Fs/rbw) 夾到 [64,n]、50% 重疊、功率平均；unit=Phase 時必須 null"
+    },
+    {
+     "name": "vbw",
+     "type": "float",
+     "required": true,
+     "nullable": true,
+     "doc": "Hz；null 或 ≥RBW＝不平滑；<RBW＝輸出單位域沿頻率移動平均，寬 RBW²/VBW；unit=Phase 時必須 null"
     }
    ],
    "returns": "FFTResult",
@@ -744,7 +758,9 @@
    "r_ohm": "float|null",
    "f_min": "float|null",
    "f_max": "float|null",
-   "peaks": "Peak[]"
+   "peaks": "Peak[]",
+   "segments": "int|null",
+   "vbw": "float|null"
   },
   "RFResult": {
    "x": "float",
@@ -760,7 +776,7 @@
  },
  "types_doc": {
   "Stats": "current＝最靠近顯示時間 t=0 的事件；切片不含 0 時取最靠近切片時間中點者，同距取較早。事件時間為起始邊緣中閾交越（延遲／相位用來源 1）；單值取範圍結果，無事件時間時退回首事件；其他統計欄不變",
-  "FFTResult": "ok=false（空區間等）時 spectrum_id 與數值欄為 null、peaks=[]、reason 說明；unit＝輸出單位：衍生來源為「<u> rms」，Phase 為「°」且 peaks=[]",
+  "FFTResult": "ok=false（空區間等）時 spectrum_id 與數值欄為 null、peaks=[]、reason 說明；unit＝輸出單位：衍生來源為「<u> rms」，Phase 為「°」且 peaks=[]。rbw 參數為 null 時 rbw＝df×窗 ENBW 倍率（舊定義）；有值時 rbw＝enbw＝實際雜訊頻寬。segments＝平均段數（Auto 為 1）。vbw＝實際套用的 VBW，未平滑為 null。n＝範圍內總點數。峰值、基準線、Track RF 與 /fft 都使用平滑後的軌跡。ok=false 時 segments、vbw 為 null。",
   "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外；channel2 可省略／null，雙來源回傳來源 2 通道名",
   "FileSummary": "info＝[標籤,值][] 檔案資訊表（取代 Qt file_info_rows）；model／series／captured_at 檔內缺值為 null",
   "ChannelInfo": "gen＝產生它時的開檔世代；vmin／vmax 全為 NaN 時 null",

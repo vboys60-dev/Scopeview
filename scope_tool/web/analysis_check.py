@@ -36,9 +36,9 @@ def _self_check() -> None:
     def run(r: Any) -> Any:  # 工作型方法已是同步函式
         return r
 
-    def err(fn, *a, exc=Exception):
+    def err(fn, *a, exc=Exception, **kwargs):
         try:
-            fn(*a)
+            fn(*a, **kwargs)
         except exc as e:
             return e
         raise AssertionError("應該失敗")
@@ -157,6 +157,40 @@ def _self_check() -> None:
             and fe["reason"]
         assert isinstance(err(A.fft_track_rf, fr["spectrum_id"], 1.0, 0, -40.0, exc=StaleError), StaleError)
         fr = run(A.fft("CHAN2", None, {}, **kw))
+        # Auto 與原演算法逐位元相同；新增鍵不影響既有峰值與 RBW。
+        from scope_tool.analysis import fft as fftmod
+        from scope_tool.web.fft_rbw import video_smooth
+        baseline = fftmod.spectrum(t, sin, "Hanning", "dBV", 50.)
+        auto = A.fft("CHAN2", None, {}, **kw, rbw=None, vbw=None)
+        assert auto["rbw"] == baseline["rbw"] and auto["peaks"] == fr["peaks"]
+        assert auto["segments"] == 1 and auto["vbw"] is None
+        assert np.array_equal(A._get_spec(auto["spectrum_id"])["mag"], baseline["mag"])
+        for name in ("rbw", "vbw"):
+            for bad in (0., -1., np.nan, np.inf, True, "1"):
+                assert isinstance(err(A.fft, "CHAN2", None, {}, **kw, **{name: bad}, exc=BadRequest), BadRequest)
+            phase = {**kw, "unit": "Phase", name: 1000.}
+            assert isinstance(err(A.fft, "CHAN2", None, {}, **phase, exc=BadRequest), BadRequest)
+        raw = A.fft("CHAN2", None, {}, **kw, rbw=1000.)
+        assert raw["segments"] > 1 and raw["rbw"] == raw["enbw"]
+        raw_mag = A._get_spec(raw["spectrum_id"])["mag"].copy()
+        smooth = A.fft("CHAN2", None, {}, **{**kw, "peak_level": -400.}, rbw=1000., vbw=100.)
+        spec = A._get_spec(smooth["spectrum_id"])
+        expected, _ = video_smooth(raw_mag, raw["rbw"], 100., raw["df"])
+        assert smooth["vbw"] == 100. and np.array_equal(spec["mag"], expected)
+        assert not np.allclose(raw_mag, expected)
+        i = int(np.argmax(expected))
+        rf = A.fft_track_rf(smooth["spectrum_id"], float(spec["freq"][i]), 0, -400.)
+        assert rf["y"] == expected[i] and rf["x"] == spec["freq"][i]
+        _, mode, fx, flo, fhi = decode(fft_bytes(A, smooth["spectrum_id"],
+                                                rf["x"] - .1, rf["x"] + .1, 10, False))
+        j = int(np.searchsorted(fx, rf["x"]))
+        assert mode == 0 and fx[j] == rf["x"] and flo[j] == np.float32(rf["y"]) == fhi[j]
+        _, mode, _, flo, fhi = decode(fft_bytes(A, smooth["spectrum_id"], 0., smooth["f_max"], 1, False))
+        assert mode == 1 and fhi[0] == np.float32(rf["y"]) and flo[0] == np.float32(min(expected))
+        assert smooth["peaks"] and all(p["x"] in spec["freq"] and p["y"] == expected[np.searchsorted(spec["freq"], p["x"])]
+                   for p in smooth["peaks"])
+        assert fe["segments"] is None and fe["vbw"] is None
+        fr = A.fft("CHAN2", None, {}, **kw)
         # 二進位
         n_, mode, bx, lo, hi = decode(wave_bytes(A, "CHAN1", 0.0, 1.0, 100, 1))
         assert mode == 1 and n_ == 100

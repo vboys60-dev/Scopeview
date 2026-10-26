@@ -71,7 +71,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | math J | op, a, b(null), param | ChannelInfo | Analysis |
 | close_waveform | （無） | null | Analysis |
 | remove_channel | name | null | Analysis |
-| fft J | source, range, dx, window, unit, r_ohm, peak_count, peak_level, peak_sort | FFTResult | Analysis |
+| fft J | source, range, dx, window, unit, r_ohm, peak_count, peak_level, peak_sort, rbw, vbw | FFTResult | Analysis |
 | fft_track_rf | spectrum_id, x, direction, level | RFResult | Analysis |
 | export_csv J | range, max_points(null), directory(null) | PathResult | Analysis |
 | export_measurements | rows, gen, revision, directory(null) | PathResult | Analysis |
@@ -107,6 +107,11 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - `r_ohm` 必填 float：前端把 Auto 依 `catalog.fft_impedances`（[標籤, Ω|null]，五選項：其他／未知 50、單端 50、差動 100、共模 25、手動＝使用者輸入）換成數值。`peak_level` 必填（前端預設 -40）。`catalog.fft_units` 不含 `"W"`（Qt UI 隱藏）。
 - `FFTResult.unit`＝**輸出單位**：衍生通道來源為「`<u> rms`」；`Phase` 為「°」且 `peaks=[]`。`FFTResult` 與 math 的 `ChannelInfo` 帶 `gen`。
 - 後端只保留最近一次頻譜；`/fft`、`fft_track_rf` 的 `spectrum_id` 不是目前頻譜（含開新檔後）→ `STALE`。
+
+- `rbw`、`vbw` 必填且可為 null（Hz），version 維持 2。非 null 須為有限正數；非有限／≤0，或 `Phase` 帶非 null → `BAD_REQUEST`。
+- `rbw=null` 直接沿用整段 FFT，`rbw=df×enbw_bins`、`segments=1`；手動 RBW 使用 Welch：L=round(enbw_bins·Fs/rbw)，夾到 [64,n]（n<64 時 L=n），50% 重疊、功率平均，尾端不足 hop 的資料捨棄。回實際 `rbw=enbw=enbw_bins·Fs/L`，`n` 仍是範圍內總點數。
+- `vbw=null` 或 ≥實際 RBW 不平滑，回 `vbw=null`；否則於輸出單位域（含 dB）沿頻率做方框平均，寬 RBW²/VBW、點數取奇數並限於頻格數，兩端縮窗正規化；回套用的 VBW。這是本工具模擬做法，待真機比對，非頻譜儀等效公式。
+- 峰值、基準線、Track RF 與 `/fft` 都用平滑後軌跡；平滑時峰值不內插，頻率取格心。失敗時 `segments`、`vbw` 為 null。
 
 ### Marker 與 Track RF
 

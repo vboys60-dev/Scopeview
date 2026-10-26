@@ -9,7 +9,7 @@ import numpy as np
 from scope_tool.analysis import fft as fftmod
 from scope_tool.analysis import marker as markermod
 from scope_tool.analysis.peaks import SORTS
-from scope_tool.web import decimate
+from scope_tool.web import decimate, fft_rbw
 from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _range
 
 _SPEC_IDS = itertools.count(1)  # 程序內遞增，換檔／關檔不重設
@@ -18,7 +18,7 @@ _SPEC_IDS = itertools.count(1)  # 程序內遞增，換檔／關檔不重設
 class FftMixin:
     # ---------------------------------------------------------------- FFT
     def fft(self, source: str, range: list, dx: dict, window: str, unit: str, r_ohm: float,
-            peak_count: int, peak_level: float, peak_sort: str) -> dict:
+            peak_count: int, peak_level: float, peak_sort: str, rbw: float | None = None, vbw: float | None = None) -> dict:
         rng, dx = _range(range), _dx(dx)
         if window not in fftmod.WINDOWS:
             raise BadRequest(f"未知視窗：{window}")
@@ -28,6 +28,12 @@ class FftMixin:
             raise BadRequest(f"未知峰排序：{peak_sort}")
         if not (r_ohm > 0) or not math.isfinite(peak_level) or not peak_count >= 1:
             raise BadRequest("r_ohm／peak_level／peak_count 無效")
+        for name, value in (("rbw", rbw), ("vbw", vbw)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or not math.isfinite(value) or value <= 0):
+                raise BadRequest(f"{name} 必須是有限正數或 null")
+        if unit == "Phase" and (rbw is not None or vbw is not None):
+            raise BadRequest("Phase 的 rbw／vbw 必須為 null")
         gen, waves, units = self._need()
         w = self._wf(waves, source)
         su = units[source]
@@ -38,7 +44,7 @@ class FftMixin:
             return _clean({"ok": False, "reason": reason, "gen": gen, "spectrum_id": None, "source": source,
                            "unit": out_unit, "window": window, "df": None, "rbw": None, "enbw": None,
                            "enbw_bins": None, "cg": None, "n": None, "effective_n": None, "r_ohm": None,
-                           "f_min": None, "f_max": None, "peaks": []})
+                           "f_min": None, "f_max": None, "peaks": [], "segments": None, "vbw": None})
 
         def work() -> dict:
             t, v = self._cut(w, rng, dx)
@@ -48,9 +54,12 @@ class FftMixin:
                 return fail("所選範圍內沒有資料", out_u)
             if len(t) < 2:
                 return fail("所選範圍內資料不足，無法計算 FFT", out_u)
-            s = fftmod.spectrum(t, v, window, unit, r_ohm, su)
+            s = (fftmod.spectrum(t, v, window, unit, r_ohm, su) if rbw is None else
+                 fft_rbw.welch(t, v, window, unit, r_ohm, su, rbw))
+            # ponytail: VBW 變更重跑全 FFT；大檔慢時再加快取原始 mag。
+            s["mag"], applied = fft_rbw.video_smooth(s["mag"], s["rbw"], vbw, s["df"])
             pk = [] if s["unit"] == "°" else fftmod.peaks(s["freq"], s["mag"], peak_count, s["lobe"],
-                                                        level=peak_level, sort=peak_sort, interpolate=True,
+                                                        level=peak_level, sort=peak_sort, interpolate=applied is None,
                                                         amplitude=s["rms"])
             self._alive(gen)
             with self._lock:
@@ -60,7 +69,7 @@ class FftMixin:
                            "unit": s["unit"], "window": window, "df": s["df"], "rbw": s["rbw"], "enbw": s["enbw"],
                            "enbw_bins": s["enbw_bins"], "cg": s["cg"], "n": s["n"],
                            "effective_n": s["effective_n"], "r_ohm": s["r_ohm"], "f_min": float(s["freq"][0]),
-                           "f_max": float(s["freq"][-1]), "peaks": [{"x": x, "y": y} for x, y in pk]})
+                           "f_max": float(s["freq"][-1]), "segments": s.get("segments", 1), "vbw": applied, "peaks": [{"x": x, "y": y} for x, y in pk]})
 
         return work()
 

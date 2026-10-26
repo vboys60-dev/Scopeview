@@ -115,7 +115,7 @@ async function setup(hook) {
 {
   const { bridge, store, mock } = await setup();
   createController({ store, bridge });
-  const p = { source: "CHAN1", range: null, dx: { CHAN1: 0, CHAN2: 0 }, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -40, peak_sort: "Decreasing Magnitude" };
+  const p = { source: "CHAN1", range: null, dx: { CHAN1: 0, CHAN2: 0 }, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -40, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null };
   const r = await bridge.job("fft", p);
   store.set({ file: { gen: r.gen }, fftResult: { ...r, peak_level: -40 } }, "program");
   store.command("rf.intent", { direction: 0, x: r.peaks[0].x }); await sleep(20);
