@@ -85,9 +85,13 @@ export function mount(el, ctx) {
     const col = plotColors(), r = res();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     if (!r) { g.fillStyle = col.text; g.font = "12px sans-serif"; g.fillText("尚無頻譜（開啟 FFT 後顯示）", rect.l + 8, rect.t + 18); return; }
-    const fw = win(), F = Fmap(), Y = Ymap(), unit = r.unit;
+    const unit = r.unit, yt = niceTicks(yr[0], yr[1], 6);
+    g.font = "12px sans-serif"; // 左邊界隨 Y 刻度文字寬度加寬（Vrms 等長單位不被裁切）
+    const l = Math.max(MARGIN.l, Math.ceil(Math.max(...yt.map((v) => g.measureText(tickLabel(v, unit)).width))) + 10);
+    if (l !== rect.l) rect = { ...rect, l, w: Math.max(1, w - l - MARGIN.r) };
+    const fw = win(), F = Fmap(), Y = Ymap();
     const ft = log() ? logTicks(fw.f0, fw.f1) : niceTicks(fw.f0, fw.f1);
-    drawGrid(g, rect, ft.map((v) => ({ p: F(v), label: tickLabel(v, "Hz") })), niceTicks(yr[0], yr[1], 6).map((v) => ({ p: Y(v), label: tickLabel(v, unit) })), col);
+    drawGrid(g, rect, ft.map((v) => ({ p: F(v), label: tickLabel(v, "Hz") })), yt.map((v) => ({ p: Y(v), label: tickLabel(v, unit) })), col);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     if (env) drawPixels(g, envPixels(env, F, Y), col.fft);
     g.fillStyle = col.peak; g.font = "10px sans-serif"; g.textAlign = "center";

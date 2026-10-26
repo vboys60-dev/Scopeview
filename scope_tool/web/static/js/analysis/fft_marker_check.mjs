@@ -162,7 +162,7 @@ console.log('fft_marker self-check OK');
   const { mount: mountTab } = await import('./tab_fft.js');
   const { mount: mountPane } = await import('./fftpane.js');
   Element.prototype.querySelector = function(k) { return (this.nodes ??= {})[k] ??= new Element(); };
-  Element.prototype.getContext = () => new Proxy({}, { get: () => () => {}, set: () => true });
+  Element.prototype.getContext = () => new Proxy({}, { get: (t, k) => k === 'measureText' ? () => ({ width: 0 }) : () => {}, set: () => true });
   Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 320 });
   Object.defineProperty(Element.prototype, 'options', { get() { return this.children; } });
   globalThis.Option = class extends Element { constructor(text, value) { super('option'); this.textContent = text; this.value = String(value); } };
