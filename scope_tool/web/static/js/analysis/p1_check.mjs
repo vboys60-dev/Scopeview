@@ -12,7 +12,7 @@ const texts = [], textPositions = [];
 const g = new Proxy({}, { get: (t, k) => k === "measureText" ? () => ({ width: 0 })
   : k === "fillText" ? (text, x, y) => { texts.push(text); textPositions.push({ text, x, y }); } : t[k] ?? (() => {}), set: (t, k, v) => ((t[k] = v), true) });
 function el(tag = "div") {
-  return { tag, tagName: tag.toUpperCase(), dataset: {}, setAttribute() {}, children: [], style: {}, classList: { add() {}, toggle() {} }, listeners: {}, value: "",
+  return { tag, tagName: tag.toUpperCase(), dataset: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, children: [], style: {}, classList: { add() {}, toggle() {} }, listeners: {}, value: "",
     append(...cs) { for (const c of cs) { this.children.push(c); c.parentNode = this; } },
     replaceChildren(...cs) { this.children = []; this.append(...cs); },
     addEventListener(k, f) { this.listeners[k] = f; }, setPointerCapture() {}, getContext: () => g,
@@ -30,8 +30,30 @@ store.set({ channels: [
 ], selected: "CHAN1", view: { t0: 0, t1: 4 } });
 store.onCommand("viewport.intent", (v) => { commands.push(["view", v]); store.set({ view: v }, "user"); });
 store.onCommand("channel.scale_intent", (p) => commands.push(["channel", p]));
+const saved = new Map();
+globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) };
 const bar = el(); mountChanbar(bar, ctx);
-const vertical = bar.children[0].children[1], row = vertical.children[0], input = row.children[2];
+const columns = () => bar.children.filter(e => e.className === "chanbar__col");
+assert.ok(columns().every(e => e.children[1].hidden));
+bar.children[0].onclick();
+assert.ok(columns().every(e => !e.children[1].hidden));
+assert.equal(bar.children[0].attrs["aria-expanded"], "true");
+const restored = el(); mountChanbar(restored, { ...ctx, store: createStore() });
+assert.equal(restored.children[0].attrs["aria-expanded"], "true");
+bar.children[0].onclick();
+assert.ok(columns().every(e => e.children[1].hidden));
+assert.equal(saved.get("analysis.vertical.expanded"), "false");
+bar.children[0].onclick();
+// 儲存被封鎖時仍預設收折，且按鈕可正常切換。
+globalThis.localStorage = { getItem() { throw Error("blocked"); }, setItem() { throw Error("blocked"); } };
+const fallbackStore = createStore(); fallbackStore.set({ channels: store.get().channels });
+const fallback = el(); mountChanbar(fallback, { ...ctx, store: fallbackStore });
+assert.ok(fallback.children.slice(1).every(e => e.children[1].hidden));
+fallback.children[0].onclick();
+assert.ok(fallback.children.slice(1).every(e => !e.children[1].hidden));
+delete globalThis.localStorage;
+
+const vertical = columns()[0].children[1], row = vertical.children[0], input = row.children[2];
 input.value = "137m"; input.onchange(); near(store.get().channels[0].scale, 0.137);
 assert.equal(input.value, "137 mV");
 for (const [value, want] of [["0", 0.0005], ["-5m", 0.0005], ["1p", 0.0005], ["100", 10]]) {
@@ -77,7 +99,7 @@ near(fineScale(1e-12, "V/s", false, scales), 1e-12);
 near(fineScale(5e12, "V/s", true, scales), 5e12);
 near(clampScale(0.137, "V", scales), 0.137);
 store.set({ selected: "CHAN2" });
-const derivedRow = bar.children[1].children[1].children[0];
+const derivedRow = columns()[1].children[1].children[0];
 derivedRow.children.find((c) => c.textContent === "+").onclick(); near(store.get().channels[1].scale, 1.296);
 const derivedInput = derivedRow.children[2]; derivedInput.value = "2.317 V²"; derivedInput.onchange();
 near(store.get().channels[1].scale, 2.317);
@@ -212,6 +234,6 @@ store.set({ file: null }); assert.equal(reset.disabled, true); assert.equal(topR
 const closed = { ...store.get().cursors }; reset.onclick(); topReset.onclick();
 assert.deepEqual(store.get().cursors, closed);
 // 清空通道也移除所有通道欄與垂直控制。
-store.set({ channels: [] }); assert.deepEqual(bar.children, []);
+store.set({ channels: [] }); assert.deepEqual(columns(), []);
 plot.dispose();
 console.log("P1 feedback self-check OK：微調／任意輸入、把手實際事件、X 越界復現、Y 時間軸不變、雙處回中央／有號間距／Y 保留／吸附");

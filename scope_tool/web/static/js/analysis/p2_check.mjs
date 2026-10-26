@@ -92,6 +92,16 @@ fire("pointerdown", 300); fire("pointermove", 700); fire("pointerup", 700); asse
 document.activeElement = null; store.set({ view: v });
 fire("pointerdown", 300, { button: 1 }); fire("pointermove", 400); fire("pointerup", 400); assert.deepEqual(store.get().view, { t0: -2, t1: 8 });
 const bar = element(); mountAxes(bar, { store });
+const preview = bar.children.find(e => e.className === "analysis__preview").children[0];
+let previewIntent;
+store.onCommand("preview.visible", on => { previewIntent = on; });
+preview.checked = false; preview.onchange(); assert.equal(previewIntent, false);
+store.command("layout.state", { overview: false, blocked: true });
+assert.equal(preview.checked, false); assert.equal(preview.disabled, true); assert.match(preview.title, /視窗高度不足/);
+store.command("layout.state", { overview: true, blocked: false });
+assert.equal(preview.checked, true); assert.equal(preview.disabled, false); assert.equal(preview.title, "");
+assert.ok(!bar.children.some(e => e.className === "analysis__cursorSummary"));
+
 const scaleInput = bar.children.flatMap((e) => e.children).find((e) => e.dataset.axis === "scale");
 scaleInput.value = "20n"; scaleInput.onkeydown({ key: "Enter", preventDefault() {} });
 // 此檔案的取樣界線會夾到 0.1s；另換成 ns 取樣檔測 20n 輸入。

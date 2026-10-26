@@ -164,8 +164,8 @@ def main() -> None:
         step("B 區收折仍可回中央並保留間距", lambda: analysis_checks.center_cursors(c, prep, click, out))
         # P2a：送真實滑鼠事件，驗範圍與只改 view；JS 區塊不用 f-string 避免括號誤植。
         step("P2a 框選範圍／Undo／20n／通道與游標不變", lambda: analysis_checks.p2a_view(c, prep, click, out))
-        # P3a：驗證來源、物理真值與固定摘要。
-        step("P3a 來源／Y 真值／摘要／禁用模式", lambda: analysis_checks.p3a_markers(c, prep))
+        # P3a：驗證來源、物理真值與摘要移除。
+        step("P3a 來源／Y 真值／摘要移除／禁用模式", lambda: analysis_checks.p3a_markers(c, prep))
         step("P3b 游標結果表／尺寸／TSV 複製", lambda: analysis_checks.p3b_markers(c, prep))
         from scope_tool.web.browser_marker_checks import p3b2_zoom
         step("P3b-2 垂直框選／一次 Undo／游標物理值", lambda: p3b2_zoom(c, prep))
@@ -177,6 +177,7 @@ def main() -> None:
         step("P4 版面 C 右側欄／窄版退回底部", lambda: dock_layout(c, prep))
         # P2b2：截取真正 Canvas fillText，驗證左軸實際文字／顏色與欄位隔離。
         step("P2b2 選取通道2／中心電位／左軸電壓與顏色", lambda: analysis_checks.p2b2_vertical(c, prep, click, out))
+        step("通道全域收折／圖區高度／Zoom 位置", lambda: analysis_checks.channel_collapse(c))
         # 兩通道的 Vertical 控件必須完整落在列容器內；寬版維持單列。
         step("P2b2 Vertical 1400／1000 控件無截斷", lambda: analysis_checks.vertical_bounds(c, prep, click, out))
         # 不同 dx（通道 2 位移）

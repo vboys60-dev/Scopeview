@@ -1,4 +1,3 @@
-import { mountSummary } from "./summary.js";
 // Horizontal 列：中心參考點固定 0.5；只發 viewport.intent，不強制吸附非標準尺度。
 import { fmt, parseSI } from "../fmt.js";
 import { DEFAULT_ZOOM_KIND, ZOOM_KINDS } from "./vzoom.js";
@@ -68,7 +67,13 @@ export function mount(el, { store }) {
   const zero = button("0", () => { const v = horizontalOf(store.get().view); store.command("viewport.intent", rangeOf(v.scale, 0)); }, "檔案時間 0 置中");
   el.append(zero);
   const range = h("span", undefined, "analysis__hrange"); el.append(range, reset);
-  mountSummary(el, store);
+  const prev = h("input", undefined, "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
+  store.onCommand('layout.state', (s) => {
+    prev.checked = s.overview; prev.disabled = !!s.blocked;
+    prev.title = s.blocked ? "視窗高度不足，無法顯示預覽；請放大視窗或收折下方面板" : "";
+  });
+  store.command('layout.query');
+  const preview = h("label", "Zoom ", "analysis__preview"); preview.append(prev); el.append(preview);
   function render(force = false) {
     const s = store.get(), v = horizontalOf(s.view), f = fullRange(s.file);
     for (const [key, field] of [["scale", scale], ["position", position]]) {

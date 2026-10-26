@@ -156,3 +156,4 @@
 .analysis__side .field:has(.btn--small) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-1); }
 .analysis__side .field:has(.btn--small) > .field__label { grid-column: 1 / -1; }
 .analysis__side .field:has(.btn--small) .btn--small { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 var(--sp-1); }
+.analysis__preview { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }

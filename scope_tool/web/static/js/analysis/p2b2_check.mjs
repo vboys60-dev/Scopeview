@@ -68,19 +68,23 @@ store.set({ file: { gen: 3, channels: [] }, view: { t0: 10, t1: 12 }, selected: 
   { ...base, name: "CH1", color: "#ff0000" }, { ...base, time_offset: 0.25 },
 ] });
 const bar = element(); mountBar(bar, ctx);
-const vertical = bar.children[1].children[1], fields = vertical.children.filter((e) => e.className === "vertical__field");
+const columns = () => bar.children.filter(e => e.className === "chanbar__col");
+assert.ok(columns().every(e => e.children[1].hidden));
+bar.children[0].onclick();
+assert.ok(columns().every(e => !e.children[1].hidden));
+const vertical = columns()[1].children[1], fields = vertical.children.filter((e) => e.className === "vertical__field");
 const input = (key) => fields.flatMap((e) => e.children).find((e) => e.dataset?.vertical === key);
 const press = (key, text) => fields.find((e) => e.children.includes(input(key))).children.find((e) => e.textContent === text).onclick();
 const fit = fields[2].children.find((e) => e.textContent === "適配");
 const first = { ...store.get().channels[0] };
 // 真實 checkbox 冒泡與雙擊不得改選取／開啟換色器。
-const chip2 = bar.children[1].children[0], check2 = chip2.children[0], color2 = chip2.children[2];
+const chip2 = columns()[1].children[0], check2 = chip2.children[0], color2 = chip2.children[2];
 check2.checked = false; check2.onchange(); chip2.onclick({ target: check2 });
 assert.equal(store.get().selected, "CH1"); assert.equal(store.get().channels[1].visible, false);
 chip2.ondblclick({ target: check2 }); assert.equal(color2.clicks, undefined);
 check2.checked = true; check2.onchange();
 // CH2 欄位綁定名稱，選取 CH1 時編輯也不影響 CH1。
-const position1 = bar.children[0].children[1].children[1].children[2], value1 = position1.value;
+const position1 = columns()[0].children[1].children[1].children[2], value1 = position1.value;
 input("scale").value = "4m"; input("scale").onchange();
 assert.equal(store.get().channels[1].scale, 0.004); assert.deepEqual(store.get().channels[0], first);
 input("scale").value = "2m"; input("scale").onchange();
@@ -98,9 +102,9 @@ input("scale").value = "137m"; input("scale").onchange();
 press("scale", "+"); assert.equal(store.get().channels[1].scale, 0.147);
 press("scale", "▼"); assert.equal(store.get().channels[1].scale, 0.1);
 input("dx").value = "0"; input("dx").onchange();
-assert.equal(bar.children[1].children[0].children.at(-1).hidden, true);
+assert.equal(columns()[1].children[0].children.at(-1).hidden, true);
 input("dx").value = "250m"; input("dx").onchange();
-assert.equal(bar.children[1].children[0].children.at(-1).hidden, false);
+assert.equal(columns()[1].children[0].children.at(-1).hidden, false);
 await fit.onclick();
 assert.deepEqual(requests.at(-1), { ch: "CH2", t0: 9.75, t1: 11.75, px: 2048, gen: 3 });
 assert.equal(store.get().channels[1].scale, 0.002); assert.equal(store.get().channels[1].position, -0.5);
@@ -168,7 +172,7 @@ assert.equal(texts.findLast(t => t.text === ax.ticks.at(-1).label).baseline, "bo
 // 衍生通道刪除按鈕的冒泡不選取，雙擊也不開換色器。
 store.set({ channels: [...four, { ...c, name: "F1", derived: true }], selected: "CH1" });
 ctx.bridge.call = async () => ({});
-const derived = bar.children[4].children[0], remove = derived.children.at(-1), color = derived.children[2];
+const derived = columns()[4].children[0], remove = derived.children.at(-1), color = derived.children[2];
 derived.onclick({ target: remove }); derived.ondblclick({ target: remove });
 assert.equal(store.get().selected, "CH1"); assert.equal(color.clicks, undefined);
 await remove.onclick(); assert.equal(store.get().selected, "CH1");

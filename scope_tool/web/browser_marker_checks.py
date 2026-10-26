@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 def p3a_markers(c: Cdp, prep: str) -> None:
-    """來源脫鉤、物理值與畫面投影、單行摘要與禁用模式。"""
+    """來源脫鉤、物理值與畫面投影、摘要移除與禁用模式。"""
     result = c.js("(async()=>{" + prep + """
         const C=await import('/js/analysis/cursors.js'),F=await import('/js/fmt.js'),M=await import('/js/analysis/mainplot.js'),original=S.state.channels,selected=S.state.selected;
         const mode=S.state.markerMode,cur={...S.state.cursors};
@@ -46,13 +46,7 @@ def p3a_markers(c: Cdp, prep: str) -> None:
     for width, height in ((1360, 860), (900, 600)):
         c.send('Emulation.setDeviceMetricsOverride', width=width, height=height, deviceScaleFactor=1, mobile=False)
         c.pump(0.3)
-        dims = c.js("""(()=>{const b=document.querySelector('.analysis__cursorSummary'),p=b.parentElement;
-            const r=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),s=getComputedStyle(b);
-            return {height:r.height,line:parseFloat(s.lineHeight),right:r.right,parentRight:pr.right,
-                nowrap:s.whiteSpace,overflow:s.overflowX,ellipsis:s.textOverflow,title:b.title,text:b.textContent}})()""")
-        assert dims['nowrap'] == 'nowrap' and dims['overflow'] == 'hidden' and dims['ellipsis'] == 'ellipsis', dims
-        assert dims['height'] < 28 and dims['right'] <= dims['parentRight'] + 1, dims
-        assert dims['title'] == dims['text'] and 'ΔX' in dims['text'], dims
+        assert c.js("!document.querySelector('.analysis__cursorSummary')")
     c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
 
 

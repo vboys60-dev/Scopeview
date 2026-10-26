@@ -96,7 +96,7 @@ body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 v
 .analysis__side { grid-area: side; overflow: auto; padding: var(--sp-2); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
 .analysis__plot { grid-area: plot; min-width: 0; min-height: 0; background: var(--c-plot-bg); border-radius: var(--radius); }
 .analysis__results { grid-area: results; overflow: auto; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
-.chanbar { display: grid; grid-auto-flow: column; grid-auto-columns: var(--chanbar-col, 236px); gap: var(--sp-1) var(--sp-2); justify-content: start; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 2px var(--sp-1); }
+.chanbar { display: grid; grid-auto-flow: column; grid-template-columns: auto; grid-auto-columns: var(--chanbar-col, 236px); gap: var(--sp-1) var(--sp-2); justify-content: start; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 2px var(--sp-1); }
 .chanbar__col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .chip { width: 100%; min-width: 0; display: inline-flex; align-items: center; gap: var(--sp-1); height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-sm);
   border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-surface); cursor: pointer; }
@@ -108,3 +108,5 @@ body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 v
 
 /* 窄版保留側邊窄軌，尺寸由 L4 計算。 */
 @media (max-width: 899px) { .dlg { min-width: 0; } }
+
+.chanbar__toggle { align-self: start; position: sticky; left: 0; z-index: 1; background: var(--c-surface); }

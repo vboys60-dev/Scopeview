@@ -31,7 +31,23 @@ export function fineScale(value, unit, up, scales) {
 export function mount(el, ctx) {
   const { store, bridge, ui, fmt } = ctx;
   el.classList.add("chanbar");
-  let sig = null, rows = new Map();
+  let sig = null, rows = new Map(), expanded = false;
+  const storageKey = "analysis.vertical.expanded";
+  try { expanded = localStorage.getItem(storageKey) === "true"; } catch {}
+  const toggle = h("button", "btn btn--small chanbar__toggle"); toggle.type = "button";
+  function syncExpanded() {
+    toggle.textContent = expanded ? "▾" : "▸";
+    toggle.title = expanded ? "收折電壓控制" : "展開電壓控制";
+    toggle.setAttribute("aria-label", toggle.title);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    for (const r of rows.values()) r.v.setExpanded(expanded);
+  }
+  toggle.onclick = () => {
+    expanded = !expanded;
+    try { localStorage.setItem(storageKey, String(expanded)); } catch {}
+    syncExpanded();
+    // 高度改變由 tab_analysis 的 chanbar ResizeObserver 排程 renderLayout。
+  };
 
   function column(c) {
     const box = h("div", "chip");
@@ -76,7 +92,7 @@ export function mount(el, ctx) {
   }
   function render() {
     const { channels } = store.get(), s = signature(channels);
-    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(...channels.map(column)); }
+    if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(toggle, ...channels.map(column)); syncExpanded(); }
     sync();
   }
   store.on(["channels", "selected", "file"], render);

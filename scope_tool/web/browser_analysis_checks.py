@@ -101,6 +101,7 @@ def p2a_view(c: Cdp, prep: str, click: str, out: Path) -> None:
 
 def p2b2_vertical(c: Cdp, prep: str, click: str, out: Path) -> None:
     result = c.js("(async()=>{" + prep + "const old=S.state.channels,selected=S.state.selected;"
+                  "const toggle=document.querySelector('.chanbar__toggle');if(toggle.getAttribute('aria-expanded')!=='true')toggle.click();"
                   "const name=old[1].name;document.querySelectorAll('.analysis__chanbar .chip')[1].click();"
                   "const active=document.querySelectorAll('.analysis__chanbar .chip')[1].classList.contains('chip--selected');"
                   "S.updateChannel(name,{scale:0.002},'user');const before=S.state.channels;"
@@ -123,6 +124,9 @@ def vertical_bounds(c: Cdp, prep: str, click: str, out: Path) -> None:
         c.pump(0.3)
         dims = c.js("(async()=>{" + prep + """
             const bar=document.querySelector('.analysis__chanbar'),old=S.state.channels;
+            const toggle=bar.querySelector('.chanbar__toggle');
+            if(toggle.getAttribute('aria-expanded')!=='true')toggle.click();
+            await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
             const columns=[...bar.querySelectorAll('.chanbar__col')];
             const lefts=()=>[...bar.querySelectorAll('.chip')].map(e=>e.getBoundingClientRect().left);
             const before=lefts();
@@ -261,3 +265,29 @@ if __name__ == "__main__":
     ast.parse(Path(__file__).read_text(encoding="utf-8"))
     assert callable(compact_results) and callable(center_cursors)
     print("browser_analysis_checks self-check OK（CDP 斷言由 browser_check 執行）")
+
+
+def channel_collapse(c: Cdp) -> None:
+    result = c.js("""(async()=>{
+        const bar=document.querySelector('.analysis__chanbar'),toggle=bar.querySelector('.chanbar__toggle');
+        const initial=toggle.getAttribute('aria-expanded')==='true';
+        const frame=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        const columns=()=>[...bar.querySelectorAll('.chanbar__col')];
+        const snapshot=()=>({bar:bar.getBoundingClientRect().height,
+            plot:document.querySelector('.analysis__main').getBoundingClientRect().height,
+            widths:columns().map(e=>e.getBoundingClientRect().width)});
+        try {
+            if(!initial)toggle.click(); await frame(); const expanded=snapshot();
+            toggle.click(); await frame(); const collapsed=snapshot();
+            return {expanded,collapsed,hidden:columns().every(e=>e.querySelector('.vertical').hidden),
+                aria:toggle.getAttribute('aria-expanded'),saved:localStorage.getItem('analysis.vertical.expanded'),
+                zoom:!!document.querySelector('.analysis__horizontal .analysis__preview input[type=checkbox]'),
+                toolbarZoom:[...document.querySelectorAll('.analysis__toolbar label')].some(e=>e.textContent.trim()==='Zoom'),
+                summary:!!document.querySelector('.analysis__cursorSummary')};
+        } finally { if((toggle.getAttribute('aria-expanded')==='true')!==initial)toggle.click(); await frame(); }
+    })()""")
+    assert result['hidden'] and result['aria'] == 'false' and result['saved'] == 'false', result
+    assert result['expanded']['bar'] > result['collapsed']['bar'], result
+    assert result['expanded']['plot'] < result['collapsed']['plot'], result
+    assert result['expanded']['widths'] == result['collapsed']['widths'], result
+    assert result['zoom'] and not result['toolbarZoom'] and not result['summary'], result

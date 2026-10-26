@@ -10,7 +10,7 @@ import { createController, cursorSource, divisionAt, toSource, toDisplay, mount,
 import { mount as mountPlot } from './mainplot.js';
 import { voltageAt } from './voltage.js';
 import { nearestCursor, bindGestures } from './gestures.js';
-import { summaryText, mountSummary, disableTrackMeasurements } from './summary.js';
+import { disableTrackMeasurements } from './summary.js';
 import * as fmt from '../fmt.js';
 class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.style = {}; this.dataset = {}; this.attrs = {}; this.listeners = {}; }
@@ -99,12 +99,6 @@ assert.equal(nearestCursor({...cur,x2:null},v,r,58,30),'x1'); assert.equal(neare
 assert.equal(nearestCursor({y1:0,y2:0.6},v,r,30,45),'y2');
 for (const [x,y] of [[50,-1],[50,101],[-1,50],[101,50]]) assert.equal(nearestCursor({...cur,y1:0},v,r,x,y),null,'圖框外不可命中');
 for (const x1 of [-0.01,1.01]) assert.equal(nearestCursor({x1},v,r,x1<0?0:100,30),null,'畫面外 X 不可抓');
-const zero = summaryText(null,channels[0],{x1:1,x2:1},{y1:2,y2:3}); assert.ok(zero.includes('1/ΔX —'));
-assert.match(summaryText(null,channels[0],{x1:2,x2:1},{y1:2,y2:3}),/ΔX -1/);
-for (const [a,b] of [[2,5],[5,2]]) {
-  const text = summaryText(null,channels[0],{x1:1,x2:3},{y1:a,y2:b});
-  assert.ok(text.includes(`1/ΔX ${fmt.fmt(0.5,'Hz')}`)); assert.ok(text.includes(`ΔY ${fmt.fmt(b-a,'V')}`));
-}
 const select = new Element('select'); disableTrackMeasurements(select); disableTrackMeasurements(select);
 assert.equal(select.children.length,1); assert.equal(select.children[0].disabled,true); assert.match(select.children[0].title,/需先補後端事件座標/);
 // 真正 mount 的輸入 parseSI／來源下拉／單位標題。
@@ -124,13 +118,6 @@ assert.equal(inputs.children[2].children[0].textContent,'Y1 (V²)'); close(curso
 domStore.updateChannel('CHAN1',{visible:false}); assert.deepEqual(source.children.map(o=>o.value),['CHAN2']);
 source.value = 'CHAN1'; source.onchange(); assert.equal(source.value,'CHAN2'); assert.equal(cursorSource(domStore).channel.name,'CHAN2','不可選隱藏通道');
 domStore.updateChannel('CHAN1',{visible:true}); assert.deepEqual(source.children.map(o=>o.value),['CHAN1','CHAN2']);
-const bar = new Element('div'); mountSummary(bar,domStore); assert.equal(bar.children[0].title,bar.children[0].textContent);
-assert.match(bar.children[0].textContent,/來源 CHAN2/);
-const trackStore = createStore(), trackBar = new Element('div');
-const tracked = {available:true,position:{x1:0.1,x2:0.6,y1:8,y2:-4},points:[],delta_x:0.5,inverse_delta_x:2,delta_y:-12};
-const tc = createController({store:trackStore,bridge:{call:async()=>tracked}},{delay:1});
-trackStore.set({file:{gen:5},channels,markerMode:'Track Waveforms'}); mountSummary(trackBar,trackStore); await tc.refresh();
-assert.equal(trackBar.children[0].textContent,summaryText('Track Waveforms',channels[0],{x1:0.11,x2:0.61},{y1:8,y2:-4}));
 let redraws = 0;
 const canvas = new Element('canvas'); domStore.set({cursors:{x1:0.5,x2:0.56,y1:null,y2:null}});
 const gestures = bindGestures(canvas,{store:domStore},()=>r,()=>{redraws++;});
@@ -154,9 +141,8 @@ assert.ok(strokes.includes(3),'hover 必須實際用粗線繪製'); plot.dispose
 
 const css = readFileSync(new URL('../../css/analysis.css',import.meta.url),'utf8');
 assert.match(css,/\.cursors__field--y \{[^}]*flex: 1 1 11ch;[^}]*min-width: 11ch;/,'Y 物理值須保留負號、小數與單位寬度');
-assert.match(css,/\.analysis__cursorSummary \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
 const toolbar = readFileSync(new URL('./toolbar.js',import.meta.url),'utf8'); assert.match(toolbar,/disableTrackMeasurements\(marker\)/);
-console.log('P3a self-check OK：物理往返／來源脫鉤／重投影／隱藏與移除／格意圖／最近命中／DOM／摘要／防迴圈');
+console.log('P3a self-check OK：物理往返／來源脫鉤／重投影／隱藏與移除／格意圖／最近命中／DOM／防迴圈');
 if (process.argv.includes('--mutations')) {
   const mutations = [
     ['Y 欄退回格數寬度','../../css/analysis.css','flex: 1 1 11ch; min-width: 11ch;','flex: 1 1 5ch; min-width: 5ch;'],

@@ -83,5 +83,5 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
     fit.disabled = !c || !store.get().file;
   }
   render();
-  return { render };
+  return { render, setExpanded(expanded) { el.hidden = !expanded; } };
 }

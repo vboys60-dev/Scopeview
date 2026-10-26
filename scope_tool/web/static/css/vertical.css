@@ -1,5 +1,6 @@
 /* L5：各通道 chip 下方欄位；固定欄寬，通道列水平捲動。 */
 .vertical { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 0; }
+.vertical[hidden] { display: none; }
 .vertical__field { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
 .vertical__field > span:first-child { flex: 0 0 52px; color: var(--c-text-dim); }
 .vertical .input { flex: 1 1 0; width: 0; min-width: 48px; height: 22px; min-height: 22px; padding: 1px 4px; font-size: 12px; }
