@@ -87,15 +87,18 @@
 - `RULES.md` 允許 Windows 版 PyInstaller（Win10／Win11，onedir）；目標機自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包）。
 - 草稿已備：`packaging/scope_tool_web.spec`、`packaging/build_win.bat`、`requirements-web.txt`（PySide6 不可排除）。凍結後 static 路徑已用 `sys._MEIPASS`。**全部待 Win10 實機驗證。**
 
-## FFT 頻譜分頁與資料截取分頁（2026-10-26，`3488ba5`、`cd61728`、`522f70a`）
+## FFT 頻譜分頁與資料截取分頁（2026-10-26，`3488ba5`、`cd61728`、`522f70a`、`fb165c7`、`a9563dc`）
 
 - 計畫書：`docs/FFT頻譜分頁計畫.md`（含「使用者決定」節）、`docs/資料截取合併計畫.md`。
 - **FFT P1（後端）**：`fft` RPC 追加 `rbw`、`vbw`（可為 null），`FFTResult` 追加 `segments`、`vbw`；契約 `version` 維持 2。新檔 `web/fft_rbw.py`（Welch 分段平均＋VBW 頻率軸平滑），`rbw=null` 走原 `fftmod.spectrum`、結果不變。`analysis/*` 仍凍結。前端目前固定送 `rbw:null, vbw:null`。
 - **FFT P2（前端）**：新增頂層「FFT 頻譜」分頁（`analysis/tab_fft.js`），與分析頁**共用單一 runner／參數**（`analysis/fft_state.js`），兩處控制項互相同步。**分析頁內嵌 FFT 窗格、B 區「FFT 峰值」頁籤、「FFT 計算」勾選都保留**（使用者決定），工具列加「FFT 頻譜 ↗」（command `tab.select`）。不在 FFT 分頁且勾選關時只標 dirty、不算。新分頁的 fftpane 視窗狀態仍是本地，尚無 `fftView`。
 - **資料截取**：「截圖」與「波形擷取」合併為頂層分頁「資料截取」（`tab_datacapture.js` 左右並排、窄窗上下；內部 id 沿用 `capture`，舊兩個模組保留為內部模組）。頂層分頁剩：資料截取／離線分析／FFT 頻譜。`main.js` 預設 activeTab 改 `capture`。兩組存檔設定鍵分開；兩邊同時動作靠既有 BUSY 提示。
 - **使用者決定**：RBW=Auto 要**隨 Span 自動連動**（與計畫書原建議相反；P4 設計需納入，N 待定、Span 變動要 debounce）；FFT 範圍與量測共用 `rangeMode`；Start/Stop 等不存 localStorage。
-- **未做**：P3（Start／Center／Stop／Span 欄位、`store.fftView`、基準線只看畫面內）、P4（RBW／VBW 輸入與 Auto 連動）、P5（清死碼，選做）。Welch／VBW 尚未真檔肉眼比對。
-- **未驗**：新 FFT 分頁與資料截取並排版面沒人看過實際畫面（只有 `browser_check` 的尺寸／可見性斷言）；資料截取同頁搶儀器鎖需真機；Qt 版仍是兩個分頁。
+- **FFT P3**：store 鍵 `fftView`＝{f0,f1}（Hz）或 null（全頻寬）；`fftpane.js` 的 `clampView`／`applySpanEdit`（四欄聯動：輸入值不動，Center 碰邊縮 span、Span 碰邊移中心；夾 0～Nyquist、最小 span＝10·df）；FFT 分頁有 Start／Center／Stop／Span＋「全頻寬」；分析頁與 FFT 分頁兩個 fftpane 共用 `fftView`；`fft_markers.js` 峰值／基準線只看畫面內（前端過濾、不重跑 FFT）；RF 跳到畫面外時平移入界、保留 span。限制：峰快取是全頻譜前 1000 大峰，放大到小峰區可能漏列（腳註提示）。
+- **FFT P4**：FFT 分頁有 RBW／VBW 輸入（`fft_state.js` 的 `mountBandwidthControls`，兩處共用參數）；**RBW=Auto 隨 Span 連動**（≈span/1000，debounce 300 ms，Auto RBW 變動 ≥5% 才重算以防迴圈；手動輸入即停止連動）；VBW 預設 Auto＝不平滑；狀態列顯示實際 RBW／段數／VBW，Phase 單位停用兩欄。
+- **未做**：P5（清死碼，選做）。Welch／VBW 尚未真檔肉眼比對。
+- **已知版面小缺（2026-10-26 截圖）**：FFT 分頁右欄最上方的「排序／基準線」看起來掉出參數列；最左峰的標籤與右下 `1 GHz` 刻度被裁切。尚未處理。
+- **未驗**：FFT 分頁輸入 Start／Stop 後圖與峰表只剩範圍內峰（無人手動測）；資料截取並排版面無人看過；資料截取同頁搶儀器鎖需真機；Qt 版仍是兩個分頁。
 - 驗證：`selfcheck_node.js`、`e2e_check`、`browser_check` 皆通過（Codex 沙箱跑不了後兩者，須在沙箱外跑）。
 
 ## 後續待辦
