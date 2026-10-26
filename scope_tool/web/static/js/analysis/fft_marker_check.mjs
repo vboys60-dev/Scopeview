@@ -147,3 +147,78 @@ assert.equal(model.state().unit, u0);
 model.accept({ ok: true, spectrum_id: 'x' }, { source: 'CH1', peak_level: -40 }); model.fail();
 assert.equal(model.needs({ source: 'CH1' }), true);
 console.log('fft_marker self-check OK');
+// P2：真實分頁掛載＋兩組控制列，單一 runner 的開關／dirty／換檔生命週期。
+{
+  const { getFftState, mountFftControls } = await import('./fft_state.js');
+  const { mount: mountTab } = await import('./tab_fft.js');
+  const { mount: mountPane } = await import('./fftpane.js');
+  Element.prototype.querySelector = function(k) { return (this.nodes ??= {})[k] ??= new Element(); };
+  Element.prototype.getContext = () => new Proxy({}, { get: () => () => {}, set: () => true });
+  Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 600, height: 320 });
+  Object.defineProperty(Element.prototype, 'options', { get() { return this.children; } });
+  globalThis.Option = class extends Element { constructor(text, value) { super('option'); this.textContent = text; this.value = String(value); } };
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '#333' });
+  const s = createStore(), jobs = [], fetches = [];
+  const cat = { fft_windows: { Hanning: 1, Hamming: 1 }, fft_units: ['dBm', 'Vrms'],
+    fft_impedances: [['50 Ω', 50], ['手動 Ω', null]], peak_sorts: ['Decreasing Magnitude', 'Increasing Frequency'] };
+  const c = { store: s, fmt, activeTab: 'analysis', appState: { catalog: cat }, ui: { toast() {}, showError() {} }, bridge: {
+    async job(method, args) { jobs.push(args); return { ok: true, gen: s.get().file.gen, spectrum_id: `p2-${jobs.length}`, unit: args.unit, f_max: 100, peaks: [{ x: 10, y: -10 }] }; },
+    async fetchSpectrum(args) { fetches.push(args); return { n: 0, x: [], lo: [], hi: [] }; },
+  } };
+  s.set({ file: { gen: 1 }, channels: [{ name: 'CH1' }, { name: 'CH2' }] });
+  const toolbarControls = mountFftControls(new Element(), c), page = new Element();
+  mountTab(page, c);
+  const state = getFftState(c), tick = () => new Promise(resolve => setTimeout(resolve, 230));
+  assert.equal(state, getFftState(c));
+  s.command('tab.activated', 'analysis');
+  s.set({ cursors: { ...s.get().cursors, x1: 0.1 } }); await tick();
+  assert.equal(jobs.length, 0); assert.equal(state.runner.dirty, true);
+  s.command('tab.activated', 'fft'); await tick(); assert.equal(jobs.length, 1);
+  const result = s.get().fftResult;
+  s.command('tab.activated', 'analysis'); assert.equal(state.p.on, false); assert.equal(s.get().fftResult, result);
+  s.command('tab.activated', 'fft'); await tick(); assert.equal(jobs.length, 1);
+  const root = page.children[0], sourceRow = root.children[1], paramsRow = root.children[2];
+  const controls = [sourceRow.children[0].children[0], paramsRow.children[0].children[0], paramsRow.children[1].children[0], paramsRow.children[2].children[0], paramsRow.children[3]];
+  for (const [a, b, value] of [[toolbarControls.src, controls[0], 'CH2'], [controls[1], toolbarControls.win, 'Hamming'],
+    [toolbarControls.imp, controls[3], '1'], [controls[4], toolbarControls.man, '75'], [toolbarControls.unit, controls[2], 'Vrms']]) {
+    a.value = value; a.onchange(); assert.equal(b.value, value);
+  }
+  const markerRow = root.children[3].children[1].children[0];
+  const [sort2, lvl2, cnt2] = markerRow.children.map(label => label.children[0]);
+  toolbarControls.cnt.value = '9'; toolbarControls.cnt.onchange(); assert.equal(cnt2.value, '9');
+  lvl2.value = '0.1'; lvl2.onchange(); assert.equal(toolbarControls.lvl.value, '0.1');
+  sort2.value = 'Increasing Frequency'; sort2.onchange(); assert.equal(toolbarControls.sort.value, sort2.value);
+  await tick(); const n = jobs.length;
+  // 勾選開時，切出 FFT 仍計算；關時只 dirty，回分頁才補一次。
+  state.setAnalysisOn(true); s.command('tab.activated', 'analysis'); assert.equal(state.p.on, true);
+  s.set({ rangeMode: 'cursors' }); await tick(); assert.equal(jobs.length, n + 1);
+  state.setAnalysisOn(false); const kept = s.get().fftResult;
+  s.set({ cursors: { ...s.get().cursors, x2: 0.2 } }); await tick();
+  assert.equal(jobs.length, n + 1); assert.equal(s.get().fftResult, kept);
+  s.command('tab.activated', 'fft'); await tick(); assert.equal(jobs.length, n + 2);
+  assert.deepEqual(jobs.at(-1).range, [0.1, 0.2]);
+  s.set({ file: { gen: 2 } }); assert.equal(s.get().fftResult, null); assert.equal(state.p.on, true);
+  await tick(); assert.equal(jobs.length, n + 3);
+  // 第二張圖有各自的視窗／請求取消器；縮放一張不會改另一張。
+  const other = new Element(), pane = mountPane(other, c); await tick();
+  const otherCanvas = other.querySelector('.analysis__fftplot').children[0];
+  otherCanvas.emit('wheel', { clientX: 64, deltaY: -120, preventDefault() {} }); await tick();
+  assert.ok(fetches.at(-1).f1 < 100);
+  const pageCanvas = root.children[3].children[0].querySelector('.analysis__fftplot').children[0];
+  pageCanvas.emit('wheel', { clientX: 64, deltaY: 120, preventDefault() {} }); await tick();
+  assert.ok(fetches.at(-1).f1 > 100);
+  s.command('tab.activated', 'analysis'); s.set({ file: { gen: 3 } });
+  assert.equal(s.get().fftResult, null); await tick(); assert.equal(jobs.length, n + 3);
+  // 停算期間改參數仍同步另一處，卻不發工作。
+  toolbarControls.win.value = 'Hanning'; toolbarControls.win.onchange();
+  assert.equal(controls[1].value, 'Hanning'); await tick(); assert.equal(jobs.length, n + 3);
+  // 切出時取消在途工作；舊結果回來也不得污染新工作／新檔。
+  let finishOld;
+  c.bridge.job = (method, args) => new Promise(resolve => { finishOld = () => resolve({ ok: true, gen: 3, spectrum_id: 'old', unit: args.unit, peaks: [] }); });
+  s.command('tab.activated', 'fft'); await tick();
+  s.command('tab.activated', 'analysis'); assert.equal(state.runner.dirty, true);
+  finishOld(); await tick(); assert.equal(s.get().fftResult, null);
+  pane.dispose(); state.runner.invalidate();
+  console.log('fft P2 shared state / controls / two panes self-check OK');
+}

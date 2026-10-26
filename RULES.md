@@ -89,3 +89,5 @@ P3b-2（gui-p3b2，使用者授權）：L4 axes／gestures／vzoom 框選種類�
 浮動面板（gui-float，使用者授權）：L4 floatpanel.js／floatpanel_math.js；L8 float_check.mjs／browser_float_checks.py。接線可改 L4 tab_analysis／layout、L5 results，樣式限浮動面板。
 
 FFT P1（2026-10-26，使用者授權，先決條件 A／B／C）：同意 Web 契約追加 fft.rbw／vbw 與 FFTResult.segments／vbw，version 維持 2；登記新檔 `web/fft_rbw.py` 為 L1b。本階段跨 lane 限 L0 契約／mock／`l0_sem.mjs` 契約自檢、L1b FFT 後端與自檢、L5 `fft_runner.fftParams` 固定補 null、L8 `e2e_check.py`／`l5_check.mjs`及相關規格文件。不做 UI；`analysis/*` 仍凍結。P2～P4 的新檔／狀態／command 留待該階段登記。
+
+FFT P2（2026-10-26，使用者授權）：跨 L0／L4／L5／L8 新增獨立 FFT 大檢視，保留分析頁 FFT 窗格、峰值頁籤及控制列。登記 `static/js/analysis/tab_fft.js`（L4）、`static/js/analysis/fft_state.js`（L5）、`web/browser_fft_checks.py`（L8）；`tab.select` 為 store command。共用單一 runner／參數，不新增 fftView；Python `analysis/*` 仍凍結。

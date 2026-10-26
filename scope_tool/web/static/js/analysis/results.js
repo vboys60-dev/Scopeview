@@ -1,4 +1,5 @@
-import { mountFftMarkerTable } from './fft_marker_table.js';
+export { fftInfo } from './fft_marker_table.js';
+import { fftInfo, mountFftMarkerTable } from './fft_marker_table.js';
 // 量測結果表與 FFT 峰值表（讀 store.measurements／fftResult）。對照 ui/analysis_results.py。
 // 過期丟棄：result.gen ≠ 目前檔案 gen 的列一律顯示「…」；匯出只在整批同 gen／同 revision 時才送（後端另驗 STALE）。
 
@@ -25,11 +26,6 @@ export function rowCells(e, state, unit, fmt) {
   if (state === "fail") return Array(7).fill("—");
   const s = e.result.stats;
   return [...STAT_KEYS.map((k) => (e.result.bound ? `${e.result.bound} ` : "") + fmt.fmt(s[k], unit)), String(s.count)];
-}
-export function fftInfo(r, fmt) {
-  if (!r) return "";
-  if (!r.ok) return r.reason ?? "FFT 失敗";
-  return `Δf ${fmt.fmt(r.df, "Hz")}｜RBW ${fmt.fmt(r.rbw, "Hz")}｜ENBW ${fmt.fmt(r.enbw, "Hz")}｜${r.window}｜N=${r.n}（${r.effective_n}）｜R=${r.r_ohm} Ω｜${r.unit}`;
 }
 
 export function mount(el, ctx) {

@@ -1,4 +1,4 @@
-// 入口：建立 ctx、切換三分頁、掛載各 lane 的頁面模組。共享入口只由 L0 修改。
+// 入口：建立 ctx、切換分頁、掛載各 lane 的頁面模組。共享入口只由 L0 修改。
 import { bridge, MOCK } from "./bridge.js";
 import { store } from "./analysis/store.js";
 import * as ui from "./ui.js";
@@ -11,6 +11,7 @@ const MODULES = {
   screenshot: { el: "tab-screenshot", src: "./tab_screenshot.js" },
   capture: { el: "tab-capture", src: "./tab_capture.js" },
   analysis: { el: "tab-analysis", src: "./analysis/tab_analysis.js" },
+  fft: { el: "tab-fft", src: "./analysis/tab_fft.js" },
 };
 const ctx = { bridge, store, ui, fmt, scales, MOCK, appState: null, activeTab: "screenshot" };
 
@@ -38,6 +39,7 @@ function selectTab(name) {
 }
 
 async function init() {
+  store.onCommand("tab.select", n => { if (Object.hasOwn(MODULES, n) && n !== "connbar") selectTab(n); });
   document.getElementById("tabs").addEventListener("click", (e) => {
     const b = e.target.closest(".tab");
     if (b) selectTab(b.dataset.tab);

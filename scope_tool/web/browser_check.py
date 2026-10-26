@@ -119,7 +119,7 @@ def main() -> None:
         c.send("Emulation.setDeviceMetricsOverride", width=1400, height=900, deviceScaleFactor=1, mobile=False)
         c.send("Page.navigate", url=srv.url)
         c.pump(1.5)
-        c.wait("document.querySelectorAll('#tabs .tab').length===3")
+        c.wait("document.querySelectorAll('#tabs .tab').length===4")
         c.shot(out / "01_home.png")
         click = "(t)=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent.replace(' ↕','').trim()===t);if(!b)throw Error('no button '+t);b.click();return true}"
         step("連線測試儀器", lambda: (c.js(f"({click})('測試儀器（模擬）')"), c.wait("document.body.innerText.includes('斷開模擬')")))
@@ -268,6 +268,8 @@ def main() -> None:
                     assert c.js(f"(()=>{{const b=document.querySelector('.analysis__splitter--{kind} button');return (b.getAttribute('aria-expanded')==='false')===document.querySelector('.analysis__{body}').hidden}})()")
                 c.shot(out / f"layout_{width}x{height}.png")
         step("P2b 多尺寸／splitter／DPR／共用收折", layout_check)
+        from scope_tool.web.browser_fft_checks import fft_page
+        step("FFT 分頁三尺寸／控制列／峰表", lambda: fft_page(c, prep))
         from scope_tool.web.browser_float_checks import float_panel
         step("浮動面板／拖曳／縮放／停靠／窄版／字體", lambda: float_panel(c, prep))
         # NaN 缺口 CSV

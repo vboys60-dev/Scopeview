@@ -1,6 +1,5 @@
-import { createFft } from './fft_runner.js';
+import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
-import { bindFftMarkerControls } from './fft_marker_controls.js';
 import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
@@ -109,44 +108,22 @@ export function mount(el, ctx) {
   el.append(bOpen, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bCsv, bMath);
 
   // ── FFT ──
-  const p = { on: false, source: null, window: "Hanning", unit: "dBm", imp: 0, manualR: 50, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? [""])[0] };
-  const fft = createFft(ctx, catalog, p, { onError: (e, manual) => (manual ? fail(e, "FFT 失敗") : ui.toast(`FFT 失敗：${e.message}`, "error", 6000)),
-    onReset: () => { on.checked = false; store.command("fft.visible", false); syncFft(); } });
-  const on = h("input", "check"); on.type = "checkbox";
-  const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map((k) => [k, k])), unit = select((catalog.fft_units ?? []).filter(k => k !== "Phase").map((k) => [k, k]));
-  const imp = select((catalog.fft_impedances ?? []).map(([t], i) => [i, t])), man = h("input", "input"), sort = select((catalog.peak_sorts ?? []).map((k) => [k, k]));
-  const lvl = h("input", "input"), cnt = h("input", "input"); man.value = "50"; lvl.value = "-40"; cnt.value = "5"; [man, lvl, cnt].forEach((i) => { i.style.width = "5em"; });
-  const nums = (inp, key, ok) => { inp.onchange = () => { const v = Number(inp.value); if (ok(v)) p[key] = v; else inp.value = String(p[key]); fft.schedule(); }; };
-  nums(man, "manualR", (v) => v > 0);
-  const sel = (s, key, conv = (x) => x) => { s.onchange = () => { p[key] = conv(s.value); syncFft(); fft.schedule(); }; };
-  sel(src, "source"); sel(win, "window"); sel(imp, "imp", Number);
-  bindFftMarkerControls(ctx, p, { unit, lvl, cnt, sort, imp, man }, catalog);
-  on.onchange = () => { p.on = on.checked; store.command("fft.visible", on.checked); if (on.checked) fft.run(true); else { fft.invalidate(); store.set({ fftResult: null, rfPos: null }, "program"); } syncFft(); };
-  function syncFft() {
-    man.disabled = (catalog.fft_impedances ?? [])[p.imp]?.[1] !== null;
-    const ph = p.unit === "Phase"; [sort, lvl, cnt].forEach((c) => { c.disabled = ph; });
-  }
+  const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
+  on.onchange = () => fft.setAnalysisOn(on.checked);
   const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
-  const loadedAll = [on, src, win, unit, imp, man, sort, lvl, cnt];
-  el.append(fieldOf("FFT 計算", on));
-  fftRow.append(fieldOf("來源", src), fieldOf("視窗", win), fieldOf("單位", unit), imp, man, fieldOf("排序", sort), fieldOf("基準線", lvl), fieldOf("顯示數量 n", cnt));
+  mountFftControls(fftRow, ctx);
+  el.append(fieldOf("FFT 計算", on), btn("FFT 頻譜 ↗", () => store.command("tab.select", "fft")));
+  fft.subscribe(() => { on.checked = fft.analysisOn; on.disabled = !store.get().file; });
   const root = el.closest(".analysis") ?? el.parentNode, place = () => { const bar = root.querySelector(".analysis__fftbar"); if (bar) bar.append(fftRow); return !!bar; };
   if (!place()) { const mo = new MutationObserver(() => { if (place()) mo.disconnect(); }); mo.observe(root, { childList: true, subtree: true }); setTimeout(() => { if (!fftRow.parentNode) el.append(fftRow); }, 3000); }
 
   function sync() {
-    const st = store.get(), has = !!st.file, names = st.channels.map((c) => c.name);
-    [...loaded, ...loadedAll].forEach((c) => { c.disabled = !has; });
+    const st = store.get(), has = !!st.file;
+    loaded.forEach((c) => { c.disabled = !has; });
     bClose.disabled = !has || !!st.opening; // 開檔進行中不可關檔
-    if (src.options.length !== names.length || [...src.options].some((o, i) => o.value !== names[i])) { src.replaceChildren(...names.map((n) => new Option(n, n))); }
-    if (!names.includes(p.source)) { p.source = names[0] ?? null; }
-    src.value = p.source ?? ""; marker.value = st.markerMode ?? ""; range.value = st.rangeMode; thr.value = st.threshold;
-    if (!has && on.checked) { on.checked = false; p.on = false; store.command("fft.visible", false); }
-    syncFft();
+    marker.value = st.markerMode ?? ""; range.value = st.rangeMode; thr.value = st.threshold;
+    on.checked = fft.analysisOn; on.disabled = !has;
   }
   store.on(["file", "channels", "markerMode", "rangeMode", "threshold", "opening"], sync);
-  store.on(["fftResult"], (st) => { // 新頻譜（spectrum_id 已換）→ 已有 RF 位置就重新吸附（按鈕在 L4 fftpane）
-    const r = st.fftResult;
-    if (st.rfPos && r?.ok && r.unit !== "°") store.command("rf.intent", { direction: 0, x: st.rfPos.x }); else if (st.rfPos && !r?.ok) store.set({ rfPos: null }, "program");
-  });
   sync();
 }

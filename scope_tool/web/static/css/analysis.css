@@ -157,3 +157,21 @@
 .analysis__side .field:has(.btn--small) > .field__label { grid-column: 1 / -1; }
 .analysis__side .field:has(.btn--small) .btn--small { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 var(--sp-1); }
 .analysis__preview { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+/* FFT 大檢視不經分析頁的 splitter；小視窗讓峰表放到下方。 */
+.fftpage { display: flex; flex-direction: column; gap: 8px; min-height: 100%; }
+.fftpage__source, .fftpage__params, .fftpage__markers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fftpage .field { flex-direction: row; align-items: center; margin: 0; }
+.fftpage__source .input { width: 9em; }
+.fftpage__body { display: flex; flex: 1; gap: 12px; min-height: 400px; }
+.fftpage__plot.analysis__fft { flex: 1; min-width: 0; min-height: 320px; overflow: visible; }
+.fftpage__plot .analysis__fftplot { min-height: 240px; }
+.fftpage__plot .analysis__fftbar { height: auto; flex: 0 0 auto; min-height: 40px; flex-wrap: wrap; white-space: normal; overflow: visible; }
+.fftpage__side { flex: 0 0 340px; min-width: 0; }
+.fftpage__markers { margin-bottom: 8px; }
+.fftpage__table { overflow: auto; max-height: 65vh; }
+.fftpage .results__fftinfo { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 1099px) {
+  .fftpage__body { flex-direction: column; }
+  .fftpage__side { flex: 0 0 auto; }
+}

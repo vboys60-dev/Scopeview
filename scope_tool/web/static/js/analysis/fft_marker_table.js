@@ -1,4 +1,4 @@
-// B 區既有 FFT 峰值頁籤使用此表；峰值沒有註記欄。
+// 分析頁 B 區與 FFT 大檢視共用峰表；峰值沒有註記欄。
 import { fftMarkerModel } from './fft_markers.js';
 export function mountFftMarkerTable(el, ctx, info) {
   const { store, fmt } = ctx, model = fftMarkerModel(ctx);
@@ -23,4 +23,10 @@ export function mountFftMarkerTable(el, ctx, info) {
   }
   const off = store.on(['fftResult', 'fftMarker'], render); render();
   return { dispose: off };
+}
+
+export function fftInfo(r, fmt) {
+  if (!r) return "";
+  if (!r.ok) return r.reason ?? "FFT 失敗";
+  return `Δf ${fmt.fmt(r.df, "Hz")}｜RBW ${fmt.fmt(r.rbw, "Hz")}｜ENBW ${fmt.fmt(r.enbw, "Hz")}｜${r.window}｜N=${r.n}（${r.effective_n}）｜R=${r.r_ohm} Ω｜${r.unit}`;
 }
