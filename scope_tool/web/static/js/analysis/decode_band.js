@@ -84,12 +84,13 @@ export function drawBand(g, w, state, bits = []) {
         g.strokeStyle = cssVar('--c-ch1','#f0e442'); g.beginPath(); g.moveTo(bit.sample,21); g.lineTo(bit.sample,25); g.stroke();
       }
     } else {
-      const value = b.f.value == null ? b.f.label : b.f.value.toString(16).toUpperCase().padStart(Math.ceil((b.f.nbits-(b.f.ninth_kind ? 1 : 0))/4),'0');
+      const value = b.f.value == null ? b.f.label : b.f.kind === 'addr' ? (b.f.value>>1).toString(16).toUpperCase().padStart(2,'0')+(b.f.value & 1 ? ' R' : ' W') : b.f.value.toString(16).toUpperCase().padStart(Math.ceil((b.f.nbits-(b.f.ninth_kind ? 1 : 0))/4),'0');
       box(b.x0,b.x1,21,c,'');
       if (!b.tiny && Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0) >= 24) {
         g.save(); g.beginPath(); g.rect(Math.max(rect.l,b.x0)+2,21,Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)-4,18); g.clip();
         g.fillStyle = c; g.textAlign = 'left'; g.fillText(value,Math.max(rect.l,b.x0)+4,34);
-        g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = b.f.ok ? col.info : col.error; g.fillText(tag,b.x1-3,37); g.font = '12px sans-serif'; g.restore();
+        g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = b.f.ok ? col.info : col.error;
+        if (g.measureText(tag).width+value.length*7+10 <= Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)) g.fillText(tag,b.x1-3,37); g.font = '12px sans-serif'; g.restore();
       }
     }
   }
