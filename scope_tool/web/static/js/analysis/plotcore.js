@@ -90,7 +90,7 @@ export function envPixels(env, X, Y) {
   for (let i = 0; i < n; i++) { x[i] = X(env.x[i]); top[i] = Y(env.hi[i]); bot[i] = Y(env.lo[i]); }
   return { x, top, bot, mode: env.mode };
 }
-/** 畫像素點：mode 0 為折線（NaN 斷線）；mode 1 每桶畫 lo~hi 垂直線（至少 1px 高）。 */
+/** 畫像素點：mode 0 為折線；mode 1 連接各桶 lo~hi 垂直線（至少 1px 高）；NaN 斷線。 */
 export function drawPixels(ctx, p, color) {
   ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath();
   const n = p.x.length;
@@ -101,9 +101,16 @@ export function drawPixels(ctx, p, color) {
       if (pen) ctx.lineTo(p.x[i], p.top[i]); else { ctx.moveTo(p.x[i], p.top[i]); pen = true; }
     }
   } else {
+    let pen = false, endY = 0;
     for (let i = 0; i < n; i++) {
-      if (Number.isNaN(p.top[i]) || Number.isNaN(p.bot[i])) continue;
-      ctx.moveTo(p.x[i], p.top[i]); ctx.lineTo(p.x[i], Math.max(p.bot[i], p.top[i] + 1));
+      if (Number.isNaN(p.top[i]) || Number.isNaN(p.bot[i])) { pen = false; continue; }
+      const top = p.top[i], bot = Math.max(p.bot[i], top + 1);
+      // 從前桶收尾接到較近端點，再走完本桶，避免平頂破碎與邊緣多餘折返。
+      const reverse = pen && Math.abs(endY - bot) < Math.abs(endY - top);
+      const start = reverse ? bot : top, end = reverse ? top : bot;
+      if (pen) ctx.lineTo(p.x[i], start); else ctx.moveTo(p.x[i], start);
+      ctx.lineTo(p.x[i], end);
+      pen = true; endY = end;
     }
   }
   ctx.stroke();
