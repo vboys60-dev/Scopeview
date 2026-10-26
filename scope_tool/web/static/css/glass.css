@@ -9,8 +9,43 @@
 .analysis__markers tr.is-selected { background: var(--c-surface-hi); }
 .vertical__badge { color: var(--c-warn); }
 
+/* 控制列與 sticky 控制項維持實心，避免捲動內容透出。 */
+.analysis__chanbar, .analysis__horizontal, .analysis__hmodes,
+.analysis__fftbar, .chanbar__toggle {
+  background: var(--c-surface); border-color: var(--c-border); box-shadow: var(--glass-lo);
+}
+.analysis__splitter { background: var(--c-bg); }
+.analysis__splitter::before { background: rgba(255,255,255,.18); }
+.analysis__splitter:hover::before { background: rgba(255,255,255,.30); }
+
+/* B 區及表格固定欄使用實心內容面，沿用全域表格的選中列樣式。 */
+.analysis__lower, .analysis__cursors, .analysis__markers,
+.results__table td:last-child {
+  background: var(--c-surface); border-color: var(--c-border);
+}
+.results__choices {
+  background: var(--c-overlay-solid); border-color: var(--c-border);
+  border-radius: var(--radius-ctl); box-shadow: var(--glass-hi), var(--shadow-dlg);
+}
+
+/* 浮動面板與抽屜疊在圖區上；實心、不模糊，也不改圖區容器。 */
+.analysis__float, .analysis--drawer .analysis__sidepanel {
+  background: var(--c-surface); border-color: var(--c-border);
+  box-shadow: var(--glass-hi), var(--shadow-dlg); /* 不加圓角：右下角縮放熱區在 3px 內 */
+}
+.analysis__floatBar, .analysis__floatHome {
+  background: var(--c-bg); border-color: var(--c-border); box-shadow: var(--glass-lo);
+}
+.analysis--drawer .analysis__sidepanel { box-shadow: var(--glass-hi), 4px 0 12px rgba(0,0,0,.5); }
+.analysis--drawer .analysis__side { background: var(--c-surface); }
+
 /* == FFT 頁 == */
-/* P2 實作。 */
+.fftpage__source, .fftpage__params, .fftpage__markers, .fftpage__side {
+  background: var(--glass-fill); border-color: var(--c-border);
+  border-radius: var(--radius-lg); box-shadow: var(--glass-hi), var(--glass-lo), var(--shadow-glass);
+}
+/* 峰表與卡片內的 Marker 控制列用實心底，避免玻璃疊玻璃。 */
+.fftpage__side .fftpage__markers, .fftpage__table { background: var(--c-surface); }
 
 /* == 浮層（P3） == */
 /* P3 實作；P1 維持實心、不啟用 blur。 */
