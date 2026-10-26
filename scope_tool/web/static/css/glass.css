@@ -48,4 +48,29 @@
 .fftpage__side .fftpage__markers, .fftpage__table { background: var(--c-surface); }
 
 /* == 浮層（P3） == */
-/* P3 實作；P1 維持實心、不啟用 blur。 */
+/* 僅葉節點浮層取樣背景；不套用到祖先、::backdrop、圖區或分析浮動面板。 */
+.dlg, .toast, .results__choices, [data-tip]:hover::after {
+  background: var(--c-overlay-solid);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dlg, .toast, .results__choices, [data-tip]:hover::after {
+    background: var(--c-overlay);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+}
+/* 本檔最後載入，降級必須在啟用規則之後，避免蓋過 P1 的偏好設定。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dlg, .toast, .results__choices, [data-tip]:hover::after {
+    background: var(--c-overlay-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .dlg, .toast, .results__choices, [data-tip]:hover::after {
+    background: var(--c-overlay-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
