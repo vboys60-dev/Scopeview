@@ -56,6 +56,15 @@
 - `browser_check` 兩處測試修正：「P2b 多尺寸」先確保 B 區收折再測展開（工具列變矮後不再自動收折）；「P3b-2 垂直框選」`fit` 加 0.025 格容差（整數像素框選貼 ±5 格邊界會差 1e-6）。
 - 審查未處理：`browser_check` 收折後未斷言 `aria-expanded`；`:has(.btn--small)` 範圍偏寬（可改專屬 class）。
 
+## 主圖包絡修正與版面編輯器（2026-10-26，`f59a4b2`、`d6648aa`）
+- **包絡破圖**：10000 點 10 MHz 方波全視圖時每桶約 6–7 點，走 `decimate.py` mode 1（min/max 包絡）。舊 `plotcore.js drawPixels` 每桶各畫獨立垂直線，平頂變虛線、邊緣變雙線；與每像素點數相關，約 4.6 點／px 尚可、6.4 點／px 明顯破。已改為相鄰有限桶補連線（NaN 桶仍斷線、單桶最小高 1px）；`analysis/envelope_check.mjs` 已加入 `selfcheck_node.js`。`decimate.py` 未動。
+- **版面編輯器** `docs/版面編輯器/layout_editor.html`：雙擊開啟（file://，免伺服器）。58 個部件，可拖曳／縮放／隱藏／鎖定／註解、復原重做、localStorage 自存、匯入 JSON；輸出 `layout_*.json` 與 `layout_summary_*.md`（現況→新位置、註解、建議修改檔）。部件以 `shots/`（3 尺寸×5 狀態，共 15 張）裁切真實 GUI 畫面顯示，「顯示真實畫面」可切回色塊；`shots/` 需與 HTML 同資料夾。
+- 座標為 2000×1290、1400×900、1000×800 三尺寸實測；看不到的部件為等比佔位（`measured:false`）。app 版面改動後須重量測、重截圖、更新 `components.json` 並重嵌入 HTML（腳本在 session scratchpad，未入庫）。
+- 命名：程式的「B 區」＝`bpanel.js` 下方結果區；左側量測欄是 `measure.js`（文件稱 A 區）。
+- 未驗證：真人滑鼠手感、pywebview／WKWebView、剪貼簿與下載實際寫入；奇數寬部件中線吸附差 0.5px。
+- **待使用者**：排好版面後貼回 JSON／Markdown，再照它改真實 GUI（寫程式交 Codex）。
+- Codex CLI 0.163.0 無 `--full-auto`，用 `codex exec --sandbox workspace-write -C "$PWD" - < prompt`；其沙箱禁綁 localhost，browser_check 須自己跑。
+
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
 - 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`；`docs/DSOX6004A_Jitter驗證紀錄.md`（至第四輪）。
