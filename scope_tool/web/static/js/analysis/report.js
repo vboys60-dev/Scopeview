@@ -3,7 +3,7 @@
 import { fftInfo } from './fft_marker_table.js';
 import { exportable } from './results.js';
 import { tableFrames } from './decode_table.js';
-import { definition } from './decode.js';
+import { definition, withAscii } from './decode.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
@@ -96,7 +96,7 @@ export function decodeSection(st, root, F, invert) {
   const only = root.querySelector('.decode__sum button:last-child')?.getAttribute('aria-pressed') === 'true';
   const { rows,total } = tableFrames(r.frames,only);
   const events = { head:['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態'], rows:rows.map(f => {
-    const content = def.content(f);
+    const content = withAscii(f,def.content(f),st.decodeAscii);
     return [f.i+1,F(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f)),
       content.length > 64 ? content.slice(0,64)+'…' : content,f.reasons.map(k => def.reasons[k] ?? k).join('、') || (f.kind === 'hdr' ? '資訊' : '正常')];
   }) };

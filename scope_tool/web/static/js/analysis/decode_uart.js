@@ -10,8 +10,7 @@ function content(f) {
   const lanes = ['tx','rx'].map(lane => {
     const fields = f.fields.filter(x => x.kind === lane);
     if (!fields.length) return '';
-    const ascii = fields.filter(x => x.value != null).map(x => x.value >= 32 && x.value < 127 ? String.fromCharCode(x.value) : '.').join('');
-    return lane.toUpperCase()+' '+fields.map(x => (x.ok ? '' : '⚠')+fieldText(x)).join(' ')+(ascii ? ` "${ascii}"` : '');
+    return lane.toUpperCase()+' '+fields.map(x => (x.ok ? '' : '⚠')+fieldText(x)).join(' ');
   }).filter(Boolean);
   return lanes.join('／') || f.label || kinds[f.kind] || f.kind;
 }

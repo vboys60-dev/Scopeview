@@ -1,6 +1,6 @@
 // B 區解碼設定、事件表與位址表；與主圖標註列共用解碼模型。
 import { fmt, parseSI } from '../fmt.js';
-import { decodeModel, definition, selectFrame } from './decode.js';
+import { decodeModel, definition, selectFrame, withAscii } from './decode.js';
 export const MAX_ROWS = 2000;
 export { hex, eventKind, frameContent } from './decode_i3c.js';
 import * as protocols from './decode_protocols.js';
@@ -22,7 +22,7 @@ export function mount(el, ctx) {
   const { store } = ctx, model = decodeModel(ctx), root = node('div','decode');
   const bar = node('div','decode__bar'), sum = node('div','decode__sum'), info = node('span','decode__info');
   const filter = node('div','decode__segment'), all = node('button','btn btn--small','全部'), problems = node('button','btn btn--small','只錯誤／警告');
-  let onlyProblems = false, auto = true, fileGen, rendered = null, previousFilter;
+  let onlyProblems = false, auto = true, fileGen, rendered = null, previousFilter, previousAscii;
   let sources = {}, thresholds = {}, options = {}, active, eventProtocol;
   const protocol = node('select','input decode__protocol'); protocol.dataset.protocol = 'true';
   for (const def of Object.values(protocols).sort((a,b) => a.order-b.order)) { const o = node('option','',def.label); o.value = def.name; protocol.append(o); }
@@ -33,7 +33,9 @@ export function mount(el, ctx) {
   const params = node('div','decode__params');
   const run = node('button','btn btn--small btn--primary','解碼'), exp = node('button','btn btn--small','匯出 CSV');
   run.dataset.decodeAction = 'run'; exp.dataset.decodeAction = 'export'; params.append(run,exp);
-  const band = node('input'); band.type = 'checkbox'; const bandLabel = node('label','decode__control decode__band','標註列'); bandLabel.append(band); params.append(bandLabel); bar.append(params);
+  const band = node('input'); band.type = 'checkbox'; const bandLabel = node('label','decode__control decode__band','標註列'); bandLabel.append(band); params.append(bandLabel);
+  const asciiBox = node('input'); asciiBox.type = 'checkbox'; asciiBox.dataset.decodeAscii = 'true'; const asciiLabel = node('label','decode__control','ASCII'); asciiLabel.append(asciiBox);
+  asciiBox.addEventListener('change',() => model.change({ ascii:asciiBox.checked })); bar.append(params);
   const wrap = node('div','decode__tablewrap'); let events = table([]); wrap.append(events.el);
   const foot = node('div','decode__foot');
   const details = node('details','decode__addressesTable'), caption = node('summary');
@@ -68,7 +70,7 @@ export function mount(el, ctx) {
       if (o.list) { const list = node('datalist'); list.id = `decode-${def.name}-${o.key}`; input.setAttribute('list',list.id); for (const v of o.list) { const e = node('option'); e.value = String(v); list.append(e); } params.append(list); }
       options[o.key] = add(params,o.label,input);
     }
-    params.append(run,exp,bandLabel);
+    params.append(run,exp,bandLabel,asciiLabel);
     eventProtocol = null; rendered = null;
   }
   const autoBtn = node('button','btn btn--small','自動'), manualBtn = node('button','btn btn--small','手動');
@@ -100,7 +102,7 @@ export function mount(el, ctx) {
       events = table(['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態']); wrap.replaceChildren(events.el);
       addr = table(def.addresses?.head ?? []); details.replaceChildren(caption,addr.el); details.hidden = !def.addresses;
     }
-    band.checked = p.band;
+    band.checked = p.band; asciiBox.checked = model.ascii;
     autoBtn.setAttribute('aria-pressed',String(auto)); manualBtn.setAttribute('aria-pressed',String(!auto));
     all.setAttribute('aria-pressed',String(!onlyProblems)); problems.setAttribute('aria-pressed',String(onlyProblems));
     for (const role of Object.keys(thresholds)) thresholds[role].forEach((e,i) => {
@@ -122,12 +124,12 @@ export function mount(el, ctx) {
       for (const w of r.summary.warnings) info.append(node('span','decode__warn',w));
     } else info.textContent = st.file ? '尚未解碼' : '請先開啟波形檔';
     ctx.resultTabs?.label('decode',`解碼${r ? ` (${r.summary.counts.frames})` : ''}`);
-    if (rendered !== r || previousFilter !== onlyProblems) {
-      rendered = r; previousFilter = onlyProblems;
+    if (rendered !== r || previousFilter !== onlyProblems || previousAscii !== model.ascii) {
+      rendered = r; previousFilter = onlyProblems; previousAscii = model.ascii;
       const { rows, total } = tableFrames(r?.frames ?? [],onlyProblems);
       const dx = st.channels.find(c => c.name === r?.base)?.time_offset ?? 0;
       events.body.replaceChildren(...rows.map(f => {
-        const row = node('tr'), content = def.content(f); row.tabIndex = 0; row.dataset.decodeFrame = String(f.i);
+        const row = node('tr'), content = withAscii(f,def.content(f),model.ascii); row.tabIndex = 0; row.dataset.decodeFrame = String(f.i);
         cells(row,[f.i+1,fmt(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f)),content.length > 64 ? content.slice(0,64)+'…' : content,
           f.reasons.length ? f.reasons.map(k => def.reasons[k] ?? k).join('、') : f.kind === 'hdr' ? '資訊' : '正常']);
         row.children[3+def.columns.length].title = content; row.children[4+def.columns.length].className = 'decode__'+(f.status === 'ok' && f.kind === 'hdr' ? 'infoStatus' : f.status);

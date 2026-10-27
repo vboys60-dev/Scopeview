@@ -2,6 +2,15 @@
 import * as protocols from './decode_protocols.js';
 export { REASONS, reasonText, parseAddresses, eventKind, frameContent } from './decode_i3c.js';
 export const definition = name => protocols[name ?? 'i3c'];
+/** ASCII 顯示：只對 8 位元資料欄位（不含位址、PID 等）；不可印字元顯示 '.'。 */
+const ASCII_KINDS = new Set(['data','mdb','tx','rx']);
+export const isByteField = x => ASCII_KINDS.has(x.kind) && x.value != null && x.nbits-(x.ninth_kind ? 1 : 0) === 8;
+export const asciiChar = v => v >= 32 && v < 127 ? String.fromCharCode(v) : '.';
+/** 事件表／報告的內容欄尾端加 "ascii"（開關開啟時）。 */
+export function withAscii(f, text, on) {
+  const s = on ? f.fields.filter(isByteField).map(x => asciiChar(x.value)).join('') : '';
+  return s ? `${text} "${s}"` : text;
+}
 export const defaultConfig = (channels, def = protocols.i3c) => {
   const raw = channels.filter(c => !c.derived);
   const ch = Object.fromEntries(def.roles.map((r,i) => [r.key,r.optional ? '' : raw[i]?.name ?? '']));
@@ -28,11 +37,12 @@ export function selectFrame(store, frame) {
   store.command('viewport.intent',jumpView(frame,st.view,dx));
 }
 export function createDecode({ store, bridge, ui = {} }) {
-  let configs = {}, config = defaultConfig(store.get().channels), gen = store.get().file?.gen, token = 0, busy = false, message = '';
+  let configs = {}, config = defaultConfig(store.get().channels), gen = store.get().file?.gen, token = 0, busy = false, message = '', ascii = true;
   const subs = new Set(), notify = () => { for (const fn of subs) fn(); };
-  store.set({ decodeResult:null, decodeSel:null });
+  store.set({ decodeResult:null, decodeSel:null, decodeAscii:ascii });
   const current = (t, g) => t === token && g === store.get().file?.gen;
   function change(patch = {}) {
+    if (Object.keys(patch).length === 1 && 'ascii' in patch) { ascii = !!patch.ascii; store.set({ decodeAscii:ascii }); notify(); return; }
     if (Object.keys(patch).length === 1 && 'band' in patch) { config = { ...config,...patch }; notify(); return; }
     token++; busy = false; message = ''; configs[config.protocol] = config;
     config = patch.protocol ? (configs[patch.protocol] ?? defaultConfig(store.get().channels,definition(patch.protocol))) : { ...config,...patch };
@@ -78,7 +88,7 @@ export function createDecode({ store, bridge, ui = {} }) {
       else ui.showError?.(e,'匯出解碼失敗');
     }
   }
-  return { get config() { return config; }, get busy() { return busy; }, get message() { return message; },
+  return { get config() { return config; }, get busy() { return busy; }, get message() { return message; }, get ascii() { return ascii; },
     change, run, exportCsv, on(fn) { subs.add(fn); return () => subs.delete(fn); } };
 }
 const models = new WeakMap();

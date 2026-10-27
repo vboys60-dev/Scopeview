@@ -105,7 +105,7 @@ const fakeDecode = await import(decodeURL);
 const tableSource = fs.readFileSync(new URL('./decode_table.js',import.meta.url),'utf8');
 const imports = tableSource.slice(tableSource.indexOf('import { decodeModel'),tableSource.indexOf('export function tableFrames'));
 const fakeTable = await mutate('./decode_table.js',imports,
-  `import { decodeModel, definition, selectFrame } from '${decodeURL}';\nexport const MAX_ROWS = 2000;\n${registry}\n`);
+  `import { decodeModel, definition, selectFrame, withAscii } from '${decodeURL}';\nexport const MAX_ROWS = 2000;\n${registry}\n`);
 const fakeBand = await mutate('./decode_band.js',"from './decode.js'",`from '${decodeURL}'`);
 const fakeReport = await mutate('./report.js',"from './decode.js'",`from '${decodeURL}'`);
 const tested = await panelCheck(fake,fakeTable.mount,fakeBand.drawBand,fakeReport.decodeSection);
@@ -171,6 +171,13 @@ if (process.argv.includes('--mutations')) {
   // 同一斷言會拒絕失去雙 lane 守門的產品。
   assert.throws(() => assert.ok(lane.bandLayout([frame],st.view,st.plotRect,0,['tx','rx']).fields.every(x => !x.bitMode)));
   console.log('decode_proto mutations self-check OK');
+}
+{ // ASCII 顯示：只對 8 位元資料欄位；位址不算；關閉時不加
+  const { withAscii, isByteField, asciiChar } = await import('./decode.js');
+  const f = { fields:[{ kind:'addr',value:0xA0,nbits:9,ninth_kind:'ack' },{ kind:'data',value:0x48,nbits:9,ninth_kind:'ack' },{ kind:'data',value:0x01,nbits:9,ninth_kind:'ack' },{ kind:'tx',value:0x69,nbits:8,ninth_kind:null }] };
+  assert.equal(withAscii(f,'X',true),'X "H.i"'); assert.equal(withAscii(f,'X',false),'X');
+  assert.ok(!isByteField(f.fields[0]) && isByteField(f.fields[1])); assert.equal(asciiChar(0x7F),'.');
+  assert.equal(withAscii({ fields:[f.fields[0]] },'X',true),'X');
 }
 globalThis.document = oldDocument; delete globalThis.__decodeFake;
 console.log('decode_proto self-check OK');

@@ -1,7 +1,7 @@
 // 主圖時間軸下方的 I3C 事件／byte／bit 標註；時間一律由來源加 SCL dx。
 import { createCanvas, cssVar, linear, debounce, makeLatest } from './plotcore.js';
 import { MARGIN } from './mainplot.js';
-import { decodeModel, definition } from './decode.js';
+import { decodeModel, definition, isByteField, asciiChar } from './decode.js';
 export const BAND_H = 40;
 /** frames 的 t1 單調；保留跨過左緣及恰好碰到邊界的事件。 */
 export function visibleFrames(frames, t0, t1) {
@@ -92,7 +92,7 @@ export function drawBand(g, w, state, bits = []) {
         g.strokeStyle = cssVar('--c-ch1','#f0e442'); g.beginPath(); g.moveTo(bit.sample,21); g.lineTo(bit.sample,25); g.stroke();
       }
     } else {
-      const value = def.fieldText(b.f);
+      const value = def.fieldText(b.f)+(state.decodeAscii && isByteField(b.f) && b.x1-b.x0 >= 44 ? ' '+asciiChar(b.f.value) : '');  // 太窄就只留 hex
       box(b.x0,b.x1,y,c,'');
       if (!b.tiny && Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0) >= 24) {
         g.save(); g.beginPath(); g.rect(Math.max(rect.l,b.x0)+2,y,Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)-4,18); g.clip();
