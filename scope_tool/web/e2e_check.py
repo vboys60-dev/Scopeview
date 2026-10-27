@@ -223,6 +223,7 @@ def main() -> None:
         dp = dict(protocol='i3c', channels={'scl':'CHAN1', 'sda':'CHAN2'},
                   thresholds={'scl':None, 'sda':None}, options={})
         assert rpc('decode', protocol='i3c')['error']['code'] == 'BAD_REQUEST'
+        assert job('decode', {**dp, 'protocol':'lin'})['error']['code'] == 'BAD_REQUEST'
         summary = job_ok('decode', dp)
         assert summary['ok'] and 'frames' not in summary and 'bits_t' not in summary
         ident = summary['decode_id']

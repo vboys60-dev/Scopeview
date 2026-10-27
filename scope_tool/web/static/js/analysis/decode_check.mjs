@@ -2,12 +2,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createStore } from './store.js';
-import { REASONS, jumpView, parseAddresses, createDecode, decodeParams, defaultConfig } from './decode.js';
+import { REASONS } from './decode_i3c.js';
+import { jumpView, parseAddresses, createDecode, decodeParams, defaultConfig } from './decode.js';
 import { mount, frameContent, tableFrames } from './decode_table.js';
 import { BAND_H, visibleFrames, bandLayout, bitCells, ninthLabel, drawBand, mount as mountBand } from './decode_band.js';
 import { mountTabs, validate } from './bpanel.js';
 const contract = JSON.parse(fs.readFileSync(new URL('../../api_contract.json',import.meta.url)));
-assert.deepEqual(Object.keys(REASONS).sort(),contract.types_doc['DecodeFrame.reasons'].split(' ').sort());
+assert.deepEqual(Object.keys(REASONS).sort(),contract.types_doc['DecodeFrame.reasons.i3c'].split(' ').sort());
 assert.deepEqual(parseAddresses('50, 0x51,50'),[80,81]); assert.deepEqual(parseAddresses(''),[]);
 for (const s of ['80','-1','50,','xyz']) assert.throws(() => parseAddresses(s));
 assert.throws(() => decodeParams(defaultConfig([])));
@@ -33,7 +34,7 @@ async function runnerChecks(factory) {
   let pending = m.run(); jobs.at(-1).resolve(summary); await pending;
   assert.equal(store.get().decodeResult.frames[0],frame);
   m.change({ band:false }); assert.equal(store.get().decodeResult.stale,false);
-  m.change({ i2c:[80] }); assert.equal(store.get().decodeResult.stale,true); assert.equal(jobs.length,1);
+  m.change({ opt:{ i2c_addrs:[80] } }); assert.equal(store.get().decodeResult.stale,true); assert.equal(jobs.length,1);
   pending = m.run(); m.change(); jobs.at(-1).resolve(summary); await pending;
   assert.equal(store.get().decodeResult,null); assert.equal(calls.length,1);
   pending = m.run(); store.set({ file:{ gen:2 } }); jobs.at(-1).resolve(summary); await pending;
@@ -85,7 +86,7 @@ await panel.model.exportCsv(); assert.deepEqual(exports,[{ decode_id:'d1',direct
 ctx.bridge.call = async () => { throw { code:'STALE' }; }; await panel.model.exportCsv(); assert.match(toasts.at(-1)[0],/解碼結果已過期/);
 panel.model.change(); await panel.model.exportCsv(); assert.equal(exports.length,1);
 const many = Array.from({ length:2105 },(_,i) => ({ ...frame,i,status:i%2 ? 'ok' : 'warn' }));
-store.set({ decodeResult:{ summary:{ ...summary,counts:{ ...summary.counts,frames:many.length } },frames:many,addresses:[],scl:'CH1',stale:false } });
+store.set({ decodeResult:{ summary:{ ...summary,counts:{ ...summary.counts,frames:many.length } },frames:many,addresses:[],base:'CH1',protocol:'i3c',stale:false } });
 const tbody = find(host,e => e.tagName === 'tbody'); assert.equal(tbody.children.length,2000);
 assert.equal(tbody.children[0].children[0].textContent,1); assert.equal(tbody.children[0].dataset.decodeFrame,'0');
 assert.ok(find(host,e => e.className === 'decode__foot').textContent.includes('僅顯示前 2000 筆'));
@@ -144,7 +145,7 @@ const bs = makeStore(), requests = [], hostBand = { hidden:false,append() {},get
 const bc = { store:bs,bridge:{ call(name,p) { const d = deferred(); requests.push({ name,p,...d }); return d.promise; } } };
 const bm = mountBand(hostBand,bc);
 bs.set({ view:{ t0:1,t1:11 },channels:[{ name:'CH1',time_offset:2 }],plotRect:rect,
-  decodeResult:{ summary,frames:[transaction],addresses:[],scl:'CH1',stale:false } });
+  decodeResult:{ summary,frames:[transaction],addresses:[],base:'CH1',protocol:'i3c',stale:false } });
 await Promise.resolve(); await flush();
 assert.equal(requests.length,1); assert.deepEqual(requests[0].p,{ decode_id:'d1',t0:-1,t1:9 });
 bs.set({ view:{ t0:2,t1:12 } }); await flush();
@@ -159,17 +160,15 @@ globalThis.document = originalDocument; globalThis.setTimeout = realTimeout; glo
 delete globalThis.window; delete globalThis.ResizeObserver;
 // 精準變異產品原文，驗證置中／token 守門的測試確實能抓錯。
 if (process.argv.includes('--mutations')) {
-  const source = fs.readFileSync(new URL('./decode.js',import.meta.url),'utf8');
+  const { mutate } = await import('./decode_proto_check.mjs');
   for (const [from,to,check] of [
     ['(frame.t0+frame.t1)/2+dx','frame.t0+dx',m => checkJump(m.jumpView)],
     ['t === token && g ===','true && g ===',m => runnerChecks(m.createDecode)],
   ]) {
-    assert.ok(source.includes(from));
-    const mutated = await import('data:text/javascript;base64,'+Buffer.from(source.replace(from,to)).toString('base64'));
+    const mutated = await mutate('./decode.js',from,to);
     await assert.rejects(async () => check(mutated));
   }
-  const bandSource = fs.readFileSync(new URL('./decode_band.js',import.meta.url),'utf8');
-  const mutatedBand = await import('data:text/javascript;base64,'+Buffer.from(bandSource.replace(/import .*?;\n/g,'').replace('frames[mid].t1 < t0','frames[mid].t1 <= t0')).toString('base64'));
+  const mutatedBand = await mutate('./decode_band.js','frames[mid].t1 < t0','frames[mid].t1 <= t0');
   assert.throws(() => rangeChecks(mutatedBand.visibleFrames));
   console.log('decode mutations self-check OK');
 }

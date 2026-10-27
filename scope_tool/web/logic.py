@@ -111,6 +111,40 @@ def to_edges(t: np.ndarray, v: np.ndarray, lo: float, hi: float,
                  int(np.count_nonzero(runs == 1)), truncated)
 
 
+MAX_FRAMES = 100_000
+MAX_FIELDS = 100_000
+
+
+def levels_at(e: Edges, t: np.ndarray, end: float) -> np.ndarray:
+    """最後一個不晚於取樣時間的狀態；有效截止點外一律未知。"""
+    ix = np.searchsorted(e.time, t, side='right') - 1
+    out = np.full(np.shape(t), -1, dtype=np.int8)
+    good = (ix >= 0) & (t <= end)
+    out[good] = e.value[ix[good]]
+    return out
+
+
+def prepare(t: np.ndarray, volts: dict, thresholds: dict, *, require_edges: bool,
+            max_edges: int = MAX_EDGES) -> tuple[dict, dict, float, str | None]:
+    """共同判位與截止點；警告由各協定核心加入一次。"""
+    validate_time(t)
+    used = {r: auto_threshold(v) if thresholds[r] is None else tuple(thresholds[r]) for r, v in volts.items()}
+    edges, end = {}, float(t[-1])
+    for role, v in volts.items():
+        th = used[role]
+        if th is None:
+            return edges, used, end, f'{role.upper()} 無有限高低平台'+('' if require_edges else '；請改用手動門檻')
+        e = to_edges(t, v, *th, max_edges=max_edges)
+        edges[role] = e
+        if require_edges and not np.any((e.value >= 0) & ~e.resync):
+            return edges, used, end, f'{role.upper()} 無轉態（門檻 {th}）'
+        if not require_edges and not np.any(e.value >= 0):
+            return edges, used, end, f'{role.upper()} 全段未定'
+        if e.truncated:
+            end = min(end, float(e.time[-1]))
+    return edges, used, end, None
+
+
 if __name__ == '__main__':
     t = np.arange(10, dtype=float)
     v = np.array([.5, 0, .5, 1, .5, np.nan, .5, 1, 0, 0])
@@ -120,4 +154,8 @@ if __name__ == '__main__':
     assert e.unknown == [(0., 1.), (5., 7.)]
     assert np.allclose(e.time, to_edges(t, v, .3, .7, chunk=100).time)
     assert auto_threshold(np.ones(20)) is None
+    assert levels_at(e, np.array([0., 1., 11.]), 10).tolist() == [-1, 0, -1]
+    assert prepare(t, {'a': np.ones(10)}, {'a': [.3, .7]}, require_edges=False)[3] is None
+    assert prepare(t, {'a': np.ones(10)}, {'a': None}, require_edges=False)[3] == 'A 無有限高低平台；請改用手動門檻'
+    assert prepare(t, {'a': np.full(10, .5)}, {'a': [.3, .7]}, require_edges=False)[3] == 'A 全段未定'
     print('web.logic self-check OK')

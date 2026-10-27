@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""Analysis 的離線 I3C 解碼快照與 CSV；只用來源時間。# 待真機驗證。"""
+"""Analysis 的離線多協定解碼快照與 CSV；只用來源時間。# 待真機驗證。"""
 import csv
 import datetime as dt
 import itertools
+import importlib
 import json
 from pathlib import Path
 
@@ -12,35 +13,43 @@ import numpy as np
 from scope_tool.contracts import ScopeError
 from scope_tool.storage.writer import timestamped
 from scope_tool.web.analysis_util import BadRequest, StaleError
-from scope_tool.web.i3c_decode import decode as decode_edges
-from scope_tool.web.logic import auto_threshold, to_edges, validate_time
+from scope_tool.web.logic import prepare, validate_time, MAX_FRAMES, MAX_FIELDS
 
 _DECODE_IDS = itertools.count(1)
 MAX_BITS = 4096
-ROLES = {'scl', 'sda'}
+NAMES = ('i3c', 'i2c', 'spi', 'uart', 'can')
 
 
 def _finite(v: object) -> bool:
     return type(v) in (int, float) and np.isfinite(v)
 
 
-def _params(protocol: str, channels: dict, thresholds: dict, options: dict) -> None:
-    if protocol != 'i3c':
-        raise BadRequest('目前只支援 i3c')
-    if not isinstance(channels, dict) or set(channels) != ROLES or not all(isinstance(v, str) for v in channels.values()):
-        raise BadRequest('channels 必須為 scl／sda 字串 map')
-    if channels['scl'] == channels['sda']:
-        raise BadRequest('SCL 與 SDA 通道必須不同')
-    if not isinstance(thresholds, dict) or set(thresholds) != ROLES:
-        raise BadRequest('thresholds 鍵必須為 scl／sda')
+def protocol(name: str) -> object:
+    if name not in NAMES:
+        raise BadRequest('不支援的協定')
+    module = f'scope_tool.web.{name}_decode'
+    try:
+        return importlib.import_module(module)
+    except ModuleNotFoundError as exc:
+        if exc.name != module:
+            raise
+        raise BadRequest('此協定尚未實作') from exc
+
+
+def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dict:
+    if not isinstance(channels, dict) or set(channels) - mod.ROLES.keys() or any(r not in channels for r, required in mod.ROLES.items() if required):
+        raise BadRequest('channels 角色無效或缺少必填角色')
+    if not all(isinstance(v, str) for v in channels.values()) or len(set(channels.values())) != len(channels):
+        raise BadRequest('通道須為不同的字串')
+    if not isinstance(thresholds, dict) or set(thresholds) != channels.keys() - getattr(mod, 'DIFF', {}).keys():
+        raise BadRequest('thresholds 鍵須等於邏輯線')
     for th in thresholds.values():
         if th is not None and not (isinstance(th, (list, tuple)) and len(th) == 2 and all(_finite(v) for v in th) and th[0] < th[1]):
             raise BadRequest('門檻須為兩個有限數 lo < hi 或 null')
-    if not isinstance(options, dict) or set(options) - {'i2c_addrs'}:
-        raise BadRequest('options 只接受 i2c_addrs')
-    addrs = options.get('i2c_addrs', [])
-    if not isinstance(addrs, list) or any(type(v) is not int or not 0 <= v <= 127 for v in addrs):
-        raise BadRequest('i2c_addrs 須為 0–127 整數陣列')
+    try:
+        return mod.options(options, channels)
+    except ValueError as exc:
+        raise BadRequest(str(exc)) from exc
 
 
 class DecodeMixin:
@@ -49,36 +58,32 @@ class DecodeMixin:
             self._dec = None  # 所有失敗（含參數錯誤）都使舊 id 失效。
             gen, waves, _ = self._need()
             path = self._path
-        _params(protocol, channels, thresholds, options)
-        lines = {r: self._wf(waves, channels[r]) for r in ('scl', 'sda')}
+        mod = globals()['protocol'](protocol)
+        opts = _params(mod, channels, thresholds, options)
+        lines = {r: self._wf(waves, channels[r]) for r in mod.ROLES if r in channels}
+        base = lines[mod.BASE]
         try:
-            validate_time(lines['scl'].time, lines['sda'].time)
+            for w in lines.values():
+                validate_time(base.time, w.time)
+            diff = getattr(mod, 'DIFF', {})
+            volts = {r: w.voltage for r, w in lines.items() if r not in diff}
+            for neg, pos in diff.items():
+                if neg in lines:
+                    # ponytail: 相減配置整條陣列；1e8 點時 +800 MB，需要時改分塊。
+                    volts[pos] = volts[pos] - lines[neg].voltage
+            edges, used, end, reason = prepare(base.time, volts, thresholds, require_edges=mod.REQUIRE_EDGES)
         except ValueError as exc:
             raise BadRequest(str(exc)) from exc
-        used = {r: (auto_threshold(lines[r].voltage) if thresholds[r] is None else tuple(thresholds[r])) for r in ('scl', 'sda')}
-        summary = dict(ok=False, reason=None, gen=gen, decode_id=None, protocol=protocol,
+        summary = dict(ok=False, reason=reason, gen=gen, decode_id=None, protocol=protocol,
                        channels=dict(channels), thresholds={r: list(v) if v is not None else None for r, v in used.items()},
                        t0=None, t1=None, counts=dict(frames=0, fields=0, errors=0, warns=0), truncated=False, warnings=[])
-        edges = []
-        for role in ('scl', 'sda'):
-            th, w = used[role], lines[role]
-            if th is None:
-                summary['reason'] = f'{role.upper()} 無有限高低平台'
-            else:
-                try:
-                    edge = to_edges(w.time, w.voltage, *th)
-                except ValueError as exc:
-                    raise BadRequest(str(exc)) from exc
-                if not np.any((edge.value >= 0) & ~edge.resync):
-                    summary['reason'] = f'{role.upper()} 無轉態（門檻 {th}）'
-                edges.append(edge)
-            if summary['reason']:
-                with self._lock:
-                    self._alive(gen)
-                return summary
-        result = decode_edges(*edges, t1=float(lines['scl'].time[-1]), i2c_addrs=set(options.get('i2c_addrs', [])))
+        if reason:
+            with self._lock:
+                self._alive(gen)
+            return summary
+        result = mod.run(edges, t1=end, max_frames=MAX_FRAMES, max_fields=MAX_FIELDS, **opts)
         frames = result['frames']
-        summary.update(ok=True, decode_id=f'd{next(_DECODE_IDS)}', t0=float(lines['scl'].time[0]), t1=result['t1'],
+        summary.update(ok=True, decode_id=f'd{next(_DECODE_IDS)}', t0=float(base.time[0]), t1=result['t1'],
                        counts=dict(frames=len(frames), fields=sum(len(f['fields']) for f in frames),
                                    errors=sum(f['status'] == 'error' for f in frames), warns=sum(f['status'] == 'warn' for f in frames)),
                        truncated=result['truncated'], warnings=result['warnings'])
@@ -86,7 +91,7 @@ class DecodeMixin:
                     options=json.loads(json.dumps(options)), decoded_at=dt.datetime.now().isoformat(' ', 'seconds'))
         with self._lock:
             self._alive(gen)
-            self._dec = dict(id=summary['decode_id'], gen=gen, meta=meta, **result)
+            self._dec = dict(id=summary['decode_id'], gen=gen, meta=meta, protocol=protocol, base=channels[mod.BASE], addr_table=mod.ADDR_TABLE, **result)
         return summary
 
     def _decode_snapshot(self, decode_id: str) -> dict:
@@ -136,11 +141,12 @@ class DecodeMixin:
                         suffix = [i, field['kind'], '' if field['value'] is None else hex(field['value']), field['nbits'],
                                   field['ninth'], field['ninth_kind'], field['ok'], field['label']] if field else [''] * 8
                         writer.writerow(prefix + suffix)
-                writer.writerow([])
-                writer.writerow(['DA', 'PID', 'BCR', 'DCR', 'static', '起', '迄', '來源', '備註'])
-                for addr in snap['addresses']:
-                    writer.writerow([repr(float(addr[k])) if k in ('t_from', 't_to') and addr[k] is not None else addr[k]
-                                     for k in ('da', 'pid', 'bcr', 'dcr', 'static', 't_from', 't_to', 'how', 'note')])
+                if snap['addr_table']:
+                    writer.writerow([])
+                    writer.writerow(['DA', 'PID', 'BCR', 'DCR', 'static', '起', '迄', '來源', '備註'])
+                    for addr in snap['addresses']:
+                        writer.writerow([repr(float(addr[k])) if k in ('t_from', 't_to') and addr[k] is not None else addr[k]
+                                         for k in ('da', 'pid', 'bcr', 'dcr', 'static', 't_from', 't_to', 'how', 'note')])
         except OSError as exc:
             raise ScopeError(f'匯出解碼結果失敗：{exc}') from exc
         return {'path': str(p)}
@@ -189,14 +195,14 @@ if __name__ == '__main__':
         rows = list(csv.reader(p.open(encoding='utf-8-sig')))
         assert len(rows) == 9 + sum(max(1, len(f['fields'])) for f in frames) + len(snap['addresses'])
         for patch in ({'channels': {'scl': 'CH1', 'sda': 'CH1'}}, {'options': {'i2c_addrs': [True]}},
-                      {'thresholds': {'scl': [0, float('inf')], 'sda': None}}, {'protocol': 'spi'},
+                      {'thresholds': {'scl': [0, float('inf')], 'sda': None}}, {'protocol': 'lin'},
                       {'channels': {'scl': 'CH1', 'sda': '不存在'}}, {'options': {'x': 1}}):
             ident = good()
             raises(BadRequest, lambda: a.decode(**{**params, **patch}))
             raises(StaleError, lambda: a.decode_frames(ident))
         ident = good()
         failed = a.decode(**{**params, 'thresholds': {'scl': [10, 11], 'sda': None}})
-        assert not failed['ok'] and a._dec is None and set(failed['thresholds']) == ROLES
+        assert not failed['ok'] and a._dec is None and set(failed['thresholds']) == {'scl', 'sda'}
         raises(StaleError, lambda: a.decode_frames(ident))
         ident = good()
         a._waves[1] = Waveform('CH2', t + 1e-9, sda)
@@ -226,4 +232,48 @@ if __name__ == '__main__':
         a.close_waveform()
         for fn in (lambda: a.decode_frames(ident), lambda: a.decode_bits(ident, 0, 1), lambda: a.export_decode(ident, None)):
             raises(StaleError, fn)
+    import sys
+    import scope_tool.web.analysis_decode as registry
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from scope_tool.web.logic import prepare as real_prepare
+    fake = SimpleNamespace(ROLES={'a': True, 'b': False, 'n': False}, BASE='a',
+                           DIFF={'n': 'a'}, REQUIRE_EDGES=False, ADDR_TABLE=False,
+                           options=lambda o, c: {}, run=None)
+    received = []
+    def run(edges: dict, **kw: object) -> dict:
+        received.append((edges, kw))
+        return dict(frames=[], addresses=[], bits_t=np.array([]), bits_v=np.array([]),
+                    warnings=[], truncated=False, t1=kw['t1'])
+    fake.run = run
+    with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules, {'scope_tool.web.fake_decode': fake}), patch.dict(registry.__dict__, NAMES=(*NAMES, 'fake', 'zz_missing')):
+        a = Analysis()
+        a._gen, a._path = 1, Path(directory) / '假協定.csv'
+        t = np.arange(20.)
+        v = np.tile([0., 2.], 10)
+        a._waves = [Waveform('A', t, v+3), Waveform('N', t, np.full(20, 3.)), Waveform('B', t, np.full(20, 2.))]
+        fp = dict(protocol='fake', channels={'a':'A','n':'N','b':'B'}, thresholds={'a':[.5,1.5],'b':[.5,1.5]}, options={})
+        r = a.decode(**fp)
+        assert r['ok'] and received[-1][0]['a'].value.tolist() == [0, 1]*10, (r, received)
+        text = Path(a.export_decode(r['decode_id'], directory)['path']).read_text(encoding='utf-8-sig')
+        assert 'DA,PID' not in text
+        assert a.decode('fake', {'a':'A'}, {'a':[3.5,4.5]}, {})['ok']
+        failed = a.decode(**{**fp, 'thresholds': {'a':[.5,1.5], 'b':None}})
+        assert not failed['ok'] and 'B 無有限高低平台；請改用手動門檻' == failed['reason']
+        for channels, thresholds in [({'x':'A'}, {'x':None}), ({'b':'B'}, {'b':None}),
+                                     ({'a':'A','b':'A'}, {'a':None,'b':None}), ({'a':'A'}, {'b':None})]:
+            raises(BadRequest, lambda: a.decode('fake', channels, thresholds, {}))
+        def limited(t: np.ndarray, volts: dict, thresholds: dict, **kw: object) -> tuple:
+            return real_prepare(t, volts, thresholds, max_edges=4, **kw)
+        with patch.dict(registry.__dict__, prepare=limited):
+            assert a.decode(**fp)['ok']
+            e, kw = received[-1]
+            assert kw['t1'] == min(float(x.time[-1]) for x in e.values() if x.truncated)
+        for name, message in [('lin','不支援的協定'), ('zz_missing','此協定尚未實作')]:
+            try:
+                a.decode(name, {}, {}, {})
+            except BadRequest as exc:
+                assert str(exc) == message
+            else:
+                raise AssertionError(name)
     print('web.analysis_decode self-check OK')

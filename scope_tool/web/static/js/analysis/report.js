@@ -2,8 +2,8 @@
 // 圖以 PNG data URI 內嵌、系統字型、不連網。區塊沒有資料就整段省略，編號依實際輸出重排。
 import { fftInfo } from './fft_marker_table.js';
 import { exportable } from './results.js';
-import { eventKind, frameContent, tableFrames, hex } from './decode_table.js';
-import { reasonText } from './decode.js';
+import { tableFrames } from './decode_table.js';
+import { definition } from './decode.js';
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ESC[c]);
@@ -91,23 +91,22 @@ async function tallSnapshot(canvas, invert) {
 export function decodeSection(st, root, F, invert) {
   const r = st.decodeResult;
   if (!r?.summary.ok || r.stale || r.summary.gen !== st.file?.gen) return [];
-  const dx = st.channels.find(c => c.name === r.scl)?.time_offset ?? 0;
+  const def = definition(r.protocol);
+  const dx = st.channels.find(c => c.name === r.base)?.time_offset ?? 0;
   const only = root.querySelector('.decode__sum button:last-child')?.getAttribute('aria-pressed') === 'true';
   const { rows,total } = tableFrames(r.frames,only);
-  const events = { head:['#','時間','類型','位址','R/W','內容','狀態'], rows:rows.map(f => {
-    const content = frameContent(f);
-    return [f.i+1,F(f.t0+dx,'s'),eventKind(f),hex(f.addr),f.rw == null ? '—' : f.rw ? 'R' : 'W',
-      content.length > 64 ? content.slice(0,64)+'…' : content,f.reasons.map(reasonText).join('、') || (f.kind === 'hdr' ? '資訊' : '正常')];
+  const events = { head:['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態'], rows:rows.map(f => {
+    const content = def.content(f);
+    return [f.i+1,F(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f)),
+      content.length > 64 ? content.slice(0,64)+'…' : content,f.reasons.map(k => def.reasons[k] ?? k).join('、') || (f.kind === 'hdr' ? '資訊' : '正常')];
   }) };
-  const addresses = { head:['DA','PID','BCR','DCR','起','迄','來源','備註'], rows:r.addresses.slice(0,256).map(a =>
-    [hex(a.da),hex(a.pid,12),hex(a.bcr),hex(a.dcr),a.t_from == null ? '未知（擷取前）' : F(a.t_from+dx,'s'),
-      a.t_to == null ? '—' : F(a.t_to+dx,'s'),a.how === 'observed' ? '觀察到（未確認）' : a.how,a.note ?? '']) };
+  const addresses = def.addresses && { head:def.addresses.head,rows:r.addresses.slice(0,256).map(a => def.addresses.row(a,F,dx)) };
   const band = root.querySelector('.analysis__decodeband');
   const channels = Object.entries(r.summary.channels ?? {}).map(([k,v]) => k.toUpperCase()+' '+v).join('／');
   const thresholds = Object.entries(r.summary.thresholds).map(([k,v]) => k.toUpperCase()+' '+(v?.map(n => F(n,'V')).join('～') ?? '—')).join('；');
-  const caption = `${channels}；門檻 ${thresholds}；篩選：${only ? '只錯誤／警告' : '全部'}；表格最多 2000 列，位址表最多 256 列。`
-    +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '');
-  return [{ title:'解碼（I3C）',img:band && !band.hidden ? snapshot(band.querySelector('canvas'),invert) : null,caption,tables:[events,addresses] }];
+  const caption = `${channels}；門檻 ${thresholds}；篩選：${only ? '只錯誤／警告' : '全部'}；表格最多 2000 列${def.addresses ? '，位址表最多 256 列' : ''}。`
+    +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '')+(def.reportSummary ? def.summary(r.summary,r.options) : '');
+  return [{ title:`解碼（${def.label}）`,img:band && !band.hidden ? snapshot(band.querySelector('canvas'),invert) : null,caption,tables:[events,...(addresses ? [addresses] : [])] }];
 }
 
 const stamp =(d = new Date()) => { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };

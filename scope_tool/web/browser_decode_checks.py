@@ -51,7 +51,7 @@ def decode_page(c: Cdp, prep: str, out: Path, directory: str) -> None:
     c.wait(f'(async()=>{{{prep} return S.state.file?.gen !== {json.dumps(gen)} && S.state.channels.length===2}})()')
     c.js("document.querySelector('[data-result-tab=decode]').click()")
     c.wait("!document.querySelector('.analysis__decode').hidden")
-    assert c.js("[...document.querySelectorAll('.decode__bar select')].map(s=>s.value)") == ['CHAN1', 'CHAN2']
+    assert c.js("[...document.querySelectorAll('.decode__bar select[data-role]')].map(s=>s.value)") == ['CHAN1', 'CHAN2']
     c.js("document.querySelector('[data-decode-action=run]').click()")
     c.wait(f'(async()=>{{{prep} return S.state.decodeResult?.summary.ok}})()', 30)
     c.pump(.3)
@@ -97,7 +97,7 @@ def decode_page(c: Cdp, prep: str, out: Path, directory: str) -> None:
     c.send('Emulation.setDeviceMetricsOverride', width=1000, height=800, deviceScaleFactor=1, mobile=False)
     c.pump(.4)
     assert c.js('document.documentElement.scrollWidth <= document.documentElement.clientWidth')
-    assert c.js("(()=>{const e=document.querySelector('.decode__bar');e.scrollLeft=e.scrollWidth;return e.scrollWidth>e.clientWidth&&e.scrollLeft>0})()")
+    assert c.js("(()=>{const e=document.querySelector('.decode__bar');e.scrollLeft=e.scrollWidth;return e.scrollWidth<=e.clientWidth||e.scrollLeft>0})()")  # 兩列版面可自動換行，不再必然溢出；溢出時須可捲到
     c.shot(out / 'decode_1000.png')
     c.js(f"(async()=>{{{prep} S.command('fft.visible',true)}})()")
     c.pump(.3)
@@ -111,6 +111,7 @@ def decode_page(c: Cdp, prep: str, out: Path, directory: str) -> None:
     assert c.js("document.querySelector('.decode__sum').textContent.includes('設定已變更，請重新解碼') && document.querySelector('[data-decode-action=export]').disabled")
     c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
     assert not c.errors, c.errors
+    protocol_pages(c, prep, out, directory)
 
 
 def decode_band(c: Cdp, prep: str, directory: str) -> None:
@@ -122,7 +123,7 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
       window.__decodeOriginalCall=B.call;window.__decodeBitCalls=0;
       B.call=async function(n,p){{if(n==='decode_bits')window.__decodeBitCalls++;return window.__decodeOriginalCall.call(this,n,p)}};
       const r=S.state.decodeResult, f=r.frames.find(f=>f.fields.some(x=>x.nbits===9&&x.kind==='data'));
-      const x=f.fields.find(x=>x.nbits===9&&x.kind==='data'), d=S.state.channels.find(c=>c.name===r.scl).time_offset||0;
+      const x=f.fields.find(x=>x.nbits===9&&x.kind==='data'), d=S.state.channels.find(c=>c.name===r.base).time_offset||0;
       window.__decodeFrame=f.i; S.set({{decodeSel:null}});
       const pad=(x.t1-x.t0)/80; S.command('viewport.intent',{{t0:x.t0+d-pad,t1:x.t1+d+pad}});
     }})()""")
@@ -171,6 +172,72 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
     }})()""")
     assert elapsed < 30, elapsed
     print(f'  P4 標註列：左緣差 {geometry["delta"]:.2f}px；5000 frames draw {elapsed:.2f}ms；報告 {next(iter(created))}')
+
+
+def protocol_pages(c: Cdp, prep: str, out: Path, directory: str) -> None:
+    """只驗已註冊且提供 fixture 的新協定；I3C 由上方完整步驟驗收。"""
+    import importlib
+    names = c.js("(async()=>Object.keys(await import('/js/analysis/decode_protocols.js')))()")
+    for name in names:
+        if name == 'i3c':
+            continue
+        module = f'scope_tool.web.{name}_synth'
+        try:
+            synth = importlib.import_module(module)
+        except ModuleNotFoundError as exc:
+            if exc.name != module:
+                raise
+            continue
+        if not hasattr(synth, 'fixture'):
+            continue
+        path = Path(directory) / f'decode_{name}_{time.strftime("%Y%m%d_%H%M%S")}.csv'
+        fixture = synth.fixture(path)
+        gen = c.js(f'(async()=>{{{prep} return S.state.file?.gen}})()')
+        c.js(f"(async()=>{{{prep} S.command('file.open',{{path:{json.dumps(str(path))}}})}})()")
+        c.wait(f'(async()=>{{{prep} return S.state.file?.gen !== {gen}}})()')
+        c.js("document.querySelector('[data-result-tab=decode]').click()")
+        c.js(f"(()=>{{const s=document.querySelector('[data-protocol]');s.value={json.dumps(name)};s.dispatchEvent(new Event('change'))}})()")
+        for kind, values in [('role', fixture['channels']), ('option', fixture['options'])]:
+            for key, value in values.items():
+                c.js(f"""(()=>{{const e=document.querySelector('[data-{kind}={key}]');
+                  if(e.type==='checkbox')e.checked={json.dumps(value)};else e.value=String({json.dumps(value)});
+                  e.dispatchEvent(new Event('input'))}})()""")
+        c.js("document.querySelector('[data-decode-action=run]').click()")
+        c.wait(f'(async()=>{{{prep} return S.state.decodeResult?.summary.ok}})()', 30)
+        result = c.js(f'(async()=>{{{prep} return S.state.decodeResult}})()')
+        frames = result['frames']
+        assert len(frames) < 2000 and len(frames) > 1
+        assert set(fixture['expect_kinds']) <= {f['kind'] for f in frames}
+        assert c.js("document.querySelectorAll('.decode__tablewrap tbody tr').length") == len(frames)
+        c.js("document.querySelectorAll('.decode__tablewrap tbody tr')[1].click()")
+        centered = c.js(f"""(async()=>{{{prep} const s=S.state,r=s.decodeResult,f=r.frames[1],
+          dx=s.channels.find(c=>c.name===r.base).time_offset||0;
+          return Math.abs((s.view.t0+s.view.t1)/2-(f.t0+f.t1)/2-dx)/(s.view.t1-s.view.t0)}})()""")
+        assert centered < .01
+        before = set(Path(directory).glob('*解碼*.csv'))
+        c.js("document.querySelector('[data-decode-action=export]').click()")
+        for _ in range(30):
+            c.pump(.1)
+            created = set(Path(directory).glob('*解碼*.csv')) - before
+            if created:
+                break
+        assert len(created) == 1
+        rows = list(csv.reader(next(iter(created)).open(encoding='utf-8-sig')))
+        assert len(rows)-7 == sum(max(1, len(f['fields'])) for f in frames)
+        c.js(f"""(async()=>{{{prep} const r=S.state.decodeResult,def=(await import('/js/analysis/decode_protocols.js'))[r.protocol];
+          window.__protoBits=0;const call=B.call;B.call=async(n,p)=>{{if(n==='decode_bits')window.__protoBits++;return call(n,p)}};
+          window.__protoSingle=!def.lanes(r.summary);const x=r.frames.flatMap(f=>f.fields).find(x=>x.nbits>1),dx=S.state.channels.find(c=>c.name===r.base).time_offset||0;
+          if(x&&window.__protoSingle){{const pad=(x.t1-x.t0)/80;S.command('viewport.intent',{{t0:x.t0+dx-pad,t1:x.t1+dx+pad}})}}
+          window.__protoRestore=()=>{{B.call=call}};}})()""")
+        c.wait("!window.__protoSingle || window.__protoBits>0")
+        assert c.js("(()=>{const c=document.querySelector('.analysis__decodeband canvas'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4<3&&v!==p[i%4])})()")
+        for width in (1400, 1000):
+            c.send('Emulation.setDeviceMetricsOverride', width=width, height=900, deviceScaleFactor=1, mobile=False)
+            c.pump(.3)
+            assert c.js("document.documentElement.scrollWidth<=document.documentElement.clientWidth")
+            c.shot(out / f'decode_{name}_{width}.png')
+        c.js('window.__protoRestore()')
+        assert not c.errors, c.errors
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """UART 離線中心取樣；狀態機與電氣反相分離，不估計鮑率。"""
 import numpy as np
+from scope_tool.web.logic import levels_at
 from scope_tool.web.logic import Edges, auto_threshold, validate_time, to_edges
 from scope_tool.web.i3c_fields import frame
 from scope_tool.web.i3c_ccc import reason
@@ -11,6 +12,7 @@ BASE = 'tx'
 ADDR_TABLE = False
 REQUIRE_EDGES = False
 GROUP_GAP = 2
+_levels_at = levels_at  # 保留既有自檢的私有匯入點；實作統一使用共用函式。
 
 
 def options(options: dict, channels: dict) -> dict:
@@ -29,15 +31,6 @@ def options(options: dict, channels: dict) -> dict:
     if not valid:
         raise ValueError('UART 需 baud>0、bits 5–9、parity N/E/O/M/S、stop 1/2 與布林 invert')
     return o
-
-
-def _levels_at(e: Edges, t: np.ndarray, end: float) -> np.ndarray:
-    # 第 0 步完成後改用 logic.levels_at
-    ix = np.searchsorted(e.time, t, side='right') - 1
-    out = np.full(np.shape(t), -1, dtype=np.int8)
-    good = (ix >= 0) & (t <= end)
-    out[good] = e.value[ix[good]]
-    return out
 
 
 def _lane(e: Edges, lane: str, end: float, o: dict, limit: int) -> tuple:
@@ -68,7 +61,7 @@ def _lane(e: Edges, lane: str, end: float, o: dict, limit: int) -> tuple:
         if not (synced or (last_rise is not None and tm - last_rise >= period * (1 - 1e-10))):
             continue
         times = tm + (np.arange(total) + .5) * period
-        sampled = _levels_at(e, times, end)
+        sampled = levels_at(e, times, end)
         if sampled[0] != 0:
             false_starts += 1
             synced, last_rise = False, None

@@ -3,6 +3,7 @@ from __future__ import annotations
 """獨立的 I3C 線上符號與類比合成器；不匯入解碼器。# 待真機驗證。"""
 from pathlib import Path
 import numpy as np
+from scope_tool.web.synth import render, write_csv
 
 
 class Bus:
@@ -187,44 +188,6 @@ class Bus:
 
     def render(self, fs: float = 1e9, **kwargs: object) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         return render(self.trans, fs, end=self.now + 200e-9, **kwargs)
-
-
-def render(trans: list[tuple[float, str, int]], fs: float, vdd: float = 1.8,
-           tr: float = 2e-9, noise: float = .02, seed: int = 0,
-           nan: tuple = (), end: float | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """逐線以最後轉換的一階 RC 渲染，分塊暫存不隨整檔成長。"""
-    end = end if end is not None else max(x[0] for x in trans) + 1e-6
-    t = np.arange(int(np.ceil(end * fs)) + 1, dtype=float) / fs
-    rng = np.random.default_rng(seed)
-    out = []
-    tau = tr / 2.2
-    for line in ('scl', 'sda'):
-        a = [(tm, val * vdd) for tm, ln, val in trans if ln == line]
-        et, target = np.array(a).T
-        prev = np.r_[target[0], target[:-1]].copy()
-        if tau > 0:
-            for i in range(1, len(et)):
-                prev[i] = target[i - 1] + (prev[i - 1] - target[i - 1]) * np.exp(-(et[i] - et[i - 1]) / tau)
-        v = np.empty(len(t))
-        for start in range(0, len(t), 1 << 20):
-            ts = t[start:start + (1 << 20)]
-            ix = np.maximum(0, np.searchsorted(et, ts, side='right') - 1)
-            val = target[ix].copy()
-            if tau > 0:
-                val += (prev[ix] - val) * np.exp(-(ts - et[ix]) / tau)
-            if noise:
-                val += rng.normal(0, noise * vdd, len(ts))
-            v[start:start + len(ts)] = val
-        for lo, hi in nan:
-            v[np.searchsorted(t, lo):np.searchsorted(t, hi)] = np.nan
-        out.append(v)
-    return t, *out
-
-
-def write_csv(path: Path, waves: tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
-    """開新檔、不覆寫；呼叫端提供帶時間戳的路徑。"""
-    with path.open('x', encoding='utf-8') as stream:
-        np.savetxt(stream, np.column_stack(waves), delimiter=',', header='Time(s),CH1(V),CH2(V)', comments='', fmt='%.17e')
 
 
 if __name__ == '__main__':

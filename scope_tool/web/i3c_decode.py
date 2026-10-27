@@ -2,14 +2,10 @@ from __future__ import annotations
 
 """單 lane I3C SDR 被動解碼核心，不持有 Analysis 或儀器。# 待真機驗證。"""
 import numpy as np
-from scope_tool.web.logic import Edges, auto_threshold, to_edges, validate_time
+from scope_tool.web.logic import Edges, auto_threshold, to_edges, validate_time, MAX_FRAMES, MAX_FIELDS
 from scope_tool.web.i3c_events import events
 from scope_tool.web.i3c_fields import frame, field, header, daa_fields
 from scope_tool.web.i3c_ccc import COMMANDS, active, finish_ccc, invalidate, reason
-
-MAX_FRAMES = 100_000
-MAX_FIELDS = 100_000
-
 
 def parity_ok(v: int, t: int) -> bool:
     return (v.bit_count() + t) % 2 == 1
@@ -278,6 +274,22 @@ def decode_waveforms(t: np.ndarray, scl: np.ndarray, sda: np.ndarray, *,
             return dict(ok=False, reason=f'{name.upper()} 無轉態（門檻 {th}）', thresholds=used)
         edges.append(edge)
     return dict(ok=True, reason=None, thresholds=used, **decode(*edges, t1=float(t[-1]), **options))
+
+ROLES = {'scl': True, 'sda': True}
+BASE = 'scl'
+ADDR_TABLE = REQUIRE_EDGES = True
+
+
+def options(options: dict, channels: dict) -> dict:
+    if not isinstance(options, dict) or set(options) - {'i2c_addrs'}:
+        raise ValueError('options 只接受 i2c_addrs')
+    addrs = options.get('i2c_addrs', [])
+    if not isinstance(addrs, list) or any(type(v) is not int or not 0 <= v <= 127 for v in addrs):
+        raise ValueError('i2c_addrs 須為 0–127 整數陣列')
+    return {'i2c_addrs': set(addrs)}
+
+def run(edges: dict, **kwargs: object) -> dict:
+    return decode(edges['scl'], edges['sda'], **kwargs)
 
 
 if __name__ == '__main__':

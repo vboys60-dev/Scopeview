@@ -30,7 +30,7 @@ const { createStore } = await import('./store.js');
 const F = (v,u) => `${v} ${u}`, root = { querySelector:() => null };
 const frame = { i:0,t0:0,t1:1,kind:'private_write',addr:8,rw:0,status:'ok',reasons:[],label:'"'.repeat(65),fields:[] };
 const decoded = { summary:{ ok:true,gen:1,channels:{ scl:'CH1',sda:'CH2' },thresholds:{ scl:[.5,1],sda:[.5,1] },truncated:true },
-  frames:Array.from({ length:2001 },(_,i) => ({ ...frame,i })),scl:'CH1',stale:false,
+  frames:Array.from({ length:2001 },(_,i) => ({ ...frame,i })),base:'CH1',protocol:'i3c',stale:false,
   addresses:Array.from({ length:257 },() => ({ da:8,pid:0x123456789ABC,bcr:6,dcr:68,t_from:null,t_to:null,how:'observed',note:'待確認' })) };
 const store = createStore(); store.set({ file:{ gen:1,path:'/tmp/波形.csv',info:[] },channels:[{ name:'CH1',time_offset:2 }],decodeResult:decoded });
 globalThis.document = { querySelectorAll:() => [] };

@@ -1,4 +1,6 @@
-// I3C 固定小向量與快照生命週期；獨立於 UI。
+// 已註冊協定的固定小向量與快照生命週期；獨立於 UI。
+import * as protocols from './analysis/decode_protocols.js';
+import { decodeParams } from './analysis/decode.js';
 import { BridgeError } from './bridge.js';
 let serial = 0;
 export function makeDecode({ job, needFile, chan, generation }) {
@@ -10,28 +12,27 @@ export function makeDecode({ job, needFile, chan, generation }) {
     if (!snapshot || snapshot.decode_id !== id || snapshot.gen !== generation()) throw new BridgeError('STALE', '解碼結果已過期', false);
     return snapshot;
   };
-  const field = (t, kind, value, ok = true) => ({ t0: t, t1: t + 8, kind, addr: null, value, nbits: 8,
-    ninth: 1, ninth_kind: 'parity', ok, label: kind });
-  const frame = (i, kind, fields, reasons = []) => ({ i, t0: i * 20, t1: i * 20 + 19, kind, start: 'S', addr: 48, rw: 0,
-    ack: true, ccc: kind === 'ccc_broadcast' ? 0 : null, ccc_name: kind === 'ccc_broadcast' ? 'ENEC' : null,
-    label: kind, status: reasons.length ? 'error' : 'ok', reasons, fields });
   return {
     decode: (p) => job('decode', () => {
       snapshot = null; needFile();
-      if (p.protocol !== 'i3c') bad('目前只支援 i3c');
-      if (!p.channels || Object.keys(p.channels).sort().join(' ') !== 'scl sda' ||
-          !Object.values(p.channels).every(v => typeof v === 'string') || p.channels.scl === p.channels.sda) bad('channels 無效');
-      Object.values(p.channels).forEach(chan);
-      if (!p.thresholds || Object.keys(p.thresholds).sort().join(' ') !== 'scl sda') bad('thresholds 無效');
+      const def = protocols[p.protocol];
+      if (!def) bad('不支援的協定');
+      if (!p.channels || Array.isArray(p.channels) || Object.keys(p.channels).some(k => !def.roles.some(r => r.key === k)) || !Object.values(p.channels).every(v => typeof v === 'string')) bad('channels 無效');
+      const lines = Object.keys(p.channels).filter(k => !def.diff?.[k]).sort().join(' ');
+      if (!p.thresholds || Object.keys(p.thresholds).sort().join(' ') !== lines) bad('thresholds 無效');
       for (const th of Object.values(p.thresholds)) if (th !== null && !(Array.isArray(th) && th.length === 2 && th.every(finite) && th[0] < th[1])) bad('門檻無效');
-      if (!p.options || Array.isArray(p.options) || Object.keys(p.options).some(k => k !== 'i2c_addrs') ||
-          ('i2c_addrs' in p.options && (!Array.isArray(p.options.i2c_addrs) || p.options.i2c_addrs.some(v => !Number.isInteger(v) || v < 0 || v > 127)))) bad('options 無效');
-      const frames = [frame(0, 'ccc_broadcast', [field(1, 'ccc', 0)]),
-        frame(1, 'private_write', [field(21, 'data', 0xA5, false)], ['parity']), frame(2, 'ibi', [field(41, 'mdb', 0x80)])];
-      snapshot = { decode_id: `d${++serial}`, gen: generation(), frames, addresses: [] };
-      return { ok: true, reason: null, gen: snapshot.gen, decode_id: snapshot.decode_id, protocol: 'i3c', channels: p.channels,
+      try { decodeParams({ protocol:p.protocol,ch:p.channels,thr:p.thresholds,opt:p.options },def); } catch (e) { bad(e.message); }
+      Object.values(p.channels).forEach(chan);
+      if (!p.options || typeof p.options !== 'object' || Array.isArray(p.options) || Object.keys(p.options).some(k => !def.options.some(o => o.key === k))) bad('options 無效');
+      for (const o of def.options) if (o.parse && o.key in p.options) {
+        if (Array.isArray(o.parse(String(o.value))) && !Array.isArray(p.options[o.key])) bad('options 無效');
+        try { o.parse(Array.isArray(p.options[o.key]) ? p.options[o.key].map(v => typeof v === 'number' ? v.toString(16) : '!').join(',') : String(p.options[o.key])); } catch (e) { bad(e.message); }
+      }
+      const { frames,addresses } = structuredClone(def.sample);
+      snapshot = { decode_id: `d${++serial}`, gen: generation(), frames, addresses };
+      return { ok: true, reason: null, gen: snapshot.gen, decode_id: snapshot.decode_id, protocol: p.protocol, channels: p.channels,
         thresholds: Object.fromEntries(Object.entries(p.thresholds).map(([k,v]) => [k,v ?? [0.4,0.6]])),
-        t0: 0, t1: 59, counts: { frames: 3, fields: 3, errors: 1, warns: 0 }, truncated: false, warnings: [] };
+        t0: frames[0]?.t0 ?? 0, t1: frames.at(-1)?.t1 ?? 0, counts: { frames: frames.length, fields: frames.reduce((n,f) => n+f.fields.length,0), errors: frames.filter(f => f.status === 'error').length, warns: frames.filter(f => f.status === 'warn').length }, truncated: false, warnings: [] };
     }),
     decode_frames: ({ decode_id }) => { const s = get(decode_id); return { decode_id, frames: s.frames, addresses: s.addresses }; },
     decode_bits: ({ decode_id, t0, t1 }) => {
