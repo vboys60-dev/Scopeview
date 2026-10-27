@@ -222,6 +222,7 @@
 
 **待辦**
 1. **使用者人工驗收 I2C／UART 畫面**：開 `X6000A-解碼/I2C/x6000i2c2.h5`（SCL=CHAN3、SDA=CHAN1）與 `RS-232/x6000rs234.h5`（TX=CHAN1、RX=CHAN3，baud 19200、反相），對照示波器 CSV；標註列、雙 lane、設定列兩列版面的手感。
-2. SPI 解碼器（無實機資料，只有合成向量）。
-3. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
-4. CAN：先決定是否在擷取流程加「取完整記憶體」。
+2. **I2C 位址位元數可設定（使用者 2026-10-27 要求，下次做）**：現在位址一律當 7-bit＋R/W 解（顯示 `0x50 W`），但有些裝置／文件用 8-bit 寫法（位址 byte 含 R/W，例如 `A0／A1`）。要在 I2C 設定列加參數 `addr_bits`（7｜8，預設 7）：只影響**顯示**（事件表位址欄、標註列 `50 W` 與位址顯示、報告、CSV 的位址欄），解碼邏輯本身不變。注意：計畫 §3.1 原寫「8-bit 顯示不做」，§3.5 列為不做項目，現改為要做；要同步改計畫、契約 `types_doc`（若 options 多一鍵）、`decode_i2c.js` 的 `options`／`columns`／`fieldText`、`i2c_decode.options()`（目前只接受 `{}`，需接受 `addr_bits`）、`i2c_check`、`decode_proto_check`、`browser_check` fixture 選項。實機 CSV（示波器顯示 `E2W` 這種 8-bit 寫法）也可作為 8-bit 模式的對照真值：位址欄應與 CSV 相同。
+3. SPI 解碼器（無實機資料，只有合成向量）。
+4. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
+5. CAN：先決定是否在擷取流程加「取完整記憶體」。
