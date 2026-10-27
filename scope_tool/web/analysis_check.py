@@ -80,7 +80,7 @@ def _self_check() -> None:
         rev = run(A.measure(ent[:2], None, {}, "20/50/80 %"))
         exp = A.export_measurements(rev["results"], rev["gen"], rev["revision"], str(tmp))
         text = Path(exp["path"]).read_text(encoding="utf-8-sig")
-        assert "頻率(CHAN1 ↑)" in text and "20/50/80 %" in text
+        assert "Frequency(CHAN1 ↑)" in text and "20/50/80 %" in text
         assert isinstance(err(A.export_measurements, rev["results"], 1, rev["revision"] - 1, str(tmp),
                               exc=StaleError), StaleError)
         assert isinstance(err(A.export_measurements, rev["results"], 9, rev["revision"], str(tmp),
@@ -109,9 +109,9 @@ def _self_check() -> None:
         assert batch["results"][9]["stats"]["current"] < 0
         dest = B.export_measurements(batch["results"], 1, batch["revision"], str(tmp))
         with Path(dest["path"]).open(encoding="utf-8-sig", newline="") as f:
-            exported = [r for r in csv.reader(f) if r and r[0].startswith("上升時間(")]
+            exported = [r for r in csv.reader(f) if r and r[0].startswith("Rise Time(")]
         assert all(x.startswith("< ") for x in exported[0][2:8]) and exported[0][8].isdigit()
-        assert "Vavg(CH1 整數週期 ↑)" in Path(dest["path"]).read_text(encoding="utf-8-sig")
+        assert "Vavg(CH1 N Cycles ↑)" in Path(dest["path"]).read_text(encoding="utf-8-sig")
         failed = B.measure(rows[3:6], [0, bt[30]], {}, "10/50/90 %")
         assert all(not r["ok"] and r["reason"] == "No edges：範圍內不足一個完整週期" for r in failed["results"])
 

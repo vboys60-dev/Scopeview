@@ -1,3 +1,4 @@
+import { T } from "./terms.js";
 import { channelColors } from "./channel_colors.js";
 import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
@@ -67,12 +68,12 @@ export function mount(el, ctx) {
 
   async function math() {
     const st = store.get(), names = st.channels.map((c) => c.name), ops = catalog.math_ops ?? { binary: [], unary: [], filters: [] };
-    const spec = await modal("數學函式", (b) => {
-      const op = select([...ops.binary, ...ops.unary, ...ops.filters].map((o) => [o, o])), a = select(names.map((n) => [n, n])), bb = select(names.map((n) => [n, n]));
+    const spec = await modal("Math Functions", (b) => {
+      const op = select([...ops.binary, ...ops.unary, ...ops.filters].map((o) => [o, T(o)])), a = select(names.map((n) => [n, n])), bb = select(names.map((n) => [n, n]));
       const fc = h("input", "input"), pts = h("input", "input"); fc.value = "1M"; pts.value = "5"; a.value = st.selected; bb.value = names[Math.min(1, names.length - 1)];
       const upd = () => { bb.disabled = !ops.binary.includes(op.value); fc.disabled = !ops.filters.slice(0, 2).includes(op.value); pts.disabled = op.value !== "平滑"; };
       op.onchange = upd; upd();
-      b.append(fieldOf("運算", op), fieldOf("來源 A", a), fieldOf("來源 B", bb), fieldOf("截止頻率 Hz（-3 dB）", fc), fieldOf("平滑點數", pts));
+      b.append(fieldOf("Operation", op), fieldOf("來源 A", a), fieldOf("來源 B", bb), fieldOf("截止頻率 Hz（-3 dB）", fc), fieldOf("平滑點數", pts));
       return () => {
         let param = 0;
         if (!fc.disabled) { param = fmt.parseSI(fc.value); if (!(param > 0)) throw new Error("截止頻率必須是正數（如 1M、200k）"); }
@@ -100,6 +101,8 @@ export function mount(el, ctx) {
       };
     }, "匯出");
     if (!o) return;
+    const dir = await ui.pickPath(ctx, "folder", store.get().file?.path?.replace(/[\\/][^\\/]*$/, '') ?? null); if (!dir) return;
+    o.directory = dir;
     try { ui.toast(`已匯出：${(await bridge.job("export_csv", o)).path}`, "ok", 6000); } catch (e) { fail(e, "匯出失敗"); }
   }
 
@@ -109,7 +112,7 @@ export function mount(el, ctx) {
   marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
-  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("數學…", math);
+  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("Math…", math);
   // 匯出 CSV／報告共用一個下拉，避免 1400 寬時工具列換行；選完即還原成標題項。
   const bExport = select([["", "匯出…"], ["csv", "波形 CSV…"], ["report", "HTML 報告…"]]);
   bExport.title = "匯出波形 CSV 或 HTML 報告";

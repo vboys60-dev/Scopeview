@@ -1,3 +1,4 @@
+import { T } from "./terms.js";
 export { fftInfo } from './fft_marker_table.js';
 import { fftInfo, mountFftMarkerTable } from './fft_marker_table.js';
 // 量測結果表與 FFT 峰值表（讀 store.measurements／fftResult）。對照 ui/analysis_results.py。
@@ -33,8 +34,8 @@ export function mount(el, ctx) {
   el.classList.add("results");
   let prefs = load(), floating = !!el.closest?.('.analysis__float'), floatColumns = [...COLUMNS];
   const visibleColumns = () => floating ? floatColumns : prefs.columns;
-  const labels = () => cat().stat_columns ?? ["目前", "平均", "最小", "最大", "範圍", "標準差", "次數"];
-  const cols = () => ["量測", ...COLUMNS.filter(k => visibleColumns().includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
+  const labels = () => (cat().stat_columns ?? ["目前", "平均", "最小", "最大", "範圍", "標準差", "次數"]).map(T);
+  const cols = () => [T("量測"), ...COLUMNS.filter(k => visibleColumns().includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
   const meas = h("table", "table table--num results__table");
   const note = h("span", "results__info", "ⓘ"); note.tabIndex = 0;
   note.title = "『目前』＝最靠近顯示時間 t=0 的事件；範圍不含 0 時用範圍中點，同距取較早；無事件時間時取首事件（離線單檔）";
@@ -81,7 +82,7 @@ export function mount(el, ctx) {
       const cycles = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycles";
       const dual = defs[e.name]?.sources === 2;
       const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : defs[e.name]?.sloped || cycles ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${e.name}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " 整數週期" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const row = tr([`${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
       const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);
@@ -95,8 +96,9 @@ export function mount(el, ctx) {
   bExp.onclick = async () => {
     const { measurements: list, file } = store.get(), ex = exportable(list, file);
     if (!ex) return ui.toast("量測計算中或結果已過期，請稍後再匯出", "error");
+    const dir = await ui.pickPath(ctx, "folder", store.get().file?.path?.replace(/[\\/][^\\/]*$/, "") ?? null); if (!dir) return;
     try {
-      const r = await bridge.call("export_measurements", { rows: ex.rows, gen: ex.gen, revision: ex.revision, directory: null });
+      const r = await bridge.call("export_measurements", { rows: ex.rows, gen: ex.gen, revision: ex.revision, directory: dir });
       ui.toast(`已匯出：${r.path}`, "ok", 6000);
     } catch (e) { if (e.code === "STALE") ui.toast("結果已過期，等量測重新計算後再匯出", "error"); else ui.showError(e, "匯出失敗"); }
   };

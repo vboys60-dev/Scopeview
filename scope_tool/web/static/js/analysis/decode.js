@@ -36,7 +36,8 @@ export function selectFrame(store, frame) {
   store.set({ decodeSel:frame.i },'user');
   store.command('viewport.intent',jumpView(frame,st.view,dx));
 }
-export function createDecode({ store, bridge, ui = {} }) {
+export function createDecode(ctx) {
+  const { store, bridge, ui = {} } = ctx;
   let configs = {}, config = defaultConfig(store.get().channels), gen = store.get().file?.gen, token = 0, busy = false, message = '', ascii = true;
   const subs = new Set(), notify = () => { for (const fn of subs) fn(); };
   store.set({ decodeResult:null, decodeSel:null, decodeAscii:ascii });
@@ -99,8 +100,9 @@ export function createDecode({ store, bridge, ui = {} }) {
   async function exportCsv() {
     const r = store.get().decodeResult;
     if (!r || r.stale || r.summary.gen !== store.get().file?.gen) { ui.toast?.('解碼結果已過期，請重新解碼','info'); return; }
+    const dir = await ui.pickPath(ctx, 'folder', store.get().file?.path?.replace(/[\\/][^\\/]*$/, '') ?? null); if (!dir) return;
     try {
-      const result = await bridge.call('export_decode',{ decode_id:r.summary.decode_id, directory:null });
+      const result = await bridge.call('export_decode',{ decode_id:r.summary.decode_id, directory:dir });
       ui.toast?.(`已匯出 CSV：${result.path}`,'info');
       return result;
     } catch (e) {

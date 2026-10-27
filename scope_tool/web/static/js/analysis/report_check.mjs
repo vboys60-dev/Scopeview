@@ -89,11 +89,11 @@ const bytes = new TextEncoder().encode(JSON.stringify(body)).length;
 assert.ok(bytes < 8_000_000,`完整 export_report 請求 ${bytes} bytes`);
 console.log(`report P4 最壞資料：${bytes} bytes < 8 MB`);
 // collectReport 的 await 期間替換 decodeResult：送 RPC 前必須攔下。
-const toasts = [], calls = [], ctx = { store,fmt:{ fmt:F },bridge:{ call:async (...a) => { calls.push(a); return { path:'/tmp/report.html' }; } },ui:{ toast:(...a) => toasts.push(a),showError:e => { throw e; } } };
+const toasts = [], calls = [], ctx = { store,fmt:{ fmt:F },bridge:{ call:async (...a) => { calls.push(a); return { path:'/tmp/report.html' }; } },ui:{ pickPath:async () => '/out',toast:(...a) => toasts.push(a),showError:e => { throw e; } } };
 const modal = async () => { queueMicrotask(() => queueMicrotask(() => store.set({ decodeResult:{ ...decoded,stale:true } }))); return { title:'測試' }; };
 await exportReport(ctx,root,modal);
 assert.equal(calls.length,0); assert.match(toasts.at(-1)[0],/解碼結果已變更/);
 store.set({ decodeResult:decoded });
 await exportReport(ctx,root,async () => ({ title:'測試' }));
-assert.equal(calls.length,1); assert.match(calls[0][1].html,/解碼（I3C）/);
+assert.equal(calls.length,1); assert.match(calls[0][1].html,/解碼（I3C）/); assert.equal(calls[0][1].directory,'/out');
 console.log('report P4 self-check OK');

@@ -71,7 +71,7 @@ globalThis.document = { createElement:t => new Element(t) };
 const find = (e,fn) => fn(e) ? e : e.children.map(c => find(c,fn)).find(Boolean);
 const store = makeStore(), host = new Element('div'), labels = [], toasts = [], exports = [];
 const ctx = { store, bridge:{ async job() { return summary; }, async call(n,p) { if (n === 'export_decode') { exports.push(p); return { path:'/tmp/test.csv' }; } return data; } },
-  ui:{ toast:(...a) => toasts.push(a) }, resultTabs:{ label:(...a) => labels.push(a) } };
+  ui:{ pickPath:async () => '/out', toast:(...a) => toasts.push(a) }, resultTabs:{ label:(...a) => labels.push(a) } };
 const panel = mount(host,ctx); await panel.model.run();
 assert.deepEqual(labels.at(-1),['decode','解碼 (1)']);
 assert.equal(find(host,e => e.attrs['aria-label'] === 'SCL lo').value,'674 mV');
@@ -83,7 +83,7 @@ assert.equal(row.children[0].textContent,2); // 顯示從 1 起算，點列仍�
 assert.equal(intents,1); assert.equal(store.get().decodeSel,1); assert.match(row.className,/is-selected/);
 row.onkeydown({ key:'Enter',preventDefault() {} }); assert.equal(intents,2);
 assert.equal(find(host,e => e.tagName === 'td' && e.textContent === '同位錯').className,'decode__error');
-await panel.model.exportCsv(); assert.deepEqual(exports,[{ decode_id:'d1',directory:null }]);
+await panel.model.exportCsv(); assert.deepEqual(exports,[{ decode_id:'d1',directory:'/out' }]);
 ctx.bridge.call = async () => { throw { code:'STALE' }; }; await panel.model.exportCsv(); assert.match(toasts.at(-1)[0],/解碼結果已過期/);
 panel.model.change(); await panel.model.exportCsv(); assert.equal(exports.length,1);
 const many = Array.from({ length:2105 },(_,i) => ({ ...frame,i,status:i%2 ? 'ok' : 'warn' }));

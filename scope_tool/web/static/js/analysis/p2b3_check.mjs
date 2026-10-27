@@ -70,18 +70,18 @@ tabs.update({ width:1360,height:120,lowerCollapsed:true }); assert.ok(header.fir
 assert.equal(load().tab,'measure');
 const actions = new Element('div'), store = createStore(), calls = [];
 const ctx = { store, fmt, resultActions:actions, fftPeaks:panels.peaks,
-  ui:{ toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
+  ui:{ pickPath:async () => '/out', toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
   bridge:{ call:async (method,args) => { calls.push([method,args]); return method === 'cursor_readout' ? { t1:1,t2:2,y:{} } : { path:'/tmp/results.csv' }; } } };
 mountMeasure(new Element('div'),ctx); mountResults(panels.measure,ctx);
 assert.ok(actions.firstChild.title.includes('最靠近顯示時間 t=0') && actions.firstChild.title.includes('同距取較早'));
 const table = panels.measure.firstChild;
 assert.ok(table.className.includes('results__table'));
-assert.deepEqual(table.firstChild.children.map(c => c.textContent),['量測','目前','平均','最小','最大','標準差','']);
+assert.deepEqual(table.firstChild.children.map(c => c.textContent),['Measure','Current','Mean','Min','Max','Std Dev','']);
 const menu = actions.children[1], boxes = menu.children[1].children.map(l => l.firstChild);
 assert.deepEqual(boxes.filter(b => b.checked).map(b => b.dataset.column),expected);
 tabButtons[2].onclick();
 const count = boxes.find(b => b.dataset.column === 'count'); count.checked = true; count.onchange();
-assert.ok(table.firstChild.children.some(c => c.textContent === '次數'));
+assert.ok(table.firstChild.children.some(c => c.textContent === 'Count'));
 assert.equal(load().tab,'peaks','欄位選單不可覆寫頁籤偏好');
 assert.deepEqual(load().columns,[...expected,'count'].sort((a,b) => COLUMNS.indexOf(a)-COLUMNS.indexOf(b)));
 const otherActions = new Element('div'); mountResults(new Element('div'),{ ...ctx,resultActions:otherActions });
@@ -91,11 +91,11 @@ const stats = { current:954.126,mean:954,min:950,max:960,range:10,std:1,count:42
 store.set({ measurements:[1,2].map(id => ({ id,name:'上升時間',channel:'CH1',result:{ ok:true,gen:1,revision:2,unit:'ps',stats } })) });
 assert.equal(table.children.length,3);
 function checkRows(keys) {
-  const labels = { current:'目前',mean:'平均',min:'最小',max:'最大',range:'範圍',std:'標準差',count:'次數' };
-  assert.deepEqual(table.firstChild.children.map(c => c.textContent),['量測',...keys.map(k => labels[k]),'']);
+  const labels = { current:'Current',mean:'Mean',min:'Min',max:'Max',range:'Range',std:'Std Dev',count:'Count' };
+  assert.deepEqual(table.firstChild.children.map(c => c.textContent),['Measure',...keys.map(k => labels[k]),'']);
   for (const row of table.children.slice(1)) {
-    assert.deepEqual(row.children.map(c => c.textContent),['上升時間(CH1)',...keys.map(k => k === 'count' ? '42' : fmt.fmt(stats[k],'ps')),'×']);
-    assert.equal(row.firstChild.title,'上升時間(CH1)');
+    assert.deepEqual(row.children.map(c => c.textContent),['Rise Time(CH1)',...keys.map(k => k === 'count' ? '42' : fmt.fmt(stats[k],'ps')),'×']);
+    assert.equal(row.firstChild.title,'Rise Time(CH1)');
   }
 }
 checkRows([...expected,'count']);
@@ -105,12 +105,12 @@ checkRows(['mean','range','count']);
 const clear = actions.children.find(e => e.className.includes('results__clear')), exp = actions.children.find(e => e.className.includes('results__export'));
 assert.ok(clear.title && exp.title); assert.equal(exp.textContent,'匯出結果');
 assert.equal(actions.firstChild.attrs['aria-label'],actions.firstChild.title); assert.equal(exp.disabled,false); await exp.onclick();
-assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2);
+assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2); assert.equal(calls[0][1].directory,'/out');
 clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true);
 // 結果標籤保留區間與方向；界限值的畫面與匯出列一致。
 store.set({ measurements:[{ id:3,name:'Vavg',channel:'CH1',mode:'cycles',rising:false,
   result:{ ok:true,gen:1,revision:3,unit:'V',stats,bound:'<' } }] });
-assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1 整數週期 ↓)');
+assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1 N Cycles ↓)');
 assert.deepEqual(table.children[1].children.slice(1,-1).map(c => c.textContent),['< 954 V','< 10 V','42']);
 await exp.onclick(); assert.equal(calls.at(-1)[1].rows[0].bound,'<');
 store.set({ measurements:[{ ...store.get().measurements[0],mode:'full' }] });
@@ -124,7 +124,7 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   mountMeasure(input,context);
   const [slope,,mode] = input.children;
   assert.deepEqual(mode.children.map(c => c.value),['full','cycles']);
-  const button = input.children.find(e => e.firstChild?.textContent === '電壓量測').children.find(c => c.tagName === 'button');
+  const button = input.children.find(e => e.firstChild?.textContent === 'Voltage Measurements').children.find(c => c.tagName === 'button');
   slope.value = '0'; mode.value = 'cycles'; button.onclick();
   slope.value = '1'; mode.value = 'full'; button.onclick();
   await new Promise(resolve => setTimeout(resolve,200));
@@ -138,7 +138,7 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   const context = {...ctx,store:state,appState:{catalog:{measurements:defs}},resultActions:new Element('div'),fftPeaks:new Element('div'),
     bridge:{...ctx.bridge,job:async (_m,args) => { sent.push(args); return {gen:1,revision:7,results:args.entries.map(e => ({...e,ok:true,gen:1,revision:7,unit:'s',stats}))}; }}};
   state.set({file:{gen:1},channels:[{name:'CH1'}],selected:'CH1'}); mountMeasure(input,context);
-  assert.deepEqual(input.children.slice(3).map(e => e.firstChild.textContent),['時間量測','電壓量測','雙來源量測']);
+  assert.deepEqual(input.children.slice(3).map(e => e.firstChild.textContent),['Time Measurements','Voltage Measurements','Dual-Source Measurements']);
   const dualBox = input.children.at(-1);
   const [label,sourceLabel,source2,edgeLabel,edge2,...buttons] = dualBox.children;
   assert.ok(buttons.every(b => b.disabled && b.title.includes('兩個來源')));
@@ -149,8 +149,8 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   await new Promise(r => setTimeout(r,200));
   assert.deepEqual(sent[0].entries.map(e => [e.channel,e.channel2,e.rising,e.rising2]),[['CH1','CH3',true,false],['CH1','CH3',false,false]]);
   const output = new Element('div'); mountResults(output,context);
-  assert.equal(output.firstChild.children[1].firstChild.textContent,'延遲(CH1→CH3 ↑↓)');
-  assert.equal(output.firstChild.children[2].firstChild.textContent,'相位(CH1→CH3 ↓↓)');
+  assert.equal(output.firstChild.children[1].firstChild.textContent,'Delay(CH1→CH3 ↑↓)');
+  assert.equal(output.firstChild.children[2].firstChild.textContent,'Phase(CH1→CH3 ↓↓)');
   const exp = context.resultActions.children.find(e => e.className.includes('results__export'));
   await exp.onclick(); assert.equal(calls.at(-1)[1].rows[0].channel2,'CH3');
   state.set({channels:[{name:'CH1'},{name:'CH2'}]});

@@ -20,25 +20,25 @@ export function invertPixels(d) {
 
 const CSS = `:root{color-scheme:light;--ink:#1b2230;--ink2:#566074;--rule:#d7dce5;--rule2:#eef1f5;--accent:#1f4a8a;
 --font:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:14px/1.6 var(--font)}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:17px/1.6 var(--font)}
 main{max-width:1000px;margin:0 auto;padding:40px clamp(16px,5vw,48px) 32px;display:grid;gap:28px}
 header{display:grid;gap:14px;border-bottom:2px solid var(--ink);padding-bottom:16px}
-.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--ink2);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-h1{margin:0;font-size:26px;line-height:1.25;text-wrap:balance}
+.eyebrow{font-size:13px;letter-spacing:.16em;color:var(--ink2);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+h1{margin:0;font-size:32px;line-height:1.25;text-wrap:balance}
 dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 28px;margin:0}
 dl div{display:grid;grid-template-columns:5.5em 1fr;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule2);min-width:0}
-dt{color:var(--ink2);font-size:13px}dd{margin:0;font-size:13px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.remark{background:#f6f8fb;border-left:3px solid var(--rule);padding:8px 12px;font-size:13px;white-space:pre-wrap}
+dt{color:var(--ink2);font-size:16px}dd{margin:0;font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.remark{background:#f6f8fb;border-left:3px solid var(--rule);padding:8px 12px;font-size:16px;white-space:pre-wrap}
 section{display:grid;gap:10px;min-width:0;break-inside:avoid}
-h2{margin:0;font-size:16px;display:flex;align-items:baseline;gap:10px}h2 i{font:normal 600 12px var(--mono);color:var(--accent)}
+h2{margin:0;font-size:20px;display:flex;align-items:baseline;gap:10px}h2 i{font:normal 600 15px var(--mono);color:var(--accent)}
 figure{margin:0;display:grid;gap:6px}img{width:100%;height:auto;display:block;border:1px solid var(--rule)}
-figcaption,.cap{font:12px var(--mono);color:var(--ink2);overflow-wrap:anywhere;margin:0}
-.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+figcaption,.cap{font:14px var(--mono);color:var(--ink2);overflow-wrap:anywhere;margin:0}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
 th,td{padding:5px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--rule2)}
-th{font-weight:600;color:var(--ink2);border-bottom:1px solid var(--ink);background:#fafbfc}td{font:12px var(--mono)}
+th{font-weight:600;color:var(--ink2);border-bottom:1px solid var(--ink);background:#fafbfc}td{font:14.5px var(--mono)}
 th:first-child,td:first-child{text-align:left;font-family:var(--font)}
-footer{border-top:1px solid var(--rule);padding-top:10px;font-size:11px;color:var(--ink2)}
-@media print{main{padding:0;max-width:none}figure,table{break-inside:avoid}}`;
+footer{border-top:1px solid var(--rule);padding-top:10px;font-size:13px;color:var(--ink2)}
+@page{size:A4;margin:10mm}@media print{main{padding:0;max-width:none}figure,table{break-inside:avoid}.tw{overflow:visible}th,td{white-space:normal;padding:4px 6px}}`;
 
 /** 報告資料 → HTML。sections：[{title, img?(PNG data URI), caption?, tables?:[{head, rows}]}]；所有文字一律 escape。 */
 export function buildReport({ title, time, info = [], note = '', sections = [] }) {
@@ -149,17 +149,19 @@ export async function exportReport(ctx, root, modal) {
     title.placeholder = `${stem}（留空則用來源檔名）`; note.rows = 3;
     color.append(new Option('反白（白底）', 'inv'), new Option('維持原圖（黑底）', 'orig'));
     b.append(field('標題', title), field('DUT／測試物', dut), field('備註', note), field('曲線區配色', color),
-      h('p', 'muted', `輸出：${f.path.replace(/[\\/][^\\/]*$/, '')}（與來源檔同資料夾，檔名加時間戳）`));
+      h('p', 'muted', '按「匯出報告」後選擇儲存資料夾（檔名加時間戳）'));
     return () => ({ title: title.value.trim() || stem, dut: dut.value.trim(), note: note.value.trim(), invert: color.value === 'inv' });
   }, '匯出報告');
   if (!o) return;
+  const decodeRef = store.get().decodeResult;
+  const dir = await ui.pickPath(ctx, 'folder', f.path.replace(/[\\/][^\\/]*$/, ''));
+  if (!dir) return;
   if (store.get().file?.gen !== f.gen || stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
   try {
-    const decodeRef = store.get().decodeResult;
     const html = buildReport(await collectReport(ctx, root, o));
     if (store.get().file?.gen !== f.gen || store.get().decodeResult !== decodeRef) return ui.toast('解碼結果已變更，請重新匯出', 'error');
     if (stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
-    const r = await bridge.call('export_report', { html, directory: null });
+    const r = await bridge.call('export_report', { html, directory: dir });
     ui.toast(`已匯出：${r.path}`, 'ok', 6000);
   } catch (e) { ui.showError(e, '匯出報告失敗'); }
 }

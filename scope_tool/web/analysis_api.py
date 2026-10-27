@@ -159,8 +159,8 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
             self._rev += 1
             rev = self._rev
         pct = THRESHOLDS[threshold]
-        meta = [("量測範圍", "全部" if rng is None else f"游標區間 t1={rng[0]!r} s, t2={rng[1]!r} s"),
-                ("閾值", threshold)]
+        meta = [("Measure Range", "All" if rng is None else f"Cursors t1={rng[0]!r} s, t2={rng[1]!r} s"),
+                ("Threshold", threshold)]
 
         def work() -> dict:
             by = {w.channel: w for w in waves}

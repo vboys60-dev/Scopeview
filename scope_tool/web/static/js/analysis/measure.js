@@ -1,6 +1,7 @@
 // 量測項目管理：新增／刪除、防抖 150 ms 呼叫 bridge.measure，結果寫入 store.measurements。
 // store.measurements 每筆：{id, channel, channel2?, name, rising, rising2?, mode, result: MeasureResult|null（null＝計算中）}。
 // 來源通道與邊緣方向在加入時固定；範圍、閾值、dx、游標（rangeMode=cursors 時）變動都會重算；過期（token／gen）結果丟棄。
+import { T } from "./terms.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const num = (v) => typeof v === "number" && Number.isFinite(v);
@@ -85,8 +86,8 @@ export function mount(el, ctx) {
   slope.append(new Option("上升緣 ↑", "1"), new Option("下降緣 ↓", "0"));
   slope.title = "週期、頻率、工作週期、過衝、前衝、延遲、相位及整數週期使用的來源 1 邊緣方向";
   const mode = h("select", "select"); mode.title = "Vavg／Vrms 的區間";
-  mode.append(new Option("整段（Full Screen）", "full"), new Option("整數週期（N Cycles）", "cycles"));
-  el.append(slope, h("label", "field__label", "區間"), mode);
+  mode.append(new Option("Full Screen", "full"), new Option("N Cycles", "cycles"));
+  el.append(slope, h("label", "field__label", T("區間")), mode);
   const source2 = h("select", "select"), slope2 = h("select", "select"), dualButtons = [];
   let source2Set = false;
   source2.onchange = () => { source2Set = true; };
@@ -104,10 +105,10 @@ export function mount(el, ctx) {
   }
   store.on(["channels", "selected"], sources);
   for (const category of ["時間", "電壓", "雙來源"]) {
-    const box = h("div", "field"); box.append(h("div", "field__label", `${category}量測`));
+    const box = h("div", "field"); box.append(h("div", "field__label", `${T(category)} Measurements`));
     if (category === "雙來源") box.append(h("label", "field__label", "來源 2"), source2, h("label", "field__label", "來源 2 邊緣"), slope2);
     for (const it of (cat.measurements ?? []).filter((x) => x.category === category)) {
-      const b = h("button", "btn btn--small", it.name + (it.sloped ? " ↕" : ""));
+      const b = h("button", "btn btn--small", T(it.name) + (it.sloped ? " ↕" : ""));
       if (it.sources === 2) dualButtons.push([b, it.tip]);
       b.title = it.tip; b.type = "button";
       b.onclick = () => {

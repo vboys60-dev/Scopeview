@@ -66,7 +66,7 @@ def _self_check() -> None:
         batch = run([dict(entries[0], rising2=False), *entries[1:]])
         dest = a.export_measurements(batch["results"], 1, batch["revision"], tmp)
         text = Path(dest["path"]).read_text(encoding="utf-8-sig")
-        for label in ("延遲(CH1→CH2 ↑↓)", "相位(CH1→CH2 ↑↑)", "電壓比(CH1→CH2)"):
+        for label in ("Delay(CH1→CH2 ↑↓)", "Phase(CH1→CH2 ↑↑)", "Gain(CH1→CH2)"):
             assert label in text
     print("analysis_dual self-check OK")
 
