@@ -1,6 +1,7 @@
 // L5：精簡通道 chip 與各通道 Vertical 欄位；通道設定經 store.updateChannel。
 // 處理意圖：channel.shift_intent、channel.scale_intent（絕對值）。DOM／手感待真人驗證。
 import { mount as mountVertical, hasDx } from "./vertical.js";
+import { setChannelColor, resetChannelColor } from "./channel_colors.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
@@ -56,13 +57,17 @@ export function mount(el, ctx) {
     const name = h("span", "chip__name", c.name);
     name.title = `${c.name}：點一下選為目前通道／量測來源；雙擊換色`;
     name.onclick = () => store.set({ selected: c.name }, "user");
-    const col = h("input"); col.type = "color"; col.hidden = true;
-    col.oninput = () => store.updateChannel(c.name, { color: col.value }, "user");
+    const col = h("input", "chip__color"); col.type = "color";
+    col.setAttribute("aria-label", "通道顏色"); col.title = `${c.name} 通道顏色`;
+    col.oninput = col.onchange = () => setChannelColor(store, c.name, col.value);
+    const reset = h("button", "chip__reset", "↺"); reset.type = "button";
+    reset.title = "重設顏色"; reset.setAttribute("aria-label", "重設顏色");
+    reset.onclick = () => resetChannelColor(store, c.name);
     const sc = h("span", "chip__scale");
     const badge = h("span", "vertical__badge", "dx"); badge.title = "會影響游標區間量測與 FFT";
     box.onclick = (e) => { if (e.target.closest?.("input,button")) return; store.set({ selected: c.name }, "user"); };
     box.ondblclick = (e) => { if (e.target.closest?.("input,button")) return; col.click(); };
-    const parts = [vis, name, col, sc, badge];
+    const parts = [vis, name, col, reset, sc, badge];
     if (c.derived) {
       const rm = h("button", "chip__remove", "×"); rm.title = "刪除此衍生波形";
       rm.onclick = async () => {

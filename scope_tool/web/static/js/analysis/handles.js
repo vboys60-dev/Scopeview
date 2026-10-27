@@ -58,10 +58,7 @@ export function revealCursor(store, edge, ui) {
 export function drawHandles(g, channels, cursors, view, r) {
   g.save(); g.font = "12.5px sans-serif"; g.textBaseline = "middle"; g.textAlign = "center"; g.setLineDash([]);
   for (const b of channelHandles(channels, r)) {
-    if (b.y + b.h / 2 !== b.anchorY) {
-      g.strokeStyle = b.color; g.beginPath(); g.moveTo(b.x + b.w, b.y + b.h / 2);
-      g.lineTo(b.x + b.w + 3, b.anchorY); g.stroke();
-    }
+    // 避讓後只畫標籤；不畫連線，命中與相對拖曳仍沿用原配置。
     g.fillStyle = b.color; g.fillRect(b.x, b.y, b.w - 1, b.h);
     g.fillStyle = "#000"; g.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2);
   }

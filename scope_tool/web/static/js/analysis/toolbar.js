@@ -1,3 +1,4 @@
+import { channelColors } from "./channel_colors.js";
 import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
 import { disableTrackMeasurements } from "./summary.js";
@@ -16,7 +17,7 @@ const select = (opts, cls = "select") => { const s = h("select", cls); for (cons
 /** ChannelInfo → store 通道記錄；V/格與位置依 autoScale（全 NaN 時 1 V、0 格）。 */
 export function channelRecord(info, idx, colors, scales) {
   const [scale, position] = info.vmin === null || info.vmax === null ? [1, 0] : scales.autoScale(info.vmin, info.vmax, info.unit);
-  return { name: info.name, unit: info.unit, derived: !!info.derived, color: colors[idx % colors.length], visible: true, scale, position,
+  return { name: info.name, unit: info.unit, derived: !!info.derived, ...channelColors(info.name, colors[idx % colors.length]), visible: true, scale, position,
     vmin: info.vmin, vmax: info.vmax, time_offset: 0, t0: info.t0, t1: info.t1, points: info.points };
 }
 /** 數學結果只追加通道；與槽位相同，不發出換檔通知。 */

@@ -7,3 +7,7 @@
 .vertical .btn { padding: 1px 4px; min-height: 22px; height: 22px; }
 .vertical__badge { border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; color: var(--c-warning, #946000); }
 .vertical__badge[hidden] { display: none; }
+/* 收折後仍保留原生色塊與重設鈕；尺寸不擠壓電壓欄位。 */
+.chip__color { flex: 0 0 24px; width: 24px; min-width: 24px; height: 20px; padding: 1px; border: 1px solid var(--c-border); border-radius: 3px; background: transparent; cursor: pointer; }
+.chip__reset { flex: 0 0 auto; padding: 0 2px; border: 0; background: none; color: var(--c-text-dim); font: inherit; cursor: pointer; }
+.chip__reset:hover { color: var(--c-text); }

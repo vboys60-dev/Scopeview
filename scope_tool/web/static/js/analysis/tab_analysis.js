@@ -1,3 +1,4 @@
+import { channelColors } from "./channel_colors.js";
 import { mount as mountDecodeBand, bandHeight } from './decode_band.js';
 import { mount as mountDecodeTable } from './decode_table.js';
 import { markerModel } from "./markers.js";
@@ -19,7 +20,7 @@ const FALLBACK_COLORS = ["#F0E442", "#56B4E9", "#E58FC4", "#3DD6A3", "#E69F00", 
 export function channelsFromFile(info, colors = FALLBACK_COLORS) {
   return info.channels.map((c, i) => {
     const [scale, position] = autoScale(c.vmin ?? 0, c.vmax ?? 0, c.unit);
-    return { name: c.name, unit: c.unit, derived: !!c.derived, color: colors[i % colors.length], visible: true, scale, position, vmin: c.vmin, vmax: c.vmax, t0: c.t0, t1: c.t1, time_offset: 0 };
+    return { name: c.name, unit: c.unit, derived: !!c.derived, ...channelColors(c.name, colors[i % colors.length]), visible: true, scale, position, vmin: c.vmin, vmax: c.vmax, t0: c.t0, t1: c.t1, time_offset: 0 };
   });
 }
 /** 開檔結果 → 單一 store patch（file、channels、selected、view 一起換）。 */
