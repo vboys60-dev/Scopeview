@@ -220,9 +220,14 @@
 - **BIN `8143a43`、`0f09887`**：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`／`guess_roles`）；與 H5 只差 float32 捨入（≤1.2e-7 V，容差 4e-7；原規格寫「逐點相等」有誤，已更正）。已接 `reader.py` 的 `.bin` 分派（通道名＝標籤，重複加 `#2`）與開檔對話框；`open_waveform` 實測可開。**GUI 開 BIN 的畫面行為未人工驗。**
 - 解碼核心照計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線只需加一行。小項：UART 實機驗收用 h5py（核心只用 numpy）。
 
+**2026-10-27 追加（`f5de088`，使用者已人工確認畫面）**
+- **I2C `addr_bits`**（7｜8，預設 7）：只影響顯示（事件表位址欄、標註列、報告、CSV），解碼與 frames 不變；8 模式只套用一般 7-bit 位址 0x08–0x77，10-bit／General Call／START byte／Hs／保留位址維持原顯示。顯示用送出解碼時的選項快照（`decodeResult.options`）；`columns.cell(f,o)`、`fieldText(x,o,f)`、`content(f,o)` 多收選項。計畫 §3.1／§3.5 已改為已做。
+- **標註列分列**：事件／（bit，放大到逐 bit 時）／hex／ASCII 各一列；高度依列數動態（`bandHeight(state)`，40／60／80px，取代固定 `BAND_H` 作為版面依據；`tab_analysis.js` 與 `.analysis__decodeband` 高度由 JS 設）。ASCII 開關關閉則無 ASCII 列。UART 最下方一條共用 ASCII 列，TX／RX 重疊時優先 TX。副作用：縮放跨過逐 bit 門檻時列高會跳 20px、主圖微幅伸縮。
+- **UART「估計」按鈕**：推翻計畫 Q2「不做自動鮑率」，改為**手動觸發**、填入鮑率欄讓使用者確認。沿用 decode job（options `estimate:true`，後端回 `ok=False`、reason `估計鮑率 N` 或 `無法估計鮑率：…`，前端解析），契約只補說明、無新 RPC。演算法：邊緣間距對標準鮑率表，取**最低**通過者（最短脈寬 ≥0.8T 且 ≥95% 間距為 T 整數倍、誤差 ≤8%）；TX／RX 各估一次取較有把握者。實機 `x6000rs234.h5` 兩通道皆得 19200。已知限制：只含雙 bit 脈寬時估成一半；1000000 估成 921600。估計不清除既有 `decodeResult`／選取（`decode.js` `estimate()`）。
+- 測試踩坑：①`browser_decode_checks` I2C 標註列斷言的視窗須 ≥3 ms，1 ms 會進逐 bit 模式不畫位址文字；②UART 估計測試把鮑率改錯會使結果過期、匯出鈕停用，須重新解碼才能接後面的匯出檢查。
+- 使用者指出「定義上緣下緣訊號（Pull Low／Pull High 極性）」後自述誤判、撤回，未做；若日後再提，候選是每條訊號線可反相（UART 現有 `invert` 可併入）。
+
 **待辦**
-1. **使用者人工驗收 I2C／UART 畫面**：開 `X6000A-解碼/I2C/x6000i2c2.h5`（SCL=CHAN3、SDA=CHAN1）與 `RS-232/x6000rs234.h5`（TX=CHAN1、RX=CHAN3，baud 19200、反相），對照示波器 CSV；標註列、雙 lane、設定列兩列版面的手感。
-2. **I2C 位址位元數可設定（使用者 2026-10-27 要求，下次做）**：現在位址一律當 7-bit＋R/W 解（顯示 `0x50 W`），但有些裝置／文件用 8-bit 寫法（位址 byte 含 R/W，例如 `A0／A1`）。要在 I2C 設定列加參數 `addr_bits`（7｜8，預設 7）：只影響**顯示**（事件表位址欄、標註列 `50 W` 與位址顯示、報告、CSV 的位址欄），解碼邏輯本身不變。注意：計畫 §3.1 原寫「8-bit 顯示不做」，§3.5 列為不做項目，現改為要做；要同步改計畫、契約 `types_doc`（若 options 多一鍵）、`decode_i2c.js` 的 `options`／`columns`／`fieldText`、`i2c_decode.options()`（目前只接受 `{}`，需接受 `addr_bits`）、`i2c_check`、`decode_proto_check`、`browser_check` fixture 選項。實機 CSV（示波器顯示 `E2W` 這種 8-bit 寫法）也可作為 8-bit 模式的對照真值：位址欄應與 CSV 相同。
-3. SPI 解碼器（無實機資料，只有合成向量）。
-4. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
-5. CAN：先決定是否在擷取流程加「取完整記憶體」。
+1. SPI 解碼器（無實機資料，只有合成向量）。
+2. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
+3. CAN：先決定是否在擷取流程加「取完整記憶體」。
