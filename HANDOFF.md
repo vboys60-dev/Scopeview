@@ -8,74 +8,59 @@
 ## 現況（2026-10-22）
 
 - 離線分析（Stage 0～3：量測、Marker、FFT、Track RF）已完成；`analysis/` 為純 numpy，規格 `docs/離線分析功能規格.md`。Jitter／眼圖已移出 GUI（程式保留未接線）。
-- **只有 offscreen／headless 自檢，沒有真機驗證**；待比對項目在 `docs/真機驗證清單.md`。已上機：DSO-X 6004A／3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）；3000T、EXR、S 系列未上機。
+- **只有 offscreen／headless 自檢，沒有真機驗證**；待比對項目在 `docs/驗證.md`。已上機：DSO-X 6004A／3014G、HD304MSO、MXR254B、MSO-X 4154G、MSO9254A（僅連線讀取）；3000T、EXR、S 系列未上機。
 - 啟動：`啟動示波器截圖.command`（Web 版）；Qt 版 `啟動示波器截圖_qt.command`；有「測試儀器（模擬）」。
-- 啟動：Mac 雙擊 `啟動示波器截圖.command`（Web 版）；Qt 版 `啟動示波器截圖_qt.command`；有「測試儀器（模擬）」按鈕。
 
 ## Web 版（pywebview）現況（2026-10-22，已切為預設入口）
 
 - 啟動：`啟動示波器截圖.command`（= `python -m scope_tool.web.app`）；舊 Qt 版保留為 `啟動示波器截圖_qt.command`，git tag `qt-final`（`bfba82c`）為純 Qt 最終狀態。`scope_tool/ui/`、`main.py` 未刪（PySide6 仍因 `QImage` 為執行期相依）。
-- 權威規格：`docs/pywebview-GUI規劃建議書.html`（決策 D1–D6 皆採建議值）、`docs/web-api契約.md`＋`scope_tool/web/static/api_contract.json`（凍結契約，只有 lead 能改；附錄記錄審查後裁決）。檔案擁有權表在 `RULES.md` 末段。
+- 權威規格：`docs/web-api契約.md`＋`scope_tool/web/static/api_contract.json`（凍結契約，只有 lead 能改；附錄記錄審查後裁決）。檔案擁有權表在 `RULES.md` 末段。
 - 架構：pywebview 只當視窗；daemon 執行緒跑 stdlib HTTP server（127.0.0.1＋token）；RPC／long-poll 事件／二進位 `/wave` `/fft`；前端為 ES modules＋自繪 Canvas，傳輸全藏在 `bridge.js`，`?mock=1` 可離線開發。VISA 一律經 `web/jobs.py` 儀器執行緒＋全域儀器鎖。
 - 驗證指令：後端 `QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.web.{decimate,analysis_api,jobs,server,api,e2e_check,browser_check}`；前端 `node scope_tool/web/static/js/selfcheck_node.js`（或開 `static/selfcheck.html`）。`browser_check` 用 headless Chrome＋CDP 實跑連線→擷取→開檔→游標→量測→FFT（已通過、console 無錯誤）。
-- **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/web版驗收清單.md`。
+- **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/驗證.md`。
 - 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
-## 分析頁 GUI 改善（2026-10-24 完成並合入 main；2026-10-25 垂直框選修正 `285838c`）
+## 分析頁 GUI 改善（2026-10-24～25，已合入 main）
 
-- 計劃書：`docs/分析頁GUI改善計劃書.md`。範圍：A 量測欄、B 結果、C 主圖；操作模型參考 N8900A。標籤 `p1-gui`→`p2a-gui`→`p2b-gui`→`p2b3-gui`→`p3a-gui`→`p3b1-gui`→`p3b2-gui`→`float-gui`（`fb12038`），皆已 fast-forward 合入 main。
-- 行為：拖曳＝平移、滾輪＝縮放時間；框選放大（Shift 暫時框選、Space／中鍵暫時平移）、種類 `[水平｜垂直｜雙向]`（`view.zoomKind`，`vzoom.js`）；Undo／Redo；Horizontal／Vertical 列（單位/格、位置、適配、dx 徽章）；左軸顯示目前通道電壓；三條 splitter、`clampLayout`（<900 窗改分頁／抽屜）；B 區頁籤 `量測｜游標｜FFT 峰值`；浮動量測面板（`floatpanel*.js`）。偏好只存記憶體＋localStorage。
-- **垂直框選修正**：V/格原本吸附到檔位表下一檔，選框 >約 40–50% 高時看似沒反應；`verticalZoom` 改連續 V/格＝選框高度÷10（夾在檔位上下限），已實測。Codex 指出未修的結構風險：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不重播，掛載順序不同會不同步；`channel.scale_intent` 唯一 handler 在 `chanbar.js`，未掛載則指令靜默消失。
-- 檔案 lane（已登記 RULES.md）：L4 `gestures axes layout splitter voltage vzoom floatpanel*`；L5 `vertical bpanel summary cursor_table`；L8 各 `*_check.mjs`、`web/browser_*_checks.py`。`view.*`／`layout.*` 是前端 command 字串，不在凍結契約。
-- 驗證：`selfcheck_node.js`（含變異測試）、`e2e_check`、`browser_check` 通過；後兩者 Codex 沙箱不能綁 localhost，須 Claude 在沙箱外跑。
-- 已知小項：Track Measurements 仍 disabled（契約無事件座標）；500 µV V/div 下限與需求文字的 1 mV 不同；FFT 分隔線拖曳仍重取頻譜；複製在 WKWebView 的 await 後 user gesture 未真機驗；`browser_check` 曾偶發「寬版點 FFT 峰值分頁未切換」一次；真機未驗 Mac 觸控板手感、Windows 899px 斷點。
-- **量測問題（使用者 2026-10-25 擱置）**，重現檔 `wave6000-10Mhz_20261022_125915.h5`：①上升／下降時間、斜率顯示「—」：取樣間隔 2.5 ns、邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`），設計門檻非計算錯誤；②等約 30 秒：每次新增量測重算全部、分析執行緒僅一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消、各項各自做邊緣偵測。可能修法：只算新增項、共用邊緣偵測、丟棄舊請求。
-- **3000G 量測研究（`ad2bf07`）**：`docs/研究_3000G量測計算比對.md`。4 點門檻與 40%／5% 直方圖只在 Infiniium 手冊；與手冊不同五處（缺 −Duty、Vavg／RMS 缺 N Cycles／Full Screen、「目前」取最左、統計單位、範圍是整檔）。取消 4 點門檻會高估 38～44%，故保留門檻並輸出 `<`／`>` 上界標記。方波噪聲約 2% 時 Top／Base 會懸崖式退回極值，需真機比對。
-- **3000G 量測實作（`633ab61` 起）**：Rise／Fall／Slew 點數不足輸出標記上界、新增 `-工作週期`、Vavg／Vrms 加 `mode`；雙來源 `延遲`／`相位`／`電壓比`（`MeasureEntry` 加 `channel2`／`rising2`，`measure.measure2`）；「目前」改取最靠近 t=0 的事件。契約新增可選欄位 `mode`、`bound`、`channel2`、`rising2`。未做：可見範圍量測、Top/Base 真機比對。
-- 工作方式：Codex 編碼 → 沙箱外跑 `e2e_check`／`browser_check` → Opus 唯讀審查 → Claude 提交。
+- 計劃書：`docs/archive/分析頁GUI改善計劃書.md.gz`。範圍：A 量測欄、B 結果、C 主圖；操作參考 N8900A。
+- 行為：拖曳＝平移、滾輪＝縮放；框選放大（Shift 暫時框選、Space／中鍵暫時平移）、`view.zoomKind`＝水平｜垂直｜雙向；Undo／Redo；`clampLayout`（<900 窗改分頁／抽屜）。垂直框選改連續 V/格＝選框高÷10。
+- 結構風險未修：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不重播，掛載順序不同會不同步。
+- 檔案 lane 已登記 RULES.md（L4／L5／L8）。`browser_check`／`e2e_check` 須在沙箱外跑。
+- 已知小項：Track Measurements 仍 disabled；500 µV V/div 下限；FFT 分隔線拖曳仍重取頻譜；複製在 WKWebView 的 user gesture 未真機驗。
+- **量測問題（使用者 2026-10-25 擱置）**，重現檔 `wave6000-10Mhz_20261022_125915.h5`：①上升／下降時間、斜率顯示「—」：邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`），是設計門檻；②新增量測等約 30 秒：每次重算全部、分析執行緒僅一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消。可能修法：只算新增項、共用邊緣偵測。
+- **3000G 量測**：研究見 `docs/研究_3000G量測計算比對.md`。點數不足輸出 `<`／`>` 上界標記；新增 `-工作週期`、Vavg／Vrms 加 `mode`；雙來源 `延遲`／`相位`／`電壓比`；「目前」取最靠近 t=0 的事件。未做：可見範圍量測、Top/Base 真機比對。
 
-## 分析頁 Marker Table（2026-10-25，P1～P4 已 commit，main HEAD `e9785dd`）
+## 分析頁 Marker Table（2026-10-25，已完成並真機驗收）
 
-- 計劃書：`docs/分析頁MarkerTable計劃書.md`（決定、分階段、檔案 lane 皆在內；契約不升版，新 store 鍵 `markerTable`／`fftMarker`）。commit：`99cc40a` P1/P2 → `2b583bb` P3＋右鍵選單 → P4 `03447e3` → `86a6a04` 獨立點按鈕 → `08f364e` 右鍵／拖曳修正 → `e9785dd` WKWebView 選單點選修正。
-- 行為：
-  - 時域 Marker：連動組 M1（各通道同一時間）＋每通道最多 10 個獨立點。新增＝表格「新增／移動連動 M1」、「＋ 獨立點（目前通道）」，或主圖右鍵選單（含刪除）。拖曳＝點中後跟滑鼠任意移動，放開才向後端吸附到實際取樣點，獨立點拖出範圍夾回曲線端點。註記在表格內編輯。
-  - FFT：水平基準線（可拖、單位可選＝`fft_units` 去 Phase，超出畫面時貼邊並標示），峰表一次抓 1000 峰後前端過濾／排序／取前 n，免重跑 FFT；峰不收註記。
-  - 版面：B 區頁籤 `量測｜游標｜Marker｜FFT 峰值`；寬≥1200 游標／Marker 並列；標題列「⇥ 右側欄」＝版面 C（`layout.markerSide`，340px 直欄，≥900px 才啟用，窄版／浮動自動退回底部且不改偏好）。
-- 新檔：`markers.js marker_layer.js marker_menu.js marker_table.js fft_markers.js fft_runner.js fft_marker_{controls,layer,table}.js`；檢查 `marker_check.mjs fft_marker_check.mjs dock_check.mjs`、`web/browser_marker_checks.py`（`dock_layout`、`marker_add_button`、`marker_rightclick`）。新 command `marker.*`、`fftMarker.*`、`layout.markerSide` **尚未登記 RULES.md**（lead 管理）。
-- 驗證：`selfcheck_node.js`、`e2e_check`、`browser_check` 通過。
-- 踩過的坑：WKWebView 點 button 不給焦點，mousedown 使 `focusout` 的 `relatedTarget=null`，舊 focusout 直接關選單 → 點選項無效（headless Chrome 測不出，靠 `marker_check.mjs` 斷言）；選單 `focusout` 在 `menu.remove()` 時同步重入 `close()` 也會使點選無效（已修，靠 `marker_rightclick`）。Mac Ctrl+左鍵在 `gestures.js` 交給 contextmenu（Windows 的 Ctrl+左鍵因此無作用，低風險未處理）。`peaksTruncated` 要「抓滿上限且基準線低於最小峰值」才算。
-- **使用者決定不做 JSON 匯出入**（2026-10-25）。未做：右側欄寬度固定不可拖；真人滑鼠手感（右鍵、拖曳 Marker、拖曳基準線）使用者已在 pywebview 驗過獨立點按鈕與右鍵選單點選（`e9785dd` 修正後正常，2026-10-25）；拖曳 Marker 與拖曳 FFT 基準線也已實測正常。Marker Table 全部功能真機驗收完成。
-- 工具備註：Codex 曾卡死（CPU 近 0、無檔案變動），原因是 `codex exec` 在等 stdin（輸出停在「Reading additional input from stdin...」），**背景呼叫必須加 `< /dev/null`**；本機 Claude Code mod `task-progress`（`~/.claude/local-mods`）可看任務進度條。
+- 計劃書：`docs/archive/分析頁MarkerTable計劃書.md.gz`；契約不升版，store 鍵 `markerTable`／`fftMarker`。
+- 時域：連動組 M1＋每通道最多 10 個獨立點，右鍵選單；FFT：可拖水平基準線，峰表一次抓 1000 峰前端過濾。B 區頁籤 `量測｜游標｜Marker｜FFT 峰值`；「⇥ 右側欄」＝`layout.markerSide`（340px，≥900px）。
+- **使用者決定不做 JSON 匯出入**。右側欄寬度固定不可拖。
+- 坑：WKWebView 點 button 不給焦點，`focusout` 的 `relatedTarget=null` 會使選單點選無效；`menu.remove()` 同步重入 `close()` 也會。headless Chrome 測不出，靠 `marker_check.mjs`。
+- **Codex 背景呼叫必須加 `< /dev/null`**，否則卡在等 stdin。
 
-## 介面美化（2026-10-25，`660d643`～`d58b1af`）
-- 範圍＝預覽稿 A（token／對比／版面）＋B 的圖區部分（虛點格線、主圖中央十字軸、琥珀重點色）。**不做整套深色主題**（RULES.md「明確不做」）；C 案棄用。
-- 通道色改 Okabe–Ito（`#F0E442 #56B4E9 #E58FC4 #3DD6A3 #E69F00 #b79cff`），來源 `api_contract.json` `channel_colors`（L0，與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步）；chip 加 ●▲■◆。Qt `ui/` 未動。
-- canvas 色值讀 CSS token（`app.css` `--c-amber --c-fft-* --c-ov-*`，經 `plotcore.js plotColors()`）；`drawGrid` 的 `colors.center` 開中央軸（僅主圖）。
-- `analysis.css` 的 `12.5px` 不可改：`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死。`clampLayout` 的 40／28px 未動。工具列 `.field` 同行、量測鈕 `.field:has(.btn--small)` 兩欄（需 Safari／WKWebView ≥15.4）。
-- 修舊 bug：①數學通道要同時進 `file.channels` 與 `channels`（`toolbar.js` 現為單次 `store.set`，同名通道會被擋），否則 `fetchTargets` 不抓、不繪圖；②視窗太矮時 `clampLayout` 收掉預覽，`layout.state`／`layout.query` 皆帶 `blocked`，勾選改停用並提示。
-- `browser_check` 兩處測試修正：「P2b 多尺寸」先確保 B 區收折再測展開（工具列變矮後不再自動收折）；「P3b-2 垂直框選」`fit` 加 0.025 格容差（整數像素框選貼 ±5 格邊界會差 1e-6）。
-- 審查未處理：`browser_check` 收折後未斷言 `aria-expanded`；`:has(.btn--small)` 範圍偏寬（可改專屬 class）。
+## 介面美化（2026-10-25）
 
-## 主圖包絡修正與版面編輯器（2026-10-26，`f59a4b2`、`d6648aa`）
-- **包絡破圖**：10000 點 10 MHz 方波全視圖時每桶約 6–7 點，走 `decimate.py` mode 1（min/max 包絡）。舊 `plotcore.js drawPixels` 每桶各畫獨立垂直線，平頂變虛線、邊緣變雙線；與每像素點數相關，約 4.6 點／px 尚可、6.4 點／px 明顯破。已改為相鄰有限桶補連線（NaN 桶仍斷線、單桶最小高 1px）；`analysis/envelope_check.mjs` 已加入 `selfcheck_node.js`。`decimate.py` 未動。
-- **版面編輯器** `docs/版面編輯器/layout_editor.html`：雙擊開啟（file://，免伺服器）。58 個部件，可拖曳／縮放／隱藏／鎖定／註解、復原重做、localStorage 自存、匯入 JSON；輸出 `layout_*.json` 與 `layout_summary_*.md`（現況→新位置、註解、建議修改檔）。部件以 `shots/`（3 尺寸×5 狀態，共 15 張）裁切真實 GUI 畫面顯示，「顯示真實畫面」可切回色塊；`shots/` 需與 HTML 同資料夾。
-- 座標為 2000×1290、1400×900、1000×800 三尺寸實測；看不到的部件為等比佔位（`measured:false`）。app 版面改動後須重量測、重截圖、更新 `components.json` 並重嵌入 HTML（腳本在 session scratchpad，未入庫）。
-- 命名：程式的「B 區」＝`bpanel.js` 下方結果區；左側量測欄是 `measure.js`（文件稱 A 區）。
-- 未驗證：真人滑鼠手感、pywebview／WKWebView、剪貼簿與下載實際寫入；奇數寬部件中線吸附差 0.5px。
-- **待使用者**：排好版面後貼回 JSON／Markdown，再照它改真實 GUI（寫程式交 Codex）。
-- Codex CLI 0.163.0 無 `--full-auto`，用 `codex exec --sandbox workspace-write -C "$PWD" - < prompt`；其沙箱禁綁 localhost，browser_check 須自己跑。
+- 範圍＝token／對比／版面＋圖區（虛點格線、中央十字軸、琥珀重點色）。**不做整套深色主題**（RULES.md）。
+- 通道色 Okabe–Ito，來源 `api_contract.json` `channel_colors`（與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步）；canvas 色值讀 CSS token（`plotcore.js plotColors()`）。
+- `analysis.css` 的 `12.5px` 不可改（`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死）。
+- 數學通道要同時進 `file.channels` 與 `channels`，否則不繪圖；視窗太矮 `clampLayout` 會收掉預覽（`layout.state` 帶 `blocked`）。
 
-## 分析頁版面微調（2026-10-26，`0aed7a5`、`fa18727`、`a0666cc`）
-- 水平控制列（`axes.js`）移到通道列正下方；「位置（中心）」改名「時間軸位移」；游標摘要（`analysis__cursorSummary`、`summary.js` 的 `mountSummary`）已移除；Zoom 勾選框（原工具列「預覽」，`preview.visible`）移到水平列末，class `analysis__preview`。
-- 下方結果區 Marker 分頁改名「Marker Table」（`bpanel.js`）。「回中央」改名「X軸Maker歸位」，由 `cursors.js centerButton` 提供，現放在**工具列** Marker 欄右側；通道列與游標數值面板的舊按鈕已刪（「放在 marker 區塊」是照工具列解讀，使用者若指 Marker Table 分頁需再搬）。
-- 通道列（`chanbar.js`／`vertical.js`／`vertical.css`／`app.css`）：單列 grid、每通道一欄固定 236px（`--chanbar-col`），放不下橫向捲動、不換行，chip 不因 scale 文字位移。每欄含 chip＋自己的 vertical（單位/格、offset［原「中心電位」］、dx＋適配），綁通道名稱、不跟 selected 切換；vertical 不再自行訂閱 store，由 chanbar `sync()` 驅動。電壓控制**預設收折**，最左全域鈕展開／收折，狀態存 localStorage。dx＝該通道時間位移（`time_offset`，會影響游標區間量測與 FFT，非 0 時 chip 顯示 dx 徽章）。
-- 測試斷言已同步：`p1_check`、`p2_check`、`p2b2_check`、`p2b3_check`（游標輸入格 6→5）、`p3_check`、`browser_analysis_checks.py`；`browser_check.py` 的 splitter 取點改為分隔條 1/4 處（原點位會被 FFT 收折鈕／側欄鈕蓋住，非介面壞掉）。
-- 已知：通道多時右側被橫向捲動切掉且無提示；1000 寬水平列尾端（範圍／完整時間）被截斷；展開電壓控制後通道列約 100px，主圖變矮（1400×900 主圖 395px，下限 270px）。
-- 版面編輯器 `docs/版面編輯器/` 的 `components.json`／`shots/` 是這批改動**之前**的快照，現況已不同；使用者排版前若要對得上需重量測、重截圖。
+## 主圖包絡修正與版面編輯器（2026-10-26）
+
+- 包絡破圖已修：`plotcore.js drawPixels` 相鄰有限桶補連線；`envelope_check.mjs` 在 `selfcheck_node.js`。
+- 版面編輯器 `docs/版面編輯器/layout_editor.html`（file:// 雙擊）。`shots/` 截圖已於 2026-10-28 整理時刪除，`components.json` 為版面微調**之前**的快照，使用前需重量測。程式的「B 區」＝`bpanel.js` 結果區，左側量測欄是 `measure.js`（A 區）。
+- **待使用者**：排好版面後貼回 JSON／Markdown，再照它改 GUI。
+- Codex CLI 0.163.0 無 `--full-auto`，用 `codex exec --sandbox workspace-write -C "$PWD" - < prompt`；其沙箱禁綁 localhost。
+
+## 分析頁版面微調（2026-10-26）
+
+- 水平控制列在通道列正下方；「X軸Maker歸位」在工具列 Marker 欄；B 區 Marker 分頁叫「Marker Table」。
+- 通道列每通道一欄（固定 236px，`--chanbar-col`），含 chip＋自己的 vertical；電壓控制預設收折；vertical 由 chanbar `sync()` 驅動。
+- 已知：通道多時右側被切掉無提示；1000 寬水平列尾端被截斷；展開電壓控制後主圖變矮。
 
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
-- 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter眼圖Web契約.md`、`docs/草案_RMS縮放與相位追蹤定義.md`；`docs/DSOX6004A_Jitter驗證紀錄.md`（至第四輪）。
+- 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter與RMS.md`；`docs/驗證.md`（至第四輪）。
 - DSO-X 6004A（10 MHz 方波）：示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps，σ 對 50% 中點門檻極敏感。頻譜比值檢查（第四輪）：增益各頻帶平坦約 0.85，無追蹤跡象，不能用此樣本校準 PLL 頻寬。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
 - **契約 v3 先不升**（使用者決定）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
 - 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
@@ -87,41 +72,33 @@
 - `RULES.md` 允許 Windows 版 PyInstaller（Win10／Win11，onedir）；目標機自行安裝 NI-VISA 或 Keysight IO Libraries（PyInstaller 不打包）。
 - 草稿已備：`packaging/scope_tool_web.spec`、`packaging/build_win.bat`、`requirements-web.txt`（PySide6 不可排除）。凍結後 static 路徑已用 `sys._MEIPASS`。**全部待 Win10 實機驗證。**
 
-## FFT 頻譜分頁與資料截取分頁（2026-10-26，`3488ba5`、`cd61728`、`522f70a`、`fb165c7`、`a9563dc`）
+## FFT 頻譜分頁與資料截取分頁（2026-10-26，已完成）
 
-- 計畫書：`docs/FFT頻譜分頁計畫.md`（含「使用者決定」節）、`docs/資料截取合併計畫.md`。
-- **FFT P1（後端）**：`fft` RPC 追加 `rbw`、`vbw`（可為 null），`FFTResult` 追加 `segments`、`vbw`；契約 `version` 維持 2。新檔 `web/fft_rbw.py`（Welch 分段平均＋VBW 頻率軸平滑），`rbw=null` 走原 `fftmod.spectrum`、結果不變。`analysis/*` 仍凍結。前端目前固定送 `rbw:null, vbw:null`。
-- **FFT P2（前端）**：新增頂層「FFT 頻譜」分頁（`analysis/tab_fft.js`），與分析頁**共用單一 runner／參數**（`analysis/fft_state.js`），兩處控制項互相同步。**分析頁內嵌 FFT 窗格、B 區「FFT 峰值」頁籤、「FFT 計算」勾選都保留**（使用者決定），工具列加「FFT 頻譜 ↗」（command `tab.select`）。不在 FFT 分頁且勾選關時只標 dirty、不算。新分頁的 fftpane 視窗狀態仍是本地，尚無 `fftView`。
-- **資料截取**：「截圖」與「波形擷取」合併為頂層分頁「資料截取」（`tab_datacapture.js` 左右並排、窄窗上下；內部 id 沿用 `capture`，舊兩個模組保留為內部模組）。頂層分頁剩：資料截取／離線分析／FFT 頻譜。`main.js` 預設 activeTab 改 `capture`。兩組存檔設定鍵分開；兩邊同時動作靠既有 BUSY 提示。
-- **使用者決定**：RBW=Auto 要**隨 Span 自動連動**（與計畫書原建議相反；P4 設計需納入，N 待定、Span 變動要 debounce）；FFT 範圍與量測共用 `rangeMode`；Start/Stop 等不存 localStorage。
-- **FFT P3**：store 鍵 `fftView`＝{f0,f1}（Hz）或 null（全頻寬）；`fftpane.js` 的 `clampView`／`applySpanEdit`（四欄聯動：輸入值不動，Center 碰邊縮 span、Span 碰邊移中心；夾 0～Nyquist、最小 span＝10·df）；FFT 分頁有 Start／Center／Stop／Span＋「全頻寬」；分析頁與 FFT 分頁兩個 fftpane 共用 `fftView`；`fft_markers.js` 峰值／基準線只看畫面內（前端過濾、不重跑 FFT）；RF 跳到畫面外時平移入界、保留 span。限制：峰快取是全頻譜前 1000 大峰，放大到小峰區可能漏列（腳註提示）。
-- **FFT P4**：FFT 分頁有 RBW／VBW 輸入（`fft_state.js` 的 `mountBandwidthControls`，兩處共用參數）；**RBW=Auto 隨 Span 連動**（≈span/1000，debounce 300 ms，Auto RBW 變動 ≥5% 才重算以防迴圈；手動輸入即停止連動）；VBW 預設 Auto＝不平滑；狀態列顯示實際 RBW／段數／VBW，Phase 單位停用兩欄。
-- **未做**：P5（清死碼，選做）。Welch／VBW 尚未真檔肉眼比對。
-- **已知版面小缺（2026-10-26 截圖）**：FFT 分頁右欄最上方的「排序／基準線」看起來掉出參數列；最左峰的標籤與右下 `1 GHz` 刻度被裁切。尚未處理。
-- **未驗**：FFT 分頁輸入 Start／Stop 後圖與峰表只剩範圍內峰（無人手動測）；資料截取並排版面無人看過；資料截取同頁搶儀器鎖需真機；Qt 版仍是兩個分頁。
-- 驗證：`selfcheck_node.js`、`e2e_check`、`browser_check` 皆通過（Codex 沙箱跑不了後兩者，須在沙箱外跑）。
+- 計畫：`docs/archive/FFT頻譜分頁計畫.md.gz`、`docs/archive/資料截取合併計畫.md.gz`。
+- 後端 `web/fft_rbw.py`（Welch＋VBW）；`fft` RPC 追加 `rbw`／`vbw`，契約 version 維持 2。頂層分頁剩：資料截取／離線分析／FFT 頻譜；FFT 分頁與分析頁**共用單一 runner／參數**（`fft_state.js`），分析頁內嵌 FFT 窗格都保留。
+- `fftView`＝{f0,f1}；RBW=Auto 隨 Span 連動（≈span/1000，debounce 300 ms，變動 ≥5% 才重算）；FFT 範圍與量測共用 `rangeMode`。
+- 未做：P5 清死碼；Welch／VBW 未真檔肉眼比對；資料截取並排版面無人看過；同頁搶儀器鎖需真機。
 
-## 多檔比對（2026-10-28，已合入 main，`940e947`～`e5a414c`）
+## 多檔比對（2026-10-28，已合入 main）
 
-- 計畫書：`docs/分析頁多檔比對計畫書.md`。使用者決定：槽位叫 Mem1～Mem4（避免與 Marker M1 撞名）、各檔以觸發零點為 0 再用 dx 微調、契約可新增方法（version 維持 2）。
-- 行為：工具列「比對…」對話框，4 列「槽位｜選檔｜通道勾選」；通道併入同一份 `_waves`，改名 `Mem1.CHAN1`；gen 不變；槽位資料在 store 鍵 `slots`／`dataRev`，**不寫 `file`**（否則會清量測與游標）。後端新檔 `web/analysis_slots.py`，`_n_raw` 已改成名稱集合 `_main`／`_slots`。
-- 限制（UI 有提示）：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（未修，另立小案）；CSV 只匯出主檔通道；開新檔／關閉清空槽位。解碼鎖外存回競態已修（使用者授權此處修改凍結檔 `analysis_decode.py`）：鎖內除 gen 外逐一核對來源物件，同 gen 換槽／移除拋 `StaleError`；前端仍以 `staleDecode` 標過期。
-- 已驗證：`analysis_slots` 自檢、`selfcheck_node`、`e2e_check`、`browser_check`（含 `browser_slot_checks`）皆通過。**未驗證：真人手感、WKWebView 對話框、大檔載入等待、真實不同取樣率檔案的跨檔量測**；清單見 `docs/web版驗收清單.md`。
-- 附帶發現（已修）：數學通道比照槽位只更新 `channels`，不再同 gen 改寫 `file`；主圖直接抓取可見衍生通道。自檢涵蓋新增數學通道保留量測與游標、真正換檔／關檔仍重設。
-- 工作方式：worktree 分支開發後 fast-forward 合入（分支與 worktree 已刪）；Codex 實作 P1～P3，Opus 審查，e2e／browser_check 由 Claude 沙箱外跑。使用者看過，回報「可以」；commit 為 Claude 在分支上先做、事後告知。
+- 計畫書：`docs/archive/分析頁多檔比對計畫書.md.gz`。槽位 Mem1～Mem4，各檔以觸發零點為 0 再用 dx 微調；通道改名 `Mem1.CHAN1` 併入 `_waves`；槽位資料在 store 鍵 `slots`／`dataRev`，**不寫 `file`**（否則清量測與游標）。後端 `web/analysis_slots.py`。
+- 限制：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（另立小案）；CSV 只匯出主檔；開新檔／關閉清空槽位。解碼鎖外存回競態已修（鎖內核對來源物件，`StaleError`）。
+- GUI：Mem 通道零位標籤縮短為 `M1·1`；通道列每通道加底框；通道顏色可自訂（`channel_colors.js`，localStorage 鍵 `scopeChanColor:<通道名>`）。
+- 未驗證：真人手感、WKWebView 對話框與色盤、大檔載入、不同取樣率跨檔量測、改色後游標／Marker 是否全跟著變；清單見 `docs/驗證.md`。
+- 流程：worktree 分支開發後 fast-forward 合入；Codex 實作、Opus 審查、e2e／browser_check 由 Claude 沙箱外跑。
 
-### 多檔比對後的 GUI 調整（2026-10-28，使用者實測回報，`f939e4b`、`8873f3c`）
-- **零位準標籤**（`handles.js`）：Mem 通道標籤縮短為 `M1·1`（Mem1 的通道 1），主檔維持 `1`；12.5px、重疊時垂直錯開、hover 顯示完整名稱；**標籤旁連到真實零位的細線已移除**（使用者嫌礙眼），拖曳零位準功能保留。
-- **通道列**（`chanbar.js`／`vertical.css`／`app.css`）：每通道欄加底框（淡底＋邊框＋圓角），選取中通道框為琥珀色；外寬 246px、內部 236px；為不壓縮圖區，垂直 padding 縮到 0／外列各減 1px（曾因通道列變高使 `P2b` splitter 取點失敗，已修，測試未動）。
-- **通道顏色可自訂**：每通道欄有原生 `<input type="color">` 色塊＋重設鈕；新檔 `channel_colors.js`、自檢 `channel_color_check.mjs`；偏好存 localStorage，鍵 `scopeChanColor:<通道名>`，開檔／加槽位／數學通道同名自動套用；重設回 Okabe–Ito 預設（契約 `channel_colors` 不變）。`slotPatch` 沿用同名舊顏色的行為保留。
-- **未驗證**：改色後游標／Marker／量測是否全部跟著變（只有自檢，沒逐處目視）；原生色盤在 pywebview（WKWebView）能否彈出；色塊與重設鈕在 1000px 寬度是否擠到其他控件；標籤錯開後的實際拖曳手感。
+## 文件整理與離線分析匯出（2026-10-28）
+- 文件整理：已完成計畫書與 3000G 原始報告壓成 `docs/archive/*.md.gz`（`zcat` 讀）；解碼研究、草案、驗證、`docs/reference/` 的 infiniium／infiniivision／N8900A 各合併為單檔（原樣接起，未去重）；刪 `docs/版面編輯器/shots/` 與 `pywebview-GUI規劃建議書.html`（見 git 歷史）。Qt 舊版未動。
+- 量測／數學名詞畫面改英文：對照表在 `static/js/analysis/terms.js`（`T()`），後端、契約、存檔仍用中文 key；量測 CSV 的表頭與名稱在 `analysis_export.py` 另有一份 `EN`，改譯名兩處都要改。量測 tooltip、報告章節標題、波形／解碼 CSV 欄位仍是中文。
+- 匯出（波形 CSV、量測 CSV、解碼 CSV、HTML 報告）一律先 `ui.pickPath` 選資料夾，取消即中止；檔名仍自動（來源檔名＋類型＋時間戳）。
+- HTML 報告字級放大並加 `@page A4`，列印時表格可換行。
 
 ## 後續待辦
 
 1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。
 2. 上機：HD304 四通道 100M 與 `:DIGitize`（先確認設定已還原）、MXR Error 273／LAN／慢時基、3000T、MSO9254A 截圖／擷取／分析、DSO-X 6004A 的 GUI 全流程與 Single／Normal／`:DIGitize`。
 3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
-4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/真機驗證清單.md` 第 26 項）；多協定計畫見下方「多協定解碼」。
+4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/驗證.md` 第 26 項）；多協定計畫見下方「多協定解碼」。
 5. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
 
 ## 工作流程
@@ -169,7 +146,7 @@
 |---|---|
 | `RULES.md` | 硬規則：`contracts.py` 不准改、不准裝新執行期套件（**沒有 Pillow**）、只用 PySide6、打包規則 |
 | `scope_tool/contracts.py` | 凍結契約，含 CSV／HDF5 格式 |
-| `docs/真機驗證清單.md` | 逐輪實測紀錄（append-only） |
+| `docs/驗證.md` | 逐輪實測紀錄（append-only） |
 | `docs/離線分析功能規格.md` | 離線分析規格 |
 | `docs/示波器命令規格書.md`、`docs/reference/` | SCPI 規格與原廠文件、手冊整理 |
 | `docs/adr/` | 0001 PySide6；0002 搜尋；0003 HDF5 沿用 Keysight 結構、存原始整數 |
@@ -195,32 +172,21 @@
 - I/O 全在 QThread；逾時截圖 15 s、擷取每個 VISA 操作 60 s；Error 273 → 「請關閉遠端桌面」；不做取消。
 - 不做：掃網段搜尋、傳輸取消、面板 USB CSV 解析、自訂 HDF5 結構。
 
-## Liquid Glass P1（2026-10-26）
+## Liquid Glass（2026-10-26，P1～P3 已合入 main）
 
-- 使用者同意計畫 §6 十項預設與跨 lane 授權。Web 採深色單一主題，Qt 不動；`app.css` 負責 tokens、全域元件、toggle 與系統偏好降級。`--c-surface`／`--c-overlay-solid` 保持實心，圖區 tokens 與既有幾何不變。
-- `glass.css` 最後載入；P1 只補分析頁 segmented、Marker 選中列、垂直 badge 對比。凍結 token 名稱及「分析頁／FFT 頁／浮層（P3）」分段；P2 其餘套色、P3 blur／效能／三宿主實機驗收尚未實作。
-- `browser_check.py` 新增 `glass_smoke`，瀏覽器端計算放在 `static/js/glass_smoke.js`：含漸層最亮停點的祖先 alpha 合成對比、實際 Tab／Space、兩尺寸分析頁幾何與高對比／強制色彩。分頁基線由同瀏覽器暫套原始規則量測，並將 margin 納入總高度；分頁上下 margin 採 3px 以符合基線＋2px 預算（計畫範例 6px 會超出）；不取代實作前的截圖基線。
-- 本次沙箱不跑 browser_check；實際截圖、FFT 邊界、WKWebView／WebView2／QtWebEngine 由後續驗收。Node 一般自檢通過；`--mutations` 停在既有 p2b3 M2「寬版峰值混入其他面板」，未修改 HEAD 匯出副本亦重現。offscreen e2e 已執行，因沙箱禁止 localhost bind 而中止（PermissionError），待沙箱外驗收。
+- 計畫：`docs/archive/LiquidGlass風格計畫.md.gz`。Web 採深色單一主題，Qt 不動；`app.css` 放 tokens，`glass.css` 最後載入。浮動面板不加圓角。`browser_check.py` 有 `glass_smoke`。
+- 效能：headless Chrome 浮層拖曳 60fps，增幅 0%。**WKWebView／WebView2 實機驗收尚未做**（`docs/驗證.md` #26）。
+- 軸刻度 `tickLabel`：格距超過三位有效數字只取兩位、電壓換 mV。
 
-## Liquid Glass P2/P3 與軸刻度（2026-10-26）
+## I3C（2026-10-26，P2～P4 已完成）
 
-- P2（分析頁／FFT 頁套色）、P3（`.dlg`／toast／`results__choices`／tooltip 毛玻璃，雙前綴 blur＋實心降級）皆已合入 main。浮動面板不加圓角（右下角縮放熱區在 3px 內）。
-- P3 效能：headless Chrome 1400×900、浮層疊圖上拖曳 5 秒×3 次，main 與 P3 皆 60fps（P95 16.7ms、0 掉幀），增幅 0%。限制：非 WKWebView／WebView2、非 10M 點檔；實機驗收見驗收清單 #26，**尚未做**。
-- 軸刻度 `tickLabel`：格距超過三位有效數字時只取兩位、電壓換 mV（`1440 mV`），時間軸不換單位；整齊格距行為不變。
-- 先前「版面小缺：峰標籤與 1 GHz 刻度被裁切」已於 e968c24／77b38a0 修好。
-
-## I3C P2～P4（2026-10-26，P4 `9b475ed`、位址顯示 `2dbcdc6`）
-
-- **P2 後端**：契約 version=2 加 decode（job）／decode_frames／decode_bits／export_decode 與七個 Decode／Addr 型別；`analysis_decode.py` 鎖內快照＋gen 檢查，任何解碼失敗使舊 id STALE，完整時間軸驗證，bit 時間切片（4096 上限），UTF-8 BOM CSV；`analysis_api` 只接三處。P1 `i3c_check` 全綠（10M×2：3.8 s、RSS ≈687 MiB）；100k fields 往返 0.146 s、回應 14.5 MB（lead 實跑，M5）。
-- **P3 UI**：B 區「解碼 (N)」分頁（`decode.js`／`decode_table.js`）：設定列、摘要＋篩選、事件表（≤2000 列，點列跳轉）、位址表、過期黃提示、CSV 匯出；B 區頁籤群組改靠標題列右側（使用者同意，避免蓋住 lower 分隔線拖曳點）。
-- **P4 標註列**：主圖下方 40px 黑底：狀態色 transaction、hex／第九位、選框、逐 bit 與 SCL 取樣刻度；開關不使解碼過期。報告由有效快照建解碼段落（事件 ≤2000 列、內容 64 字元、位址 ≤256 列、可見標註列圖；await 後比對 gen／decodeResult 防競態），完整請求約 7.3 MB < 8 MB。field.t0／t1＝首末取樣時間；密集同狀態細 frame 合併。byte 模式位址顯示「7E W」，第九位小標放不下就不畫。
-- 驗證：`selfcheck_node`、`decode_check --mutations`、`e2e_check`、`browser_check` 皆過（lead 沙箱外實跑；左緣差 0 px、5000 frames draw 13–15 ms）。p2b2 `--mutations` 曾因 `6c969e4` 改 plotcore 而過期，`dcecaa7` 已修（21/21）。
-- **無實測波形**，仍待與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。真機清單為符合 ≤300 行只壓縮空行。
+- 計畫：`docs/archive/I3C解碼計畫.md.gz`。契約 version=2 加 decode（job）／decode_frames／decode_bits／export_decode；`analysis_decode.py` 鎖內快照＋gen 檢查；B 區「解碼 (N)」分頁（`decode.js`／`decode_table.js`）；主圖下方標註列（狀態色 transaction、hex／第九位、逐 bit）。報告含解碼段落，完整請求約 7.3 MB < 8 MB。
+- **無實測波形**，待與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。
 
 ## 多協定解碼與 X6000A 實機資料（2026-10-27）
 
 **計畫與狀態**
-- 計畫 `docs/多協定解碼計畫.md`（Codex 三輪審查；Q1–Q11 全照建議）。**使用者 2026-10-27 說「可以開工」**：第 0 步與 I2C／UART 接線已完成並 commit，畫面「協定」下拉可選 I3C／I2C／UART。SPI／CAN 尚無模組，後端回「此協定尚未實作」。
+- 計畫 `docs/archive/多協定解碼計畫.md.gz`（Codex 三輪審查；Q1–Q11 全照建議）。**使用者 2026-10-27 說「可以開工」**：第 0 步與 I2C／UART 接線已完成並 commit，畫面「協定」下拉可選 I3C／I2C／UART。SPI／CAN 尚無模組，後端回「此協定尚未實作」。
 - **第 0 步 `47f3985`**：後端 `analysis_decode.NAMES` 依協定匯入模組、`logic.prepare／levels_at`、`synth.py`；前端協定定義檔（`decode_protocols.js` 每協定一行、`decode_i3c.js` 範本）＋資料驅動表單（設定兩列）、標註列雙 lane／bit 代碼 X／S／單取樣欄位、報告與 mock 由定義檔驅動；契約只改 `types_doc` 說明（version 仍 2）。I3C 五組基準指紋（lead 腳本在 session scratchpad，不入庫）前後完全相同。驗證：模組自檢、`selfcheck_node`（含新 `decode_proto_check.mjs`）、`e2e_check`、`browser_check` 全綠。
 - 接線 commit：`decode_i2c.js`、`decode_uart.js` 各加一行註冊；UART 預設 8N1、雙 lane（TX／RX）、`invert` 勾選；`browser_check` 的 `protocol_pages()` 對兩者用各自 fixture 實跑（開檔→選協定→解碼→表格→點選跳轉→CSV→標註列→兩種寬度）。
 - 修過的小坑：Codex 把 `protocol_pages` 呼叫放進沒有 `out` 的函式；「1000px 設定列必須溢出」的舊斷言在兩列版面不成立（改為不溢出或可捲到）；I2C／UART fixture 通道名要 `CHAN1／CHAN2`；UART fixture 案例間距要 >2 字元否則被分組成一個 frame。`i2c_decode.REQUIRE_EDGES=True` 與計畫「只有 I3C」不同，保留（I2C 整段無轉態本來就無意義）。

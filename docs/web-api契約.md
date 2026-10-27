@@ -1,6 +1,6 @@
 # Web API 契約（L0 凍結版 v2）
 
-權威來源：`docs/pywebview-GUI規劃建議書.html` 第 3～8 節；v2 依 Codex／Opus 審查最終裁決修訂。機器可讀版：`scope_tool/web/static/api_contract.json`（rules／methods／types／events／errors／endpoints／binary／envelope／intents／catalog）。
+權威來源：原 pywebview 規劃建議書（已刪，見 git 歷史）；v2 依 Codex／Opus 審查最終裁決修訂。機器可讀版：`scope_tool/web/static/api_contract.json`（rules／methods／types／events／errors／endpoints／binary／envelope／intents／catalog）。
 凍結後只有 lead 能改；其他 lane 需要新欄位或方法一律提需求，不自行加。
 
 **機械驗證**

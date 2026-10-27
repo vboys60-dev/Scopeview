@@ -61,7 +61,7 @@
 3. 沒真機的路徑，在 docstring 裡寫明 `# 待真機驗證`，不要假裝驗證過。
 4. 回報格式：改了哪些檔、自我檢查結果、哪些行為只有紙上驗證。三行以內。
 
-### Web 版（pywebview）檔案擁有權（2026-10-22 起；詳見 `docs/pywebview-GUI規劃建議書.html` 第 6 節）
+### Web 版（pywebview）檔案擁有權（2026-10-22 起；原規劃建議書已刪，見 git 歷史）
 
 只准改自己 lane 名下的檔案；契約（L0 檔案）凍結後只有 lead 能改，其他 lane 提需求不自行加欄位。
 
@@ -70,15 +70,15 @@
 | L0 契約 | `docs/web-api契約.md`、`web/static/api_contract.json`、`static/index.html`、`static/js/{bridge,mock_backend,mock_catalog,mock_dsp,ui,fmt,main}.js`、`static/js/{l0_check,l0_util,l0_sem}.mjs`、`static/js/analysis/{store,scales}.js` |
 | L1a 後端橋接 | `web/{__init__,app,server,jobs,api}.py` |
 | L1b 分析服務 | `web/{analysis_api,analysis_util,analysis_fft,analysis_export,analysis_check,analysis_params,decimate,fft_rbw}.py` |
-| L2 連線列＋截圖＋資料截取容器 | `static/js/{connbar,tab_screenshot,tab_datacapture}.js`；2026-10-26 使用者授權：本案跨 L0 `index.html`/`main.js`/契約 §7、L6 `app.css` 檔尾、L8 `browser_check.py`/驗收清單，見 docs/資料截取合併計畫.md |
+| L2 連線列＋截圖＋資料截取容器 | `static/js/{connbar,tab_screenshot,tab_datacapture}.js`；2026-10-26 使用者授權：本案跨 L0 `index.html`/`main.js`/契約 §7、L6 `app.css` 檔尾、L8 `browser_check.py`/驗收清單，見 docs/archive/資料截取合併計畫.md.gz |
 | L3 擷取頁 | `static/js/tab_capture.js` |
 | L4 圖表核心 | `static/js/analysis/{tab_analysis,plotcore,mainplot,overview,fftpane,handles,gestures,axes,layout,splitter,voltage,vzoom,floatpanel,floatpanel_math}.js`、`static/css/analysis.css` |
 | L5 表格／側欄／游標 | `static/js/analysis/{chanbar,vertical,bpanel,toolbar,results,measure,cursors,summary,cursor_table}.js`、`static/css/vertical.css` |
 | L6 樣式 | `static/css/app.css`、`static/css/glass.css`、`static/styleguide.html` |
 | L7 打包 | `packaging/**`、`requirements-web.txt`、`啟動示波器截圖_web.command` |
-| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check,p3b2_check,float_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`web/browser_float_checks.py`、`docs/web版驗收清單.md` |
+| L8 驗證 | `web/e2e_check.py`、`static/selfcheck.html`、`static/js/selfcheck_node.js`、`static/js/analysis/{l4_check,l5_check,p1_check,p2_check,p2b_check,p2b2_check,p2b3_check,p3_check,p3b_check,p3b2_check,float_check}.mjs`、`web/browser_check.py`、`web/browser_analysis_checks.py`、`web/browser_marker_checks.py`、`web/browser_float_checks.py`、`docs/驗證.md` |
 
-分析頁 GUI 新 command（`view.undo`／`view.redo`／`view.mode`／`view.history`／`view.historyGroup`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/分析頁GUI改善計劃書.md` 管理。
+分析頁 GUI 新 command（`view.undo`／`view.redo`／`view.mode`／`view.history`／`view.historyGroup`／`layout.*`）屬 `store.command` 字串，不在凍結契約內，命名由 lead 於 `docs/archive/分析頁GUI改善計劃書.md.gz` 管理。
 
 凍結（所有 Web lane 唯讀）：`contracts.py config.py instruments/* storage/* analysis/* ui/* main.py`。JS 檔同樣 300 行上限（vendor 豁免）。
 
@@ -96,12 +96,12 @@ Liquid Glass P1（2026-10-26，使用者授權）：§6 十項採建議預設，
 
 HTML 報告（2026-10-26，使用者授權）：新增 `static/js/analysis/report.js`（L5）、`analysis/report_check.mjs`（L8）；L5 toolbar 的「匯出 CSV…」按鈕改為「匯出…」下拉（波形 CSV…／HTML 報告…）；L0 契約／mock 追加 `export_report`；L1b `analysis_export.py`；L8 `e2e_check.py`／`selfcheck_node.js`。
 
-I3C 解碼（2026-10-26，使用者授權，依 docs/I3C解碼計畫.md §0／§6，§11 全採預設）：同意 Web 契約追加 decode（job）／decode_frames／decode_bits／export_decode 與 Decode* 型別，version 維持 2。登記新檔 L1b `web/{logic,i3c_ccc,i3c_decode,i3c_events,i3c_fields,i3c_synth,i3c_vectors,i3c_quality,i3c_check,analysis_decode}.py`、L5 `static/js/analysis/{decode,decode_table}.js`、L4 `static/js/analysis/decode_band.js`、L8 `static/js/analysis/decode_check.mjs`／`web/browser_decode_checks.py`；新 store 鍵 decodeResult／decodeSel／plotRect。跨 lane 限計畫 §6 所列：L0 契約兩檔／mock／`l0_sem.mjs`、L1b `analysis_api.py` 三行、L4 `tab_analysis.js`／`mainplot.js` 一行／`analysis.css` 檔尾、L5 `bpanel.js`／`report.js`、L8 `e2e_check.py`／`browser_check.py`／`selfcheck_node.js`／驗收清單。`analysis/*`、`storage/*`、`contracts.py` 仍凍結；glass.css 不改。
+I3C 解碼（2026-10-26，使用者授權，依 docs/archive/I3C解碼計畫.md.gz §0／§6，§11 全採預設）：同意 Web 契約追加 decode（job）／decode_frames／decode_bits／export_decode 與 Decode* 型別，version 維持 2。登記新檔 L1b `web/{logic,i3c_ccc,i3c_decode,i3c_events,i3c_fields,i3c_synth,i3c_vectors,i3c_quality,i3c_check,analysis_decode}.py`、L5 `static/js/analysis/{decode,decode_table}.js`、L4 `static/js/analysis/decode_band.js`、L8 `static/js/analysis/decode_check.mjs`／`web/browser_decode_checks.py`；新 store 鍵 decodeResult／decodeSel／plotRect。跨 lane 限計畫 §6 所列：L0 契約兩檔／mock／`l0_sem.mjs`、L1b `analysis_api.py` 三行、L4 `tab_analysis.js`／`mainplot.js` 一行／`analysis.css` 檔尾、L5 `bpanel.js`／`report.js`、L8 `e2e_check.py`／`browser_check.py`／`selfcheck_node.js`／驗收清單。`analysis/*`、`storage/*`、`contracts.py` 仍凍結；glass.css 不改。
 
 I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `static/js/mock_decode.js`；P2 只追加契約／mock／自檢與 Analysis 接線、HTTP 檢查，不做 UI。`analysis_api.py` 僅 import、基底、reset 三處；既有凍結範圍不變。
 
-多協定解碼（2026-10-27，使用者「可以開工」，依 docs/多協定解碼計畫.md §0／§2／§7，Q1–Q11 全採建議）：同意契約**只改說明文字**（`api_contract.json` 的 `types_doc`、`docs/web-api契約.md`），方法、參數、型別結構、version 不變。登記新檔：L1b `web/{synth,i2c_decode,i2c_synth,i2c_vectors,i2c_check,i2c_real_check,uart_decode,uart_synth,uart_vectors,uart_check,uart_real_check,spi_decode,spi_synth,spi_check,can_decode,can_synth,can_check}.py`，備案檔（超出行數才建）`web/{i3c_waveforms,decode_registry_check,browser_proto_checks,spi_fields,uart_fields,can_fields}.py`；L5 `static/js/analysis/{decode_protocols,decode_i3c,decode_i2c,decode_uart,decode_spi,decode_can}.js`，備案 `decode_form.js`／L4 `decode_lanes.js`；L8 `static/js/analysis/decode_proto_check.mjs`、`storage/bin_reader.py` 屬 storage（已另行授權，唯一可新增者）。第 0 步跨 lane 檔案清單＝計畫 §2.6（含 `i3c_decode.py` 檔尾介面、`i3c_synth.py` 改 import、`decode.js／decode_table.js／decode_band.js／report.js／mock_decode.js／analysis.css` 檔尾、`decode_check.mjs`／`report_check.mjs`／`browser_decode_checks.py`／`e2e_check.py` 機械修改）；第 0 步後這些檔凍結，各協定線只准動自己的新檔＋`decode_protocols.js` 一行＋`docs/離線分析功能規格.md` 自己那節。`analysis/*`、`contracts.py` 仍凍結；`storage/reader.py` 已於 2026-10-27 接 `.bin`／H5 `Channel N Data`。
+多協定解碼（2026-10-27，使用者「可以開工」，依 docs/archive/多協定解碼計畫.md.gz §0／§2／§7，Q1–Q11 全採建議）：同意契約**只改說明文字**（`api_contract.json` 的 `types_doc`、`docs/web-api契約.md`），方法、參數、型別結構、version 不變。登記新檔：L1b `web/{synth,i2c_decode,i2c_synth,i2c_vectors,i2c_check,i2c_real_check,uart_decode,uart_synth,uart_vectors,uart_check,uart_real_check,spi_decode,spi_synth,spi_check,can_decode,can_synth,can_check}.py`，備案檔（超出行數才建）`web/{i3c_waveforms,decode_registry_check,browser_proto_checks,spi_fields,uart_fields,can_fields}.py`；L5 `static/js/analysis/{decode_protocols,decode_i3c,decode_i2c,decode_uart,decode_spi,decode_can}.js`，備案 `decode_form.js`／L4 `decode_lanes.js`；L8 `static/js/analysis/decode_proto_check.mjs`、`storage/bin_reader.py` 屬 storage（已另行授權，唯一可新增者）。第 0 步跨 lane 檔案清單＝計畫 §2.6（含 `i3c_decode.py` 檔尾介面、`i3c_synth.py` 改 import、`decode.js／decode_table.js／decode_band.js／report.js／mock_decode.js／analysis.css` 檔尾、`decode_check.mjs`／`report_check.mjs`／`browser_decode_checks.py`／`e2e_check.py` 機械修改）；第 0 步後這些檔凍結，各協定線只准動自己的新檔＋`decode_protocols.js` 一行＋`docs/離線分析功能規格.md` 自己那節。`analysis/*`、`contracts.py` 仍凍結；`storage/reader.py` 已於 2026-10-27 接 `.bin`／H5 `Channel N Data`。
 
-多檔比對（2026-10-28，使用者「可以，開始實作」，依 docs/分析頁多檔比對計畫書.md）：契約追加 add_waveform（job）／remove_slot 與 SlotSummary，version 維持 2。槽位 Mem1～Mem4，通道改名 `MemN.原名`；新 store 鍵 `slots`／`dataRev`（唯一寫入者 `slots.js`，槽位變動不寫 `file`）。登記新檔：L1b `web/analysis_slots.py`；L5 `static/js/analysis/slots.js`；L8 `static/js/analysis/slot_check.mjs`、`web/browser_slot_checks.py`。跨 lane：L0 契約兩檔／`mock_backend.js`／`l0_sem.mjs`；L1b `analysis_api.py`／`analysis_export.py`／`analysis_util.py`／`analysis_fft.py`；L4 `tab_analysis.js`／`mainplot.js`／`overview.js`；L5 `toolbar.js`／`measure.js`／`fft_runner.js`；L8 `e2e_check.py`／`browser_check.py`／`selfcheck_node.js`／`l4_check.mjs`／`l5_check.mjs`／驗收清單。`decode*.js`、`analysis/*`、`storage/*`、`contracts.py` 仍凍結。
+多檔比對（2026-10-28，使用者「可以，開始實作」，依 docs/archive/分析頁多檔比對計畫書.md.gz）：契約追加 add_waveform（job）／remove_slot 與 SlotSummary，version 維持 2。槽位 Mem1～Mem4，通道改名 `MemN.原名`；新 store 鍵 `slots`／`dataRev`（唯一寫入者 `slots.js`，槽位變動不寫 `file`）。登記新檔：L1b `web/analysis_slots.py`；L5 `static/js/analysis/slots.js`；L8 `static/js/analysis/slot_check.mjs`、`web/browser_slot_checks.py`。跨 lane：L0 契約兩檔／`mock_backend.js`／`l0_sem.mjs`；L1b `analysis_api.py`／`analysis_export.py`／`analysis_util.py`／`analysis_fft.py`；L4 `tab_analysis.js`／`mainplot.js`／`overview.js`；L5 `toolbar.js`／`measure.js`／`fft_runner.js`；L8 `e2e_check.py`／`browser_check.py`／`selfcheck_node.js`／`l4_check.mjs`／`l5_check.mjs`／驗收清單。`decode*.js`、`analysis/*`、`storage/*`、`contracts.py` 仍凍結。
 
 多檔比對追加授權（2026-10-28，使用者「修」）：允許修改 `web/analysis_decode.py` 存回快照前核對來源物件（競態），及 `toolbar.js`／`mainplot.js` 讓加數學通道不再當換檔；其餘凍結不變。
