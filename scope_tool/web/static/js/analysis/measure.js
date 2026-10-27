@@ -62,8 +62,8 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
   function clear() { store.set({ measurements: [] }, "program"); token++; }
 
   let lastSig = "";
-  const sigOf = (st) => JSON.stringify([rangeOf(st), dxOf(st.channels), st.threshold, st.channels.map((c) => c.name)]);
-  store.on(["file", "channels", "threshold", "rangeMode", "cursors"], (st, keys) => {
+  const sigOf = (st) => JSON.stringify([st.dataRev, rangeOf(st), dxOf(st.channels), st.threshold, st.channels.map((c) => c.name)]);
+  store.on(["file", "dataRev", "channels", "threshold", "rangeMode", "cursors"], (st, keys) => {
     if (keys.includes("file")) { if (st.measurements.length) clear(); lastSig = sigOf(st); return; }
     const s = sigOf(st);
     if (s === lastSig) return; // 只有會影響結果的才重算

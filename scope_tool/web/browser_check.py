@@ -18,6 +18,7 @@ from scope_tool.web.jobs import Jobs
 from scope_tool.web.server import Server
 from scope_tool.web import browser_analysis_checks as analysis_checks
 from scope_tool.web import browser_decode_checks as decode_checks
+from scope_tool.web import browser_slot_checks as slot_checks
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 9222
 class Cdp:
@@ -281,6 +282,7 @@ def main() -> None:
         step("glass_smoke 對比／鍵盤／幾何／降級", lambda: glass_smoke(c))
         step("I3C 解碼分頁／CSV／尺寸／過期設定", lambda: decode_checks.decode_page(c, prep, out, prof))
         step("開含 NaN 的 CSV", lambda: decode_checks.nan_csv(c, prep, canvas_ink, out, prof))
+        step("多檔比對／換槽／移除／量測游標保留", lambda: slot_checks.slot_page(c, prep, click, out, prof))
         c.send("Emulation.setDeviceMetricsOverride", width=1000, height=700, deviceScaleFactor=1, mobile=False)
         c.pump(1)
         c.shot(out / "10_narrow.png")

@@ -68,12 +68,12 @@ export function mount(el, { store, bridge }) {
         .catch(() => {}); // 縮圖失敗不打擾使用者（主圖會提示）
     }
   }
-  store.on(["file", "channels"], (_s, keys) => {
-    if (keys.includes("file")) cache.clear();
+  store.on(["file", "dataRev", "channels"], (_s, keys) => {
+    if (keys.includes("file") || keys.includes("dataRev")) cache.clear();
     draw();
     // 只有檔案或可見的原始通道集合改變才重抓（改 scale／position／dx 不必）
     const sig = rawChannels().map((c) => c.name).join();
-    if (keys.includes("file") || sig !== load.sig) { load.sig = sig; load(); }
+    if (keys.includes("file") || keys.includes("dataRev") || sig !== load.sig) { load.sig = sig; load(); }
   });
   store.on(["view"], draw);
 

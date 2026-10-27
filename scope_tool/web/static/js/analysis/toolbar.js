@@ -2,6 +2,7 @@ import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
 import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
+import { openSlots } from "./slots.js";
 import { exportReport } from "./report.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
@@ -21,7 +22,7 @@ export function channelRecord(info, idx, colors, scales) {
 /** 關檔：先通知後端釋放資料（gen+1），再一次重設所有相依狀態（開檔由 L4 處理）。mock 缺此方法（NOT_FOUND）時略過。 */
 export async function closeFile(store, bridge) {
   try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
-  store.set({ file: null, channels: [], selected: null, measurements: [], fftResult: null, fftView: null, rfPos: null, markerResult: null }, "program");
+  store.set({ file: null, slots: [], dataRev: 0, channels: [], selected: null, measurements: [], fftResult: null, fftView: null, rfPos: null, markerResult: null }, "program");
 }
 /** CSV 範圍：游標顯示時間直接切原始軸、不扣 dx（與 Qt、契約一致）；無游標值＝全部。 */
 export function csvRange(st) {
@@ -109,8 +110,9 @@ export function mount(el, ctx) {
   const bExport = select([["", "匯出…"], ["csv", "波形 CSV…"], ["report", "HTML 報告…"]]);
   bExport.title = "匯出波形 CSV 或 HTML 報告";
   bExport.onchange = () => { const v = bExport.value; bExport.value = ""; if (v === "csv") exportCsv(); else if (v === "report") exportReport(ctx, el.closest(".analysis") ?? document, modal); };
-  loaded.push(bClose, bInfo, bMath, bExport, marker, bReset);
-  el.append(bOpen, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bExport, bMath);
+  const bSlots = btn("比對…", () => openSlots(ctx, modal));
+  loaded.push(bSlots, bClose, bInfo, bMath, bExport, marker, bReset);
+  el.append(bOpen, bSlots, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bExport, bMath);
 
   // ── FFT ──
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";

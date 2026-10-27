@@ -29,7 +29,7 @@ export function markerPixels(mr, X, rect) {
 }
 /** 該抓哪些通道：可見、且存在於目前檔案（避免新檔 gen 搭配舊通道名）。 */
 export const fetchTargets = (s) => {
-  const names = new Set((s.file?.channels ?? []).map((c) => c.name));
+  const names = new Set([...(s.file?.channels ?? []).map((c) => c.name), ...(s.slots ?? []).flatMap(slot => slot.channels)]);
   return s.channels.filter((c) => c.visible && names.has(c.name));
 };
 /** /wave 請求鍵（來源時間 = 顯示時間 − dx）；相同鍵不重抓。 */
@@ -125,12 +125,12 @@ export function mount(el, ctx) {
   }
   const fetchSoon = debounce(fetchNow, 150);
 
-  store.on(["view", "channels", "cursors", "selected", "file", "markerResult"], (_s, keys) => {
-    if (keys.includes("file")) { cache.clear(); latest.forEach((l) => l.cancel()); latest.clear(); }
+  store.on(["view", "channels", "cursors", "selected", "file", "dataRev", "markerResult"], (_s, keys) => {
+    if (keys.includes("file") || keys.includes("dataRev")) { cache.clear(); latest.forEach((l) => l.cancel()); latest.clear(); }
     const names = new Set(store.get().channels.map((c) => c.name));
     for (const k of [...cache.keys()]) if (!names.has(k)) cache.delete(k);
     draw();
-    if (keys.includes("file")) fetchNow(); else fetchSoon();
+    if (keys.includes("file") || keys.includes("dataRev")) fetchNow(); else fetchSoon();
   });
 
   const offSource = onCursorSource(store, draw);

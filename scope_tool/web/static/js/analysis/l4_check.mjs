@@ -84,8 +84,11 @@ assert.equal(mk.length, 1); near(mk[0].px, r.l + r.w / 2); near(mk[0].py, divY(r
 assert.deepEqual(markerPixels(null, f, r), []);
 // 開檔 patch：file 與 channels／selected 同一次 set；fetchTargets 只含新檔內的通道
 const info = { gen: 2, channels: [{ name: "CHAN1", unit: "V", vmin: 0, vmax: 1, t0: 0, t1: 1 }] };
-const patch = openPatch(info); assert.equal(patch.fftView, null); assert.equal(patch.file, info); assert.equal(patch.selected, "CHAN1"); assert.equal(patch.channels.length, 1);
+const patch = openPatch(info); assert.deepEqual(patch.slots, []); assert.equal(patch.dataRev, 0); assert.equal(patch.fftView, null); assert.equal(patch.file, info); assert.equal(patch.selected, "CHAN1"); assert.equal(patch.channels.length, 1);
 assert.deepEqual(fetchTargets({ file: info, channels: [{ name: "OLD", visible: true }, { name: "CHAN1", visible: true }, { name: "CHAN2", visible: false }] }).map((c) => c.name), ["CHAN1"]);
+assert.deepEqual(fetchTargets({ file: info, slots: [{ channels: ['Mem1.CHAN1', 'Mem1.CHAN2'] }], channels: [
+  { name: 'CHAN1', visible: true }, { name: 'Mem1.CHAN1', visible: true }, { name: 'Mem1.CHAN2', visible: false },
+  { name: 'OLD', visible: true } ] }).map(c => c.name), ['CHAN1', 'Mem1.CHAN1']);
 // 可見狀態掛載：RO 同步觸發也不得 ReferenceError；以假 DOM 掛載三個圖表
 {
   const mkCtx = () => new Proxy({ paths: [], texts: [], path: [], textWidth: 0 }, { get: (t, k) => {
@@ -112,6 +115,10 @@ assert.deepEqual(fetchTargets({ file: info, channels: [{ name: "OLD", visible: t
   }
   await new Promise((s) => setTimeout(s, 250));
   assert.ok(fetched >= 1);
+  const beforeRev = fetched;
+  store.set({ dataRev: 1 });
+  await new Promise(s => setTimeout(s, 20));
+  assert.equal(fetched, beforeRev + 2, '同名／同 gen 的 dataRev 變動使主圖與概觀重新抓波形');
   // 實際主圖事件：曲線上拖曳（含 Shift）只發時間平移，滾輪只發時間縮放。
   const canvas = hosts[0].child, sent = [];
   store.onCommand("viewport.intent", p => sent.push(["view", p]));

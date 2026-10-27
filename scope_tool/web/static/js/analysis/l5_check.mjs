@@ -1,5 +1,3 @@
-// L5 自檢：node --experimental-default-type=module scope_tool/web/static/js/analysis/l5_check.mjs
-// 只測純邏輯與 mock 後端（座標換算、dx 讀值、防迴圈、過期丟棄、量測防抖）；DOM／手感待真人驗證。
 import '../mock_current_check.mjs';
 import assert from "node:assert/strict";
 import { createStore } from "./store.js";
@@ -11,7 +9,6 @@ import { createMeasure, rangeOf, unitFor } from "./measure.js";
 import { rowState, exportable, rowCells } from "./results.js";
 import { channelRecord, csvRange, fftParams, createFft } from "./toolbar.js";
 import { scaleChange, signature } from "./chanbar.js";
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** 以 mock 後端組 bridge；calls 記錄每次呼叫；hook(method) 可回傳 Promise 以延後回應。 */
 function makeBridge(mock, hook) {
@@ -34,7 +31,6 @@ async function setup(hook) {
   const channels = sum.channels.map((c, i) => channelRecord(c, i, CATALOG.channel_colors, scales));
   return { mock, bridge: b2, store, sum, channels };
 }
-
 // 1. 座標換算：x_src = x − dx；y_src = (y − position) × scale，且可逆
 {
   const ch = { time_offset: 0.002, position: 1.5, scale: 0.5 };
@@ -46,7 +42,6 @@ async function setup(hook) {
   assert.deepEqual(MODE_AXES("Manual Y only"), { x: false, y: true });
   assert.deepEqual(defaultCursors({ t0: 0, t1: 4 }), { x1: 1, x2: 3, y1: 2, y2: -2 });
 }
-
 // 2. 傳統游標：dx 傳給後端、吸附第一通道、snap 回寫不再觸發（防迴圈）、預設游標
 {
   const { bridge, store, sum, channels } = await setup();
@@ -72,7 +67,6 @@ async function setup(hook) {
   store.command("cursor.intent", { which: "x1", value: NaN });
   assert.equal(store.get().cursors.x1, c.x1);
 }
-
 // 3. Marker：送後端前換來源座標；Track Waveforms 回寫 snap；markerResult 為顯示座標
 {
   const { bridge, store, sum, channels } = await setup();
@@ -96,7 +90,6 @@ async function setup(hook) {
   store.set({ markerMode: null }, "user"); await sleep(30);
   assert.equal(store.get().markerResult, null);
 }
-
 // 4. 過期丟棄：較早送出但較晚回來的游標讀值不得覆蓋新的
 {
   let slow = true;
@@ -110,7 +103,6 @@ async function setup(hook) {
   assert.ok(Math.abs(store.get().cursors.x1 - 0.0015) < 1e-4, "以最新游標為準");
   assert.ok(Math.abs(ctl.readout.t1 - 0.0015) < 1e-4);
 }
-
 // 5. RF：spectrum_id 過期丟棄；成功寫 rfPos
 {
   const { bridge, store, mock } = await setup();
@@ -127,7 +119,6 @@ async function setup(hook) {
   assert.equal(store.get().rfPos, null, "過期頻譜的結果丟棄");
   store.command("rf.intent", { direction: 7, x: 1 }); await sleep(5);
 }
-
 // 6. 量測：防抖 150 ms 合併、範圍／dx／閾值、過期丟棄、results 的 revision／gen 比對
 {
   const { bridge, store, sum, channels } = await setup();
@@ -171,7 +162,6 @@ async function setup(hook) {
   assert.equal(calls.length, 2);
   assert.ok(store.get().measurements[0].result?.ok);
 }
-
 // 7. 工具列純函式 / FFT 防抖與過期
 {
   const { bridge, store, sum, channels } = await setup();
@@ -193,7 +183,6 @@ async function setup(hook) {
   const rec = channelRecord({ name: "F1", unit: "V", derived: true, points: 3, t0: 0, t1: 1, vmin: null, vmax: null, gen: 1 }, 7, CATALOG.channel_colors, scales);
   assert.deepEqual([rec.scale, rec.position, rec.color], [1, 0, CATALOG.channel_colors[1]]);
 }
-
 // 8. chanbar 純函式
 {
   const ch = { vmin: 0, vmax: 2, scale: 0.5, position: -2, unit: "V" };
@@ -202,7 +191,6 @@ async function setup(hook) {
   assert.deepEqual(scaleChange({ ...ch, vmin: null }, 0.2, scales), { scale: 0.2, position: -5 });
   assert.equal(signature([{ name: "A", unit: "V", derived: false }]), "A|V|0");
 }
-
 // 9. 修正：前端自產失敗列（通道已刪）視為失敗且可匯出；關檔呼叫 close_waveform；取消 FFT 使 job 失效；Phase 清 rfPos；Track Measurements 提示
 {
   const { bridge, store, sum, channels } = await setup();
@@ -216,12 +204,11 @@ async function setup(hook) {
   assert.ok(exportable(list, file), "不鎖匯出");
   assert.equal(list[1].result.revision, list[0].result.revision);
   // 關檔
-  const { closeFile } = await import("./toolbar.js");
-  const seen = [];
-  store.set({ fftView: { f0: 10, f1: 20 } });
+  store.set({slots:[{slot:"Mem1"}],dataRev:8});
+  const { closeFile } = await import("./toolbar.js"); const seen = []; store.set({ fftView: { f0: 10, f1: 20 } });
   await closeFile(store, { call: async (m) => { seen.push(m); return null; } });
   assert.deepEqual(seen, ["close_waveform"], "關檔先呼叫後端");
-  assert.equal(store.get().file, null); assert.equal(store.get().fftView, null);
+  assert.equal(store.get().file, null); assert.equal(store.get().fftView, null); assert.deepEqual(store.get().slots, []); assert.equal(store.get().dataRev, 0);
 }
 {
   const { bridge, store, sum, channels } = await setup(async (m) => { if (m === "fft") await sleep(60); });
@@ -243,7 +230,6 @@ async function setup(hook) {
   assert.equal(ctl.readout.kind, "unsupported"); assert.match(ctl.readout.reason, /尚未支援/);
   assert.ok(!bridge.calls.some(([c, q]) => c === "marker_eval" && q.mode === "Track Measurements"), "不靜默送空陣列");
 }
-
 // 10. 自動 FFT 失敗不用 modal；換檔重置 FFT 勾選
 {
   const { bridge, store, sum, channels } = await setup();
@@ -297,5 +283,18 @@ async function setup(hook) {
   assert.equal(bridge.calls.find(([n]) => n === "measure")[1].entries[0].rising2,false);
   store.set({channels:channels.slice(0,1)}); await sleep(50);
   assert.equal(store.get().measurements[0].result.reason,"來源通道已刪除");
+}
+// 同 gen／同名資料版本變動：量測重算、FFT 開啟重算，關閉只標 dirty。
+{
+  const { bridge, store, sum, channels } = await setup();
+  store.set({file:sum,channels,selected:'CHAN1'});
+  const m = createMeasure({store,bridge},{delay:5}); m.add('Vmax','CHAN1',true);
+  const p = {on:true,source:'CHAN1',window:'Hanning',unit:'dBm',imp:0,peakCount:5,peakLevel:-40,peakSort:'Decreasing Magnitude'};
+  const f = createFft({store,bridge},CATALOG,p,{delay:5}); await f.run(); await sleep(50);
+  const count = name => bridge.calls.filter(([n])=>n===name).length;
+  const nm=count('measure'), nf=count('fft'); store.set({dataRev:1}); await sleep(70);
+  assert.equal(count('measure'),nm+1); assert.equal(count('fft'),nf+1); assert.equal(store.get().measurements.length,1);
+  assert.equal(f.dirty,false); p.on=false; store.set({dataRev:2}); await sleep(70);
+  assert.equal(f.dirty,true); assert.equal(count('fft'),nf+1);
 }
 console.log("l5 self-check OK");

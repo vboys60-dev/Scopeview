@@ -42,9 +42,9 @@ export function createFft({ store, bridge }, catalog, p, { delay = 150, onError 
     const args = fftParams(store.get(), p, catalog);
     if (args && markers.needs(args)) schedule();
   });
-  const signature = st => JSON.stringify([st.file?.gen, st.rangeMode, st.cursors.x1, st.cursors.x2, dxOf(st.channels)]);
+  const signature = st => JSON.stringify([st.file?.gen, st.dataRev, st.rangeMode, st.cursors.x1, st.cursors.x2, dxOf(st.channels)]);
   let sig = signature(store.get());
-  store.on(["file", "rangeMode", "cursors", "channels"], (st) => {
+  store.on(["file", "dataRev", "rangeMode", "cursors", "channels"], (st) => {
     if ((st.file?.gen) !== lastGen) { // 開新檔或關檔：FFT 勾選重置為關閉，進行中的 job 失效
       lastGen = st.file?.gen; p.on = false; invalidate(); dirty = true; store.set({ fftResult: null, rfPos: null }, "program"); onReset();
     }
