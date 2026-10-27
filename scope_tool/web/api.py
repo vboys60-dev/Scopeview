@@ -148,7 +148,7 @@ class Api:
         fd = getattr(webview, "FileDialog", None)
         mode = (fd.FOLDER if kind == "folder" else fd.OPEN) if fd else \
             (webview.FOLDER_DIALOG if kind == "folder" else webview.OPEN_DIALOG)
-        types = () if kind == "folder" else ("波形檔 (*.h5;*.hdf5;*.csv)", "所有檔案 (*.*)")
+        types = () if kind == "folder" else ("波形檔 (*.h5;*.hdf5;*.csv;*.bin)", "所有檔案 (*.*)")
         r = w.create_file_dialog(mode, directory=str(_path(initial)) if initial else "", file_types=types)
         return str(r[0]) if r else None
 

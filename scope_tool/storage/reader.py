@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import h5py
@@ -29,13 +30,15 @@ def read_file_info(path: Path) -> dict[str, str]:
 
 
 def read_waveform_file(path: Path) -> list[Waveform]:
-    """從檔案讀取波形。支援 .csv、.h5、.hdf5 格式。"""
+    """從檔案讀取波形。支援 .csv、.h5、.hdf5、.bin（Keysight AG10）格式。"""
     suffix = path.suffix.lower()
+    if suffix == ".bin":
+        return _read_bin(path)
     if suffix == ".csv":
         return _read_csv(path)
     elif suffix in (".h5", ".hdf5"):
         return read_waveform_bytes(path.read_bytes())
-    raise ScopeError(f"不支援的檔案格式：{suffix}。請使用 .csv 或 .h5 / .hdf5 檔案。")
+    raise ScopeError(f"不支援的檔案格式：{suffix}。請使用 .csv、.h5 / .hdf5 或 .bin 檔案。")
 
 
 def read_waveform_bytes(data: bytes) -> list[Waveform]:
@@ -47,6 +50,19 @@ def read_waveform_bytes(data: bytes) -> list[Waveform]:
         raise
     except Exception as e:
         raise ScopeError(f"讀取 HDF5 資料時發生錯誤：{e}")
+
+
+def _read_bin(path: Path) -> list[Waveform]:
+    """BIN 以通道標籤當通道名（SDA1、TX1…）；標籤重複時加 #2、#3 以維持唯一。"""
+    from scope_tool.storage.bin_reader import read_bin_file
+    seen: dict[str, int] = {}
+    waves = []
+    for label, w in read_bin_file(path):
+        seen[label] = seen.get(label, 0) + 1
+        if seen[label] > 1:
+            w = replace(w, channel=f"{label}#{seen[label]}")
+        waves.append(w)
+    return waves
 
 
 def _read_csv(path: Path) -> list[Waveform]:
@@ -147,6 +163,11 @@ def _self_check() -> None:
     tmpdir.mkdir(exist_ok=True)
 
     try:
+        # 測試 0：BIN 走 .bin 分派，通道名＝標籤（資料檔不存在則略過）
+        real = Path(__file__).resolve().parents[2] / "X6000A-解碼" / "I2C" / "x6000i2c1.bin"
+        if real.exists():
+            assert [w.channel for w in read_waveform_file(real)] == ["SDA1", "SCL1"]
+
         # 測試 1：CSV
         csv_file = tmpdir / "test.csv"
         with open(csv_file, "w", encoding="utf-8", newline="") as f:
