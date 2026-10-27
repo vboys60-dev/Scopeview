@@ -17,8 +17,7 @@ from scope_tool.web.api import Api
 from scope_tool.web.jobs import Jobs
 from scope_tool.web.server import Server
 from scope_tool.web import browser_analysis_checks as analysis_checks
-from scope_tool.web import browser_decode_checks as decode_checks
-from scope_tool.web import browser_slot_checks as slot_checks
+from scope_tool.web import browser_decode_checks as decode_checks, browser_slot_checks as slot_checks
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 9222
 class Cdp:

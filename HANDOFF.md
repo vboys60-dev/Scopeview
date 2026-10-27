@@ -101,6 +101,15 @@
 - **未驗**：FFT 分頁輸入 Start／Stop 後圖與峰表只剩範圍內峰（無人手動測）；資料截取並排版面無人看過；資料截取同頁搶儀器鎖需真機；Qt 版仍是兩個分頁。
 - 驗證：`selfcheck_node.js`、`e2e_check`、`browser_check` 皆通過（Codex 沙箱跑不了後兩者，須在沙箱外跑）。
 
+## 多檔比對（2026-10-28，分支 `multifile-compare`，未合入 main）
+
+- 計畫書：`docs/分析頁多檔比對計畫書.md`。使用者決定：槽位叫 Mem1～Mem4（避免與 Marker M1 撞名）、各檔以觸發零點為 0 再用 dx 微調、契約可新增方法（version 維持 2）。
+- 行為：工具列「比對…」對話框，4 列「槽位｜選檔｜通道勾選」；通道併入同一份 `_waves`，改名 `Mem1.CHAN1`；gen 不變；槽位資料在 store 鍵 `slots`／`dataRev`，**不寫 `file`**（否則會清量測與游標）。後端新檔 `web/analysis_slots.py`，`_n_raw` 已改成名稱集合 `_main`／`_slots`。
+- 限制（UI 有提示）：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（未修，另立小案）；CSV 只匯出主檔通道；開新檔／關閉清空槽位。解碼為凍結檔，同名換槽靠前端 `staleDecode` 標過期，後端 `analysis_decode` 的鎖外存回競態僅登記 `ponytail:`。
+- 已驗證：`analysis_slots` 自檢、`selfcheck_node`、`e2e_check`、`browser_check`（含 `browser_slot_checks`）皆通過。**未驗證：真人手感、WKWebView 對話框、大檔載入等待、真實不同取樣率檔案的跨檔量測**；清單見 `docs/web版驗收清單.md`。
+- 附帶發現（既有、未修）：加數學通道時 `toolbar.js` 也同 gen 改寫 `file`，會清量測、重設游標。
+- 工作方式：worktree `../示波器截圖_html_multi`；Codex 實作 P1～P3，Opus 審查，e2e／browser_check 由 Claude 沙箱外跑。
+
 ## 後續待辦
 
 1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。
