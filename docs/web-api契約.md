@@ -65,6 +65,8 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | screenshot J L | directory, name, image_format, inverted, area | ShotResult{path, preview:int} | Api |
 | capture J L | directory, name, channels, points, retrigger | CaptureResult{path, got_points, requested} | Api |
 | open_waveform J | path | FileSummary | Analysis |
+| add_waveform J | path, slot, channels | SlotSummary | Analysis |
+| remove_slot | slot | null | Analysis |
 | cursor_readout | t1, t2, dx | CursorReadout | Analysis |
 | marker_eval | mode, channel, x1, x2, y1, y2, screen_width, measurements | MarkerResult | Analysis |
 | measure J | entries, range, dx, threshold | MeasureBatch{gen, revision, results} | Analysis |
@@ -85,6 +87,10 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 ### 參數語義
 
 - `math.param`：低通／高通＝fc（Hz）；平滑＝點數；其餘 0。`b` 僅二元運算（加減乘除）使用，其餘 `null`。
+- `open_waveform`／`close_waveform` 一併清空所有比對槽位；`remove_channel` 只能刪除衍生通道，比對檔通道須用 `remove_slot`。
+- `add_waveform` 不拿儀器鎖，須先開主檔；slot 僅 Mem1～Mem4，channels 為原名清單，`[]`＝全部。同槽再呼叫為整槽替換，通道改名 `<slot>.<原名>`，gen 不變。全不勾須呼叫 `remove_slot`（空槽回 null，冪等）。替換／移除會使引用該槽的量測快照、頻譜、解碼快照失效，舊結果匯出／讀取回 STALE。
+- 槽名無效、channels 含不存在的通道、改名撞名 → BAD_REQUEST；無主檔（「請先開啟主檔」）、讀檔失敗、無波形 → SCOPE_ERROR；讀檔中主檔換／關 → STALE。驗證或讀檔失敗保留原槽。
+- `export_csv` 只含主檔通道，不含比對檔與衍生通道。
 - `export_csv.max_points`：`null`＝不縮點。`directory`（`export_csv`／`export_measurements`）：`null`＝來源波形檔所在資料夾。`export_csv.range` 沿用現行行為：以游標時間切**原始（來源）時間軸**，不套 dx。
 - `marker_eval.screen_width` 單位**秒**；`measurements`＝`[x,y,label][]`（來源座標），僅 Track Measurements 使用。
 - `screenshot`／`capture` 的 `directory` 為絕對路徑字串（取自 `config`）。
@@ -125,6 +131,8 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - RF 只走 `fft_track_rf(spectrum_id, x, direction, level)`：`direction ∈ {-1,0,1}`（其餘 `BAD_REQUEST`）。`0`＝最近**原始頻格**（同距取右）；`±1`＝依 `level` 門檻跳到下一個**原始峰格**（嚴格大於／小於目前 x）。無下一峰：**維持原位**（`x`＝最近頻格頻率）、`available=false`＋`reason`，`y` 仍回該頻格值。不可用時 `x`、`y` 一律仍回最近頻格值（`RFResult.y` 因此幾乎都有值）。
 
 ### 型別重點
+
+`SlotSummary = {slot:str, path:str, gen:int, info:[str,str][], all:str[], channels:ChannelInfo[]}`；info 與 FileSummary 同格式，all 為全部通道原名（含未選者），channels[].name 含槽位前綴且 derived=false。
 
 `FileSummary.model／series／captured_at` 為 `str|null`，並有 `info:[label,value][]`（檔案資訊表）。`ChannelInfo.vmin／vmax` 全 NaN 時為 null。`CaptureResult.got_points`＝各通道最少點數、`requested`＝請求點數。`ShotResult.preview`＝整數序號。
 
@@ -206,6 +214,8 @@ float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 ## 6. 前端 store 契約（`js/analysis/store.js`）
 
 - 狀態：`file, channels, selected(通道名), view{t0,t1}, cursors{x1,x2,y1,y2}, rangeMode(all|cursors), markerMode, rfPos({x,y}|null，Hz 全精度), threshold, fftResult, measurements`。
+- `slots`：`[{slot, path, info, all:[原名], channels:[改名後名稱], infos:ChannelInfo[]}]`，缺值視為 `[]`。唯一寫入者 L5 `slots.js`；開／關檔由寫 file 的一方一併清為 `[]`。
+- `dataRev`：整數，缺值視為 0；槽位任何變動 +1，唯一寫入者 L5 `slots.js`。槽位變動不寫 file，監聽者用 dataRev 辨識同 gen 的資料變動；開／關檔歸零。
 - 通道記錄：`{name, unit, derived, color, visible, scale, position, vmin, vmax, time_offset}`。**`time_offset`（dx，秒）是唯一真值**，寫入者只有 chanbar／L5，經 `store.updateChannel`；送後端的 `dx` 由它組出（缺＝0）。
 - `set(patch, origin)`：origin ∈ `user｜snap｜program`。`snap` 為游標吸附回寫，監聽者遇 `snap` 不得再觸發吸附。比較：`Object.is`，或兩邊都是 **plain object** 時一層淺比較（同值新物件不通知）；陣列依參照。**巢狀物件不可原地修改**，要改就建新物件。`on(fn)` 或 `on(keys[], fn)`，fn(state, 變動鍵, origin)。
 - `setChannels(list)`：一次 `set({channels, selected})`、一次通知；選取依名稱保留，被刪則選原位置附近者。`updateChannel／removeChannel` 同理。

@@ -20,16 +20,17 @@ from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info, read_waveform_file
 from scope_tool.web import decimate
 
+from scope_tool.web.analysis_slots import SlotMixin
 from scope_tool.web.analysis_decode import DecodeMixin
 from scope_tool.web.analysis_export import ExportMixin
 from scope_tool.web.analysis_fft import FftMixin
 from scope_tool.web.analysis_params import validate_params
-from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _nearest, _range, _si
+from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _nearest, _range, _file_rows
 
 __all__ = ["Analysis", "wave_bytes", "fft_bytes", "validate_params"]  # validate_params 供 server 使用
 
 
-class Analysis(DecodeMixin, FftMixin, ExportMixin):
+class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._gen = 0
@@ -39,7 +40,8 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
     # ---------------------------------------------------------------- 內部狀態
     def _reset(self, path: Path | None) -> None:
         self._dec = None
-        self._path, self._waves, self._units, self._n_raw = path, [], {}, 0
+        self._path, self._waves, self._units = path, [], {}
+        self._main, self._slots = [], {}
         self._next_f, self._pyr, self._spec, self._snap = 1, {}, None, None
 
     def _need(self) -> tuple[int, list[Waveform], dict[str, str]]:
@@ -75,7 +77,7 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
                 "vmin": float(v.min()) if len(v) else None, "vmax": float(v.max()) if len(v) else None, "gen": gen}
 
     def _raw_names(self) -> set[str]:
-        return {w.channel for w in self._waves[:self._n_raw]}
+        return set(self._main).union(*self._slots.values())
 
     # ---------------------------------------------------------------- 開檔
     def open_waveform(self, path: str) -> dict:
@@ -89,7 +91,7 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
             with self._lock:
                 self._gen += 1
                 self._reset(p)
-                self._waves, self._n_raw = list(waves), len(waves)
+                self._waves, self._main = list(waves), [w.channel for w in waves]
                 self._units = {w.channel: "V" for w in waves}
                 gen = self._gen
             big = any(len(w.time) > decimate.PYRAMID_MIN for w in waves)
@@ -97,15 +99,7 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
                 for w in waves:
                     if len(w.time) > decimate.PYRAMID_MIN:
                         self._pyr[w.channel] = decimate.Pyramid(w.voltage)
-            t = waves[0].time
-            rows = [("檔名", p.name)]
-            rows += [(lbl, info[k]) for k, lbl in (("Model", "機型"), ("Series", "系列"), ("CapturedAt", "擷取時間"))
-                     if k in info]
-            rows += [("通道", ", ".join(w.channel for w in waves)), ("點數", f"{len(t):,}")]
-            if len(t) > 1 and t[1] > t[0]:
-                rows += [("取樣間隔", _si(float(t[1] - t[0]), "s")), ("取樣率", _si(1 / float(t[1] - t[0]), "Sa/s"))]
-            if len(t):
-                rows.append(("時間長度", _si(float(t[-1] - t[0]), "s")))
+            rows = _file_rows(p, info, waves)
             return _clean({"path": str(p), "gen": gen, "model": info.get("Model"), "series": info.get("Series"),
                            "captured_at": info.get("CapturedAt"), "info": [list(r) for r in rows],
                            "channels": [self._info(w, self._units, gen) for w in waves], "pyramid": big})
@@ -215,8 +209,11 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
                         except ScopeError as exc:
                             row["reason"] = str(exc)
                 out.append(row)
-            self._alive(gen)
             with self._lock:
+                self._alive(gen)
+                used = {e[k] for e in entries for k in ("channel", "channel2") if k in e and e[k] in by}
+                if any(next((w for w in self._waves if w.channel == ch), None) is not by[ch] for ch in used):
+                    raise StaleError("量測來源已變更，請重新量測")
                 if self._snap is None or rev > self._snap["revision"]:
                     self._snap = {"gen": gen, "revision": rev, "results": out, "meta": meta}
             return _clean({"gen": gen, "revision": rev,
@@ -260,7 +257,7 @@ class Analysis(DecodeMixin, FftMixin, ExportMixin):
     def remove_channel(self, name: str) -> None:
         with self._lock:
             names = [w.channel for w in self._waves]
-            if name not in names or names.index(name) < self._n_raw:
+            if name not in names or name in self._raw_names():
                 raise ScopeError("只能刪除衍生通道")
             i = names.index(name)
             self._waves.pop(i)

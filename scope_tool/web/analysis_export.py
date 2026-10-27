@@ -18,7 +18,7 @@ class ExportMixin:
             raise BadRequest("max_points 必須 ≥ 1 或 null")
         _, waves, _ = self._need()
         with self._lock:
-            raw, path = list(waves[:self._n_raw]), self._path
+            raw, path = [w for w in waves if w.channel in self._main], self._path
         if directory:
             out_dir = Path(directory).expanduser()
         elif path is not None:

@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+from scope_tool.contracts import Waveform
 
 try:  # L1a 已提供則共用同一組例外類別，server 才能映射錯誤碼
     from scope_tool.web.jobs import BadRequestError as BadRequest, StaleError
@@ -59,3 +62,17 @@ def _dx(dx: Any) -> dict[str, float]:
 def _nearest(t: np.ndarray, x: float) -> int:
     i = min(max(int(np.searchsorted(t, x)), 0), len(t) - 1)
     return i - 1 if i > 0 and abs(t[i - 1] - x) < abs(t[i] - x) else i  # 同距取右
+
+
+def _file_rows(p: Path, info: dict, waves: list[Waveform]) -> list[tuple[str, str]]:
+    """主檔與比對槽共用的檔案資訊列。"""
+    t = waves[0].time
+    rows = [("檔名", p.name)]
+    rows += [(lbl, info[k]) for k, lbl in (("Model", "機型"), ("Series", "系列"), ("CapturedAt", "擷取時間"))
+             if k in info]
+    rows += [("通道", ", ".join(w.channel for w in waves)), ("點數", f"{len(t):,}")]
+    if len(t) > 1 and t[1] > t[0]:
+        rows += [("取樣間隔", _si(float(t[1] - t[0]), "s")), ("取樣率", _si(1 / float(t[1] - t[0]), "Sa/s"))]
+    if len(t):
+        rows.append(("時間長度", _si(float(t[-1] - t[0]), "s")))
+    return rows

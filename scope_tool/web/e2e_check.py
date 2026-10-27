@@ -267,6 +267,28 @@ def main() -> None:
         finally:
             with analysis._lock:
                 analysis._dec = saved
+        # 17 多檔比對：job／同步 RPC、二進位與匯出均經真 HTTP（沙箱外驗證）。
+        slot = job_ok('add_waveform', path=cap['path'], slot='Mem1', channels=[])
+        assert slot['all'] == ['CHAN1', 'CHAN2'] and all(not c['derived'] for c in slot['channels'])
+        sg = slot['gen']
+        assert wave('Mem1.CHAN2', t0, t1, 100, sg)[0] == 200
+        sm = job_ok('measure', entries=[dict(channel='Mem1.CHAN1', name='Vmax', rising=True)], range=None, dx={}, threshold='10/50/90 %')
+        sf = job_ok('fft', source='Mem1.CHAN1', range=None, dx={}, window='Hanning', unit='dBV', r_ohm=50,
+                    peak_count=3, peak_level=-80, peak_sort='Decreasing Magnitude', rbw=None, vbw=None)
+        sub = job_ok('add_waveform', path=cap['path'], slot='Mem1', channels=['CHAN1'])
+        assert sub['gen'] == sg and sub['all'] == slot['all'] and len(sub['channels']) == 1
+        assert wave('Mem1.CHAN2', t0, t1, 100, sg)[0] == 400
+        assert rpc('export_measurements', rows=sm['results'], gen=sg, revision=sm['revision'], directory=str(tmp))['error']['code'] == 'STALE'
+        assert rpc('fft_track_rf', spectrum_id=sf['spectrum_id'], x=0, direction=0, level=-80)['error']['code'] == 'STALE'
+        assert rpc('remove_channel', name='Mem1.CHAN1')['error']['code'] == 'SCOPE_ERROR'
+        scsv = job_ok('export_csv', range=None, max_points=100, directory=str(tmp))
+        assert Path(scsv['path']).read_text().splitlines()[0] == 'Time(s),CH1(V),CH2(V)'
+        assert ok('remove_slot', slot='Mem1') is None and ok('remove_slot', slot='Mem1') is None
+        assert wave('Mem1.CHAN1', t0, t1, 100, sg)[0] == 400
+        assert rpc('remove_slot', slot='Mem5')['error']['code'] == 'BAD_REQUEST'
+        assert job('add_waveform', path=cap['path'], slot='Mem1', channels=['NOPE'])['error']['code'] == 'BAD_REQUEST'
+        ok('close_waveform')
+        assert job('add_waveform', path=cap['path'], slot='Mem1', channels=[])['error']['code'] == 'SCOPE_ERROR'
         print("e2e self-check OK")
     finally:
         srv.stop()

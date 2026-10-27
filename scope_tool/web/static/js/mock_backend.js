@@ -14,7 +14,7 @@ const KEYS = {
   get_state: "", save_config: "patch", pick_folder: "initial", pick_waveform_file: "initial", search: "", add_manual_ip: "ip",
   connect: "resource series_override", connect_fake: "", disconnect: "", capture_info: "",
   screenshot: "directory name image_format inverted area", capture: "directory name channels points retrigger",
-  open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
+  add_waveform: "path slot channels", remove_slot: "slot", open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
   measure: "entries range dx threshold", math: "op a b param", remove_channel: "name",
   fft: "source range dx window unit r_ohm peak_count peak_level peak_sort rbw vbw", fft_track_rf: "spectrum_id x direction level",
   export_csv: "range max_points directory", export_measurements: "rows gen revision directory", export_report: "html directory", wait_events: "since timeout",
@@ -30,7 +30,7 @@ const toErr = (e) => ({ code: e.code ?? "UNEXPECTED", message: e.code ? e.messag
 export function createMock(opts = {}) {
   let connected = false, model = null, series = null, gen = 0, fnum = 0, specNo = 0, seq = 0, jobNo = 0, rev = 0, shots = 0, instBusy = false, cur = null;
   let busy = !!opts.busy, spec = null, last = null; // spec：最近一次頻譜；last：最近一次量測快照
-  let data = {};
+  let data = {}, slots = {}, decoded = null, staleDecode = null;
   const manual = []; // 手動新增的儀器清單（整份回傳）
   const events = [], subs = new Set(), dedupe = new Map();
   const config = { screenshot_dir: "/mock/Desktop", screenshot_name: "scope", image_format: "PNG", inverted: false, area: "full", waveform_dir: "/mock/Desktop",
@@ -48,6 +48,7 @@ export function createMock(opts = {}) {
     if (cur.rid) { dedupe.set(cur.rid, ent); if (dedupe.size > 256) dedupe.delete(dedupe.keys().next().value); }
     const run = () => {
       try { ent.finished = { ok: true, result: fn() }; } catch (e) { ent.finished = { ok: false, error: toErr(e) }; }
+      if (kind === "decode" && ent.finished.result?.decode_id) { decoded = ent.finished.result; staleDecode = null; }
       if (lock) instBusy = false;
       emit({ type: "job", id: ent.id, kind, ...ent.finished });
     };
@@ -77,6 +78,14 @@ export function createMock(opts = {}) {
   const specInfo = (p, extra) => ({ ok: true, reason: null, gen, spectrum_id: null, source: p.source, unit: p.unit, window: p.window, df: 100, rbw: 150, enbw: 150, enbw_bins: 1.5, cg: 0.5,
     segments: 1, vbw: null, n: 20000, effective_n: 32768, r_ohm: p.r_ohm, f_min: 0, f_max: 1e6, peaks: [], ...extra });
 
+  const validSlot = (slot) => { if (!["Mem1", "Mem2", "Mem3", "Mem4"].includes(slot)) bad("槽位必須為 Mem1～Mem4"); };
+  const dropSlot = (slot) => {
+    const names = slots[slot] ?? [];
+    if (last?.results.some(r => names.includes(r.channel) || names.includes(r.channel2))) last = null;
+    if (names.includes(spec?.source)) spec = null;
+    if (Object.values(decoded?.channels ?? {}).some(n => names.includes(n))) staleDecode = decoded.decode_id;
+    names.forEach(n => delete data[n]); delete slots[slot];
+  };
   const H = {
     ...makeDecode({ job, needFile, chan, generation: () => gen }),
     get_state: () => ({ config: { ...config }, connected, model, series, catalog: CATALOG, native_dialogs: false, seq }),
@@ -104,10 +113,23 @@ export function createMock(opts = {}) {
       return { path: `${p.directory}/${p.name}.h5`, got_points: p.points, requested: p.points };
     }, true),
     open_waveform: ({ path }) => job("open_waveform", () => {
-      data = makeFile(); gen++; fnum = 0; spec = last = null;
+      data = makeFile(); slots = {}; decoded = null; gen++; fnum = 0; spec = last = null;
       return { path, gen, model: "DSO-X 3014G", series: "InfiniiVision", captured_at: "2026-10-22T12:00:00", info: [["檔名", path.split("/").pop()], ["通道", "CHAN1, CHAN2"]],
         channels: Object.keys(data).map(info), pyramid: false };
     }),
+    add_waveform: ({ path, slot, channels }) => {
+      validSlot(slot); if (!Object.keys(data).length) fail("請先開啟主檔"); const started = gen;
+      return job("add_waveform", () => {
+        if (gen !== started) throw err("STALE", "開檔世代已變更");
+        const waves = makeFile(), all = Object.keys(waves);
+        if (!Array.isArray(channels) || channels.some(n => !all.includes(n))) bad("channels 含檔案裡沒有的通道");
+        const selected = all.filter(n => !channels.length || channels.includes(n)), names = selected.map(n => `${slot}.${n}`);
+        if (names.some(n => data[n] && !(slots[slot] ?? []).includes(n))) bad("比對檔通道與現有通道撞名");
+        dropSlot(slot); selected.forEach((n, i) => { data[names[i]] = waves[n]; }); slots[slot] = names;
+        return { slot, path, gen, all, info: [["檔名", path.split("/").pop()], ["通道", names.join(", ")]], channels: names.map(info) };
+      });
+    },
+    remove_slot: ({ slot }) => { validSlot(slot); dropSlot(slot); return null; },
     cursor_readout: ({ t1, t2, dx }) => {
       needFile();
       if (!dx || typeof dx !== "object") bad("dx 必須是物件");
@@ -156,7 +178,7 @@ export function createMock(opts = {}) {
           if (v.some(x => !Number.isFinite(x))) return { ...base, ok: false, stats: null, reason: "資料含 NaN 或無限大。" };
           return singleResult(e, t, v, CATALOG.thresholds[threshold], base, MEAS, dx[e.channel] ?? 0);
         });
-        last = { gen, revision: r };
+        last = { gen, revision: r, results };
         return { gen, revision: r, results };
       });
     },
@@ -174,7 +196,7 @@ export function createMock(opts = {}) {
         return info(name);
       });
     },
-    close_waveform: () => { data = {}; gen++; spec = last = null; return null; },
+    close_waveform: () => { data = {}; slots = {}; decoded = null; gen++; spec = last = null; return null; },
     remove_channel: ({ name }) => { if (!data[name]?.derived) fail("只能刪除衍生通道"); delete data[name]; return null; },
     fft: (p) => {
       checkRange(p.range); inCat(p.window, Object.keys(CATALOG.fft_windows), "視窗"); inCat(p.unit, CATALOG.fft_units, "單位"); inCat(p.peak_sort, CATALOG.peak_sorts, "峰排序");
@@ -186,7 +208,7 @@ export function createMock(opts = {}) {
         const [a, b] = cut(p.source, p.range, p.dx), c = data[p.source];
         const unit = p.unit === "Phase" ? "°" : c.derived ? `${c.unit} rms` : p.unit;
         if (b - a < 2) { spec = null; return specInfo({ ...p, unit }, { ok: false, reason: "所選範圍內資料不足，無法計算 FFT", df: null, rbw: null, enbw: null, enbw_bins: null, cg: null, segments: null, vbw: null, n: null, effective_n: null, r_ohm: null, f_min: null, f_max: null }); }
-        spec = { id: `s${++specNo}`, gen, ...makeSpectrum() };
+        spec = { id: `s${++specNo}`, gen, source: p.source, ...makeSpectrum() };
         const idx = p.unit === "Phase" ? [] : peakBins(spec.y, p.peak_level);
         const sorts = { "Decreasing Magnitude": (i, j) => spec.y[j] - spec.y[i], "Increasing Magnitude": (i, j) => spec.y[i] - spec.y[j], "Increasing Frequency": (i, j) => i - j, "Decreasing Frequency": (i, j) => j - i };
         const peaks = idx.sort(sorts[p.peak_sort]).slice(0, p.peak_count).map((i) => ({ x: spec.x[i], y: spec.y[i] }));
@@ -233,7 +255,9 @@ export function createMock(opts = {}) {
         const sig = method + JSON.stringify(params), d = rid && dedupe.get(rid);
         if (d) { if (d.sig !== sig) bad("同一個 request_id 的參數不同"); return { ok: true, result: d.finished ? { job: d.id, done: d.finished } : { job: d.id } }; }
         cur = { rid, sig };
-        try { return { ok: true, result: h(params) }; } finally { cur = null; }
+        try {
+          if (["decode_frames", "decode_bits", "export_decode"].includes(method) && staleDecode !== null && staleDecode === params.decode_id) throw err("STALE", "解碼結果已過期");
+          return { ok: true, result: h(params) }; } finally { cur = null; }
       } catch (e) { return { ok: false, error: toErr(e) }; }
     },
     async binary(path, a) {

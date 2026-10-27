@@ -40,6 +40,9 @@ class FftMixin:
 
         def fail(reason: str, out_unit: str) -> dict:
             with self._lock:
+                self._alive(gen)
+                if next((v for v in self._waves if v.channel == source), None) is not w:
+                    raise StaleError("頻譜來源已變更，請重新計算 FFT")
                 self._spec = None  # 失敗後舊頻譜 id 失效
             return _clean({"ok": False, "reason": reason, "gen": gen, "spectrum_id": None, "source": source,
                            "unit": out_unit, "window": window, "df": None, "rbw": None, "enbw": None,
@@ -61,10 +64,12 @@ class FftMixin:
             pk = [] if s["unit"] == "°" else fftmod.peaks(s["freq"], s["mag"], peak_count, s["lobe"],
                                                         level=peak_level, sort=peak_sort, interpolate=applied is None,
                                                         amplitude=s["rms"])
-            self._alive(gen)
             with self._lock:
+                self._alive(gen)
+                if next((v for v in self._waves if v.channel == source), None) is not w:
+                    raise StaleError("頻譜來源已變更，請重新計算 FFT")
                 sid = f"s{next(_SPEC_IDS)}"
-                self._spec = {"id": sid, "gen": gen, "freq": s["freq"], "mag": s["mag"]}
+                self._spec = {"id": sid, "gen": gen, "source": source, "freq": s["freq"], "mag": s["mag"]}
             return _clean({"ok": True, "reason": None, "gen": gen, "spectrum_id": sid, "source": source,
                            "unit": s["unit"], "window": window, "df": s["df"], "rbw": s["rbw"], "enbw": s["enbw"],
                            "enbw_bins": s["enbw_bins"], "cg": s["cg"], "n": s["n"],

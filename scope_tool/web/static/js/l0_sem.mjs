@@ -192,4 +192,52 @@ export async function runSemantics() {
   assert.equal(await call(b, "close_waveform", {}), null); await rej(wv(), "STALE"); await rej(call(b, "cursor_readout", { t1: 0, t2: 0, dx: DX }), "SCOPE_ERROR");
   await call(b, "open_waveform", { path: "/x/b.h5" }); await rej(exm({}), "STALE"); await rej(wv(), "STALE"); // 開新檔後舊世代全失效
   }
+  // 比對槽：同世代原始通道、子集／替換、快照依來源失效；不觸碰 UI。
+  {
+    const m = createMock({delay:2}), b = makeBridge(m, true);
+    const add = (channels = [], slot = "Mem1") => call(b, "add_waveform", {path:"/compare.h5", slot, channels});
+    const remove = (slot = "Mem1") => call(b, "remove_slot", {slot});
+    const wave = (ch, gen) => b.fetchWave({ch, gen, t0:0, t1:.001, px:100});
+    await rej(add(), "SCOPE_ERROR"); await rej(add([], "Mem5"), "BAD_REQUEST");
+    const fs = await call(b, "open_waveform", {path:"/main.h5"}), gen = fs.gen;
+    const loaded = await add();
+    assert.equal(loaded.gen, gen); assert.deepEqual(loaded.all, ["CHAN1", "CHAN2"]);
+    assert.deepEqual(loaded.channels.map(c => c.name), ["Mem1.CHAN1", "Mem1.CHAN2"]);
+    assert.ok(loaded.channels.every(c => !c.derived && c.gen === gen));
+    await wave("Mem1.CHAN2", gen);
+    const subset = await add(["CHAN1"]);
+    assert.deepEqual(subset.all, loaded.all); assert.equal(subset.channels.length, 1);
+    await rej(wave("Mem1.CHAN2", gen), "BAD_REQUEST");
+    await rej(add(["NOPE"]), "BAD_REQUEST"); await wave("Mem1.CHAN1", gen);
+    await rej(call(b, "remove_channel", {name:"Mem1.CHAN1"}), "SCOPE_ERROR");
+    const f = await call(b, "math", {op:"反相", a:"CHAN1", b:null, param:0});
+    await add([], "Mem2"); assert.equal(await call(b, "remove_channel", {name:f.name}), null);
+    const measure = (ch, second = false) => call(b, "measure", {entries:[{channel:second ? "CHAN1" : ch,
+      ...(second ? {channel2:ch} : {}), name:second ? "延遲" : "Vmax", rising:true}], range:null, dx:{}, threshold:"10/50/90 %"});
+    const exp = r => call(b, "export_measurements", {rows:r.results, gen:r.gen, revision:r.revision, directory:null});
+    const fft = source => call(b, "fft", {source, range:null, dx:{}, window:"Hanning", unit:"dBV", r_ohm:50,
+      peak_count:3, peak_level:-80, peak_sort:"Decreasing Magnitude", rbw:null, vbw:null});
+    for (const second of [false, true]) {
+      const r = await measure("Mem1.CHAN1", second), fr = await fft("Mem1.CHAN1");
+      await add(); await rej(exp(r), "STALE");
+      await rej(call(b, "fft_track_rf", {spectrum_id:fr.spectrum_id, x:0, direction:0, level:-80}), "STALE");
+      await rej(b.fetchSpectrum({id:fr.spectrum_id, f0:0, f1:1e5, px:100}), "STALE");
+    }
+    const r = await measure("CHAN1"), fr = await fft("CHAN1");
+    const dp = {protocol:"i3c", channels:{scl:"Mem1.CHAN1", sda:"Mem1.CHAN2"}, thresholds:{scl:null,sda:null}, options:{}};
+    for (const change of [() => add(), () => remove()]) {
+      const ds = await call(b, "decode", dp);
+      await change();
+      for (const [method, extra] of [["decode_frames",{}], ["decode_bits",{t0:0,t1:1}], ["export_decode",{directory:null}]])
+        await rej(call(b, method, {decode_id:ds.decode_id, ...extra}), "STALE");
+    }
+    assert.ok((await exp(r)).path); await b.fetchSpectrum({id:fr.spectrum_id, f0:0, f1:1e5, px:100});
+    const ds = await call(b, "decode", {...dp, channels:{scl:"CHAN1",sda:"CHAN2"}});
+    await add(); await remove(); assert.ok((await call(b, "decode_frames", {decode_id:ds.decode_id})).frames.length);
+    assert.equal(await remove(), null); await rej(remove("Mem5"), "BAD_REQUEST");
+    await call(b, "open_waveform", {path:"/next.h5"}); await rej(wave("Mem2.CHAN1", gen + 1), "BAD_REQUEST");
+    await add(); await call(b, "close_waveform", {}); await rej(add(), "SCOPE_ERROR");
+    await call(b, "open_waveform", {path:"/last.h5"}); await rej(wave("Mem1.CHAN1", gen + 3), "BAD_REQUEST");
+    const pending = add(); await sleep(1); await call(b, "close_waveform", {}); await rej(pending, "STALE");
+  }
 }
