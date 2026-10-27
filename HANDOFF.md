@@ -194,48 +194,32 @@
 - 軸刻度 `tickLabel`：格距超過三位有效數字時只取兩位、電壓換 mV（`1440 mV`），時間軸不換單位；整齊格距行為不變。
 - 先前「版面小缺：峰標籤與 1 GHz 刻度被裁切」已於 e968c24／77b38a0 修好。
 
-## I3C P2（2026-10-26）
+## I3C P2～P4（2026-10-26，P4 `9b475ed`、位址顯示 `2dbcdc6`）
 
-- 契約 version=2 追加 decode（job）／decode_frames／decode_bits／export_decode 與七個 Decode／Addr 型別；固定 mock 拆 `mock_decode.js`，l0_sem 經 call 驗四方法型別、BAD_REQUEST／STALE。沒有 UI 修改。JSON 原有超過 300 行，改按方法／型別各一行排版，既有內容不變。
-- `analysis_decode.py` 提供鎖內快照／gen 檢查、任何解碼失敗使舊 id STALE、完整時間軸驗證、實際 bit 時間切片（含兩端／反序／4096 上限）與完整 UTF-8 BOM CSV。來源路徑／通道／門檻／選項／解碼時間固定於快照；analysis_api 僅三處接線。
-- analysis_decode、analysis_api（含 analysis_check）與 Node 一般自檢通過；P1 i3c_check 全綠（10M×2：3.833 s；單次／連續五次峰值 RSS 686.8／684.6 MiB）。e2e_check 由 lead 於沙箱外實跑通過。
-- HTTP 檢查含小型合成波形完整四 RPC、同步缺鍵 BAD_REQUEST／巢狀 job BAD_REQUEST、失敗／換檔後三方法 STALE；100k fields 使用從實際解碼結果擴充的合成快照，隔離量測序列化與 HTTP 成本，非解碼效能。lead 實跑（Apple M5）：100k fields 往返 0.146 s、回應 14,478,303 bytes；e2e_check／browser_check 全過；無實測／未與原廠解碼比對。
-- 額外 Node `--mutations` 停在既有 `p2b2_check.mjs`「格距忽略最末有效位：找不到變異位置」；另以 `git archive HEAD` 的未修改靜態檔副本執行，同樣失敗。未更動該測試或軸刻度實作。
+- **P2 後端**：契約 version=2 加 decode（job）／decode_frames／decode_bits／export_decode 與七個 Decode／Addr 型別；`analysis_decode.py` 鎖內快照＋gen 檢查，任何解碼失敗使舊 id STALE，完整時間軸驗證，bit 時間切片（4096 上限），UTF-8 BOM CSV；`analysis_api` 只接三處。P1 `i3c_check` 全綠（10M×2：3.8 s、RSS ≈687 MiB）；100k fields 往返 0.146 s、回應 14.5 MB（lead 實跑，M5）。
+- **P3 UI**：B 區「解碼 (N)」分頁（`decode.js`／`decode_table.js`）：設定列、摘要＋篩選、事件表（≤2000 列，點列跳轉）、位址表、過期黃提示、CSV 匯出；B 區頁籤群組改靠標題列右側（使用者同意，避免蓋住 lower 分隔線拖曳點）。
+- **P4 標註列**：主圖下方 40px 黑底：狀態色 transaction、hex／第九位、選框、逐 bit 與 SCL 取樣刻度；開關不使解碼過期。報告由有效快照建解碼段落（事件 ≤2000 列、內容 64 字元、位址 ≤256 列、可見標註列圖；await 後比對 gen／decodeResult 防競態），完整請求約 7.3 MB < 8 MB。field.t0／t1＝首末取樣時間；密集同狀態細 frame 合併。byte 模式位址顯示「7E W」，第九位小標放不下就不畫。
+- 驗證：`selfcheck_node`、`decode_check --mutations`、`e2e_check`、`browser_check` 皆過（lead 沙箱外實跑；左緣差 0 px、5000 frames draw 13–15 ms）。p2b2 `--mutations` 曾因 `6c969e4` 改 plotcore 而過期，`dcecaa7` 已修（21/21）。
+- **無實測波形**，仍待與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。真機清單為符合 ≤300 行只壓縮空行。
 
-## I3C P3（2026-10-26）
+## 多協定解碼與 X6000A 實機資料（2026-10-27）
 
-- B 區新增「解碼 (N)」分頁（decode.js／decode_table.js）：設定列、摘要＋篩選、事件表（≤2000 列，點列跳轉）、位址表、設定變更黃色提示、CSV 匯出。標註列勾選只存設定，P4 接繪圖。
-- B 區頁籤群組改靠標題列右側（使用者同意）：多了「解碼」後頁籤會蓋到 lower 分隔線拖曳點，靠右留出左側拖曳空間。
-- selfcheck_node、e2e_check、browser_check（含新「I3C 解碼分頁／CSV／尺寸／過期設定」）全過。
+**計畫與閘門**
+- 計畫 `docs/多協定解碼計畫.md`（Codex 三輪審查，結論可開工；Q1–Q11 使用者全部照建議：CAN FD 只跳過、UART 不做自動鮑率、TX/RX 雙 lane、RS-485 不相減、SPI 無 CS 閒置分框、契約 version 維持 2…）。第 0 步＝共用層改依協定註冊（I3C 行為不變），之後 I2C／SPI／UART／CAN 接線。I3C §12 不做項目照舊。
+- **仍卡預覽閘門**：V1–V11 預覽 https://claude.ai/artifact/C7MuiLcS9mdPJoyCfUgMd8 （原始檔 scratchpad `multi_decode_preview.html`）；使用者要先開實機對照，說「可以開工」才做第 0 步與 UI 接線。使用者 10-27 明示先派 I2C，視為對下列三個**獨立新檔**放行，未改任何共用檔。
 
+**實機資料**（`X6000A-解碼/{I2C,RS-232,CAN}/`，DSO-X 6004A；每組 png／bin／h5／csv，csv＝示波器序列表＝真值；規格與格式表在 `docs/研究_X6000A實機解碼資料分析.md`）
+- H5 固定 64516 點、無通道標籤；BIN（`AG10`）＝H5 每 33 點取 1 點（1955 點），只多標籤（SDA1／SCL1／TX1／RX1），**不可用來解碼**。兩者都是螢幕解析度，非記憶體全長。CSV 時間僅 4 位有效數字，比對要容差。
+- CAN 約 50 kbps，H5 每位元僅 ~2.6 點，**檔案不可解**，需 SCPI `:WAVeform:POINts:MODE RAW` 取完整記憶體。
 
-## I3C P4（2026-10-26，`9b475ed`；位址顯示修正 `2dbcdc6`）
+**已完成（Codex 實作、Claude 審查，皆已 commit，尚未接 UI／API）**
+- **I2C `1ae664f`**：`web/i2c_{decode,synth,vectors,check,real_check}.py`。實機 48 列與 CSV 位址／資料／缺少確認／Restart 全相符；解出時間比 CSV 早約 0.7 取樣，容差放寬 1 取樣並如實列出。CSV 的 `X`＝`ninth=1`（含讀最後 byte 的正常 NACK，不產生 `nack`）。
+- **UART `a3c0c15`**：`web/uart_*.py`＋分析文件「附錄：UART 錯誤規則」。實機＝19200 baud、LSB first、**反相**；波形像 8O1，但示波器以 **8N1** 解（第九位當 stop，=0 報錯），故 CSV `Unknown Rx/Tx Error`＝我方 framing；27.68 ms 的 TX `31` 是兩種規則的分辨反例。CSV 時間：字元／空白列＝start＋0.5T，錯誤列＝第一 stop＋9.5T。131 列中 130 列可驗相符，首列 `?/65`（視窗前截斷）無法還原。**預設格式定案 8N1**（baud 必填；X6000A 這份要勾反相）。內部私有 `_levels_at`，第 0 步後改用 `logic.levels_at`。
+- **BIN `8143a43`、`0f09887`**：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`／`guess_roles`）；與 H5 只差 float32 捨入（≤1.2e-7 V，容差 4e-7；原規格寫「逐點相等」有誤，已更正）。已接 `reader.py` 的 `.bin` 分派（通道名＝標籤，重複加 `#2`）與開檔對話框；`open_waveform` 實測可開。**GUI 開 BIN 的畫面行為未人工驗。**
+- 解碼核心照計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線只需加一行。小項：UART 實機驗收用 h5py（核心只用 numpy）。
 
-- 主圖下方新增黑底 40px 標註列：狀態色 transaction、hex／第九位標記、白色選框、逐 bit 與 SCL 取樣刻度；共用 plotRect、SCL dx、解碼模型；開關不使解碼過期。chrome 加 40px，窄版 FFT 分頁隱藏；工具列、glass.css、vertical.css 與 analysis.css 原有行未動。
-- 報告由有效快照建解碼段落（不依賴分頁可見性），包含目前篩選事件 ≤2000 列、內容 64 字元＋省略號、位址 ≤256 列、可見標註列圖；await 後再比對 file.gen／decodeResult 參照，避免換檔／重算／設定變更競態。
-- Node 全套：`web js self-check OK`；`decode_check.mjs --mutations` 通過（含 visibleFrames 左邊界變異）；analysis_decode 與 browser_decode_checks 合成資料自檢通過。report_check 以 2000 列滿 64 字元、256 列位址、1400×40 高熵 PNG，另含兩張 1400×400 PNG 組完整請求：7,291,883 bytes < 8,000,000。
-- 與計畫文字的小差異：field.t0／t1 是首末取樣時間，bit 間距以寬度÷(nbits−1) 判斷 10px；格界取相鄰實際取樣點中點。這樣非等距 SCL 仍對準刻度。密集的同狀態細 frame／同品質細 field 合併，避免縮小時重複畫同像素；合併區不顯示單筆內容。
-- lead 沙箱外必跑 browser_check／e2e_check；新增瀏覽器檢查涵蓋實際像素左緣差 ≤1px、主圖 ≥270px、單 byte 9 bit／RPC、標註列點選表格、開關與窄版 FFT、真 HTML 匯出、5000 frames 單次 draw <30ms。此輪未啟動 localhost，以上像素／耗時／截圖尚未實跑，請特別看 B 區字體、lower 拖曳命中與 1400／1000 截圖。
-- 額外全套 `selfcheck_node.js --mutations` 停在既有 p2b2_check.mjs「格距忽略最末有效位：找不到變異位置」；另取 HEAD 乾淨靜態檔副本重跑，同樣 exit 1。P4 的 `decode_check.mjs --mutations` 單獨通過；未修改既有軸刻度或該變異測試。
-- 無實測波形；取得實測波形後與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。真機清單原有 357 行，本次只壓縮標題／表格邊界空行以符合每檔 ≤300 行，歷史文字保留。
-- 上述 browser_check／e2e_check 已由 lead 沙箱外實跑通過（左緣差 0px、5000 frames draw 約 13–15ms、報告約 7.3MB）。`2dbcdc6`：byte 模式位址改顯示「7E W」（與預覽一致，非原始 8-bit）；第九位小標放不下就不畫。
-- p2b2 `--mutations` 失敗已解（`dcecaa7`）：`6c969e4` 改寫 plotcore 格距精度後，變異搜尋字串過期；改為 `Math.min(floor - 1, last)`，21/21 通過。軸刻度行為未變。
-
-## 多協定解碼（2026-10-27，計畫審畢、等預覽核可）
-
-- 目標：第 0 步把共用層（`analysis_decode.py:28` 寫死 i3c、decode.js 只有 scl/sda、標註列以 SCL dx 對齊）改為依協定註冊，I3C 行為不變；之後 I2C／SPI／UART（RS-232/485）／CAN 解碼核心各開 worktree 並行，接線逐一合併、每次跑全套驗證。建議分組：先 I2C+UART，再 SPI+CAN。
-- 計畫 `docs/多協定解碼計畫.md`（未 commit）：Codex 三輪唯讀審查，第三輪結論「可開工」（審查輸出在 session scratchpad `codex_multi_review{,2,3}_out.txt`，計畫內有「審查修訂紀錄」）。2026-10-27 使用者決定 §12 Q1–Q11 全部照建議（CAN FD 不解只跳過、UART 不做自動鮑率也不提示、TX/RX 雙 lane、RS-485 不相減、SPI 無 CS 選填閒置分框、雙線不逐 bit、I2C 範圍照列、設定列兩列以 V1 定案、預覽一次送、契約 version 維持 2、CAN 錯誤／過載旗標不區分）。
-- **目前卡在預覽閘門**：V1–V11 預覽 https://claude.ai/artifact/C7MuiLcS9mdPJoyCfUgMd8 （原始檔在 scratchpad `multi_decode_preview.html`，合成示意資料）。使用者要先開實機對照，說「可以開工」後才做第 0 步（main，序列），再依 §7 分兩波（I2C+UART、SPI+CAN）開 worktree。
-- I3C §12 明確不做項目（HDR 內容、CRR、時序合規、glitch 濾波、自動偵測通道、游標區間解碼等）維持不做。
-
-## X6000A 實機解碼資料分析（2026-10-27）
-
-- 實機檔在 `X6000A-解碼/{I2C,RS-232,CAN}/`（DSO-X 6004A，每組 png／bin／h5／csv；csv＝示波器序列表匯出＝解碼真值）。I2C 檔原放在 `CAN/`，已移到 `I2C/`。**未 commit。**
-- 完整分析與給 Codex 的派工規格：`docs/研究_X6000A實機解碼資料分析.md`（BIN `AG10` 欄位表、CSV 欄位、驗收方式）。
-- 結論：①BIN＝H5 每 33 點取 1 點（1955 點，偏移 0），只多了通道標籤（SDA1／SCL1／TX1／RX1），**不可用來解碼**；H5 固定 64516 點、無標籤。②兩者都是螢幕解析度，非記憶體全長。③I2C 用 H5 解碼與 CSV 逐筆相符；UART 約 19200 baud、大致可解；CAN 約 50 kbps、H5 每位元僅 ~2.6 點，**檔案不可解**，需 SCPI `:WAVeform:POINts:MODE RAW`。④CSV 時間僅 4 位有效數字，比對須用容差。
-- **已完成並 commit（皆為獨立新檔，尚未接 UI／API／檔案分派）**（Codex 實作、Claude 審查；使用者 2026-10-27 明示先派 I2C，等於對這三項放行，**第 0 步共用層與 UI 仍等預覽核可**）：
-  - I2C `1ae664f`：`web/i2c_{decode,synth,vectors,check,real_check}.py`。實機 48 列與 `x6000i2c3.csv` 位址／資料／缺少確認／Restart 全相符；時間偏早約 0.7 取樣（H5 1.55 µs 對示波器 20 MSa/s），容差放寬 1 取樣並如實列出。CSV 的 `X`＝`ninth=1`（含讀最後 byte 的正常 NACK，不產生 `nack`）。
-  - UART `a3c0c15`：`web/uart_*.py`＋分析文件「附錄：UART 錯誤規則」。實機訊號 19200 baud、LSB first、**反相**，波形支持 8O1，但示波器 CSV 以 **8N1** 解（第九位當 stop，=0 就報錯），故 CSV 的 `Unknown Rx/Tx Error`＝我方 framing、不是 parity；27.68 ms 的 TX `31` 第九位為 1 是兩種規則的分辨反例。CSV 時間：字元／空白列＝start 中心（邊沿＋0.5T），錯誤列＝第一 stop 中心（＋9.5T）。131 列中 130 列可驗相符，首列 `?/65` 無法還原。內部私有 `_levels_at`，**第 0 步完成後改用 `logic.levels_at`**。
-  - BIN `8143a43`：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`／`guess_roles`）。BIN＝H5 每 33 點取 1 點，電壓差僅 float32 捨入（≤1.2e-7 V，容差 4e-7）；規格原寫「逐點相等」是錯的，已更正。已接進 `storage/reader.py` 的 `.bin` 分派（通道名＝標籤，重複加 `#2`）與開檔對話框（`web/api.py` 檔案類型加 `*.bin`）；`Analysis.open_waveform` 實測可開 `x6000i2c1.bin`（SDA1／SCL1，1955 點）。前端沒改，只靠通道名為自由字串；**GUI 開 BIN 的畫面行為尚未人工驗**，且 BIN 只有螢幕解析度 1955 點，不能拿來解 I2C／UART。
-- 待辦：①第 0 步共用層（等預覽核可）→ 接線 I2C／UART（UART 預設格式已定案＝**8N1**，照示波器；`options()` 預設即 bits=8／parity=N／stop=1／invert=False，baud 必填。實機波形像 8O1，使用者要驗奇偶時自行改 parity；X6000A 這份資料要勾反相才能解）；②SPI（無實機資料）；④CAN：H5 每位元僅 ~2.6 點不可解，需 SCPI `:WAVeform:POINts:MODE RAW` 取完整記憶體；⑤H5 無標籤時的通道指派 UI（BIN 標籤可 `guess_roles`）。
-- 與上一節「多協定解碼」計畫的關係：解碼核心照該計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線時只需加一行。審查未處理的小項：UART 實機驗收用 h5py（核心只用 numpy）。
+**待辦**
+1. 使用者核可預覽 → 第 0 步共用層 → 接線 I2C／UART（設定列、事件表、標註列）。
+2. SPI 解碼器（無實機資料，只有合成向量）。
+3. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
+4. CAN：先決定是否在擷取流程加「取完整記憶體」。
