@@ -54,7 +54,7 @@ export function mount(el, ctx) {
     const vis = h("input", "check"); vis.type = "checkbox"; vis.title = "顯示／隱藏";
     vis.onchange = () => store.updateChannel(c.name, { visible: vis.checked }, "user");
     const name = h("span", "chip__name", c.name);
-    name.title = "點一下：選為目前通道／量測來源；雙擊：換色";
+    name.title = `${c.name}：點一下選為目前通道／量測來源；雙擊換色`;
     name.onclick = () => store.set({ selected: c.name }, "user");
     const col = h("input"); col.type = "color"; col.hidden = true;
     col.oninput = () => store.updateChannel(c.name, { color: col.value }, "user");
@@ -73,8 +73,8 @@ export function mount(el, ctx) {
     box.append(...parts);
     const verticalEl = h("div", "vertical");
     const v = mountVertical(verticalEl, ctx, { scaleChange, clampScale, fineScale, coarseScale }, c.name);
-    rows.set(c.name, { box, vis, name, col, sc, badge, v });
     const colEl = h("div", "chanbar__col"); colEl.append(box, verticalEl);
+    rows.set(c.name, { box, vis, name, col, sc, badge, v, colEl });
     return colEl;
   }
 
@@ -88,6 +88,7 @@ export function mount(el, ctx) {
       r.vis.checked = c.visible;
       r.name.textContent = `${"●▲■◆"[i % 4]}${c.name}`  /* 形狀輔助辨識，不只靠顏色 */; r.name.style.color = c.color; r.col.value = c.color;
       r.box.classList.toggle("chip--selected", c.name === selected);
+      r.colEl.dataset.selected = String(c.name === selected);
     }
   }
   function render() {

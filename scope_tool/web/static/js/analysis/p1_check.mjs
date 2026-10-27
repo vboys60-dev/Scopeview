@@ -6,11 +6,11 @@ import * as fmt from "../fmt.js";
 import { mount as mountChanbar, fineScale, clampScale, coarseScale } from "./chanbar.js";
 import { mount as mountPlot, layoutRect, divY } from "./mainplot.js";
 import { mount as mountCursors, centerButton } from "./cursors.js";
-import { channelHandles, outsideCursors, cursorEdges } from "./handles.js";
+import { channelHandles, hitHandle, outsideCursors, cursorEdges } from "./handles.js";
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
 const texts = [], textPositions = [];
 const g = new Proxy({}, { get: (t, k) => k === "measureText" ? () => ({ width: 0 })
-  : k === "fillText" ? (text, x, y) => { texts.push(text); textPositions.push({ text, x, y }); } : t[k] ?? (() => {}), set: (t, k, v) => ((t[k] = v), true) });
+  : k === "fillText" ? (text, x, y, maxWidth) => { texts.push(text); textPositions.push({ text, x, y, maxWidth, font: t.font }); } : t[k] ?? (() => {}), set: (t, k, v) => ((t[k] = v), true) });
 function el(tag = "div") {
   return { tag, tagName: tag.toUpperCase(), dataset: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, children: [], style: {}, classList: { add() {}, toggle() {} }, listeners: {}, value: "",
     append(...cs) { for (const c of cs) { this.children.push(c); c.parentNode = this; } },
@@ -99,12 +99,14 @@ near(fineScale(1e-12, "V/s", false, scales), 1e-12);
 near(fineScale(5e12, "V/s", true, scales), 5e12);
 near(clampScale(0.137, "V", scales), 0.137);
 store.set({ selected: "CHAN2" });
+assert.equal(columns()[1].dataset.selected, "true"); assert.equal(columns()[0].dataset.selected, "false");
 const derivedRow = columns()[1].children[1].children[0];
 derivedRow.children.find((c) => c.textContent === "+").onclick(); near(store.get().channels[1].scale, 1.296);
 const derivedInput = derivedRow.children[2]; derivedInput.value = "2.317 V²"; derivedInput.onchange();
 near(store.get().channels[1].scale, 2.317);
 // P2b：換檔改為保留畫面中心的物理值，與整檔資料中心無關。
 store.set({ selected: "CHAN1" });
+assert.equal(columns()[0].dataset.selected, "true"); assert.equal(columns()[1].dataset.selected, "false");
 store.updateChannel("CHAN1", { scale: 0.2, position: -1 });
 row.children.find((c) => c.textContent === "+").onclick();
 near(-store.get().channels[0].position * store.get().channels[0].scale, 0.2);
@@ -119,7 +121,7 @@ assert.equal(hs.length, 2);
 const many = Array.from({ length: 8 }, (_, i) => ({ name: `CH${i + 1}`, position: i - 4, visible: true }));
 const separate = channelHandles(many, rect); assert.ok(separate.every((h) => h.w >= 12 && h.x === separate[0].x));
 const overlap = channelHandles(many.map((c) => ({ ...c, position: 0 })), rect);
-assert.equal(new Set(overlap.map((h) => h.x)).size, 8);
+assert.equal(new Set(overlap.map((h) => h.y)).size, 8);
 assert.ok(hs.every((h) => h.x + h.w <= rect.l - 24), "把手須與刻度數字分離"); assert.ok(texts.includes("1") && texts.includes("2"));
 // 把手與 Y 游標重疊仍優先；兩個相同零位的通道各可操作。
 store.set({ cursors: { x1: null, x2: null, y1: 0, y2: null } });
@@ -233,6 +235,31 @@ await new Promise((r) => setTimeout(r, 100)); assert.equal(reads.length, 1);
 store.set({ file: null }); assert.equal(reset.disabled, true); assert.equal(topReset.disabled, true);
 const closed = { ...store.get().cursors }; reset.onclick(); topReset.onclick();
 assert.deepEqual(store.get().cursors, closed);
+// 主檔＋四個槽位共十通道：同零位、兩端越界及矮圖均無方塊重疊。
+const ten = Array.from({ length: 10 }, (_, i) => ({ ...store.get().channels[0],
+  name: i < 2 ? `CHAN${i + 1}` : `Mem${Math.floor(i / 2)}.CHAN${i % 2 + 1}`, position: 0 }));
+for (const r of [rect, { ...rect, h: 60 }]) for (const position of [0, 8, -8]) {
+  const channels = ten.map(c => ({ ...c, position })), boxes = channelHandles(channels, r);
+  for (const [i, b] of boxes.entries()) {
+    assert.ok(b.y >= 0 && b.y + b.h <= r.t + r.h);
+    assert.equal(hitHandle(channels, r, b.x + b.w / 2, b.y + b.h / 2)?.name, b.name);
+    assert.ok(boxes.slice(i + 1).every(a => a.x >= b.x + b.w || b.x >= a.x + a.w || a.y >= b.y + b.h || b.y >= a.y + a.h));
+  }
+}
+store.set({ channels: ten, cursors: { x1: null, x2: null, y1: null, y2: null } });
+assert.deepEqual(channelHandles(ten, rect).map(b => b.label), ["1", "2", "M1·1", "M1·2", "M2·1", "M2·2", "M3·1", "M3·2", "M4·1", "M4·2"]);
+assert.equal(new Set(channelHandles(ten, rect).map(b => b.x)).size, 1);
+assert.ok(textPositions.filter(p => /^M[1-4]·[12]$/.test(p.text)).every(p => p.font === "12.5px sans-serif" && p.maxWidth === undefined));
+// 實際 hover／拖曳每一個避讓後的把手，名稱仍為完整通道名，位移沒有跳位。
+for (const c of ten) {
+  const b = channelHandles(store.get().channels, rect).find(b => b.name === c.name);
+  const x = b.x + b.w / 2, y = b.y + b.h / 2;
+  fire("pointermove", x, y); assert.equal(canvas.title, c.name);
+  fire("pointerdown", x, y); fire("pointermove", x, y - 27.8); fire("pointerup", x, y - 27.8);
+  assert.equal(commands.at(-1)[1].name, c.name);
+  near(store.get().channels.find(ch => ch.name === c.name).position, 1);
+}
+canvas.listeners.pointerleave(); assert.equal(canvas.title, "");
 // 清空通道也移除所有通道欄與垂直控制。
 store.set({ channels: [] }); assert.deepEqual(columns(), []);
 plot.dispose();

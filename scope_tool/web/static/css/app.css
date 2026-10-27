@@ -111,8 +111,11 @@ body { background: var(--c-bg); color: var(--c-text); font: var(--fs-base)/1.5 v
 .analysis__side { grid-area: side; overflow: auto; padding: var(--sp-2); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
 .analysis__plot { grid-area: plot; min-width: 0; min-height: 0; background: var(--c-plot-bg); border-radius: var(--radius); }
 .analysis__results { grid-area: results; overflow: auto; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius); }
-.chanbar { display: grid; grid-auto-flow: column; grid-template-columns: auto; grid-auto-columns: var(--chanbar-col, 236px); gap: var(--sp-1) var(--sp-2); justify-content: start; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 2px var(--sp-1); }
-.chanbar__col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.chanbar { display: grid; grid-auto-flow: column; grid-template-columns: auto; grid-auto-columns: var(--chanbar-col, 246px); gap: var(--sp-1) var(--sp-2); justify-content: start; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 1px var(--sp-1); }
+/* 外欄增加 10px，扣除框線與內距後仍保留原有 236px 控制項空間。 */
+/* 保留原有 2px 欄內間距；上下框線取代通道列各 1px 外距，避免壓縮圖區。 */
+.chanbar__col { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 var(--sp-1); border: 1px solid var(--c-border); border-radius: var(--radius-ctl); background: var(--c-surface); }
+.chanbar__col[data-selected="true"] { border-color: var(--c-amber); background: var(--c-surface-hi); }
 .chip { width: 100%; min-width: 0; display: inline-flex; align-items: center; gap: var(--sp-1); height: 24px; padding: 0 var(--sp-2); font-size: var(--fs-sm);
   border: 1px solid var(--c-border); border-radius: var(--radius-pill); background: var(--c-surface); cursor: pointer; }
 .chip--selected { border-color: var(--c-accent); background: var(--c-surface-hi); }

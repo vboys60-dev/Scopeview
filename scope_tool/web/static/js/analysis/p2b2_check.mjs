@@ -129,6 +129,8 @@ store.set({ selected: "CH2" }); store.updateChannel("CH2", { position: -0.5 });
 const host = element(), plot = mountPlot(host, ctx); await new Promise((r) => setTimeout(r, 0));
 const c = store.get().channels[1], axis = voltageAxis(c), nominal = layoutRect(800, 308);
 const handles = channelHandles(store.get().channels, nominal), left = voltageLeft((s) => s.length * 9, axis, handles);
+const wide = channelHandles([{ ...c, name: "Mem4.CHAN12" }], nominal);
+assert.ok(voltageLeft(s => s.length * 9, axis, wide) >= wide[0].x + wide[0].w + 18 + Math.max(...axis.ticks.map(t => t.label.length * 9)), "長標籤右側仍須保留完整刻度寬度");
 assert.ok(left > 84); const rect = layoutRect(800, 308, left);
 const tick = texts.findLast((t) => t.text === axis.ticks[0].label);
 assert.equal(tick.color, c.color); near(tick.x, left - 4); near(tick.y, divY(rect, 5));
@@ -137,7 +139,7 @@ const zero = texts.findLast((t) => t.text === "0 V"), handle = channelHandles(st
 near(zero.y, handle.y + handle.h / 2);
 assert.equal(hitHandle(store.get().channels, rect, handle.x + 6, zero.y).name, c.name);
 for (const position of [-5, -2.5, 0, 3, 5]) {
-  const h = channelHandles([{ ...c, position }], rect)[0]; near(h.y + h.h / 2, Math.max(10, divY(rect, position)));
+  const h = channelHandles([{ ...c, position }], rect)[0]; near(h.y + h.h / 2, Math.min(rect.t + rect.h - 10, Math.max(10, divY(rect, position))));
   assert.ok(h.y >= 0);
 }
 // 拖把手後欄位字串有限精度；未編輯的 change/blur 不回寫量化值。
@@ -158,11 +160,11 @@ for (const position of [0.1, 0.8, 0]) {
   const label = voltageAxis(store.get().channels[1]).ticks[5].label;
   assert.equal(texts.some(t => t.text === label && t.x > 20), position !== 0.1);
 }
-// 四通道同零位：分欄，所有刻度文字左緣在把手右緣之外。
+// 四通道同零位：垂直避讓，所有刻度文字左緣在把手右緣之外。
 const four = Array.from({ length: 4 }, (_, i) => ({ ...c, name: `CH${i+1}`, position: 0 }));
 texts.length = 0; store.set({ channels: four, selected: "CH2" });
 const hs = channelHandles(four, nominal), ax = voltageAxis(four[1]);
-assert.equal(new Set(hs.map(h => h.x)).size, 4);
+assert.equal(new Set(hs.map(h => h.y)).size, 4);
 const edge = Math.max(...hs.map(h => h.x + h.w));
 for (const t of ax.ticks) {
   const drawn = texts.findLast(d => d.text === t.label);
@@ -201,7 +203,7 @@ if (process.argv.includes("--mutations")) {
     ["左邊界固定", "voltage.js", "return Math.max(minimum, Math.ceil(edge", "return Math.max(minimum, Math.ceil(0 * edge"],
   ];
   mutations.push(
-    ["四通道不分欄", "handles.js", "while (placed.some((b) => b.lane === lane && Math.abs(b.y - y) < 20)) lane++;", ""],
+    ["四通道不避讓", "handles.js", "!placed.some((b) => b.lane === lane && Math.abs(b.y - v) < 24)", "true"],
     ["左邊界忽略把手", "voltage.js", "Math.max(14, ...handles.map((b) => b.x + b.w))", "14"],
     ["適配忽略通道變更", "vertical.js", " || current() !== c", ""],
     ["零位附近不隱藏", "mainplot.js", "< 12 ?", "< 0 ?"],

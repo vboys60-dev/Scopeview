@@ -177,6 +177,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     if (!drag) {
       const marker = markers?.hover(x, y); updateHover();
+      canvas.title = hitHandle(s.channels, r, x, y)?.name ?? "";
       canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "move" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag;
     if (e.pointerId !== d.id) return;
@@ -229,7 +230,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     store.command("viewport.intent", { t0: a - (a - v.t0) * factor, t1: a + (v.t1 - a) * factor });
     store.command("view.historyGroup");
   }, { passive: false });
-  on(canvas, "pointerleave", () => { pointer = null; markers?.hover(-Infinity, -Infinity); updateHover(); });
+  on(canvas, "pointerleave", () => { pointer = null; canvas.title = ""; markers?.hover(-Infinity, -Infinity); updateHover(); });
   const offHover = store.on(["cursors", "view", "channels"], updateHover);
   const offFile = store.on(["file"], () => { draggingView = false; end(); });
   return {
