@@ -227,3 +227,11 @@
 - 計畫 `docs/多協定解碼計畫.md`（未 commit）：Codex 三輪唯讀審查，第三輪結論「可開工」（審查輸出在 session scratchpad `codex_multi_review{,2,3}_out.txt`，計畫內有「審查修訂紀錄」）。2026-10-27 使用者決定 §12 Q1–Q11 全部照建議（CAN FD 不解只跳過、UART 不做自動鮑率也不提示、TX/RX 雙 lane、RS-485 不相減、SPI 無 CS 選填閒置分框、雙線不逐 bit、I2C 範圍照列、設定列兩列以 V1 定案、預覽一次送、契約 version 維持 2、CAN 錯誤／過載旗標不區分）。
 - **目前卡在預覽閘門**：V1–V11 預覽 https://claude.ai/artifact/C7MuiLcS9mdPJoyCfUgMd8 （原始檔在 scratchpad `multi_decode_preview.html`，合成示意資料）。使用者要先開實機對照，說「可以開工」後才做第 0 步（main，序列），再依 §7 分兩波（I2C+UART、SPI+CAN）開 worktree。
 - I3C §12 明確不做項目（HDR 內容、CRR、時序合規、glitch 濾波、自動偵測通道、游標區間解碼等）維持不做。
+
+## X6000A 實機解碼資料分析（2026-10-27）
+
+- 實機檔在 `X6000A-解碼/{I2C,RS-232,CAN}/`（DSO-X 6004A，每組 png／bin／h5／csv；csv＝示波器序列表匯出＝解碼真值）。I2C 檔原放在 `CAN/`，已移到 `I2C/`。**未 commit。**
+- 完整分析與給 Codex 的派工規格：`docs/研究_X6000A實機解碼資料分析.md`（BIN `AG10` 欄位表、CSV 欄位、驗收方式）。
+- 結論：①BIN＝H5 每 33 點取 1 點（1955 點，偏移 0），只多了通道標籤（SDA1／SCL1／TX1／RX1），**不可用來解碼**；H5 固定 64516 點、無標籤。②兩者都是螢幕解析度，非記憶體全長。③I2C 用 H5 解碼與 CSV 逐筆相符；UART 約 19200 baud、大致可解；CAN 約 50 kbps、H5 每位元僅 ~2.6 點，**檔案不可解**，需 SCPI `:WAVeform:POINts:MODE RAW`。④CSV 時間僅 4 位有效數字，比對須用容差。
+- 待辦（尚未派工）：I2C 解碼器（先做）→ BIN 讀取器（含標籤自動指派）→ UART（先歸納 CSV 的 `Unknown Rx/Tx Error` 觸發規則）；CAN 暫不做。與上一節「多協定解碼」計畫的關係：解碼核心仍依該計畫分波，這批實機檔當作 I2C／UART 的驗收真值。
+- 開放問題：UART 錯誤規則；H5 無標籤時通道指派 UI；是否加「取完整記憶體」選項。

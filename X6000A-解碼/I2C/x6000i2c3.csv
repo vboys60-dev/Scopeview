@@ -1,0 +1,49 @@
+Marked,Time,Serial Bus,Restart,Address,Data,Missing Ack
+,-34.46ms,Serial1,,E2W,10,
+,-33.79ms,Serial1,,52W,01 60,
+,-32.75ms,Serial1,,52W,04,
+,-32.07ms,Serial1,,53R,FF 80,X
+,-31.09ms,Serial1,,E2W,00,
+,-30.42ms,Serial1,,E0W,04,
+,-29.74ms,Serial1,,C8W,DA,
+,-29.06ms,Serial1,,C8W,61,
+,-28.38ms,Serial1,,C9R,FF,X
+,-27.71ms,Serial1,,C8W,63,
+,-27.03ms,Serial1,,C9R,BA,X
+,-26.34ms,Serial1,,C8W,65,
+,-25.65ms,Serial1,,C9R,87,X
+,-24.97ms,Serial1,,C8W,67,
+,-24.29ms,Serial1,,C9R,6C,X
+,-23.61ms,Serial1,,E0W,00,
+,-400.0ns,Serial1,,E2W,10,
+,671.6us,Serial1,,52W,01 80,
+,1.712ms,Serial1,,52W,04,
+,2.392ms,Serial1,,53R,FF 80,X
+,3.372ms,Serial1,,E2W,00,
+,4.044ms,Serial1,,E0W,04,
+,4.716ms,Serial1,,C8W,DA,
+,5.396ms,Serial1,,C8W,61,
+,6.076ms,Serial1,,C9R,FF,X
+,6.756ms,Serial1,,C8W,63,
+,7.440ms,Serial1,,C9R,BB,X
+,8.124ms,Serial1,,C8W,65,
+,8.804ms,Serial1,,C9R,87,X
+,9.484ms,Serial1,,C8W,67,
+,10.16ms,Serial1,,C9R,6C,X
+,10.85ms,Serial1,,E0W,00,
+,34.46ms,Serial1,,E2W,10,
+,35.13ms,Serial1,,52W,01 20,
+,36.17ms,Serial1,,52W,04,
+,36.85ms,Serial1,,53R,FF C0,X
+,37.83ms,Serial1,,E2W,00,
+,38.50ms,Serial1,,E0W,04,
+,39.18ms,Serial1,,C8W,DA,
+,39.86ms,Serial1,,C8W,61,
+,40.54ms,Serial1,,C9R,FF,X
+,41.22ms,Serial1,,C8W,63,
+,41.90ms,Serial1,,C9R,BA,X
+,42.58ms,Serial1,,C8W,65,
+,43.26ms,Serial1,,C9R,87,X
+,43.95ms,Serial1,,C8W,67,
+,44.63ms,Serial1,,C9R,6C,X
+,45.32ms,Serial1,,E0W,00,

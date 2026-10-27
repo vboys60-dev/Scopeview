@@ -1,0 +1,132 @@
+Marked,Time,Serial Bus,Rx,Tx,Errors
+,?,Serial1,65,,
+,-49.72ms,Serial1,,,
+,-49.25ms,Serial1,,,Unknown Rx Error
+,-49.14ms,Serial1,,,
+,-48.67ms,Serial1,,,Unknown Rx Error
+,-48.57ms,Serial1,69,,
+,-48.00ms,Serial1,,,
+,-47.53ms,Serial1,,,Unknown Rx Error
+,-47.42ms,Serial1,,,
+,-46.96ms,Serial1,,,Unknown Rx Error
+,-46.85ms,Serial1,74,,
+,-46.28ms,Serial1,,4D,
+,-45.71ms,Serial1,,53,
+,-45.13ms,Serial1,,,
+,-44.66ms,Serial1,,,Unknown Tx Error
+,-44.56ms,Serial1,,,
+,-44.09ms,Serial1,,,Unknown Tx Error
+,-43.99ms,Serial1,,,
+,-43.52ms,Serial1,,,Unknown Rx Error
+,-43.41ms,Serial1,,,
+,-42.95ms,Serial1,,,Unknown Rx Error
+,-42.84ms,Serial1,,,
+,-42.37ms,Serial1,,,Unknown Rx Error
+,-42.27ms,Serial1,,,
+,-41.80ms,Serial1,,,Unknown Tx Error
+,-41.69ms,Serial1,,,
+,-41.23ms,Serial1,,,Unknown Tx Error
+,-27.74ms,Serial1,4B,,
+,-27.16ms,Serial1,65,,
+,-26.59ms,Serial1,,,
+,-26.12ms,Serial1,,,Unknown Rx Error
+,-26.02ms,Serial1,,,
+,-25.55ms,Serial1,,,Unknown Rx Error
+,-25.44ms,Serial1,69,,
+,-24.87ms,Serial1,,,
+,-24.40ms,Serial1,,,Unknown Rx Error
+,-24.30ms,Serial1,,,
+,-23.83ms,Serial1,,,Unknown Rx Error
+,-23.73ms,Serial1,74,,
+,-23.15ms,Serial1,,4D,
+,-22.58ms,Serial1,,53,
+,-22.01ms,Serial1,,,
+,-21.54ms,Serial1,,,Unknown Tx Error
+,-21.43ms,Serial1,,,
+,-20.96ms,Serial1,,,Unknown Tx Error
+,-20.86ms,Serial1,,,
+,-20.39ms,Serial1,,,Unknown Rx Error
+,-20.29ms,Serial1,,,
+,-19.82ms,Serial1,,,Unknown Rx Error
+,-19.71ms,Serial1,,,
+,-19.25ms,Serial1,,,Unknown Rx Error
+,-19.14ms,Serial1,,,
+,-18.67ms,Serial1,,,Unknown Tx Error
+,-18.57ms,Serial1,,,
+,-18.10ms,Serial1,,,Unknown Tx Error
+,-4.610ms,Serial1,4B,,
+,-4.037ms,Serial1,65,,
+,-3.464ms,Serial1,,,
+,-2.995ms,Serial1,,,Unknown Rx Error
+,-2.891ms,Serial1,,,
+,-2.422ms,Serial1,,,Unknown Rx Error
+,-2.318ms,Serial1,69,,
+,-1.745ms,Serial1,,,
+,-1.276ms,Serial1,,,Unknown Rx Error
+,-1.172ms,Serial1,,,
+,-703.6us,Serial1,,,Unknown Rx Error
+,-599.2us,Serial1,74,,
+,-26.40us,Serial1,,4D,
+,546.4us,Serial1,,53,
+,1.120ms,Serial1,,,
+,1.588ms,Serial1,,,Unknown Tx Error
+,1.692ms,Serial1,,,
+,2.161ms,Serial1,,,Unknown Tx Error
+,2.265ms,Serial1,,,
+,2.734ms,Serial1,,,Unknown Rx Error
+,2.838ms,Serial1,,,
+,3.307ms,Serial1,,,Unknown Rx Error
+,3.411ms,Serial1,,,
+,3.880ms,Serial1,,,Unknown Rx Error
+,3.984ms,Serial1,,,
+,4.453ms,Serial1,,,Unknown Tx Error
+,4.557ms,Serial1,,,
+,5.026ms,Serial1,,,Unknown Tx Error
+,18.52ms,Serial1,4B,,
+,19.09ms,Serial1,65,,
+,19.66ms,Serial1,,,
+,20.13ms,Serial1,,,Unknown Rx Error
+,20.23ms,Serial1,,,
+,20.70ms,Serial1,,,Unknown Rx Error
+,20.81ms,Serial1,69,,
+,21.38ms,Serial1,,,
+,21.85ms,Serial1,,,Unknown Rx Error
+,21.95ms,Serial1,,,
+,22.42ms,Serial1,,,Unknown Rx Error
+,22.53ms,Serial1,74,,
+,23.10ms,Serial1,,4D,
+,23.67ms,Serial1,,53,
+,24.25ms,Serial1,,,
+,24.71ms,Serial1,,,Unknown Tx Error
+,24.82ms,Serial1,,,
+,25.29ms,Serial1,,,Unknown Tx Error
+,25.39ms,Serial1,,,
+,25.86ms,Serial1,,,Unknown Rx Error
+,25.96ms,Serial1,,,
+,26.43ms,Serial1,,,Unknown Rx Error
+,26.54ms,Serial1,,,
+,27.01ms,Serial1,,,Unknown Rx Error
+,27.11ms,Serial1,,,
+,27.58ms,Serial1,,,Unknown Tx Error
+,27.68ms,Serial1,,31,
+,42.48ms,Serial1,4B,,
+,43.05ms,Serial1,65,,
+,43.62ms,Serial1,,,
+,44.09ms,Serial1,,,Unknown Rx Error
+,44.19ms,Serial1,,,
+,44.66ms,Serial1,,,Unknown Rx Error
+,44.77ms,Serial1,69,,
+,45.34ms,Serial1,,,
+,45.81ms,Serial1,,,Unknown Rx Error
+,45.91ms,Serial1,,,
+,46.38ms,Serial1,,,Unknown Rx Error
+,46.49ms,Serial1,74,,
+,47.06ms,Serial1,,4D,
+,47.63ms,Serial1,,53,
+,48.21ms,Serial1,,,
+,48.67ms,Serial1,,,Unknown Tx Error
+,48.78ms,Serial1,,,
+,49.25ms,Serial1,,,Unknown Tx Error
+,49.35ms,Serial1,,,
+,49.82ms,Serial1,,,Unknown Rx Error
+,49.92ms,Serial1,,,
