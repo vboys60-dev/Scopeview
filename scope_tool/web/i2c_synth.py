@@ -104,7 +104,7 @@ def fixture(path: Path) -> dict:
     b.word(0xB, 4).stop().start().byte(0xA0).stop()
     b.idle(max(0, .01 - b.now))
     write_csv(path, b.render())
-    return dict(channels={'scl': 'CH1', 'sda': 'CH2'}, options={},
+    return dict(channels={'scl': 'CHAN1', 'sda': 'CHAN2'}, options={},
                 expect_kinds=['write', 'read', 'gc', 'start_byte', 'partial'])
 
 

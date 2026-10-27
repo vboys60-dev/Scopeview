@@ -86,13 +86,14 @@ def fixture(path: Path) -> dict:
                 target['trans'].extend((t + now, v) for t, v in line['trans'] if t > 0)
         sections.append(dict(case=name, t0=now, t1=now + duration,
                              options=dict(baud=9600, parity=parity)))
-        now += duration + 4 / 9600
+        now += duration + 40 / 9600  # 超過 GROUP_GAP（2 字元），各案例才分成獨立 frame
     tx['end'] = rx['end'] = now
     t, a, b = render(tx, rx)
     with path.open('x', encoding='utf-8', newline='') as stream:
         stream.write('Time(s),CH1(V),CH2(V)\n')
         np.savetxt(stream, np.column_stack((t, a, b)), delimiter=',', fmt='%.12e')
-    return dict(channels={'tx': 'CH1', 'rx': 'CH2'}, options=dict(baud=9600), sections=sections)
+    return dict(channels={'tx': 'CHAN1', 'rx': 'CHAN2'}, options=dict(baud=9600),
+                expect_kinds=['chars'], sections=sections)
 
 
 if __name__ == '__main__':

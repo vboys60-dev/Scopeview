@@ -204,9 +204,11 @@
 
 ## 多協定解碼與 X6000A 實機資料（2026-10-27）
 
-**計畫與閘門**
-- 計畫 `docs/多協定解碼計畫.md`（Codex 三輪審查，結論可開工；Q1–Q11 使用者全部照建議：CAN FD 只跳過、UART 不做自動鮑率、TX/RX 雙 lane、RS-485 不相減、SPI 無 CS 閒置分框、契約 version 維持 2…）。第 0 步＝共用層改依協定註冊（I3C 行為不變），之後 I2C／SPI／UART／CAN 接線。I3C §12 不做項目照舊。
-- **仍卡預覽閘門**：V1–V11 預覽 https://claude.ai/artifact/C7MuiLcS9mdPJoyCfUgMd8 （原始檔 scratchpad `multi_decode_preview.html`）；使用者要先開實機對照，說「可以開工」才做第 0 步與 UI 接線。使用者 10-27 明示先派 I2C，視為對下列三個**獨立新檔**放行，未改任何共用檔。
+**計畫與狀態**
+- 計畫 `docs/多協定解碼計畫.md`（Codex 三輪審查；Q1–Q11 全照建議）。**使用者 2026-10-27 說「可以開工」**：第 0 步與 I2C／UART 接線已完成並 commit，畫面「協定」下拉可選 I3C／I2C／UART。SPI／CAN 尚無模組，後端回「此協定尚未實作」。
+- **第 0 步 `47f3985`**：後端 `analysis_decode.NAMES` 依協定匯入模組、`logic.prepare／levels_at`、`synth.py`；前端協定定義檔（`decode_protocols.js` 每協定一行、`decode_i3c.js` 範本）＋資料驅動表單（設定兩列）、標註列雙 lane／bit 代碼 X／S／單取樣欄位、報告與 mock 由定義檔驅動；契約只改 `types_doc` 說明（version 仍 2）。I3C 五組基準指紋（lead 腳本在 session scratchpad，不入庫）前後完全相同。驗證：模組自檢、`selfcheck_node`（含新 `decode_proto_check.mjs`）、`e2e_check`、`browser_check` 全綠。
+- 接線 commit：`decode_i2c.js`、`decode_uart.js` 各加一行註冊；UART 預設 8N1、雙 lane（TX／RX）、`invert` 勾選；`browser_check` 的 `protocol_pages()` 對兩者用各自 fixture 實跑（開檔→選協定→解碼→表格→點選跳轉→CSV→標註列→兩種寬度）。
+- 修過的小坑：Codex 把 `protocol_pages` 呼叫放進沒有 `out` 的函式；「1000px 設定列必須溢出」的舊斷言在兩列版面不成立（改為不溢出或可捲到）；I2C／UART fixture 通道名要 `CHAN1／CHAN2`；UART fixture 案例間距要 >2 字元否則被分組成一個 frame。`i2c_decode.REQUIRE_EDGES=True` 與計畫「只有 I3C」不同，保留（I2C 整段無轉態本來就無意義）。
 
 **實機資料**（`X6000A-解碼/{I2C,RS-232,CAN}/`，DSO-X 6004A；每組 png／bin／h5／csv，csv＝示波器序列表＝真值；規格與格式表在 `docs/研究_X6000A實機解碼資料分析.md`）
 - H5 固定 64516 點、無通道標籤；BIN（`AG10`）＝H5 每 33 點取 1 點（1955 點），只多標籤（SDA1／SCL1／TX1／RX1），**不可用來解碼**。兩者都是螢幕解析度，非記憶體全長。CSV 時間僅 4 位有效數字，比對要容差。
@@ -219,7 +221,7 @@
 - 解碼核心照計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線只需加一行。小項：UART 實機驗收用 h5py（核心只用 numpy）。
 
 **待辦**
-1. 使用者核可預覽 → 第 0 步共用層 → 接線 I2C／UART（設定列、事件表、標註列）。
+1. **使用者人工驗收 I2C／UART 畫面**：開 `X6000A-解碼/I2C/x6000i2c2.h5`（SCL=CHAN3、SDA=CHAN1）與 `RS-232/x6000rs234.h5`（TX=CHAN1、RX=CHAN3，baud 19200、反相），對照示波器 CSV；標註列、雙 lane、設定列兩列版面的手感。
 2. SPI 解碼器（無實機資料，只有合成向量）。
 3. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
 4. CAN：先決定是否在擷取流程加「取完整記憶體」。
