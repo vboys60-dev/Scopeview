@@ -71,7 +71,26 @@ def _manual_list(manual: list[str]) -> list[FoundInstrument]:
     ]
 
 
-def find_all(manual: list[str], timeout: float = 3.0) -> list[FoundInstrument]:
+def _idn_label(item: FoundInstrument) -> FoundInstrument:
+    """開一次短連線問 *IDN?，label 改成「型號 · S/N 序號 — 資源」；任何失敗（被佔用、逾時）維持原 label。"""
+    try:
+        import pyvisa
+
+        inst = pyvisa.ResourceManager().open_resource(item.resource, open_timeout=2000)
+        try:
+            inst.timeout = 2000
+            parts = [p.strip() for p in inst.query("*IDN?").split(",")]
+        finally:
+            inst.close()
+        if len(parts) >= 3 and parts[1]:
+            return FoundInstrument(resource=item.resource, source=item.source,
+                                   label=f"{parts[1]} · S/N {parts[2]} — {item.resource}")
+    except Exception:
+        pass
+    return item
+
+
+def find_all(manual: list[str], timeout: float = 3.0, enrich: bool = True) -> list[FoundInstrument]:
     """合併 VISA + mDNS + 手動輸入三個來源，依資源字串去重（保留先出現的那筆）。"""
     combined = _visa_list() + _mdns_scan(timeout) + _manual_list(manual)
     seen: set[str] = set()
@@ -81,14 +100,19 @@ def find_all(manual: list[str], timeout: float = 3.0) -> list[FoundInstrument]:
             continue
         seen.add(item.resource)
         result.append(item)
+    if result and enrich:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(min(8, len(result))) as ex:
+            result = list(ex.map(_idn_label, result))
     return result
 
 
 if __name__ == "__main__":
-    result = find_all([], timeout=1.0)
+    result = find_all([], timeout=1.0, enrich=False)
     assert isinstance(result, list)
 
-    result2 = find_all(["1.2.3.4"])
+    result2 = find_all(["1.2.3.4"], enrich=False)
     manual_hits = [f for f in result2 if f.source == "manual"]
     assert len(manual_hits) == 1
     assert manual_hits[0].resource == "TCPIP0::1.2.3.4::inst0::INSTR"

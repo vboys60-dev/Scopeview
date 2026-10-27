@@ -34,10 +34,10 @@ export function createConn({ bridge, ui, view, config = {}, series = ["InfiniiVi
       const ip = (await ui.prompt("儀器 IP 位址：", "", "手動輸入 IP"))?.trim();
       if (!ip) return;
       try {
-        // 後端回整份手動清單：合併進清單，再以 label 找出剛輸入的那一筆
+        // 後端回整份手動清單：合併進清單，再以資源字串中的 IP 找出剛輸入的那一筆（label 可能已加型號）
         const list = await bridge.call("add_manual_ip", { ip });
         for (const it of list) if (!s.found.some((f) => f.resource === it.resource)) s.found.push(it);
-        const it = list.find((f) => f.label === ip);
+        const it = list.find((f) => f.resource.split("::")[1] === ip);
         if (it) s.selected = it.resource;
         draw();
       } catch (e) { await fail(e, "手動輸入失敗"); }
@@ -98,7 +98,7 @@ export function mount(el, ctx) {
   const btn = (t, cls = "btn") => { const b = h("button", cls, t); b.type = "button"; return b; };
   const bSearch = btn("搜尋"), bManual = btn("手動輸入 IP"), bConn = btn("連線", "btn btn--primary"), bFake = btn("測試儀器（模擬）");
   const combo = h("select", "select grow"), status = h("span", "muted"), warn = h("span", "is-error");
-  combo.style.minWidth = "240px"; combo.setAttribute("aria-label", "儀器清單");
+  combo.style.minWidth = "360px"; combo.setAttribute("aria-label", "儀器清單");
   warn.setAttribute("role", "alert");
   bFake.dataset.tip = "不接真機，掛上模擬儀器供測試";
   el.append(bSearch, combo, bManual, bConn, bFake, status, warn);
