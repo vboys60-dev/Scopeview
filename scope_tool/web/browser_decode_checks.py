@@ -138,7 +138,7 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
       cv.dispatchEvent(new MouseEvent('click',{{clientX:b.left+l+S.state.plotRect.w/2,clientY:b.top+8,bubbles:true}}));
       return {{ink,delta:Math.abs(main.left+l-b.left-first),height:b.height}};
     }})()""")
-    assert geometry['ink'] > 100 and geometry['delta'] <= 1 and geometry['height'] == 40, geometry
+    assert geometry['ink'] > 100 and geometry['delta'] <= 1 and geometry['height'] == 80, geometry
     c.wait("document.querySelector('.decode__tablewrap tr.is-selected')?.dataset.decodeFrame===String(window.__decodeFrame)")
     assert c.js("""(()=>{const e=document.querySelector('.analysis__splitter--lower'),r=e.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/4,r.top+r.height/2)===e})()""")
     # 開關只改顯示；保留有效資料，且 chrome 預算恢復主圖高度。
@@ -161,11 +161,12 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
     assert 'alt="解碼（I3C）"' in html
     # 直接使用產品 drawBand，5000 筆互不重疊且包含 fields；量一次完整重畫。
     elapsed = c.js(f"""(async()=>{{{prep}
-      const {{drawBand}}=await import('/js/analysis/decode_band.js'),r=S.state.decodeResult;
+      const {{drawBand,bandHeight}}=await import('/js/analysis/decode_band.js'),r=S.state.decodeResult;
       const frames=Array.from({{length:5000}},(_,i)=>({{i,t0:i,t1:i+.9,kind:'private_write',status:['ok','warn','error'][i%3],label:'私有寫',
         fields:[{{t0:i+.1,t1:i+.8,value:0x5A,nbits:9,ninth:1,ninth_kind:'parity',ok:i%3!==2}}]}}));
-      const cv=document.createElement('canvas');cv.width=1400;cv.height=40;const g=cv.getContext('2d');
+      const cv=document.createElement('canvas');cv.width=1400;const g=cv.getContext('2d');
       const st={{...S.state,view:{{t0:0,t1:5000}},channels:[],plotRect:{{l:84,w:1306}},decodeResult:{{...r,frames}}}};
+      cv.height=bandHeight(st);
       for(let i=0;i<3;i++)drawBand(g,1400,st);
       const t=performance.now();drawBand(g,1400,st);const ms=performance.now()-t;
       B.call=window.__decodeOriginalCall;delete window.__decodeOriginalCall;return ms;
@@ -205,6 +206,30 @@ def protocol_pages(c: Cdp, prep: str, out: Path, directory: str) -> None:
         c.js("document.querySelector('[data-decode-action=run]').click()")
         c.wait(f'(async()=>{{{prep} return S.state.decodeResult?.summary.ok}})()', 30)
         result = c.js(f'(async()=>{{{prep} return S.state.decodeResult}})()')
+        if name == 'uart':
+            # 先把鮑率改錯，才看得出估計真的填了值；改值只會使結果過期，不清除。
+            c.js("(()=>{const e=document.querySelector('[data-option=baud]');e.value='1200';e.dispatchEvent(new Event('input'))})()")
+            c.js(f"(async()=>{{{prep} window.__estimateBefore=S.state.decodeResult;window.__estimateSel=S.state.decodeSel}})()")
+            c.js("document.querySelector('[data-decode-action=estimate]').click()")
+            c.wait(f"document.querySelector('[data-option=baud]').value==='{fixture['options']['baud']}'", 30)
+            same = c.js(f"(async()=>{{{prep} const r=S.state.decodeResult,b=window.__estimateBefore;return !!r && r.summary.decode_id===b.summary.decode_id && r.frames===b.frames && S.state.decodeSel===window.__estimateSel}})()")
+            assert same, '估計不應清除既有解碼結果或選取'
+            c.wait("document.querySelector('.decode__sum').textContent.includes('請確認後解碼')", 10)
+            # 改鮑率使結果過期（匯出停用），重新解碼後再繼續後面的共用檢查。
+            c.js("document.querySelector('[data-decode-action=run]').click()")
+            c.wait(f'(async()=>{{{prep} const r=S.state.decodeResult;return r?.summary.ok && !r.stale && r.options.baud==={fixture["options"]["baud"]}}})()', 30)
+            result = c.js(f'(async()=>{{{prep} return S.state.decodeResult}})()')
+        if name == 'i2c':
+            c.js("(()=>{const e=document.querySelector('[data-option=addr_bits]');e.value='8';e.dispatchEvent(new Event('input'));document.querySelector('[data-decode-action=run]').click()})()")
+            c.wait(f'(async()=>{{{prep} return S.state.decodeResult?.options.addr_bits===8}})()', 30)
+            result = c.js(f'(async()=>{{{prep} return S.state.decodeResult}})()')
+            assert c.js("document.querySelector('.decode__tablewrap tbody tr td:nth-child(4)').textContent") == '0xA0'
+            # 直接截取實際繪圖文字，維持 byte 檢視以驗證標註列。
+            c.js(f"""(async()=>{{{prep} const p=CanvasRenderingContext2D.prototype,fill=p.fillText;
+              window.__addrTexts=[];p.fillText=function(t,...a){{window.__addrTexts.push(t);return fill.call(this,t,...a)}};
+              window.__addrRestore=()=>{{p.fillText=fill}};S.command('viewport.intent',{{t0:S.state.decodeResult.summary.t0,t1:S.state.decodeResult.summary.t0+.003}})}})()""")
+            c.wait("window.__addrTexts.includes('A0')")
+            c.js('window.__addrRestore()')
         frames = result['frames']
         assert len(frames) < 2000 and len(frames) > 1
         assert set(fixture['expect_kinds']) <= {f['kind'] for f in frames}

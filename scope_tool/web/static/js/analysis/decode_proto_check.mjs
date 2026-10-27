@@ -32,6 +32,7 @@ class Element {
   setAttribute(k,v) { this.attrs[k] = v; }
   addEventListener(k,f) { this.listeners[k] = f; }
   setCustomValidity(s) { this.validityMessage = s; }
+  dispatchEvent(e) { this['on'+e.type]?.(e); this.listeners[e.type]?.(e); }
   reportValidity() { return !this.validityMessage; }
 }
 const walk = e => [e,...e.children.flatMap(walk)];
@@ -88,6 +89,41 @@ for (const def of Object.values(protocols)) {
     assert.deepEqual(Object.keys(values).sort(),contract[`${key}.${def.name}`].split(' ').sort());
   }
   await panelCheck(def);
+}
+// I2C 顯示取送出快照；切表單後舊結果仍保留原位址文字。
+{
+  const def = protocols.i2c, { store,host,panel,jobs } = await panelCheck(def);
+  assert.equal(jobs[0].options.addr_bits,7);
+  const original = structuredClone(def.sample.frames);
+  for (const bits of [undefined,7,8]) {
+    const opt = bits == null ? {} : { addr_bits:bits }, r = result(def,opt);
+    store.set({ decodeResult:r,view:{ t0:0,t1:120 } });
+    const rows = walk(host).filter(e => e.dataset.decodeFrame != null);
+    const report = decodeSection(store.get(),{ querySelector:() => null },String,false)[0];
+    const { g,ops } = canvas(); drawBand(g,1000,store.get());
+    for (const [i,raw] of [[0,'A0'],[1,'A1']]) {
+      const f = r.frames[i], expected = bits === 8 ? '0x'+raw : '0x50';
+      assert.equal(def.columns[0].cell(f,opt),expected);
+      assert.equal(rows[i].children[3].textContent,expected);
+      assert.equal(report.tables[0].rows[i][3],expected);
+      const tag = bits === 8 ? raw : '50 '+(i ? 'R' : 'W');
+      assert.equal(def.fieldText(f.fields[0],opt,f),tag);
+      assert.ok(ops.some(x => x[0] === 'fillText' && x[1] === tag));
+      assert.equal(def.content(f,opt),i ? '⚠0xAB' : '0x12');
+      assert.equal(rows[i].children[4].textContent,i ? 'R' : 'W');
+    }
+    panel.model.change({ opt:{ addr_bits:bits === 8 ? 7 : 8 } });
+    assert.equal(walk(host).find(e => e.dataset.decodeFrame === '0').children[3].textContent,bits === 8 ? '0xA0' : '0x50');
+    assert.deepEqual(r.frames,original);
+  }
+  const f = original[0];
+  for (const special of [original[2],...['start_byte','hs_code','partial'].map(kind => ({ ...f,kind })),
+    { ...f,addr:0x7C },{ ...f,addr:0x02 },{ ...f,addr:0x50,fields:[{ ...f.fields[0],value:0xF0 },{ ...f.fields[0],kind:'addr_lo' }] },
+    { ...f,addr:null },{ ...f,addr:0x250 }]) {
+    assert.equal(def.columns[0].cell(special,{ addr_bits:8 }),def.columns[0].cell(special,{}));
+    assert.equal(def.content(special,{ addr_bits:8 }),def.content(special,{}));
+    for (const x of special.fields) assert.equal(def.fieldText(x,{ addr_bits:8 },special),def.fieldText(x,{},special));
+  }
 }
 const field = (kind,t0,t1,nbits,value = 65) => ({ kind,t0,t1,nbits,value,ninth:null,ninth_kind:null,ok:true,label:kind });
 const fields = [field('tx',1,9,9),field('rx',2,10,9,66),field('ack',11,11,1,0)];
@@ -178,6 +214,48 @@ if (process.argv.includes('--mutations')) {
   assert.equal(withAscii(f,'X',true),'X "H.i"'); assert.equal(withAscii(f,'X',false),'X');
   assert.ok(!isByteField(f.fields[0]) && isByteField(f.fields[1])); assert.equal(asciiChar(0x7F),'.');
   assert.equal(withAscii({ fields:[f.fields[0]] },'X',true),'X');
+}
+// UART 估計使用真按鈕與控制器；等待、失敗與過期均保留既有結果。
+{
+  const { estimatedBaud } = await import('./decode_uart.js');
+  assert.equal(estimatedBaud({ ok:false,reason:'估計鮑率 19200' }),19200);
+  assert.equal(estimatedBaud({ ok:false,reason:'估計鮑率 19200；估計值取最短脈寬，請確認' }),19200);
+  for (const reason of ['無法估計鮑率：邊緣太少','錯誤 19200','估計鮑率 0','估計鮑率 19200xyz','估計鮑率 1e6']) assert.equal(estimatedBaud({ ok:false,reason }),null);
+  assert.equal(estimatedBaud({ ok:true,reason:'估計鮑率 19200' }),null);
+  const us = makeStore(), host = new Element('div'); let finish, sent;
+  const panel = mount(host,{ store:us,bridge:{ job:(n,p) => { sent = p; return new Promise(r => { finish = r; }); } } });
+  panel.model.change({ protocol:'uart' });
+  const snapshot = result(protocols.uart); us.set({ decodeResult:snapshot,decodeSel:0 });
+  const button = find(host,e => e.dataset.decodeAction === 'estimate'), input = find(host,e => e.dataset.option === 'baud');
+  const pending = button.onclick();
+  assert.equal(button.disabled,true); assert.equal(us.get().decodeResult,snapshot); assert.equal(us.get().decodeSel,0);
+  assert.equal(sent.options.estimate,true); assert.equal(panel.model.config.opt.estimate,undefined);
+  finish({ gen:1,ok:false,reason:'估計鮑率 19200' }); await pending;
+  assert.equal(input.value,'19200'); assert.equal(panel.model.config.opt.baud,19200);
+  assert.equal(us.get().decodeResult.frames,snapshot.frames); assert.equal(us.get().decodeResult.stale,true);
+  assert.equal(us.get().decodeSel,0); assert.match(panel.model.message,/已填入 19200，請確認後解碼/);
+  const before = us.get().decodeResult, fail = button.onclick();
+  finish({ gen:1,ok:false,reason:'無法估計鮑率：邊緣太少' }); await fail;
+  assert.equal(us.get().decodeResult,before); assert.equal(input.value,'19200'); assert.match(panel.model.message,/邊緣太少/);
+  const old = button.onclick(); panel.model.change({ opt:{ ...panel.model.config.opt,baud:38400 } });
+  finish({ gen:1,ok:false,reason:'估計鮑率 9600' }); await old; assert.equal(input.value,'19200');
+  const wrongGen = button.onclick(); finish({ gen:9,ok:false,reason:'估計鮑率 9600' }); await wrongGen;
+  assert.match(panel.model.message,/估計結果已過期/); assert.equal(input.value,'19200');
+  panel.model.change({ ch:{ tx:'',rx:'' } }); assert.equal(button.disabled,true);
+  panel.model.change({ ch:{ tx:'',rx:'CH1' } }); assert.equal(button.disabled,false);
+  const rx = button.onclick(); assert.deepEqual(sent.channels,{ rx:'CH1' });
+  finish({ gen:1,ok:false,reason:'估計鮑率 9600' }); await rx;
+  const late = button.onclick(); us.set({ file:{ gen:2 } });
+  finish({ gen:1,ok:false,reason:'估計鮑率 38400' }); await late;
+  panel.model.change({ protocol:'uart' });
+  assert.equal(find(host,e => e.dataset.option === 'baud').value,'115200');
+  us.set({ file:null }); assert.equal(find(host,e => e.dataset.decodeAction === 'estimate')?.disabled ?? true,true);
+  const { makeDecode } = await import('../mock_decode.js');
+  const mock = makeDecode({ job:(n,fn) => fn(),needFile() {},chan() {},generation:() => 1 });
+  const params = decodeParams(defaultConfig(channels,protocols.uart));
+  const original = mock.decode(params), mockBefore = mock.decode_frames({ decode_id:original.decode_id });
+  const response = mock.decode({ ...params,channels:{ rx:'CH1' },thresholds:{ rx:null },options:{ estimate:true } });
+  assert.equal(estimatedBaud(response),9600); assert.deepEqual(mock.decode_frames({ decode_id:original.decode_id }),mockBefore);
 }
 globalThis.document = oldDocument; delete globalThis.__decodeFake;
 console.log('decode_proto self-check OK');

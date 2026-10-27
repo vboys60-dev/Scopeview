@@ -1,4 +1,4 @@
-// 主圖時間軸下方的 I3C 事件／byte／bit 標註；時間一律由來源加 SCL dx。
+// 主圖時間軸下方的事件／bit／hex／ASCII 標註；時間一律由來源加基準通道 dx。
 import { createCanvas, cssVar, linear, debounce, makeLatest } from './plotcore.js';
 import { MARGIN } from './mainplot.js';
 import { decodeModel, definition, isByteField, asciiChar } from './decode.js';
@@ -35,6 +35,15 @@ export function bandLayout(frames, view, rect, dx = 0, lanes = null) {
   }
   return { bars,fields,X };
 }
+/** 列高 18px 加上下間距 2px；逐 bit 門檻與繪製使用同一份欄位版面。 */
+export function bandHeight(state, layout = null) {
+  const r = state.decodeResult;
+  if (!r?.summary.ok) return BAND_H;
+  const lanes = definition(r.protocol).lanes(r.summary);
+  const dx = state.channels.find(c => c.name === r.base)?.time_offset ?? 0;
+  layout ??= bandLayout(r.frames,state.view,state.plotRect ?? { l:MARGIN.l,w:1 },dx,lanes);
+  return 20*(Math.max(2,lanes?.length ?? 2)+(!lanes && layout.fields.some(f => f.bitMode) ? 1 : 0)+(state.decodeAscii ? 1 : 0));
+}
 /** 逐 bit 的格界取相鄰真實取樣點中點；不把整個 field 平均分割。 */
 export function bitCells(field, bits, X, dx = 0) {
   const samples = bits.filter(([t]) => t >= field.t0 && t <= field.t1);
@@ -49,15 +58,19 @@ export function drawBand(g, w, state, bits = []) {
   const r = state.decodeResult, rect = state.plotRect ?? { l:MARGIN.l,w:Math.max(1,w-MARGIN.l-MARGIN.r) };
   const col = { ok:cssVar('--c-ok','#62dd98'),warn:cssVar('--c-warn','#f7cd5f'),error:cssVar('--c-danger','#ff8f87'),info:cssVar('--c-accent','#8cc4ff') };
   const text = cssVar('--c-plot-text','#ccc');
-  g.fillStyle = cssVar('--c-plot-bg','#000'); g.fillRect(0,0,w,BAND_H);
+  const def = r && definition(r.protocol), lanes = r?.summary.ok ? def.lanes(r.summary) : null;
+  const dx = state.channels.find(c => c.name === r?.base)?.time_offset ?? 0;
+  const layout = r?.summary.ok ? bandLayout(r.frames,state.view,rect,dx,lanes) : { bars:[],fields:[] };
+  const height = bandHeight(state,layout), bitMode = !lanes && layout.fields.some(f => f.bitMode);
+  const hexY = bitMode ? 41 : 21, asciiY = lanes ? 1+lanes.length*20 : hexY+20;
+  g.fillStyle = cssVar('--c-plot-bg','#000'); g.fillRect(0,0,w,height);
   if (!r?.summary.ok) return { bars:[],fields:[] };
-  const dx = state.channels.find(c => c.name === r.base)?.time_offset ?? 0;
-  const def = definition(r.protocol), lanes = def.lanes(r.summary);
-  const layout = bandLayout(r.frames,state.view,rect,dx,lanes);
   g.globalAlpha = r.stale ? .55 : 1;
   g.fillStyle = cssVar('--c-plot-axis','#888'); g.font = '10px sans-serif'; g.textAlign = 'right'; g.textBaseline = 'alphabetic';
-  g.fillText(lanes ? def.laneLabels[lanes[0]] : '事件',rect.l-8,14); g.fillText(lanes ? def.laneLabels[lanes[1]] : layout.fields.some(f => f.bitMode) ? 'bit' : 'byte',rect.l-8,34);
-  g.save(); g.beginPath(); g.rect(rect.l,0,rect.w,BAND_H); g.clip();
+  const labels = lanes ? lanes.map(k => def.laneLabels[k]) : ['事件',...(bitMode ? ['bit'] : []),'hex'];
+  if (state.decodeAscii) labels.push('ASCII');
+  labels.forEach((label,i) => g.fillText(label,rect.l-8,14+i*20));
+  g.save(); g.beginPath(); g.rect(rect.l,0,rect.w,height); g.clip();
   function box(a,b,y,color,label,min = 24) {
     a = Math.max(rect.l,a); b = Math.min(rect.l+rect.w,b);
     if (b <= a) return;
@@ -77,9 +90,10 @@ export function drawBand(g, w, state, bits = []) {
     return f && { x0:Math.max(rect.l,layout.X(f.t0+dx)),x1:Math.min(rect.l+rect.w,layout.X(f.t1+dx)) };
   })();
   if (selected) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.strokeRect(selected.x0,1,Math.max(1,selected.x1-selected.x0),lanes ? 38 : 18); }
+  const parents = new Map(visibleFrames(r.frames,state.view.t0-dx,state.view.t1-dx).flatMap(f => f.fields.map(x => [x,f])));
   let count = 0;
   for (const b of layout.fields) {
-    const c = b.f.ok ? text : col.error, tag = ninthLabel(b.f), y = lanes ? 1+b.lane*20 : 21;
+    const c = b.f.ok ? text : col.error, tag = ninthLabel(b.f), y = lanes ? 1+b.lane*20 : hexY;
     if (b.bitMode) {
       for (const bit of bitCells(b.f,bits,layout.X,dx)) {
         const color = bit.value === 2 ? cssVar('--c-plot-axis','#888') : bit.ninth ? (b.f.ok ? col.info : col.error) : c;
@@ -91,14 +105,26 @@ export function drawBand(g, w, state, bits = []) {
         }
         g.strokeStyle = cssVar('--c-ch1','#f0e442'); g.beginPath(); g.moveTo(bit.sample,21); g.lineTo(bit.sample,25); g.stroke();
       }
-    } else {
-      const value = def.fieldText(b.f)+(state.decodeAscii && isByteField(b.f) && b.x1-b.x0 >= 44 ? ' '+asciiChar(b.f.value) : '');  // 太窄就只留 hex
-      box(b.x0,b.x1,y,c,'');
-      if (!b.tiny && Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0) >= 24) {
-        g.save(); g.beginPath(); g.rect(Math.max(rect.l,b.x0)+2,y,Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)-4,18); g.clip();
-        g.fillStyle = c; g.textAlign = 'left'; g.fillText(value,Math.max(rect.l,b.x0)+4,y+13);
-        g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = b.f.ok ? col.info : col.error;
-        if (g.measureText(tag).width+value.length*7+10 <= Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)) g.fillText(tag,b.x1-3,y+16); g.font = '12px sans-serif'; g.restore();
+    }
+    const value = def.fieldText(b.f,r.options,parents.get(b.f));
+    box(b.x0,b.x1,y,c,'');
+    if (!b.tiny && Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0) >= 24) {
+      g.save(); g.beginPath(); g.rect(Math.max(rect.l,b.x0)+2,y,Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)-4,18); g.clip();
+      g.fillStyle = c; g.textAlign = 'left'; g.fillText(value,Math.max(rect.l,b.x0)+4,y+13);
+      g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = b.f.ok ? col.info : col.error;
+      if (g.measureText(tag).width+value.length*7+10 <= Math.min(rect.l+rect.w,b.x1)-Math.max(rect.l,b.x0)) g.fillText(tag,b.x1-3,y+16); g.font = '12px sans-serif'; g.restore();
+    }
+  }
+  if (state.decodeAscii) {
+    const bytes = layout.fields.filter(b => isByteField(b.f));
+    // 共用時間列：有 TX 的區段優先，避免 RX 覆蓋；不重疊的 RX 照常顯示。
+    for (const b of bytes) {
+      if (lanes && b.lane > 0 && bytes.some(a => a.lane === 0 && a.x0 < b.x1 && b.x0 < a.x1)) continue;
+      const a = Math.max(rect.l,b.x0), z = Math.min(rect.l+rect.w,b.x1), c = b.f.ok ? text : col.error;
+      box(a,z,asciiY,c,'');
+      if (z-a >= 10) {
+        g.save(); g.beginPath(); g.rect(a,asciiY,z-a,18); g.clip();
+        g.fillStyle = c; g.textAlign = 'center'; g.fillText(asciiChar(b.f.value),(a+z)/2,asciiY+13); g.restore();
       }
     }
   }
@@ -138,6 +164,6 @@ export function mount(el, ctx) {
     const t = linear(rect.l,rect.l+rect.w,s.view.t0,s.view.t1)(x)-dx;
     const f = visibleFrames(r.frames,t,t)[0]; if (f) store.set({ decodeSel:f.i },'user');
   };
-  const off = store.on(['view','channels','plotRect','decodeResult','decodeSel'],draw), offModel = model.on(draw);
+  const off = store.on(['view','channels','plotRect','decodeResult','decodeSel','decodeAscii'],draw), offModel = model.on(draw);
   return { draw,dispose() { disposed = true; off(); offModel(); latest.cancel(); fetchSoon.cancel(); cv.dispose(); } };
 }

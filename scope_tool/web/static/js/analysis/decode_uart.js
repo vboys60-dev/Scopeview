@@ -21,10 +21,22 @@ const frame = (i, kind, fields, reasons = []) => ({ i, t0:i*20, t1:i*20+10, kind
   status:reasons.length ? 'warn' : 'ok', reasons, fields });
 const frames = [frame(0,'chars',[field('tx',0x48),field('rx',0x65)]),frame(1,'unsynced',[],['unsynced'])];
 
+// 固定前綴與可選提示分開比對，避免把錯誤訊息中的數字填入欄位。
+export function estimatedBaud(summary) {
+  const match = summary.ok === false && /^估計鮑率 ([1-9]\d*)(?:；估計值取最短脈寬，請確認)?$/.exec(summary.reason ?? '');
+  return match && Number.isSafeInteger(+match[1]) ? +match[1] : null;
+}
+const estimate = { label:'估計',key:'estimate',run:({ model,input }) => model.estimate(summary => {
+  const baud = estimatedBaud(summary);
+  if (baud === null) return summary.reason || '無法估計鮑率：回應無效';
+  input.value = String(baud); input.dispatchEvent(new Event('input',{ bubbles:true }));
+  return `已填入 ${baud}，請確認後解碼；估計值取最短脈寬，請確認`;
+}) };
+
 export default {
   name:'uart', label:'UART', order:2, base:'tx', diff:{},
-  roles:[{ key:'tx',label:'TX' },{ key:'rx',label:'RX',optional:true }],
-  options:[{ key:'baud',label:'鮑率（必填）',type:'text',value:'115200',
+  roles:[{ key:'tx',label:'TX',allowEmpty:true },{ key:'rx',label:'RX',optional:true }],
+  options:[{ key:'baud',label:'鮑率（必填）',type:'text',value:'115200',action:estimate,
     list:[9600,19200,38400,57600,115200,230400,460800,921600,1000000],
     parse:s => { const n = Number(s); if (!s.trim() || !Number.isFinite(n) || n <= 0) throw Error('鮑率須為有限正數'); return n; } },
   { key:'bits',label:'資料位',type:'select',value:8,choices:[5,6,7,8,9].map(n => [n,String(n)]) },

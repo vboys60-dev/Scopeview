@@ -56,7 +56,7 @@ globalThis.requestAnimationFrame = cb => { queueMicrotask(cb); return 1; };
 globalThis.ResizeObserver = class { constructor(cb) { resized = cb; } observe() {} disconnect() {} };
 const source = { style:{},getContext:() => ({ setTransform() {} }) };
 const band = { hidden:true,append() {},querySelector:() => source,
-  getBoundingClientRect() { return { width:this.hidden ? 0 : 1400,height:this.hidden ? 0 : 40 }; } };
+  getBoundingClientRect() { return { width:this.hidden ? 0 : 1400,height:this.hidden ? 0 : 80 }; } };
 globalThis.document = { ...savedDocument,createElement:() => source };
 const cv = createCanvas(band,() => { painted = true; });
 await Promise.resolve();
@@ -64,14 +64,14 @@ assert.equal(source.width,0);
 band.hidden = false; resized();
 const bandRoot = { querySelector:s => s === '.analysis__decodeband' ? band : null };
 assert.equal(decodeSection(store.get(),bandRoot,F,false)[0].img,null);
-globalThis.document.createElement = () => ({ getContext:() => ({ drawImage(src) { assert.equal(src,source); assert.ok(painted); } }),toDataURL:() => png });
+globalThis.document.createElement = () => ({ getContext:() => ({ drawImage(src) { assert.equal(src,source); assert.ok(painted); assert.equal(src.height,80); } }),toDataURL() { assert.equal(this.height,80); return png; } });
 const visibleReport = await collectReport({ store,fmt:{ fmt:F } },bandRoot,{ title:'重新顯示' });
 assert.ok(buildReport(visibleReport).includes('alt="解碼（I3C）"'));
 band.hidden = true;
 assert.equal(decodeSection(store.get(),bandRoot,F,false)[0].img,null);
 cv.dispose(); globalThis.document = savedDocument;
 delete globalThis.window; delete globalThis.requestAnimationFrame; delete globalThis.ResizeObserver;
-// 標準庫產生有效 PNG：1400×40 高熵 RGBA（比實際標註圖更難壓縮）。
+// 標準庫產生有效 PNG：1400×80 高熵 RGBA（比實際標註圖更難壓縮）。
 const { deflateSync } = await import('node:zlib');
 const crc = b => { let c = -1; for (const v of b) { c ^= v; for (let i=0;i<8;i++) c = (c>>>1)^((c&1) ? 0xEDB88320 : 0); } return (c^-1)>>>0; };
 function noisePng(w,h) {
@@ -81,7 +81,7 @@ function noisePng(w,h) {
   for (let y=0;y<h;y++) for (let x=1;x<=w*4;x++) { seed ^= seed<<13; seed ^= seed>>>17; seed ^= seed<<5; raw[y*(w*4+1)+x]=seed&255; }
   return 'data:image/png;base64,'+Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]).toString('base64');
 }
-section.img = noisePng(1400,40);
+section.img = noisePng(1400,80);
 report.sections[0].img = noisePng(1400,400);
 report.sections.push({ title:'FFT 頻譜',img:noisePng(1400,400) });
 const body = { html:buildReport(report),directory:null };

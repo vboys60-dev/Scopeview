@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-"""UART 離線中心取樣；狀態機與電氣反相分離，不估計鮑率。"""
+"""UART 離線中心取樣；狀態機與電氣反相分離；鮑率估計只由按鈕觸發。"""
 import numpy as np
 from scope_tool.web.logic import levels_at
-from scope_tool.web.logic import Edges, auto_threshold, validate_time, to_edges
+from scope_tool.web.logic import Edges, auto_threshold, validate_time, to_edges, prepare
 from scope_tool.web.i3c_fields import frame
 from scope_tool.web.i3c_ccc import reason
 
@@ -16,12 +16,14 @@ _levels_at = levels_at  # 保留既有自檢的私有匯入點；實作統一使
 
 
 def options(options: dict, channels: dict) -> dict:
-    if not isinstance(options, dict) or set(options) - {'baud', 'bits', 'parity', 'stop', 'invert'}:
+    if not isinstance(options, dict) or set(options) - {'baud', 'bits', 'parity', 'stop', 'invert', 'estimate'}:
         raise ValueError('UART 參數不合法')
+    if 'estimate' in options and type(options['estimate']) is not bool:
+        raise ValueError('estimate 須為布林值')
     o = dict(bits=8, parity='N', stop=1, invert=False)
     o.update(options)
     try:
-        valid = (not isinstance(o.get('baud'), bool) and np.isfinite(o['baud']) and o['baud'] > 0
+        valid = ((o.get('estimate') is True or (not isinstance(o.get('baud'), bool) and np.isfinite(o['baud']) and o['baud'] > 0))
                  and type(o['bits']) is int and 5 <= o['bits'] <= 9
                  and o['parity'] in ('N', 'E', 'O', 'M', 'S')
                  and not isinstance(o['stop'], bool) and o['stop'] in (1, 2)
@@ -30,7 +32,50 @@ def options(options: dict, channels: dict) -> dict:
         valid = False
     if not valid:
         raise ValueError('UART 需 baud>0、bits 5–9、parity N/E/O/M/S、stop 1/2 與布林 invert')
+    if o.get('estimate') is False:
+        o.pop('estimate')
     return o
+
+
+STANDARD_BAUD = (300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400,
+                 57600, 115200, 230400, 460800, 921600, 1000000)
+
+
+def estimate_lane(e: Edges, dt: float) -> tuple[int | None, tuple, str]:
+    """只用真正轉態間距；不跨越未知區段，極性不影響估計。"""
+    real = (e.value >= 0) & ~e.resync
+    d = np.diff(e.time)
+    d = d[real[:-1] & real[1:] & (d >= 2 * dt)]
+    if len(d) < 8:
+        return None, (), '邊緣太少'
+    for baud in STANDARD_BAUD:
+        period = 1 / baud
+        if period < 4 * dt or d.min() < .8 * period:
+            continue
+        multiples = np.maximum(1, np.rint(d / period))
+        # 倍數上限隨最長間距延伸（至少 15），可涵蓋長時間 idle。
+        fit = float(np.mean(np.abs(d - multiples * period) <= .08 * multiples * period))
+        if fit >= .95:
+            return baud, (fit, len(d)), ''
+    return None, (), '間距不符合任何標準鮑率'
+
+
+def estimate_waveforms(t: np.ndarray, volts: dict, thresholds: dict) -> tuple[dict, str]:
+    """兩線各估一次；優先符合比例，其次有效間距數，相同時保留 TX。"""
+    validate_time(t)
+    dt = float(np.min(np.diff(t)))
+    used, best, failures = {}, None, []
+    for lane, v in volts.items():
+        edges, th, _, error = prepare(t, {lane: v}, {lane: thresholds[lane]}, require_edges=False)
+        used.update(th)
+        baud, confidence, error = (None, (), error) if error else estimate_lane(edges[lane], dt)
+        if baud is not None and (best is None or confidence > best[0]):
+            best = (confidence, baud)
+        if error:
+            failures.append(error)
+    if best is not None:
+        return used, f'估計鮑率 {best[1]}；估計值取最短脈寬，請確認'
+    return used, '無法估計鮑率：' + (failures[0] if failures else '邊緣太少')
 
 
 def _lane(e: Edges, lane: str, end: float, o: dict, limit: int) -> tuple:

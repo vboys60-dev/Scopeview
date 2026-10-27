@@ -23,7 +23,7 @@ export function mount(el, ctx) {
   const bar = node('div','decode__bar'), sum = node('div','decode__sum'), info = node('span','decode__info');
   const filter = node('div','decode__segment'), all = node('button','btn btn--small','全部'), problems = node('button','btn btn--small','只錯誤／警告');
   let onlyProblems = false, auto = true, fileGen, rendered = null, previousFilter, previousAscii;
-  let sources = {}, thresholds = {}, options = {}, active, eventProtocol;
+  let actions = [], sources = {}, thresholds = {}, options = {}, active, eventProtocol;
   const protocol = node('select','input decode__protocol'); protocol.dataset.protocol = 'true';
   for (const def of Object.values(protocols).sort((a,b) => a.order-b.order)) { const o = node('option','',def.label); o.value = def.name; protocol.append(o); }
   label('協定',protocol);
@@ -42,11 +42,11 @@ export function mount(el, ctx) {
   let addr = table([]); details.append(caption,addr.el);
   filter.append(all,problems); sum.append(info,filter); root.append(bar,sum,wrap,foot,details); el.append(root);
   function build(def, p, st) {
-    sources = {}; thresholds = {}; options = {}; form.replaceChildren(); params.replaceChildren();
+    actions = []; sources = {}; thresholds = {}; options = {}; form.replaceChildren(); params.replaceChildren();
     const add = (parent,text,input) => { const l = node('label','decode__control',text); l.append(input); parent.append(l); return input; };
     for (const role of def.roles) {
       const select = node('select','input'); select.dataset.role = role.key;
-      if (role.optional) { const o = node('option','','—不使用—'); o.value = ''; select.append(o); }
+      if (role.optional || role.allowEmpty) { const o = node('option','','—不使用—'); o.value = ''; select.append(o); }
       for (const c of st.channels.filter(c => !c.derived)) { const o = node('option','',c.name); o.value = c.name; select.append(o); }
       sources[role.key] = add(form,role.label,select); select.value = p.ch[role.key]; select.oninput = readSettings;
     }
@@ -69,6 +69,10 @@ export function mount(el, ctx) {
       input.checked = !!p.opt[o.key]; input.oninput = readSettings;
       if (o.list) { const list = node('datalist'); list.id = `decode-${def.name}-${o.key}`; input.setAttribute('list',list.id); for (const v of o.list) { const e = node('option'); e.value = String(v); list.append(e); } params.append(list); }
       options[o.key] = add(params,o.label,input);
+      if (o.action) {
+        const button = node('button','btn btn--small',o.action.label); button.dataset.decodeAction = o.action.key;
+        button.onclick = () => o.action.run({ ...ctx,model,input }); input.parentNode.append(button); actions.push(button);
+      }
     }
     params.append(run,exp,bandLabel,asciiLabel);
     eventProtocol = null; rendered = null;
@@ -110,6 +114,7 @@ export function mount(el, ctx) {
       if (auto) e.value = r?.summary.thresholds[role] ? fmt(r.summary.thresholds[role][i],'V',3) : '';
     });
     run.disabled = !st.file || model.busy || formDef.roles.some(r => !r.optional && !p.ch[r.key]);
+    for (const button of actions) button.disabled = !st.file || model.busy || !Object.values(p.ch).some(Boolean);
     exp.disabled = !r || r.stale || model.busy;
     root.classList.toggle('decode--stale',!!r?.stale);
     info.replaceChildren();
@@ -129,8 +134,8 @@ export function mount(el, ctx) {
       const { rows, total } = tableFrames(r?.frames ?? [],onlyProblems);
       const dx = st.channels.find(c => c.name === r?.base)?.time_offset ?? 0;
       events.body.replaceChildren(...rows.map(f => {
-        const row = node('tr'), content = withAscii(f,def.content(f),model.ascii); row.tabIndex = 0; row.dataset.decodeFrame = String(f.i);
-        cells(row,[f.i+1,fmt(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f)),content.length > 64 ? content.slice(0,64)+'…' : content,
+        const row = node('tr'), content = withAscii(f,def.content(f,r.options),model.ascii); row.tabIndex = 0; row.dataset.decodeFrame = String(f.i);
+        cells(row,[f.i+1,fmt(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f,r.options)),content.length > 64 ? content.slice(0,64)+'…' : content,
           f.reasons.length ? f.reasons.map(k => def.reasons[k] ?? k).join('、') : f.kind === 'hdr' ? '資訊' : '正常']);
         row.children[3+def.columns.length].title = content; row.children[4+def.columns.length].className = 'decode__'+(f.status === 'ok' && f.kind === 'hdr' ? 'infoStatus' : f.status);
         row.onclick = () => selectFrame(store,f);

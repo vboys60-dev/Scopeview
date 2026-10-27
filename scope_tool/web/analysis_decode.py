@@ -37,7 +37,8 @@ def protocol(name: str) -> object:
 
 
 def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dict:
-    if not isinstance(channels, dict) or set(channels) - mod.ROLES.keys() or any(r not in channels for r, required in mod.ROLES.items() if required):
+    estimating = getattr(mod, '__name__', '') == 'scope_tool.web.uart_decode' and isinstance(options, dict) and options.get('estimate') is True
+    if not isinstance(channels, dict) or set(channels) - mod.ROLES.keys() or any(r not in channels for r, required in mod.ROLES.items() if required and not estimating):
         raise BadRequest('channels 角色無效或缺少必填角色')
     if not all(isinstance(v, str) for v in channels.values()) or len(set(channels.values())) != len(channels):
         raise BadRequest('通道須為不同的字串')
@@ -46,6 +47,8 @@ def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dic
     for th in thresholds.values():
         if th is not None and not (isinstance(th, (list, tuple)) and len(th) == 2 and all(_finite(v) for v in th) and th[0] < th[1]):
             raise BadRequest('門檻須為兩個有限數 lo < hi 或 null')
+    if not channels:
+        raise BadRequest('請至少選擇一個通道')
     try:
         return mod.options(options, channels)
     except ValueError as exc:
@@ -55,13 +58,15 @@ def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dic
 class DecodeMixin:
     def decode(self, protocol: str, channels: dict, thresholds: dict, options: dict) -> dict:
         with self._lock:
-            self._dec = None  # 所有失敗（含參數錯誤）都使舊 id 失效。
+            estimating = protocol == 'uart' and isinstance(options, dict) and options.get('estimate') is True
+            if not estimating:
+                self._dec = None  # 正式解碼失敗（含參數錯誤）使舊 id 失效；估計保留快照。
             gen, waves, _ = self._need()
             path = self._path
         mod = globals()['protocol'](protocol)
         opts = _params(mod, channels, thresholds, options)
         lines = {r: self._wf(waves, channels[r]) for r in mod.ROLES if r in channels}
-        base = lines[mod.BASE]
+        base = lines.get(mod.BASE) or next(iter(lines.values()))
         try:
             for w in lines.values():
                 validate_time(base.time, w.time)
@@ -71,7 +76,10 @@ class DecodeMixin:
                 if neg in lines:
                     # ponytail: 相減配置整條陣列；1e8 點時 +800 MB，需要時改分塊。
                     volts[pos] = volts[pos] - lines[neg].voltage
-            edges, used, end, reason = prepare(base.time, volts, thresholds, require_edges=mod.REQUIRE_EDGES)
+            if estimating:
+                used, reason = mod.estimate_waveforms(base.time, volts, thresholds)
+            else:
+                edges, used, end, reason = prepare(base.time, volts, thresholds, require_edges=mod.REQUIRE_EDGES)
         except ValueError as exc:
             raise BadRequest(str(exc)) from exc
         summary = dict(ok=False, reason=reason, gen=gen, decode_id=None, protocol=protocol,
@@ -135,7 +143,8 @@ class DecodeMixin:
                 writer.writerow(['frame#', '種類', '起(s)', '迄(s)', '位址', 'RnW', 'ACK', 'CCC', '狀態', '原因', '說明',
                                  'field#', '欄位', '值(hex)', '位元數', '第9位', '第9位意義', 'field狀態', 'field說明'])
                 for f in snap['frames']:
-                    prefix = [f['i'], f['kind'], repr(float(f['t0'])), repr(float(f['t1'])), f['addr'], f['rw'], f['ack'],
+                    addr = protocol(snap['protocol']).display_addr(f, meta['options']) if snap['protocol'] == 'i2c' else f['addr']
+                    prefix = [f['i'], f['kind'], repr(float(f['t0'])), repr(float(f['t1'])), addr, f['rw'], f['ack'],
                               f['ccc'], f['status'], ' '.join(f['reasons']), f['label']]
                     for i, field in enumerate(f['fields'] or [None]):
                         suffix = [i, field['kind'], '' if field['value'] is None else hex(field['value']), field['nbits'],

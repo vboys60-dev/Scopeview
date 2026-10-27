@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import numpy as np
 from scope_tool.web.logic import to_edges
-from scope_tool.web.uart_decode import run, _levels_at
+from scope_tool.web.uart_decode import run, _levels_at, estimate_waveforms
 
 
 def csv_time(value: str) -> tuple[float, float]:
@@ -76,6 +76,11 @@ def check(root: Path | None = None) -> dict:
             axes.append(t)
             volts[lane] = v
             edges[lane] = to_edges(t, v, threshold - .1, threshold + .1)
+        for lane, v in volts.items():
+            for th in (None, (1.19, 1.39) if lane == 'tx' else (.9, 1.1)):
+                _, message = estimate_waveforms(t, {lane: v}, {lane: th})
+                assert message.startswith('估計鮑率 19200；'), (lane, message)
+        print('實機 TX／RX 自動與手動門檻各估計 19200：OK')
         assert np.array_equal(*axes), '兩通道時間軸不同'
     with cp.open(encoding='utf-8-sig', newline='') as stream:
         rows = list(csv.DictReader(stream))

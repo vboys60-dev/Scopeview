@@ -19,7 +19,7 @@ export const defaultConfig = (channels, def = protocols.i3c) => {
 };
 export function decodeParams(p, def = definition(p.protocol)) {
   const channels = Object.fromEntries(Object.entries(p.ch).filter(([,v]) => v));
-  if (def.roles.some(r => !r.optional && !channels[r.key]) || new Set(Object.values(channels)).size !== Object.keys(channels).length) throw Error('請選擇不同的原始通道並填齊必填角色');
+  if (!Object.keys(channels).length || def.roles.some(r => !r.optional && !channels[r.key] && !(def.name === 'uart' && p.opt.estimate === true)) || new Set(Object.values(channels)).size !== Object.keys(channels).length) throw Error('請選擇不同的原始通道並填齊必填角色');
   const thresholds = Object.fromEntries(Object.entries(p.thr).filter(([k]) => channels[k] && !def.diff?.[k]));
   for (const v of Object.values(thresholds)) if (v !== null && (!v.every(Number.isFinite) || v[0] >= v[1])) throw Error('手動門檻須為有限數，且 lo < hi');
   return JSON.parse(JSON.stringify({ protocol:def.name,channels,thresholds,options:p.opt }));
@@ -76,6 +76,26 @@ export function createDecode({ store, bridge, ui = {} }) {
       if (current(t,g)) { busy = false; notify(); }
     }
   }
+  async function estimate(apply) {
+    if (busy) return;
+    const t = ++token, g = store.get().file?.gen;
+    try {
+      if (!store.get().file) throw Error('請先開啟波形檔');
+      const params = decodeParams({ ...config,opt:{ ...config.opt,estimate:true } });
+      busy = true; message = ''; notify();
+      const summary = await bridge.job('decode',params);
+      if (!current(t,g)) return;
+      if (summary.gen !== g) { message = '估計結果已過期，請重新估計'; return; }
+      busy = false;
+      // apply 只在世代與設定仍有效時填欄位；input 事件才讓結果標示過期。
+      message = apply(summary);
+      notify();
+    } catch (e) {
+      if (current(t,g)) message = e.message ?? String(e);
+    } finally {
+      if (current(t,g)) { busy = false; notify(); }
+    }
+  }
   async function exportCsv() {
     const r = store.get().decodeResult;
     if (!r || r.stale || r.summary.gen !== store.get().file?.gen) { ui.toast?.('解碼結果已過期，請重新解碼','info'); return; }
@@ -89,7 +109,7 @@ export function createDecode({ store, bridge, ui = {} }) {
     }
   }
   return { get config() { return config; }, get busy() { return busy; }, get message() { return message; }, get ascii() { return ascii; },
-    change, run, exportCsv, on(fn) { subs.add(fn); return () => subs.delete(fn); } };
+    change, run, estimate, exportCsv, on(fn) { subs.add(fn); return () => subs.delete(fn); } };
 }
 const models = new WeakMap();
 export function decodeModel(ctx) {

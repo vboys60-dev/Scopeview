@@ -279,7 +279,7 @@ Class（BEM 風格，`block__element--modifier`）：
 
 ### I3C 解碼追加（2026-10-26，version 維持 2）
 
-所有參數 required；protocol 接受 i3c／i2c／spi／uart／can，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。
+所有參數 required；protocol 接受 i3c／i2c／spi／uart／can，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。
 
 型別（欄位型別字串與 api_contract.json 相同）：
 ```
@@ -294,7 +294,9 @@ DecodeBits = {"bits": "[float,int][]","truncated": "bool"}
 
 I3C 列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge kind：addr ccc def data mdb pid bcr dcr da；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。
 
-解碼一開始清舊快照，任何失敗也失效；完成在鎖內驗 gen。decode_id 不重用。同步三方法先驗型別再鎖內驗 id/gen；換／關檔、重新解碼或失敗後舊 id 均 STALE。decode_frames 同步取得大結果，不帶 request_id、不進 job 事件環。decode_bits 使用 BASE 通道來源時間、不套 dx，兩端含、反序交換；時間須有限，最多前 4096 bit、超出 truncated=true。
+UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）；true 時不要求有效 baud，只估計不解碼，保留既有快照，以 ok=false、reason「估計鮑率 19200；估計值取最短脈寬，請確認」或「無法估計鮑率：<原因>」回覆。估計允許只選 TX 或 RX；正式解碼仍需明確 baud 與 TX。
+
+正式解碼一開始清舊快照，任何失敗也失效；完成在鎖內驗 gen。decode_id 不重用。同步三方法先驗型別再鎖內驗 id/gen；換／關檔、重新解碼或失敗後舊 id 均 STALE。decode_frames 同步取得大結果，不帶 request_id、不進 job 事件環。decode_bits 使用 BASE 通道來源時間、不套 dx，兩端含、反序交換；時間須有限，最多前 4096 bit、超出 truncated=true。
 
 export_decode 使用解碼當時的來源檔／通道／門檻／options／時間，directory=null 用該來源資料夾；utf-8-sig、檔名 `{stem}_解碼_YYYYMMDD_HHMMSS.csv`，永不覆蓋，寫入失敗 ScopeError。CSV 為 meta、空行、事件表（每 field 一列，無 field 的 frame 仍一列）、空行、位址表（只有 I3C）；時間 repr(float)。
 

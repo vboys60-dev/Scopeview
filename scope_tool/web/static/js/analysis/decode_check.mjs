@@ -5,7 +5,8 @@ import { createStore } from './store.js';
 import { REASONS } from './decode_i3c.js';
 import { jumpView, parseAddresses, createDecode, decodeParams, defaultConfig } from './decode.js';
 import { mount, frameContent, tableFrames } from './decode_table.js';
-import { BAND_H, visibleFrames, bandLayout, bitCells, ninthLabel, drawBand, mount as mountBand } from './decode_band.js';
+import { bandHeight, visibleFrames, bandLayout, bitCells, ninthLabel, drawBand, mount as mountBand } from './decode_band.js';
+import { clampLayout } from './layout.js';
 import { mountTabs, validate } from './bpanel.js';
 const contract = JSON.parse(fs.readFileSync(new URL('../../api_contract.json',import.meta.url)));
 assert.deepEqual(Object.keys(REASONS).sort(),contract.types_doc['DecodeFrame.reasons.i3c'].split(' ').sort());
@@ -129,7 +130,47 @@ assert.equal(cells9.length,9); assert.equal(cells9[8].label,'P✓'); assert.equa
 assert.equal(bitCells(field,[[0,0],[1,1],[3,0],[8,1]],t => t)[1].x1,2);
 assert.deepEqual(['ack','ack','parity','parity','tbit','tbit'].map((kind,i) => ninthLabel({ ninth_kind:kind,ninth:i%2,ok:i!==3 })),['A','N','P✓','P✗','T0','T1']);
 const css = fs.readFileSync(new URL('../../css/analysis.css',import.meta.url),'utf8');
-assert.equal(+css.match(/\.analysis__decodeband \{[^}]*height: (\d+)px/)[1],BAND_H);
+assert.ok(!/height:/.test(css.match(/\.analysis__decodeband \{([^}]+)/)[1]));
+// 獨立列：hex 永遠保留，ASCII 與相同欄位的方框／中心精確對齊。
+function rowChecks(protocol = 'i3c') {
+  const byte = { ...field,kind:'data',value:0x5A }, addr = { ...field,kind:'addr',t0:9,t1:17,value:0x50 };
+  const st = { channels:[],plotRect:rect,view:{ t0:0,t1:100 },decodeAscii:true,
+    decodeResult:{ summary,protocol,frames:[{ ...transaction,t1:18,fields:[byte,addr] }] } };
+  for (const bit of [false,true]) for (const ascii of [false,true]) {
+    const state = { ...st,view:{ t0:0,t1:bit ? 80 : 100 },decodeAscii:ascii };
+    assert.equal(bandHeight(state),40+(bit ? 20 : 0)+(ascii ? 20 : 0));
+    const recorded = [], g = new Proxy({ measureText:() => ({ width:8 }) }, { get:(o,k) => o[k] ?? ((...a) => recorded.push([k,...a])) });
+    const result = drawBand(g,1000,state,samples), y = bit ? 41 : 21;
+    assert.ok(recorded.some(x => x[0] === 'fillText' && x[1] === '5A' && x[3] === y+13));
+    assert.ok(!recorded.some(x => x[0] === 'fillText' && /5A\s+Z/.test(x[1])));
+    assert.equal(recorded.some(x => x[0] === 'fillText' && x[1] === 'ASCII'),ascii);
+    const boxes = recorded.filter(x => x[0] === 'strokeRect' && x[2] === y+20+.5);
+    assert.equal(boxes.length,ascii ? 1 : 0); // 位址不進 ASCII 列
+    if (ascii) {
+      const b = result.fields[0], hex = recorded.find(x => x[0] === 'strokeRect' && x[2] === y+.5);
+      assert.deepEqual([boxes[0][1],boxes[0][3]],[hex[1],hex[3]]);
+      assert.ok(recorded.some(x => x[0] === 'fillText' && x[1] === 'Z' && x[2] === (b.x0+b.x1)/2 && x[3] === y+33));
+    }
+  }
+}
+rowChecks(); rowChecks('i2c');
+// 動態 chrome 預算：有空間時縮主圖，矮視窗沿用收折／捲動且不低於 270px。
+for (const H of [240,450,900]) for (const fftOn of [false,true]) {
+  const sizes = [40,60,80].map(height => clampLayout({ W:1400,H,fftOn,chrome:56+height,prefs:{} }));
+  assert.ok(sizes.every(e => e.main >= 270));
+  if (H === 240) assert.ok(sizes.every(e => e.scroll));
+  if (H === 900 && !fftOn) assert.equal(sizes[0].main-sizes[2].main,40);
+}
+// 雙 lane 共用 ASCII 時，重疊保留 TX，獨立 RX 仍可見；窄欄只畫框。
+const laneState = { channels:[],plotRect:rect,view:{ t0:0,t1:100 },decodeAscii:true,
+  decodeResult:{ protocol:'uart',summary:{ ...summary,channels:{ tx:'CH1',rx:'CH2' } },frames:[{ ...transaction,t1:40,fields:[
+    { ...field,kind:'tx',nbits:8,ninth_kind:null,t0:0,t1:8,value:65 },{ ...field,kind:'rx',nbits:8,ninth_kind:null,t0:0,t1:8,value:66 },
+    { ...field,kind:'rx',nbits:8,ninth_kind:null,t0:20,t1:28,value:67 },{ ...field,kind:'rx',nbits:8,ninth_kind:null,t0:30,t1:31,value:68 } ] }] } };
+const laneOps = [], laneG = new Proxy({ measureText:() => ({ width:8 }) }, { get:(o,k) => o[k] ?? ((...a) => laneOps.push([k,...a])) });
+assert.equal(bandHeight(laneState),60); assert.equal(bandHeight({ ...laneState,decodeAscii:false }),40);
+drawBand(laneG,1000,laneState);
+assert.deepEqual(laneOps.filter(x => x[0] === 'fillText' && x[3] === 54).map(x => x[1]),['ASCII','A','C']);
+assert.equal(laneOps.filter(x => x[0] === 'strokeRect' && x[2] === 41.5).length,3);
 // 假 Canvas 掛載真 mount：debounce、dx、快取、過期 RPC、點選與 dispose。
 const originalDocument = globalThis.document, realTimeout = globalThis.setTimeout, realClear = globalThis.clearTimeout;
 const ops = [], g = new Proxy({}, { get:(o,k) => o[k] ?? ((...a) => ops.push([k,...a])),set:(o,k,v) => (o[k]=v,true) });

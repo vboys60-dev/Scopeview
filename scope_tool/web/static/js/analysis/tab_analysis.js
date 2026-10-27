@@ -1,4 +1,4 @@
-import { mount as mountDecodeBand, BAND_H } from './decode_band.js';
+import { mount as mountDecodeBand, bandHeight } from './decode_band.js';
 import { mount as mountDecodeTable } from './decode_table.js';
 import { markerModel } from "./markers.js";
 import { mount as mountMarkerTable } from "./marker_table.js";
@@ -161,7 +161,7 @@ export function mount(el, ctx) {
     frame = 0;
     const H = Math.max(0,root.clientHeight-q('analysis__toolbar').getBoundingClientRect().height-8);
     const bandOn = !!store.get().decodeResult?.summary.ok && decodeTable.model.config.band;
-    const chrome = q('analysis__chanbar').getBoundingClientRect().height+28+(bandOn ? BAND_H : 0);
+    const chrome = q('analysis__chanbar').getBoundingClientRect().height+28+(bandOn ? bandHeight(store.get()) : 0);
     const floating = floatPanel.update();
     effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, chrome });
     controller.update(effective);
@@ -186,6 +186,7 @@ export function mount(el, ctx) {
     const waveHidden = e.tabbed && activeTab === 'fft';
     q('analysis__main').hidden = waveHidden; q('analysis__horizontal').hidden = waveHidden;
     q('analysis__main').style.height = e.main+'px';
+    q('analysis__decodeband').style.height = bandHeight(store.get())+'px';
     q('analysis__decodeband').hidden = !bandOn || waveHidden; band.draw();
     // 分頁共用同一塊空間；Horizontal 列在頻譜分頁留在尺寸預算內。
     fftSection.hidden = !fftOn || (e.tabbed && activeTab !== 'fft');
@@ -204,7 +205,7 @@ export function mount(el, ctx) {
     lowerHeader.tabIndex = floating ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
   }
   store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
-  store.on(['measurements','fftResult','fftMarker','cursors','decodeResult'],schedule);
+  store.on(['measurements','fftResult','fftMarker','cursors','decodeResult','decodeAscii','view','channels','plotRect'],schedule);
   const observer = new ResizeObserver(schedule);
   for (const host of [root,q('analysis__toolbar'),q('analysis__chanbar')]) observer.observe(host);
   schedule();

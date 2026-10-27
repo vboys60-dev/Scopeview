@@ -171,6 +171,66 @@ def limits() -> None:
             raise AssertionError(key)
 
 
+def estimation() -> None:
+    from scope_tool.web.logic import prepare
+    for baud in (None, 0, -1, '錯誤', True, float('nan')):
+        assert dec.options({'estimate': True, 'baud': baud}, {})['estimate'] is True
+    assert dec.options({'estimate': True}, {})['estimate'] is True
+    for baud in dec.STANDARD_BAUD:
+        for bits, parity, stop in ((8, 'N', 1), (7, 'E', 1), (9, 'O', 2)):
+            line = uart_line([0x55, 0x41, 0x33] * 3, baud=baud, bits=bits, parity=parity, stop=stop)
+            for levels in ((0., 3.3), (12., -12.)):
+                t, v = render(line, fs=baud * 64, levels=levels)
+                used, message = dec.estimate_waveforms(t, {'tx': v}, {'tx': None})
+                expected = 921600 if baud == 1000000 else baud  # 8% 容差重疊時依規則取最低值。
+                assert message.startswith(f'估計鮑率 {expected}；'), (baud, message)
+                assert used['tx'] is not None
+    t = np.arange(10000) / 1e6
+    rng = np.random.default_rng(11)
+    for v in (rng.normal(size=len(t)), np.where(t < .005, 0., 3.3)):
+        _, message = dec.estimate_waveforms(t, {'tx': v}, {'tx': [1., 2.]})
+        assert message.startswith('無法估計鮑率：'), message
+    # 雙 bit 脈寬的週期為兩倍；最低通過鮑率因此是一半，無法從邊緣區分。
+    b = raw([(i * 2, i % 2) for i in range(20)], 42)
+    assert dec.estimate_lane(edge(b), 1 / (9600 * 64))[0] == 4800
+    assert dec.estimate_lane(edge(uart_line([0x55] * 3)), 1 / 9600)[0] is None
+    # 一條閒置線不阻止另一條估計；未知區段的 resync 不當邊緣。
+    t, v = render(uart_line([0x55] * 3))
+    _, message = dec.estimate_waveforms(t, {'tx': np.ones_like(v), 'rx': v}, {'tx': None, 'rx': None})
+    assert message.startswith('估計鮑率 9600；')
+    e = prepare(t, {'tx': v}, {'tx': None}, require_edges=False)[0]['tx']
+    assert dec.estimate_lane(e, float(np.min(np.diff(t))))[0] == 9600
+    # 毛刺短於兩取樣間隔時忽略；NaN 的兩端不可拼成假脈寬。
+    noisy = e._replace(time=np.r_[e.time[:2], e.time[1] + 1e-7, e.time[1] + 2e-7, e.time[2:]],
+                       value=np.r_[e.value[:2], 1, 0, e.value[2:]], resync=np.r_[e.resync[:2], False, False, e.resync[2:]])
+    assert dec.estimate_lane(noisy, 1 / (9600 * 64))[0] == 9600
+    short = edge(uart_line([0x55]))
+    short = short._replace(resync=np.ones_like(short.resync))
+    assert dec.estimate_lane(short, 1 / (9600 * 64))[0] is None
+    # 兩線都可估時以有效間距較多者為準。
+    slow, fast = uart_line([0x55] * 3), uart_line([0x55] * 10, baud=19200)
+    tt, tx, rx = render(slow, fast, fs=19200 * 64)
+    assert dec.estimate_waveforms(tt, {'tx': tx, 'rx': rx}, {'tx': None, 'rx': None})[1].startswith('估計鮑率 19200；')
+    for bad in ({'estimate': 1}, {'estimate': False}, {'estimate': True, 'bits': 3}):
+        try:
+            dec.options(bad, {})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(bad)
+    from scope_tool.web.analysis_api import Analysis
+    from scope_tool.contracts import Waveform
+    api = Analysis()
+    api._gen, api._waves = 1, [Waveform('CH1', t, v)]
+    good = api.decode('uart', {'tx': 'CH1'}, {'tx': None}, {'baud': 9600})
+    before = api.decode_frames(good['decode_id'])
+    for lane in ('tx', 'rx'):
+        summary = api.decode('uart', {lane: 'CH1'}, {lane: None}, {'estimate': True})
+        assert not summary['ok'] and summary['reason'].startswith('估計鮑率 9600；')
+        assert api.decode_frames(good['decode_id']) == before
+    print('鮑率估計：16 種標準值／8N1／7E1／9O2／反相／雜訊／少邊緣／雙 bit 歧義：OK')
+
+
 def performance() -> None:
     n = 10_000_000
     tt = np.arange(n) / (9600 * 64)
@@ -215,6 +275,7 @@ if __name__ == '__main__':
     handwritten()
     protocol_vectors()
     quality()
+    estimation()
     performance()
     if '--mutations' in sys.argv:
         mutations()

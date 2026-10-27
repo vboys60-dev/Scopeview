@@ -15,6 +15,11 @@ function content(f) {
     (x.ninth === 1 || !x.ok ? '⚠' : '')+(x.value == null ? x.label : hex(x.value)));
   return [...data,...names].filter(Boolean).join(' ') || f.label || kinds[f.kind] || f.kind;
 }
+// 一般 7-bit 位址才轉成含 R/W 的 byte，特殊 frame 保留原顯示。
+const addr10 = f => f.fields.some(x => x.kind === 'addr_lo' || x.kind === 'addr' && x.value != null && (x.value & 0xF8) === 0xF0);
+const byteAddress = (f, o) => o?.addr_bits === 8 && ['write','read'].includes(f.kind) && f.addr >= 0x08 && f.addr <= 0x77 && [0,1].includes(f.rw) && !addr10(f);
+const fieldText = (x, o, f) => x.kind === 'addr' && f && byteAddress(f,o) && x.value != null
+  ? hex(x.value).slice(2) : i3c.fieldText(x);
 const field = (t, kind, value, ninth = 0) => ({ t0:t, t1:t+8, kind, addr:null, value, nbits:9,
   ninth, ninth_kind:'ack', ok:true, label:'' });
 const frame = (i, kind, addr, rw, fields, label = '') => ({ i, t0:i*30, t1:i*30+29, kind, start:'S', addr, rw,
@@ -25,11 +30,11 @@ const frames = [frame(0,'write',0x50,0,[field(1,'addr',0xA0),field(11,'data',0x1
 
 export default {
   name:'i2c', label:'I2C', order:1, base:'scl', diff:{},
-  roles:[{ key:'scl',label:'SCL' },{ key:'sda',label:'SDA' }], options:[], reasons, kinds,
+  roles:[{ key:'scl',label:'SCL' },{ key:'sda',label:'SDA' }], options:[{ key:'addr_bits',label:'位址位元',type:'select',value:7,choices:[[7,'7'],[8,'8']] }], reasons, kinds,
   eventKind:f => kinds[f.kind] ?? f.kind, content,
-  columns:[{ head:'位址',cell:f => hex(f.addr,f.addr > 0x7F || f.fields.some(x => x.kind === 'addr_lo' || x.kind === 'addr' && (x.value & 0xF8) === 0xF0) ? 3 : 2) },
+  columns:[{ head:'位址',cell:(f,o) => hex(byteAddress(f,o) ? f.addr << 1 | f.rw : f.addr,f.addr > 0x7F || addr10(f) ? 3 : 2) },
     { head:'R/W',cell:f => f.rw == null ? '—' : f.rw ? 'R' : 'W' }],
-  fieldText:i3c.fieldText, lanes:() => null, laneLabels:{}, addresses:null, reportSummary:true,
+  fieldText, lanes:() => null, laneLabels:{}, addresses:null, reportSummary:true,
   summary:s => 'I2C · 門檻 '+['scl','sda'].map(k => `${k.toUpperCase()} ${s.thresholds[k]?.map(v => fmt(v,'V',3)).join(' / ') ?? '—'}`).join('；'),
   sample:{ frames,addresses:[] },
 };

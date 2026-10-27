@@ -96,8 +96,8 @@ export function decodeSection(st, root, F, invert) {
   const only = root.querySelector('.decode__sum button:last-child')?.getAttribute('aria-pressed') === 'true';
   const { rows,total } = tableFrames(r.frames,only);
   const events = { head:['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態'], rows:rows.map(f => {
-    const content = withAscii(f,def.content(f),st.decodeAscii);
-    return [f.i+1,F(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f)),
+    const content = withAscii(f,def.content(f,r.options),st.decodeAscii);
+    return [f.i+1,F(f.t0+dx,'s'),def.eventKind?.(f) ?? def.kinds[f.kind] ?? f.kind,...def.columns.map(c => c.cell(f,r.options)),
       content.length > 64 ? content.slice(0,64)+'…' : content,f.reasons.map(k => def.reasons[k] ?? k).join('、') || (f.kind === 'hdr' ? '資訊' : '正常')];
   }) };
   const addresses = def.addresses && { head:def.addresses.head,rows:r.addresses.slice(0,256).map(a => def.addresses.row(a,F,dx)) };

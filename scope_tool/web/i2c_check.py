@@ -163,7 +163,8 @@ def quality() -> None:
             cuts = [to_edges(waves[0], v, *r['thresholds'][key], max_edges=12) for key, v in zip(('scl', 'sda'), waves[1:])]
             assert r['t1'] == min(e.time[-1] for e in cuts if e.truncated)
         assert any(f"{r['t1']:.12g}" in w for w in r['warnings'])
-    for invalid in ({'x': 1}, None, []):
+    assert dec.options({}, {}) == dec.options({'addr_bits': 7}, {}) == dec.options({'addr_bits': 8}, {}) == {}
+    for invalid in ({'x': 1}, None, [], *({'addr_bits': v} for v in (None, True, False, 7.0, '8', 0, 9, [], {}))):
         try:
             dec.options(invalid, {})
         except ValueError:
@@ -179,6 +180,41 @@ def quality() -> None:
         else:
             raise AssertionError('非法上限應拒絕')
     print('缺第九位／20 seed／NaN／取樣不足／glitch／上限：OK')
+
+
+def display_snapshot() -> None:
+    from tempfile import TemporaryDirectory
+    import csv
+    from scope_tool.web.analysis_api import Analysis
+    from scope_tool.web.i2c_synth import fixture
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / 'i2c_20261027_120000.csv'
+        config = fixture(path)
+        api = Analysis()
+        api.open_waveform(str(path))
+        baseline = None
+        for bits in (7, 8):
+            opt = {'addr_bits': bits}
+            summary = api.decode('i2c', config['channels'], {'scl': None, 'sda': None}, opt)
+            opt['addr_bits'] = 8 if bits == 7 else 7
+            assert api._dec['meta']['options'] == {'addr_bits': bits}
+            frames = api.decode_frames(summary['decode_id'])['frames']
+            if baseline is None:
+                baseline = frames
+            assert frames == baseline
+            out = Path(directory) / str(bits)
+            out.mkdir()
+            rows = list(csv.reader(Path(api.export_decode(summary['decode_id'], str(out))['path']).open(encoding='utf-8-sig')))
+            data = rows[7:]
+            assert data[0][4] == str(0xA0 if bits == 8 else 0x50)
+            for f in frames:
+                addr = dec.display_addr(f, {'addr_bits': bits})
+                assert all(row[4] == str(addr) if addr is not None else row[4] == '' for row in data if row[0] == str(f['i']))
+                if bits == 8 and f['kind'] == 'read' and f['addr'] == 0x50:
+                    assert addr == 0xA1
+                if f['kind'] not in ('write', 'read') or f['addr'] is None or f['addr'] > 0x7F:
+                    assert addr == f['addr']
+    print('選項快照／frames 不變／CSV 位址：OK')
 
 
 def performance() -> None:
@@ -225,6 +261,7 @@ if __name__ == '__main__':
     handwritten()
     protocol_vectors()
     quality()
+    display_snapshot()
     performance()
     if '--mutations' in sys.argv:
         mutations()

@@ -216,7 +216,7 @@
 .decode__foot { font-size: 12.5px; color: var(--c-text-dim); }
 .decode__addressesTable { overflow-x: auto; border: 1px solid var(--c-border); border-radius: 8px; padding: 4px 8px; }
 .decode__addressesTable summary { cursor: pointer; color: var(--c-text-dim); }
-.analysis__decodeband { flex: 0 0 auto; height: 40px; background: var(--c-plot-bg); position: relative; }
+.analysis__decodeband { flex: 0 0 auto; background: var(--c-plot-bg); position: relative; }
 .analysis__decodeband[hidden] { display: none; }
 
 /* 協定設定：通道與門檻一列、參數與動作一列。 */

@@ -14,9 +14,22 @@ REQUIRE_EDGES = True
 
 
 def options(options: dict, channels: dict) -> dict:
-    if options != {}:
-        raise ValueError('I2C 不接受參數')
-    return {}
+    if not isinstance(options, dict) or set(options) - {'addr_bits'}:
+        raise ValueError('I2C 參數不合法')
+    if type(options.get('addr_bits', 7)) is not int or options.get('addr_bits', 7) not in (7, 8):
+        raise ValueError('I2C addr_bits 須為 7 或 8 的整數')
+    return {}  # 只影響顯示，不把選項傳入解碼核心。
+
+
+def display_addr(f: dict, options: dict) -> int | None:
+    """CSV 位址欄使用快照選項；特殊位址沿用原值。"""
+    addr = f['addr']
+    if (options.get('addr_bits', 7) == 8 and f['kind'] in ('write', 'read')
+            and addr is not None and 0x08 <= addr <= 0x77 and f['rw'] in (0, 1)
+            and not any(x['kind'] == 'addr_lo' or x['kind'] == 'addr'
+                        and x['value'] is not None and x['value'] & 0xF8 == 0xF0 for x in f['fields'])):
+        return addr << 1 | f['rw']
+    return addr
 
 
 class Decoder:
@@ -247,4 +260,5 @@ def decode_waveforms(t: np.ndarray, scl: np.ndarray, sda: np.ndarray, *,
 
 if __name__ == '__main__':
     assert options({}, {}) == {} and BASE == 'scl' and not ADDR_TABLE
+    assert options({'addr_bits': 7}, {}) == options({'addr_bits': 8}, {}) == {}
     print('web.i2c_decode self-check OK')
