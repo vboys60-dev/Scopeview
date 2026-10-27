@@ -1,6 +1,6 @@
 // 多檔比對純函式與既有量測／游標控制器的回歸檢查。
 import assert from 'node:assert/strict';
-import { slotPatch, staleDecode, openSlots } from './slots.js';
+import { slotPatch, staleDecode, openSlots, appendFileInfo, SLOT_LIMITS } from './slots.js';
 import { createStore } from './store.js';
 import { createMeasure } from './measure.js';
 import { createController } from './cursors.js';
@@ -71,15 +71,30 @@ assert.equal(slotPatch({ ...st, decodeResult }, 'Mem1', null, colors, scales).de
     addEventListener() {}
   }
   globalThis.document = { createElement: tag => new Element(tag) };
+  // 資訊表：主檔在前、槽位排序、不修改輸入，且與對話框使用同一組限制文字。
+  const infoBody = new Element('div');
+  appendFileInfo(infoBody, { file: { info: [['檔名', 'main.h5']] }, slots: [
+    { slot: 'Mem3', info: [['檔名', '<third>.h5']] },
+    { slot: 'Mem1', info: [['檔名', 'first.h5'], ['通道', 'Mem1.CHAN1']] },
+  ] });
+  const tables = infoBody.querySelectorAll('table');
+  assert.deepEqual(tables.map(t => t.dataset.fileInfo), ['main', 'Mem1', 'Mem3']);
+  assert.equal(tables[1].children[1].children[1].textContent, 'Mem1.CHAN1');
+  assert.equal(tables[2].children[0].children[1].textContent, '<third>.h5');
+  const limits = infoBody.children.at(-1);
+  assert.deepEqual(limits.children.slice(1).map(e => e.textContent), SLOT_LIMITS.map(t => `・${t}`));
+  const mainOnly = new Element('div');
+  appendFileInfo(mainOnly, { file: { info: [['檔名', 'main.h5']] }, slots: [] });
+  assert.equal(mainOnly.children.length, 1, '沒有比對槽時只列主檔');
   const store = createStore();
   const file = { gen: 7, path: '/main.h5', channels: [{ name: 'CHAN1' }] };
   const reset = () => store.set({ file, channels: [{ name: 'CHAN1' }], slots: [], dataRev: 0 });
   reset();
-  const calls = [], errors = [], writes = [];
+  const calls = [], errors = [], writes = [], toasts = [];
   store.on((_s, keys) => writes.push(keys));
   let result = summary, remove = async () => {}, picked = '/new.h5', root;
   const ctx = { store, scales, appState: { catalog: { channel_colors: colors } },
-    ui: { pickPath: async () => picked, showError: e => errors.push(e) },
+    ui: { pickPath: async () => picked, showError: e => errors.push(e), toast: text => toasts.push(text) },
     bridge: { job: async (name, args) => { calls.push([name, args]); return await result; },
       call: async (name, args) => { calls.push([name, args]); await remove(args); } } };
   const modal = async (_title, build) => {
@@ -94,9 +109,17 @@ assert.equal(slotPatch({ ...st, decodeResult }, 'Mem1', null, colors, scales).de
   const pick = () => row().querySelectorAll('button')[0].onclick();
   const apply = () => root.querySelectorAll('button').find(b => b.textContent === '套用勾選').onclick();
   assert.equal(root.querySelectorAll('button').find(b => b.textContent === '套用勾選').className, 'btn btn--primary');
+  result = { ...summary, gen: 8 }; await pick();
+  assert.deepEqual(toasts, [], '過期回傳不消耗首次提示');
+  result = summary;
   await pick(); assert.equal(store.get().slots.length, 1);
+  assert.deepEqual(toasts, ['已載入 Mem1：各檔以自己的觸發點為 0，對齊請調 dx']);
   assert.equal(writes.filter(keys => keys.includes('dataRev')).length, 1);
   assert.ok(writes.every(keys => !keys.includes('file')));
+  await openSlots(ctx, modal);
+  assert.deepEqual(root.querySelectorAll('*').find(e => Object.hasOwn(e.dataset, 'slotLimits')).children.slice(1).map(e => e.textContent),
+    SLOT_LIMITS.map(t => `・${t}`));
+  await pick(); assert.equal(toasts.length, 1, '重開對話框與換槽不重複提示');
   const n = calls.length; await apply(); assert.equal(calls.length, n, '勾選未改不送 RPC');
   row().querySelectorAll('input').forEach(c => { c.checked = false; });
   await apply(); assert.equal(calls.at(-1)[0], 'remove_slot'); assert.deepEqual(store.get().slots, []);
@@ -109,12 +132,17 @@ assert.equal(slotPatch({ ...st, decodeResult }, 'Mem1', null, colors, scales).de
   complete(summary); await pending;
   assert.equal(store.get().dataRev, rev); assert.deepEqual(store.get().slots, [], '等候 add 時換主檔不寫入');
   reset(); result = summary; await pick();
+  assert.equal(toasts.length, 1, '移除再加與過期請求不重複提示');
   remove = async () => { store.set({ file: { ...file, gen: 8 }, slots: [], dataRev: 0 }); };
   await row().querySelectorAll('button')[1].onclick();
   assert.equal(store.get().dataRev, 0, '等候 remove 時換主檔不寫入');
   reset(); result = Promise.reject(Object.assign(new Error('過期'), { code: 'STALE' }));
   await pick(); assert.deepEqual(errors, [], 'STALE 靜默略過');
   picked = null; await pick(); assert.deepEqual(store.get().slots, []);
+  store.set({ file: { ...file, gen: 8 }, slots: [], dataRev: 0 });
+  await openSlots(ctx, modal); result = { ...summary, gen: 8 }; picked = '/new.h5';
+  await pick(); assert.equal(toasts.length, 2, '換主檔後首次成功重新提示');
+  await pick(); assert.equal(toasts.length, 2, '新主檔內也只提示一次');
   // 批次套用：前槽 add 失敗仍繼續後槽 add／remove；STALE remove 也不擋後槽。
   reset();
   for (const slot of ['Mem1', 'Mem2', 'Mem3']) {

@@ -31,6 +31,42 @@ export function slotPatch(st, slot, summary, colors, scales) {
 const h = (tag, text) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; return e; };
 const filename = path => path.split(/[\\/]/).pop();
 
+/** 對話框與檔案資訊共用的比對限制。 */
+export const SLOT_LIMITS = Object.freeze([
+  '各檔以自己的觸發點為時間 0；要對齊請調該通道的 dx。',
+  '游標吸附主檔第一通道；「完整時間」以主檔範圍為準。',
+  '解碼的通道需來自同一檔（時間軸相同）。',
+  'FFT 一次只算一個來源。',
+  '數學二元運算用原始時間對齊，不含 dx。',
+  '波形 CSV 只匯出主檔通道。',
+  '開新檔或關閉會清空所有比對槽位。',
+]);
+
+export function appendSlotLimits(body) {
+  const section = h('section'); section.dataset.slotLimits = '';
+  section.append(h('h3', '比對限制'));
+  for (const text of SLOT_LIMITS) section.append(h('div', `・${text}`));
+  body.append(section);
+}
+
+/** 主檔在前，比對槽按 Mem1～Mem4 排列；所有檔案資訊以文字節點呈現。 */
+export function appendFileInfo(body, st) {
+  const table = (rows, slot) => {
+    const t = h('table'); t.className = 'table'; t.dataset.fileInfo = slot;
+    for (const [key, value] of rows) {
+      const row = h('tr'); row.append(h('td', key), h('td', value)); t.append(row);
+    }
+    body.append(t);
+  };
+  table(st.file.info, 'main');
+  const slots = [...(st.slots ?? [])].sort((a, b) => a.slot.localeCompare(b.slot));
+  for (const s of slots) { body.append(h('h3', s.slot)); table(s.info, s.slot); }
+  if (slots.length) appendSlotLimits(body);
+}
+
+// 不寫入 store 狀態；同 gen 的數學通道更新、移除與重加都不重複提示。
+const notifiedGen = new WeakMap();
+
 /** 選檔立即載入；勾選需套用，全不勾明確移除。原生選檔手感待真人驗證。 */
 export async function openSlots(ctx, modal) {
   const { store, bridge, ui, scales } = ctx, initial = store.get().file;
@@ -69,7 +105,13 @@ export async function openSlots(ctx, modal) {
       const st = store.get();
       if (st.file?.gen !== gen || (summary && summary.gen !== gen)) return;
       const patch = slotPatch(st, slot, summary, colors, scales);
-      if (patch) store.set(patch, 'program');
+      if (patch) {
+        store.set(patch, 'program');
+        if (summary && notifiedGen.get(store) !== gen) {
+          notifiedGen.set(store, gen);
+          ui.toast(`已載入 ${slot}：各檔以自己的觸發點為 0，對齊請調 dx`);
+        }
+      }
     }
     async function run(slot, action) {
       if (busy) return;
@@ -99,11 +141,7 @@ export async function openSlots(ctx, modal) {
       rows.set(slot, { path, checks, remove });
     }
     body.append(h('p', '選檔後立即載入全部通道；改勾選後按「套用勾選」才生效；全不勾＝移除該槽。'));
-    body.append(h('h3', '比對限制'));
-    for (const text of ['各檔以自己的觸發點為時間 0；要對齊請調該通道的 dx。',
-      '游標吸附主檔第一通道；「完整時間」以主檔範圍為準。', '解碼的通道需來自同一檔（時間軸相同）。',
-      'FFT 一次只算一個來源。', '數學二元運算用原始時間對齊，不含 dx。', '波形 CSV 只匯出主檔通道。',
-      '開新檔或關閉會清空所有比對槽位。']) body.append(h('div', `・${text}`));
+    appendSlotLimits(body);
     const apply = button('套用勾選', () => {
       const changes = [];
       for (const [slot, row] of rows) {

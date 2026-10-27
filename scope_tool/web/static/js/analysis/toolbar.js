@@ -2,7 +2,7 @@ import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
 import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
-import { openSlots } from "./slots.js";
+import { openSlots, appendFileInfo } from "./slots.js";
 import { exportReport } from "./report.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
@@ -55,7 +55,7 @@ export function mount(el, ctx) {
   const btn = (t, fn, cls = "btn") => { const b = h("button", cls, t); b.type = "button"; b.onclick = fn; return b; };
   const loaded = [];
 
-  const info = () => modal("檔案資訊", (b) => { const t = h("table", "table"); for (const [k, v] of store.get().file.info) { const r = h("tr"); r.append(h("td", "", k), h("td", "", v)); t.append(r); } b.append(t); }, null);
+  const info = () => modal("檔案資訊", b => appendFileInfo(b, store.get()), null);
 
   async function math() {
     const st = store.get(), names = st.channels.map((c) => c.name), ops = catalog.math_ops ?? { binary: [], unary: [], filters: [] };

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""P2 多檔比對的 Chrome/CDP 真後端驗收；由 browser_check 呼叫。原生選檔待真人驗證。"""
+"""P2／P3 多檔比對的 Chrome/CDP 真後端驗收；由 browser_check 呼叫。原生選檔待真人驗證。"""
 import json
 import math
 from pathlib import Path
@@ -36,12 +36,12 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         c.js(f"(async()=>{{{prep}S.command('file.open',{{path:{json.dumps(str(path))}}})}})()")
         wait(f'S.state.file?.gen !== {json.dumps(gen)} && S.state.file?.path === {json.dumps(str(path))}')
 
-    def choose(path: Path) -> None:
-        c.js("document.querySelector('[data-slot=Mem1] button').click()")
+    def choose(path: Path, slot: str = 'Mem1') -> None:
+        c.js(f"document.querySelector('[data-slot={slot}] button').click()")
         c.wait("document.querySelectorAll('dialog[open]').length===2")
         c.js(f"(()=>{{const d=[...document.querySelectorAll('dialog[open]')].at(-1);d.querySelector('input').value={json.dumps(str(path))};d.querySelector('.btn--primary').click()}})()")
-        wait(f'S.state.slots?.[0]?.path === {json.dumps(str(path))}')
-        c.wait("!document.querySelector('[data-slot=Mem1] button').disabled")
+        wait(f'S.state.slots?.find(s=>s.slot==={json.dumps(slot)})?.path === {json.dumps(str(path))}')
+        c.wait(f"!document.querySelector('[data-slot={slot}] button').disabled")
 
     def apply() -> None:
         rev = state('S.state.dataRev')
@@ -52,6 +52,20 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
     def close_dialog() -> None:
         c.js("[...document.querySelector('dialog[open] .dlg__actions').querySelectorAll('button')].find(b=>b.textContent==='關閉').click()")
         c.wait("!document.querySelector('dialog[open]')")
+
+    def check_info(limits: list[str]) -> None:
+        expected = state("[{slot:'main',info:S.state.file.info},...(S.state.slots??[]).slice().sort((a,b)=>a.slot.localeCompare(b.slot)).map(({slot,info})=>({slot,info}))]")
+        c.js(f"({click})('檔案資訊')")
+        c.wait("!!document.querySelector('dialog[open] [data-file-info=main]')")
+        actual = c.js("""[...document.querySelectorAll('dialog[open] [data-file-info]')].map(t=>({
+          slot:t.dataset.fileInfo,info:[...t.rows].map(r=>[...r.cells].map(c=>c.textContent))}))""")
+        assert actual == expected, (actual, expected)
+        headings = c.js("[...document.querySelectorAll('dialog[open] h3')].map(h=>h.textContent)")
+        expected_slots = [s['slot'] for s in expected[1:]]
+        assert headings == expected_slots + (['比對限制'] if expected_slots else [])
+        actual_limits = c.js("[...document.querySelectorAll('dialog[open] [data-slot-limits] div')].map(d=>d.textContent)")
+        assert actual_limits == (limits if expected_slots else [])
+        close_dialog()
 
     c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)
     c.js("document.querySelector('[data-tab=analysis]').click()")
@@ -76,6 +90,8 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         # CDP returnByValue 將 DOM 節點序列化為 {}，Python 會視為 false；等待須回傳布林。
         c.wait("!!document.querySelector('dialog[open] [data-slots]')")
         assert c.js("document.querySelectorAll('[data-slots] [data-slot]').length") == 4
+        limits = c.js("[...document.querySelectorAll('dialog[open] [data-slot-limits] div')].map(d=>d.textContent)")
+        assert len(limits) == 7
         choose(paths[1])
         c.wait("document.querySelector('.analysis__chanbar').textContent.includes('Mem1.CHAN1')")
         c.wait("window.__slotMain.length>0 && window.__slotHttp.some(u=>decodeURIComponent(u).includes('Mem1.CHAN1'))")
@@ -89,6 +105,7 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         wait("!S.state.channels.some(c=>c.name==='Mem1.CHAN2')")
         assert state("S.state.channels.find(c=>c.name==='Mem1.CHAN1').time_offset") == .0001
         close_dialog()
+        check_info(limits)  # 子集資訊應列出目前已選通道。
         c.js(f"({click})('比對…')")
         c.wait("!!document.querySelector('dialog[open] [data-slot=Mem1] input[value=CHAN2]')")
         assert c.js("document.querySelector('[data-slot=Mem1] input[value=CHAN1]').checked && !document.querySelector('[data-slot=Mem1] input[value=CHAN2]').checked")
@@ -108,10 +125,13 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         c.wait("!document.querySelector('[data-slot=Mem1] button').disabled")
         assert c.js('window.__slotRemoves') == 2
         choose(paths[1])
+        choose(paths[2], 'Mem2')
         close_dialog()
+        check_info(limits)  # 多槽分段、各自檔案資訊與共用限制。
         c.shot(out / 'slots_loaded.png')
         open_main(paths[0])
         assert state('S.state.slots.length===0 && S.state.dataRev===0')
+        check_info(limits)  # 換主檔後沒有殘留比對段落。
         assert not c.errors, c.errors
     finally:
         c.js('window.__slotRestore()')
