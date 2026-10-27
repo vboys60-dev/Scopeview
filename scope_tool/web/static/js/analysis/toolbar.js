@@ -19,6 +19,13 @@ export function channelRecord(info, idx, colors, scales) {
   return { name: info.name, unit: info.unit, derived: !!info.derived, color: colors[idx % colors.length], visible: true, scale, position,
     vmin: info.vmin, vmax: info.vmax, time_offset: 0, t0: info.t0, t1: info.t1, points: info.points };
 }
+/** 數學結果只追加通道；與槽位相同，不發出換檔通知。 */
+export function applyMathChannel(store, result, colors, scales) {
+  const st = store.get();
+  if (!st.file || result.gen !== st.file.gen) return;
+  if (st.channels.some(c => c.name === result.name)) throw new Error(`通道名稱重複：${result.name}`);
+  store.set({ channels: [...st.channels, channelRecord(result, st.channels.length, colors, scales)] }, "program");
+}
 /** 關檔：先通知後端釋放資料（gen+1），再一次重設所有相依狀態（開檔由 L4 處理）。mock 缺此方法（NOT_FOUND）時略過。 */
 export async function closeFile(store, bridge) {
   try { await bridge.call("close_waveform", {}); } catch (e) { if (e.code !== "NOT_FOUND") throw e; }
@@ -74,11 +81,7 @@ export function mount(el, ctx) {
     });
     if (!spec) return;
     try {
-      const r = await bridge.job("math", spec), cur = store.get();
-      if (r.gen !== cur.file?.gen) return; // 已換檔
-      if (cur.channels.some((c) => c.name === r.name)) throw new Error(`通道名稱重複：${r.name}`);
-      // 衍生通道要同時進檔案通道表與通道列（一次寫入），主圖才會抓波形
-      store.set({ file: { ...cur.file, channels: [...cur.file.channels, r] }, channels: [...cur.channels, channelRecord(r, cur.channels.length, colors, scales)] }, "program");
+      applyMathChannel(store, await bridge.job("math", spec), colors, scales);
     } catch (e) { fail(e, "數學運算失敗"); }
   }
 

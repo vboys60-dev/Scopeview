@@ -105,9 +105,9 @@
 
 - 計畫書：`docs/分析頁多檔比對計畫書.md`。使用者決定：槽位叫 Mem1～Mem4（避免與 Marker M1 撞名）、各檔以觸發零點為 0 再用 dx 微調、契約可新增方法（version 維持 2）。
 - 行為：工具列「比對…」對話框，4 列「槽位｜選檔｜通道勾選」；通道併入同一份 `_waves`，改名 `Mem1.CHAN1`；gen 不變；槽位資料在 store 鍵 `slots`／`dataRev`，**不寫 `file`**（否則會清量測與游標）。後端新檔 `web/analysis_slots.py`，`_n_raw` 已改成名稱集合 `_main`／`_slots`。
-- 限制（UI 有提示）：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（未修，另立小案）；CSV 只匯出主檔通道；開新檔／關閉清空槽位。解碼為凍結檔，同名換槽靠前端 `staleDecode` 標過期，後端 `analysis_decode` 的鎖外存回競態僅登記 `ponytail:`。
+- 限制（UI 有提示）：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（未修，另立小案）；CSV 只匯出主檔通道；開新檔／關閉清空槽位。解碼鎖外存回競態已修（使用者授權此處修改凍結檔 `analysis_decode.py`）：鎖內除 gen 外逐一核對來源物件，同 gen 換槽／移除拋 `StaleError`；前端仍以 `staleDecode` 標過期。
 - 已驗證：`analysis_slots` 自檢、`selfcheck_node`、`e2e_check`、`browser_check`（含 `browser_slot_checks`）皆通過。**未驗證：真人手感、WKWebView 對話框、大檔載入等待、真實不同取樣率檔案的跨檔量測**；清單見 `docs/web版驗收清單.md`。
-- 附帶發現（既有、未修）：加數學通道時 `toolbar.js` 也同 gen 改寫 `file`，會清量測、重設游標。
+- 附帶發現（已修）：數學通道比照槽位只更新 `channels`，不再同 gen 改寫 `file`；主圖直接抓取可見衍生通道。自檢涵蓋新增數學通道保留量測與游標、真正換檔／關檔仍重設。
 - 工作方式：worktree `../示波器截圖_html_multi`；Codex 實作 P1～P3，Opus 審查，e2e／browser_check 由 Claude 沙箱外跑。
 
 ## 後續待辦

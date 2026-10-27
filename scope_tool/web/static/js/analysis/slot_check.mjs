@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { slotPatch, staleDecode, openSlots, appendFileInfo, SLOT_LIMITS } from './slots.js';
 import { createStore } from './store.js';
 import { createMeasure } from './measure.js';
-import { createController } from './cursors.js';
+import { createController, defaultCursors } from './cursors.js';
+import { applyMathChannel, closeFile } from './toolbar.js';
+import { fetchTargets } from './mainplot.js';
+import { openPatch } from './tab_analysis.js';
 import * as scales from './scales.js';
 const colors = ['#fff', '#aaa'];
 const info = { name: 'Mem1.CHAN1', unit: 'V', derived: false, t0: -2, t1: 3, vmin: -4, vmax: 5, points: 123 };
@@ -52,6 +55,33 @@ assert.equal(slotPatch({ ...st, decodeResult }, 'Mem1', null, colors, scales).de
   await new Promise(r => setTimeout(r, 25));
   assert.deepEqual(store.get().cursors, before); assert.equal(store.get().file, file);
   assert.equal(store.get().measurements.length, 1); assert.equal(calls.filter(n => n === 'measure').length, 2);
+  // 走工具列實際採用的數學結果寫入函式，主圖仍抓得到新通道。
+  const math = { ...info, name: 'F1', gen: 7, derived: true };
+  const writes = []; store.on((_s, keys) => writes.push(keys));
+  applyMathChannel(store, math, colors, scales);
+  assert.equal(store.get().file, file);
+  assert.ok(writes.every(keys => !keys.includes('file')));
+  assert.deepEqual(store.get().cursors, before);
+  assert.equal(store.get().measurements[0].id, id);
+  assert.ok(fetchTargets(store.get()).some(c => c.name === 'F1'));
+  await new Promise(r => setTimeout(r, 25));
+  assert.deepEqual(store.get().cursors, before);
+  assert.equal(store.get().measurements[0].id, id);
+  assert.ok(store.get().measurements[0].result.ok);
+  const channels = store.get().channels;
+  applyMathChannel(store, { ...math, gen: 6, name: 'F2' }, colors, scales);
+  assert.equal(store.get().channels, channels, '舊世代數學結果不得加入');
+  assert.throws(() => applyMathChannel(store, math, colors, scales), /通道名稱重複/);
+  // 真正換檔仍清量測並重新放預設游標，衍生通道不殘留。
+  store.set(openPatch({ gen: 8, channels: [{ ...info, name: 'NEW', t0: 10, t1: 30 }] }), 'program');
+  assert.deepEqual(store.get().measurements, []);
+  assert.deepEqual(store.get().cursors, defaultCursors({ t0: 10, t1: 30 }));
+  assert.deepEqual(fetchTargets(store.get()).map(c => c.name), ['NEW']);
+  measure.add('Vmax', 'NEW', true);
+  await closeFile(store, bridge);
+  assert.deepEqual(store.get().measurements, []);
+  assert.deepEqual(store.get().cursors, { x1: null, x2: null, y1: null, y2: null });
+  assert.deepEqual(fetchTargets(store.get()), []);
 }
 // 對話框用最小 DOM 測非同步世代核對、STALE、全不勾及未改列不重送。
 {

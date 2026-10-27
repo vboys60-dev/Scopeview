@@ -88,6 +88,8 @@ class DecodeMixin:
         if reason:
             with self._lock:
                 self._alive(gen)
+                if any(next((v for v in self._waves if v.channel == w.channel), None) is not w for w in lines.values()):
+                    raise StaleError('解碼來源已變更，請重新解碼')
             return summary
         result = mod.run(edges, t1=end, max_frames=MAX_FRAMES, max_fields=MAX_FIELDS, **opts)
         frames = result['frames']
@@ -99,6 +101,8 @@ class DecodeMixin:
                     options=json.loads(json.dumps(options)), decoded_at=dt.datetime.now().isoformat(' ', 'seconds'))
         with self._lock:
             self._alive(gen)
+            if any(next((v for v in self._waves if v.channel == w.channel), None) is not w for w in lines.values()):
+                raise StaleError('解碼來源已變更，請重新解碼')
             self._dec = dict(id=summary['decode_id'], gen=gen, meta=meta, protocol=protocol, base=channels[mod.BASE], addr_table=mod.ADDR_TABLE, **result)
         return summary
 

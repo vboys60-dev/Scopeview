@@ -27,10 +27,11 @@ export function markerPixels(mr, X, rect) {
   }
   return out;
 }
-/** 該抓哪些通道：可見、且存在於目前檔案（避免新檔 gen 搭配舊通道名）。 */
+/** 該抓哪些通道：目前主檔、槽位及衍生通道；數學結果只寫 channels。 */
 export const fetchTargets = (s) => {
+  if (!s.file) return [];
   const names = new Set([...(s.file?.channels ?? []).map((c) => c.name), ...(s.slots ?? []).flatMap(slot => slot.channels)]);
-  return s.channels.filter((c) => c.visible && names.has(c.name));
+  return s.channels.filter((c) => c.visible && (c.derived || names.has(c.name)));
 };
 /** /wave 請求鍵（來源時間 = 顯示時間 − dx）；相同鍵不重抓。 */
 export const waveKey = (name, v, dx, px, gen) => [name, v.t0 - dx, v.t1 - dx, px, gen].join("|");

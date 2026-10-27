@@ -71,7 +71,6 @@ class SlotMixin:
             self._snap = None
         if self._spec and self._spec.get("source") in names:
             self._spec = None
-        # ponytail: 凍結 analysis_decode.py 仍有鎖外解碼後同 gen 換槽競態；前端 dataRev＋staleDecode 蓋住。
         if self._dec and names.intersection(self._dec["meta"]["channels"].values()):
             self._dec = None
 
@@ -194,6 +193,40 @@ if __name__ == "__main__":
         a.add_waveform(str(bus), "Mem3", [])
         dp = dict(protocol="i3c", channels={"scl": "Mem3.CHAN1", "sda": "Mem3.CHAN2"},
                   thresholds={"scl": None, "sda": None}, options={})
+        # 解碼計算中換槽／移除，即使 gen 不變也不能將舊來源快照寫回。
+        from scope_tool.web import i3c_decode
+        run = i3c_decode.run
+        for change in (lambda: a.add_waveform(str(bus), "Mem3", []), lambda: a.remove_slot("Mem3")):
+            a.add_waveform(str(bus), "Mem3", [])
+            def interrupted_decode(*args: object, **kwargs: object) -> dict:
+                result = run(*args, **kwargs)
+                change()
+                return result
+            with patch.object(i3c_decode, "run", side_effect=interrupted_decode):
+                raises(StaleError, lambda: a.decode(**dp))
+            assert a._gen == gen and a._dec is None
+        # 只換非基準來源也須拒絕；未使用的槽位變更則不影響結果。
+        a.add_waveform(str(bus), "Mem3", [])
+        a.add_waveform(str(bus), "Mem4", [])
+        split = {**dp, "channels": {"scl": "Mem3.CHAN1", "sda": "Mem4.CHAN2"}}
+        change = lambda: a.add_waveform(str(bus), "Mem4", [])
+        with patch.object(i3c_decode, "run", side_effect=interrupted_decode):
+            raises(StaleError, lambda: a.decode(**split))
+        assert a._dec is None
+        with patch.object(i3c_decode, "run", side_effect=interrupted_decode):
+            assert a.decode(**dp)["ok"]
+        # 門檻準備失敗的提早返回路徑也核對來源，不能回傳舊資料的摘要。
+        from scope_tool.web import analysis_decode
+        prepare = analysis_decode.prepare
+        def interrupted_prepare(*args: object, **kwargs: object) -> tuple:
+            edges, used, end, _ = prepare(*args, **kwargs)
+            a.remove_slot("Mem3")
+            return edges, used, end, "門檻失敗"
+        with patch.object(analysis_decode, "prepare", side_effect=interrupted_prepare):
+            raises(StaleError, lambda: a.decode(**dp))
+        assert a._gen == gen and a._dec is None
+        a.remove_slot("Mem4")
+        a.add_waveform(str(bus), "Mem3", [])
         for change in (lambda: a.add_waveform(str(bus), "Mem3", []), lambda: a.remove_slot("Mem3")):
             ds = a.decode(**dp)
             assert ds["ok"]
