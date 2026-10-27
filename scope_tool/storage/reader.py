@@ -115,8 +115,9 @@ def _extract_waveforms(hf: h5py.File) -> list[Waveform]:
 
     waveforms = []
     for ch_key in sorted(hf["Waveforms"].keys()):
-        data_key = f"{ch_key}Data"
-        if data_key not in hf["Waveforms"][ch_key]:
+        # 資料集名稱：舊檔／本工具為 "Channel 1Data"；X6000A 面板存檔為 "Channel 1 Data"（多一個空格）
+        data_key = next((k for k in (f"{ch_key}Data", f"{ch_key} Data") if k in hf["Waveforms"][ch_key]), None)
+        if data_key is None:
             continue
 
         dataset = hf["Waveforms"][ch_key][data_key]
@@ -167,6 +168,10 @@ def _self_check() -> None:
         real = Path(__file__).resolve().parents[2] / "X6000A-解碼" / "I2C" / "x6000i2c1.bin"
         if real.exists():
             assert [w.channel for w in read_waveform_file(real)] == ["SDA1", "SCL1"]
+
+        real_h5 = real.parent / "x6000i2c2.h5"  # 資料集名 "Channel 1 Data"（含空格）
+        if real_h5.exists():
+            assert [w.channel for w in read_waveform_file(real_h5)] == ["CHAN1", "CHAN3"]
 
         # 測試 1：CSV
         csv_file = tmpdir / "test.csv"
