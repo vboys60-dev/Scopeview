@@ -233,5 +233,9 @@
 - 實機檔在 `X6000A-解碼/{I2C,RS-232,CAN}/`（DSO-X 6004A，每組 png／bin／h5／csv；csv＝示波器序列表匯出＝解碼真值）。I2C 檔原放在 `CAN/`，已移到 `I2C/`。**未 commit。**
 - 完整分析與給 Codex 的派工規格：`docs/研究_X6000A實機解碼資料分析.md`（BIN `AG10` 欄位表、CSV 欄位、驗收方式）。
 - 結論：①BIN＝H5 每 33 點取 1 點（1955 點，偏移 0），只多了通道標籤（SDA1／SCL1／TX1／RX1），**不可用來解碼**；H5 固定 64516 點、無標籤。②兩者都是螢幕解析度，非記憶體全長。③I2C 用 H5 解碼與 CSV 逐筆相符；UART 約 19200 baud、大致可解；CAN 約 50 kbps、H5 每位元僅 ~2.6 點，**檔案不可解**，需 SCPI `:WAVeform:POINts:MODE RAW`。④CSV 時間僅 4 位有效數字，比對須用容差。
-- 待辦（尚未派工）：I2C 解碼器（先做）→ BIN 讀取器（含標籤自動指派）→ UART（先歸納 CSV 的 `Unknown Rx/Tx Error` 觸發規則）；CAN 暫不做。與上一節「多協定解碼」計畫的關係：解碼核心仍依該計畫分波，這批實機檔當作 I2C／UART 的驗收真值。
-- 開放問題：UART 錯誤規則；H5 無標籤時通道指派 UI；是否加「取完整記憶體」選項。
+- **已完成並 commit（皆為獨立新檔，尚未接 UI／API／檔案分派）**（Codex 實作、Claude 審查；使用者 2026-10-27 明示先派 I2C，等於對這三項放行，**第 0 步共用層與 UI 仍等預覽核可**）：
+  - I2C `1ae664f`：`web/i2c_{decode,synth,vectors,check,real_check}.py`。實機 48 列與 `x6000i2c3.csv` 位址／資料／缺少確認／Restart 全相符；時間偏早約 0.7 取樣（H5 1.55 µs 對示波器 20 MSa/s），容差放寬 1 取樣並如實列出。CSV 的 `X`＝`ninth=1`（含讀最後 byte 的正常 NACK，不產生 `nack`）。
+  - UART `a3c0c15`：`web/uart_*.py`＋分析文件「附錄：UART 錯誤規則」。實機訊號 19200 baud、LSB first、**反相**，波形支持 8O1，但示波器 CSV 以 **8N1** 解（第九位當 stop，=0 就報錯），故 CSV 的 `Unknown Rx/Tx Error`＝我方 framing、不是 parity；27.68 ms 的 TX `31` 第九位為 1 是兩種規則的分辨反例。CSV 時間：字元／空白列＝start 中心（邊沿＋0.5T），錯誤列＝第一 stop 中心（＋9.5T）。131 列中 130 列可驗相符，首列 `?/65` 無法還原。內部私有 `_levels_at`，**第 0 步完成後改用 `logic.levels_at`**。
+  - BIN `8143a43`：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`／`guess_roles`）。BIN＝H5 每 33 點取 1 點，電壓差僅 float32 捨入（≤1.2e-7 V，容差 4e-7）；規格原寫「逐點相等」是錯的，已更正。**尚未接進 `storage/reader.py` 的副檔名分派**（該檔凍結，由 lead 改）。
+- 待辦：①第 0 步共用層（等預覽核可）→ 接線 I2C／UART（注意 UART 預設格式：實機接線像 8O1、示波器設 8N1，驗收基準目前用示波器的 8N1＋反相）；②`reader.py` 接 BIN；③SPI（無實機資料）；④CAN：H5 每位元僅 ~2.6 點不可解，需 SCPI `:WAVeform:POINts:MODE RAW` 取完整記憶體；⑤H5 無標籤時的通道指派 UI（BIN 標籤可 `guess_roles`）。
+- 與上一節「多協定解碼」計畫的關係：解碼核心照該計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線時只需加一行。審查未處理的小項：UART 實機驗收用 h5py（核心只用 numpy）。
