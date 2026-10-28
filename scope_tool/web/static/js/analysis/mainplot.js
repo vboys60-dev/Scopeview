@@ -113,7 +113,7 @@ export function mount(el, ctx) {
     if (gen === undefined || rect.w < 2) return;
     for (const c of fetchTargets(s)) {
       const key = waveKey(c.name, s.view, c.time_offset, px, gen);
-      if (cache.get(c.name)?.key === key) continue;
+      if (cache.get(c.name)?.key === key) { latest.get(c.name)?.cancel(); continue; } // 切回已快取範圍：作廢舊範圍的在途請求，免得晚到回應蓋掉
       if (!latest.has(c.name)) latest.set(c.name, makeLatest());
       const req = latest.get(c.name).begin();
       bridge.fetchWave({ ch: c.name, t0: s.view.t0 - c.time_offset, t1: s.view.t1 - c.time_offset, px, gen, signal: req.signal })

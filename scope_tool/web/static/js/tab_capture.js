@@ -64,7 +64,7 @@ export function mount(el, ctx) {
     const r = riskOf(Number(pts.value), sel().length);
     risk.textContent = r ? r.text : ""; risk.className = "field__hint" + (r?.level === "danger" ? " is-error" : "");
   };
-  const syncBtn = () => go.classList.toggle("is-disabled", running || !ctx.appState?.connected);
+  const syncBtn = () => { const off = running || !ctx.appState?.connected; go.classList.toggle("is-disabled", off); go.disabled = off; };
 
   const active = () => ctx.activeTab === "capture";
   /** 只在擷取分頁作用中才查；否則記旗標，切入時再查。 */
@@ -94,11 +94,13 @@ export function mount(el, ctx) {
   open.onclick = () => { if (lastPath) { document.querySelector("#tabs .tab[data-tab=analysis]")?.click(); store.command("open_waveform", { path: lastPath }); } };
 
   go.onclick = async () => {
+    if (running) return; // CSS 擋不住鍵盤 Enter／空白
     const points = Number(pts.value), channels = sel();
     const bad = validate({ connected: ctx.appState?.connected, channels, maxPoints: info?.max_points ?? null, points, dir: dir.value.trim() });
     if (bad) return ui.toast(bad, "error");
     const r = riskOf(points, channels.length);
     if (r?.level === "danger" && !(await ui.confirm(r.text + "\n仍要繼續擷取嗎？", "記憶體風險"))) return;
+    if (running) return; // 確認對話框期間可能已被另一次按下
     running = true; open.hidden = true; syncBtn();
     const t0 = Date.now(), tick = () => { status.textContent = elapsedText((Date.now() - t0) / 1000); };
     tick(); const timer = setInterval(tick, 1000);
