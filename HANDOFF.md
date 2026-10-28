@@ -105,7 +105,7 @@
 - 測試同步：`e2e_check` 錯參走同步 `rpc`；`browser_check` 系列改 "Frequency"／"Count"，匯出步驟要填 `pickPath` 的頁內 `<dialog>`。
 - 已知小項（Opus 列、未修）：`config.load` 不驗清單／enum／points<=0；`_shutdown` 存檔不持鎖；`add_manual_ip`／`connect` 存檔失敗不回滾；撞名改回原名後 CSV 讀回可能再撞；CSV 表頭未加引號。
 - 需真機、未授權：device clear／`_check_error` 解析、VISA 斷線後 `_drv` 未清、DIGitize 逾時與無上限 sleep、離開時卡住。
-- 前端另列：`fft_track_rf` level 可能 NaN；主圖快取競態、報告狀態一致性、解碼來源版本、事件連線失敗無期限、擷取鈕鍵盤重複送出等（Codex 清單）。
+- 前端：`fft_track_rf` level 換算得 NaN 已修（`cursors.js` 改用 `peak_level`）。另列未修：主圖快取競態、報告狀態一致性、解碼來源版本、事件連線失敗無期限、擷取鈕鍵盤重複送出等（Codex 清單）。
 
 ## 後續待辦
 
