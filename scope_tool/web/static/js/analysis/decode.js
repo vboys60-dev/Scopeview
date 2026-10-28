@@ -2,6 +2,9 @@
 import * as protocols from './decode_protocols.js';
 export { REASONS, reasonText, parseAddresses, eventKind, frameContent } from './decode_i3c.js';
 export const definition = name => protocols[name ?? 'i3c'];
+// 來源通道所屬槽位物件（主檔通道為 null，由 gen 把關）；依賴 slotPatch 保留未變動槽物件的參照。
+const sources = (st, names) => names.map(n => (st.slots ?? []).find(s => s.channels.includes(n)) ?? null);
+const sameSources = (a, b) => a.every((x, i) => x === b[i]);
 /** ASCII 顯示：只對 8 位元資料欄位（不含位址、PID 等）；不可印字元顯示 '.'。 */
 const ASCII_KINDS = new Set(['data','mdb','tx','rx']);
 export const isByteField = x => ASCII_KINDS.has(x.kind) && x.value != null && x.nbits-(x.ninth_kind ? 1 : 0) === 8;
@@ -62,14 +65,15 @@ export function createDecode(ctx) {
     store.set({ decodeResult:null, decodeSel:null });
     try {
       if (!store.get().file) throw Error('請先開啟波形檔');
-      const params = decodeParams(config);
+      const params = decodeParams(config), names = Object.values(params.channels), src = sources(store.get(),names);
+      const moved = () => { if (sameSources(src,sources(store.get(),names))) return false; message = '解碼來源已變更，請重新解碼'; return true; };
       busy = true; message = ''; notify();
       const summary = await bridge.job('decode',params);
-      if (!current(t,g)) return;
+      if (!current(t,g) || moved()) return;
       if (summary.gen !== g) { message = '解碼結果已過期，請重新解碼'; return; }
       if (!summary.ok) { message = summary.reason; return; }
       const data = await bridge.call('decode_frames',{ decode_id:summary.decode_id });
-      if (!current(t,g)) return;
+      if (!current(t,g) || moved()) return;
       store.set({ decodeResult:{ summary, frames:data.frames, addresses:data.addresses, protocol:params.protocol, base:params.channels[definition(params.protocol).base], options:params.options, stale:false }, decodeSel:null });
     } catch (e) {
       if (current(t,g)) { message = e.message ?? String(e); ui.showError?.(e,'解碼失敗'); }
@@ -83,9 +87,11 @@ export function createDecode(ctx) {
     try {
       if (!store.get().file) throw Error('請先開啟波形檔');
       const params = decodeParams({ ...config,opt:{ ...config.opt,estimate:true } });
+      const names = Object.values(params.channels), src = sources(store.get(),names);
       busy = true; message = ''; notify();
       const summary = await bridge.job('decode',params);
       if (!current(t,g)) return;
+      if (!sameSources(src,sources(store.get(),names))) { message = '估計來源已變更，請重新估計'; return; }
       if (summary.gen !== g) { message = '估計結果已過期，請重新估計'; return; }
       busy = false;
       // apply 只在世代與設定仍有效時填欄位；input 事件才讓結果標示過期。

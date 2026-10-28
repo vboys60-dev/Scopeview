@@ -57,7 +57,31 @@ async function runnerChecks(factory) {
   store.set({ file:null }); assert.equal(store.get().decodeResult,null);
 }
 await runnerChecks(createDecode);
+// 在途時換掉來源槽（新槽物件）不得寫入；換無關槽照常。
+async function sourceChecks(factory) {
+  const slot = () => ({ slot:'Mem1',channels:['Mem1.CH1'] });
+  const store = makeStore(), jobs = [], calls = [], frames = [];
+  store.set({ slots:[slot()],channels:[...channels,{ name:'Mem1.CH1' }] });
+  const bridge = { job() { const d = deferred(); jobs.push(d); return d.promise; },
+    call(name) { calls.push(name); const d = deferred(); frames.push(d); return d.promise; } };
+  const m = factory({ store,bridge }); m.change({ ch:{ scl:'CH1',sda:'Mem1.CH1' } });
+  let pending = m.run(); store.set({ slots:[slot()] }); jobs.at(-1).resolve(summary); await pending;
+  assert.equal(store.get().decodeResult,null); assert.match(m.message,/來源已變更/); assert.equal(m.busy,false); assert.equal(calls.length,0);
+  pending = m.run(); jobs.at(-1).resolve(summary); await new Promise(r => setImmediate(r));
+  store.set({ slots:[slot()] }); frames.at(-1).resolve(data); await pending;
+  assert.equal(store.get().decodeResult,null); assert.match(m.message,/來源已變更/); assert.equal(m.busy,false);
+  pending = m.run(); store.set({ slots:[...store.get().slots,{ slot:'Mem2',channels:['Mem2.CH1'] }] });
+  jobs.at(-1).resolve(summary); await new Promise(r => setImmediate(r)); frames.at(-1).resolve(data); await pending;
+  assert.equal(store.get().decodeResult.stale,false);
+  let applied = 0; pending = m.estimate(() => { applied++; return ''; });
+  store.set({ slots:[slot(),store.get().slots[1]] }); jobs.at(-1).resolve(summary); await pending;
+  assert.equal(applied,0); assert.match(m.message,/估計來源已變更/);
+}
+await sourceChecks(createDecode);
 class Element {
+  // 比照瀏覽器：select 設成不存在的選項值時為 ''。
+  get value() { return this._value; }
+  set value(v) { this._value = this.tagName === 'select' && !this.children.some(o => o.value === v) ? '' : v; }
   constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {};
     this.classList = { add:k => { this.className += ' '+k; }, toggle:(k,on) => { const set = new Set(this.className.split(' ')); on ? set.add(k) : set.delete(k); this.className = [...set].join(' '); } }; }
   append(...nodes) { for (const n of nodes) { n.parentNode = this; this.children.push(n); } }
@@ -93,6 +117,20 @@ assert.equal(tbody.children[0].children[0].textContent,1); assert.equal(tbody.ch
 assert.ok(find(host,e => e.className === 'decode__foot').textContent.includes('僅顯示前 2000 筆'));
 find(host,e => e.tagName === 'button' && e.textContent === '只錯誤／警告').onclick(); assert.equal(tbody.children.length,1053);
 assert.equal(tableFrames(many,true).total,1053);
+// 來源選單隨通道更新：加通道不作廢在途解碼；已選來源被移除則清空並標過期。
+{
+  const s2 = makeStore(), jobs = [], h2 = new Element('div');
+  const p2 = mount(h2,{ store:s2,bridge:{ job() { const d = deferred(); jobs.push(d); return d.promise; },async call() { return data; } },ui:{} });
+  const pick = role => find(h2,e => e.dataset.role === role), cfg = p2.model.config;
+  let pending = p2.model.run(); s2.setChannels([...channels,{ name:'Mem1.CH1' }]);
+  assert.ok(pick('scl').children.some(o => o.value === 'Mem1.CH1')); assert.equal(p2.model.config,cfg); assert.equal(p2.model.busy,true);
+  jobs.at(-1).resolve(summary); await pending;
+  pick('sda').value = 'Mem1.CH1'; pick('sda').oninput(); assert.equal(p2.model.config.ch.sda,'Mem1.CH1');
+  pending = p2.model.run(); jobs.at(-1).resolve(summary); await pending; assert.equal(s2.get().decodeResult.stale,false);
+  s2.removeChannel('Mem1.CH1');
+  assert.equal(pick('sda').value,''); assert.equal(p2.model.config.ch.sda,''); assert.equal(s2.get().decodeResult.stale,true);
+  assert.equal(find(h2,e => e.dataset.decodeAction === 'run').disabled,true);
+}
 // 頁籤可還原，在浮動／停靠尺寸可見；舊宿主不提供 decode panel 也能掛載。
 for (const include of [false,true]) {
   const body = new Element('div'), panels = Object.fromEntries(['measure','cursor','marker','peaks',...(include ? ['decode'] : [])].map(k => [k,new Element('div')]));

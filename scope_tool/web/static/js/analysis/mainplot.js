@@ -51,6 +51,7 @@ export function mount(el, ctx) {
   });
   const { canvas, ctx: g } = cv;
 
+  const pxOf = () => Math.min(16384, Math.max(2, Math.round(rect.w)));
   const Xmap = (v) => linear(v.t0, v.t1, rect.l, rect.l + rect.w);
 
   function draw() {
@@ -105,11 +106,13 @@ export function mount(el, ctx) {
     g.restore();
     drawHandles(g, s.channels, s.cursors, s.view, rect);
     gestures?.overlay(g);
+    // 報告截圖前據此等待：任一通道快取不是目前範圍的包絡即標 pending（取得後 draw 會清掉）。自檢假 canvas 無 dataset。
+    (canvas.dataset ?? {}).pending = fetchTargets(s).some((c) => cache.get(c.name)?.key !== waveKey(c.name, s.view, c.time_offset, pxOf(), s.file?.gen)) ? "1" : "";
   }
 
   function fetchNow() {
     if (draggingLayout) { missed = true; return; }
-    const s = store.get(), gen = s.file?.gen, px = Math.min(16384, Math.max(2, Math.round(rect.w)));
+    const s = store.get(), gen = s.file?.gen, px = pxOf();
     if (gen === undefined || rect.w < 2) return;
     for (const c of fetchTargets(s)) {
       const key = waveKey(c.name, s.view, c.time_offset, px, gen);
@@ -120,6 +123,7 @@ export function mount(el, ctx) {
         .then((env) => { if (req.ok()) { cache.set(c.name, { env, key }); draw(); } })
         .catch((e) => {
           if (e?.name === "AbortError" || e?.code === "STALE" || !req.ok()) return; // 過期／換檔：正常流程
+          (canvas.dataset ?? {}).pending = ""; // 讀取真的失敗：別讓匯出報告空等 3 秒再報「尚未載入」，錯誤已由下方 toast 告知
           if (Date.now() - warned > 5000) { warned = Date.now(); ui.toast(`讀取波形失敗：${e.message}`, "error"); }
         });
     }

@@ -29,6 +29,8 @@ async function toError(r) {
   return new BridgeError("UNEXPECTED", `伺服器回應異常（HTTP ${r.status}）`);
 }
 
+const DOWN_AFTER = 5, FATAL = ["FORBIDDEN", "NOT_FOUND", "BAD_REQUEST"]; // 事件連線連續失敗幾次視為中斷；永久錯誤碼
+
 /** HTTP 傳輸。 */
 function httpTransport() {
   const k = new URLSearchParams(search).get("k") ?? "";
@@ -50,16 +52,21 @@ function httpTransport() {
     },
     async binary(path, query, signal) { return (await net(`${path}?${q(query)}`, { signal })).arrayBuffer(); },
     url: (path, query) => `${path}?${q(query)}`,
-    subscribe(handler, since = 0) { // long-poll：每次最多等 25 秒；斷線 1 秒後重試
-      let stop = false;
+    subscribe(handler, since = 0, onDown = () => {}) { // long-poll：每次最多等 25 秒；斷線 1 秒後重試；連續失敗 DOWN_AFTER 次或遇永久錯誤 → onDown
+      let stop = false, fails = 0;
       (async () => {
         while (!stop) {
           try {
             const r = await this.rpc("wait_events", { since, timeout: 25 });
-            if (!r.ok) throw new Error(r.error?.message);
+            if (!r.ok) throw new BridgeError(r.error?.code ?? "UNEXPECTED", r.error?.message ?? "", !!r.error?.retryable);
+            fails = 0;
             since = Math.max(since, r.result.seq);
             r.result.events.forEach(handler);
-          } catch { await new Promise((ok) => setTimeout(ok, 1000)); }
+          } catch (e) {
+            if (e instanceof BridgeError && FATAL.includes(e.code)) { stop = true; onDown(true, e); break; } // 永久錯誤：重試無意義
+            if (++fails === DOWN_AFTER) onDown(false, e); // 同一段中斷只通知一次
+            await new Promise((ok) => setTimeout(ok, 1000));
+          }
         }
       })();
       return () => { stop = true; };
@@ -67,6 +74,7 @@ function httpTransport() {
   };
 }
 
+const SEQ_MSG = "事件連線序號中斷，工作結果未知，請重新整理頁面確認";
 let rid = 0;
 const newId = () => `r${++rid}-${Math.random().toString(36).slice(2, 8)}`;
 const failEv = (ev) => new BridgeError(ev.error?.code ?? "UNEXPECTED", ev.error?.message ?? "未預期錯誤", !!ev.error?.retryable);
@@ -80,7 +88,7 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
   const lost = new Set(); // 早到暫存超限而被擠出的工作代號：job() 遇到就失敗，不得永遠等待
   const done = new Map(); // requestId → Promise（進行中與已完成皆保留，最近 dedupeMax 筆）
   const held = new Map(); // seq → 尚未輪到的事件（亂序緩衝）
-  let next = 1, gapTimer = null, ready = null, epoch = 0; // epoch：每次 desync 加 1，RPC 發出後遇到 desync 的工作不可再等
+  let next = 1, gapTimer = null, ready = null, epoch = 0, dead = null, downMsg = SEQ_MSG; // epoch：每次 desync 加 1，RPC 發出後遇到 desync 的工作不可再等
 
   const settle = (ev, w) => (ev.ok ? w.resolve(ev.result) : w.reject(failEv(ev)));
   function emitLocal(ev) { // 派送給訂閱者；單一 listener 丟例外不影響其他
@@ -102,9 +110,10 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     emitLocal(ev);
   }
   /** 序號斷層：先把已收到的後續事件依序送出，再讓所有仍在等待的工作以 NETWORK 失敗（結果未知，提示重新整理）。 */
-  function desync() {
+  function desync(message = SEQ_MSG) {
+    downMsg = message;
     while (held.size) { next = Math.min(...held.keys()); drain(true); }
-    const err = () => new BridgeError("NETWORK", "事件連線序號中斷，工作結果未知，請重新整理頁面確認", true);
+    const err = () => new BridgeError("NETWORK", message, true);
     for (const [id, w] of [...waiters]) { waiters.delete(id); w.reject(err()); }
     early.clear(); epoch++;
     emitLocal({ type: "desync", message: err().message });
@@ -126,7 +135,10 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     const st = await t.rpc("get_state", {});
     const seq = st?.ok ? st.result.seq ?? 0 : 0;
     next = seq + 1;
-    t.subscribe(onEvent, seq);
+    t.subscribe(onEvent, seq, (fatal, e) => {
+      if (fatal) dead = e;
+      desync(fatal ? `事件連線失敗（${e.message}），工作結果未知，請重新開啟程式` : "事件連線中斷，工作結果未知，請重新整理頁面確認");
+    });
     return t;
   })().catch((e) => { ready = null; throw e; }));
 
@@ -136,11 +148,12 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     return r.result;
   }
   async function run(method, params, requestId) {
+    if (dead) throw new BridgeError("NETWORK", downMsg, false); // 事件端已永久失效，不讓新工作永遠等待
     const ep = epoch, res = await rpc(method, params, requestId);
     if (res?.done) return new Promise((resolve, reject) => settle(res.done, { resolve, reject })); // 重送已完成的工作
     const id = res?.job;
     if (!id) throw new BridgeError("UNEXPECTED", `${method} 未回傳工作代號`);
-    if (ep !== epoch) throw new BridgeError("NETWORK", "事件連線序號中斷，工作結果未知，請重新整理頁面確認", true); // RPC 期間發生 desync：事件可能已被清掉，不可永遠等待
+    if (ep !== epoch) throw new BridgeError("NETWORK", downMsg, true); // RPC 期間發生 desync：事件可能已被清掉，不可永遠等待
     if (lost.delete(id)) throw new BridgeError("NETWORK", "工作結果事件遺失，請重新整理頁面確認", true);
     if (early.has(id)) { const ev = early.get(id); early.delete(id); return new Promise((resolve, reject) => settle(ev, { resolve, reject })); }
     return new Promise((resolve, reject) => waiters.set(id, { resolve, reject }));

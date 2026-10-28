@@ -96,4 +96,16 @@ assert.equal(calls.length,0); assert.match(toasts.at(-1)[0],/解碼結果已變�
 store.set({ decodeResult:decoded });
 await exportReport(ctx,root,async () => ({ title:'測試' }));
 assert.equal(calls.length,1); assert.match(calls[0][1].html,/解碼（I3C）/); assert.equal(calls[0][1].directory,'/out');
+// 選資料夾期間改 view（任一報告用到的鍵）：同樣攔下。
+await exportReport({ ...ctx,ui:{ ...ctx.ui,pickPath:async () => { store.set({ view:{ t0:1,t1:2 } }); return '/out'; } } },root,async () => ({ title:'測試' }));
+assert.equal(calls.length,1); assert.match(toasts.at(-1)[0],/已變更/);
+// 主圖包絡在途（dataset.pending）：逾時以 REPORT_BUSY 中止；載入完成則正常收集。
+globalThis.requestAnimationFrame = cb => { setTimeout(cb,5); return 1; };
+const main = { dataset:{ pending:'1' },width:0 }, mainRoot = { querySelector:s => s === '.analysis__main canvas' ? main : null };
+await assert.rejects(collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' },{ pendingMs:50 }),{ code:'REPORT_BUSY' });
+setTimeout(() => { main.dataset.pending = ''; },20);
+assert.equal((await collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' },{ pendingMs:1000 })).title,'t');
+await exportReport(ctx,mainRoot,async () => { main.dataset.pending = '1'; return { title:'測試' }; });
+assert.equal(calls.length,1); assert.match(toasts.at(-1)[0],/尚未載入完成/);
+delete globalThis.requestAnimationFrame;
 console.log('report P4 self-check OK');

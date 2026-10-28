@@ -145,7 +145,7 @@ import { runSemantics } from "./l0_sem.mjs";
 
 // ---- 事件：亂序、重複、斷層、listener 例外、早到暫存超限（fake transport）----
 {
-  const fake = () => { const t = { handler: null, q: [], delay: 0, async rpc(m) { if (m === "get_state") return { ok: true, result: { seq: 10 } }; if (t.delay) { const j = t.q.shift(); await sleep(t.delay); return { ok: true, result: { job: j } }; } return { ok: true, result: { job: t.q.shift() } }; }, subscribe(h, since) { t.handler = h; t.since = since; }, binary() {}, url() {} }; return t; };
+  const fake = () => { const t = { handler: null, q: [], delay: 0, async rpc(m) { if (m === "get_state") return { ok: true, result: { seq: 10 } }; if (t.delay) { const j = t.q.shift(); await sleep(t.delay); return { ok: true, result: { job: j } }; } return { ok: true, result: { job: t.q.shift() } }; }, subscribe(h, since, onDown) { t.handler = h; t.since = since; t.onDown = onDown; }, binary() {}, url() {} }; return t; };
   const t = fake(), b = makeBridge(t, true, { gapMs: 30, earlyMax: 2 });
   const ce = console.error; console.error = () => {}; // 預期會印壞 listener 的例外
   await b.call("get_state"); assert.equal(t.since, 10); // 從目前 seq 起收
@@ -170,6 +170,16 @@ import { runSemantics } from "./l0_sem.mjs";
   t.handler(jev(20, "zz")); await sleep(50); // 缺 18、19 → desync
   await rej(Promise.race([pl, sleep(300).then(() => { throw Object.assign(new Error("hang"), { code: "HANG" }); })]), "NETWORK");
   t.delay = 0; t.q.push("late2"); const pl2 = b.job("x", {}); await sleep(1); t.handler(jev(21, "late2")); assert.equal(await pl2, "late2"); // desync 後恢復正常
+  // 事件連線失敗：一般中斷 → desync 提示、工作以 NETWORK 失敗；永久錯誤 → 之後新工作立即失敗
+  const t2 = fake(), b2 = makeBridge(t2, true, { gapMs: 30 });
+  const d2 = []; b2.on("desync", (e) => d2.push(e.message));
+  t2.q.push("w1"); const pw = b2.job("x", {}); await sleep(1);
+  t2.onDown(false, new BridgeError("NETWORK", "斷"));
+  assert.ok((await rej(pw, "NETWORK")).retryable); assert.ok(/事件連線中斷/.test(d2[0]));
+  t2.q.push("w2"); const pw2 = b2.job("x", {}); await sleep(1);
+  t2.onDown(true, new BridgeError("FORBIDDEN", "權杖無效"));
+  assert.ok(/事件連線失敗（權杖無效）/.test((await rej(pw2, "NETWORK")).message));
+  const e3 = await rej(b2.job("x", {}), "NETWORK"); assert.equal(e3.retryable, false); assert.equal(d2.length, 2);
   console.error = ce;
 }
 

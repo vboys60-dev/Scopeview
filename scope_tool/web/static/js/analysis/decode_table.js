@@ -18,12 +18,19 @@ function table(head) {
   h.append(tr); t.append(h,body); return { el:t, body };
 }
 function cells(row, values) { for (const value of values) row.append(node('td','',value)); }
+/** 依目前原始通道重建來源選項；選項不存在時 select.value 會變成 ''。 */
+function fillSources(select, role, raw, value = select.value) {
+  select.replaceChildren();
+  if (role.optional || role.allowEmpty) { const o = node('option','','—不使用—'); o.value = ''; select.append(o); }
+  for (const name of raw) { const o = node('option','',name); o.value = name; select.append(o); }
+  select.value = value;
+}
 export function mount(el, ctx) {
   const { store } = ctx, model = decodeModel(ctx), root = node('div','decode');
   const bar = node('div','decode__bar'), sum = node('div','decode__sum'), info = node('span','decode__info');
   const filter = node('div','decode__segment'), all = node('button','btn btn--small','全部'), problems = node('button','btn btn--small','只錯誤／警告');
   let onlyProblems = false, auto = true, fileGen, rendered = null, previousFilter, previousAscii;
-  let actions = [], sources = {}, thresholds = {}, options = {}, active, eventProtocol;
+  let actions = [], sources = {}, thresholds = {}, options = {}, active, eventProtocol, sourceKey;
   const protocol = node('select','input decode__protocol'); protocol.dataset.protocol = 'true';
   for (const def of Object.values(protocols).sort((a,b) => a.order-b.order)) { const o = node('option','',def.label); o.value = def.name; protocol.append(o); }
   label('協定',protocol);
@@ -41,14 +48,12 @@ export function mount(el, ctx) {
   const details = node('details','decode__addressesTable'), caption = node('summary');
   let addr = table([]); details.append(caption,addr.el);
   filter.append(all,problems); sum.append(info,filter); root.append(bar,sum,wrap,foot,details); el.append(root);
-  function build(def, p, st) {
+  function build(def, p, raw) {
     actions = []; sources = {}; thresholds = {}; options = {}; form.replaceChildren(); params.replaceChildren();
     const add = (parent,text,input) => { const l = node('label','decode__control',text); l.append(input); parent.append(l); return input; };
     for (const role of def.roles) {
-      const select = node('select','input'); select.dataset.role = role.key;
-      if (role.optional || role.allowEmpty) { const o = node('option','','—不使用—'); o.value = ''; select.append(o); }
-      for (const c of st.channels.filter(c => !c.derived)) { const o = node('option','',c.name); o.value = c.name; select.append(o); }
-      sources[role.key] = add(form,role.label,select); select.value = p.ch[role.key]; select.oninput = readSettings;
+      const select = node('select','input'); select.dataset.role = role.key; fillSources(select,role,raw,p.ch[role.key]);
+      sources[role.key] = add(form,role.label,select); select.oninput = readSettings;
     }
     auto = Object.values(p.thr).every(v => v === null);
     const mode = node('div','decode__segment'); mode.setAttribute('aria-label','門檻'); mode.append(autoBtn,manualBtn); add(form,'門檻',mode);
@@ -98,9 +103,15 @@ export function mount(el, ctx) {
   function render() {
     const st = store.get(), r = st.decodeResult, p = model.config;
     const def = definition(r?.protocol ?? p.protocol), formDef = definition(p.protocol);
+    const raw = st.channels.filter(c => !c.derived).map(c => c.name), key = raw.join('\n');
     if (fileGen !== st.file?.gen || active !== p.protocol) {
-      fileGen = st.file?.gen; active = p.protocol; protocol.value = p.protocol; build(formDef,p,st);
+      fileGen = st.file?.gen; active = p.protocol; sourceKey = key; protocol.value = p.protocol; build(formDef,p,raw);
+    } else if (key !== sourceKey) {
+      sourceKey = key; for (const role of formDef.roles) fillSources(sources[role.key],role,raw);
     }
+    // 只在已選來源消失時才改設定（會作廢在途解碼並標過期）；加無關通道不動。
+    const gone = Object.keys(p.ch).filter(k => p.ch[k] && !raw.includes(p.ch[k]));
+    if (gone.length) { model.change({ ch:{ ...p.ch,...Object.fromEntries(gone.map(k => [k,''])) } }); return; }
     if (eventProtocol !== def.name) {
       eventProtocol = def.name; rendered = null;
       events = table(['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態']); wrap.replaceChildren(events.el);

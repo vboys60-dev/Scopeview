@@ -105,7 +105,7 @@ export function mount(el, ctx) {
     const t0 = Date.now(), tick = () => { status.textContent = elapsedText((Date.now() - t0) / 1000); };
     tick(); const timer = setInterval(tick, 1000);
     try {
-      bridge.call("save_config", { patch: { waveform_dir: dir.value.trim(), waveform_name: name.value || "wave", points, retrigger: retrig.checked } }).catch(() => {});
+      bridge.call("save_config", { patch: { waveform_dir: dir.value.trim(), waveform_name: name.value || "wave", points, retrigger: retrig.checked } }).catch((e) => ui.toast("擷取設定未能儲存：" + (e.message || e), "error"));
       const res = await bridge.job("capture", { directory: dir.value.trim(), name: name.value || "wave", channels, points, retrigger: retrig.checked });
       lastPath = res.path; status.textContent = doneText(res) + " " + STOP_NOTE; open.hidden = false;
     } catch (e) { status.textContent = e.code === "BUSY" ? busyText(e) : "擷取失敗"; if (e.code !== "BUSY") ui.showError(e, "擷取失敗"); }

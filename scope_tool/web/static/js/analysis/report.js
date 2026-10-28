@@ -109,14 +109,30 @@ export function decodeSection(st, root, F, invert) {
   return [{ title:`解碼（${def.label}）`,img:band && !band.hidden ? snapshot(band.querySelector('canvas'),invert) : null,caption,tables:[events,...(addresses ? [addresses] : [])] }];
 }
 
+/** 報告會讀到的 store 鍵（皆不可變，以 Object.is 比對）；不可放 plotRect 等會被截圖流程本身寫入的鍵。 */
+const KEYS = ['file','view','channels','cursors','rangeMode','measurements','fftResult','fftView','fftMarker','decodeResult','decodeAscii',
+  'dataRev','markerResult','markerMode','markerTable','rfPos','threshold'];
+export const reportKey = (st) => KEYS.map((k) => st[k]);
+export const sameKey = (a, b) => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
+/** 等主圖包絡載入目前範圍（mainplot 在 canvas.dataset.pending 標記）；逾時丟 REPORT_BUSY。 */
+async function mainReady(canvas, ms) {
+  const end = Date.now() + ms;
+  while (canvas?.dataset?.pending === '1') {
+    if (Date.now() > end) throw Object.assign(new Error('波形尚未載入完成，請稍後再匯出'), { code: 'REPORT_BUSY' });
+    await frames(1);
+  }
+}
+
 const stamp =(d = new Date()) => { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
 
 /** 目前畫面 → buildReport 的資料。root＝分析頁 .analysis；FFT 圖取畫面上最大的頻譜 canvas（分析頁窗格或 FFT 大檢視）。 */
-export async function collectReport({ store, fmt }, root, { title, dut, note, invert }) {
+export async function collectReport({ store, fmt }, root, { title, dut, note, invert }, { pendingMs = 3000 } = {}) {
   const st = store.get(), decodeRef = st.decodeResult, f = st.file, v = st.view, q = (s) => root.querySelector(s), F = fmt.fmt;
   // 剛解除 hidden 時 canvas 仍可能為 0；等版面與 ResizeObserver 排定的 fit／重畫完成再截圖。
   const band = q('.analysis__decodeband');
   if (band && !band.hidden) await frames(3);
+  // ponytail: 只等主圖；FFT／標註列包絡在途時仍可能截到舊圖，需要時比照 dataset.pending。
+  await mainReady(q('.analysis__main canvas'), pendingMs);
   const decoded = decodeSection({ ...st,decodeResult:decodeRef },root,F,invert);
   const fftCanvas = [...document.querySelectorAll('.analysis__fft canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];
   const range = st.rangeMode === 'cursors' ? `游標區間 ${F(st.cursors.x1, 's')} ～ ${F(st.cursors.x2, 's')}` : '全部';
@@ -153,15 +169,16 @@ export async function exportReport(ctx, root, modal) {
     return () => ({ title: title.value.trim() || stem, dut: dut.value.trim(), note: note.value.trim(), invert: color.value === 'inv' });
   }, '匯出報告');
   if (!o) return;
-  const decodeRef = store.get().decodeResult;
+  // modal 之後到收集完成，報告用到的狀態都不得變動；否則文字與圖可能來自不同時間點。
+  const key0 = reportKey(store.get());
   const dir = await ui.pickPath(ctx, 'folder', f.path.replace(/[\\/][^\\/]*$/, ''));
   if (!dir) return;
   if (store.get().file?.gen !== f.gen || stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
   try {
     const html = buildReport(await collectReport(ctx, root, o));
-    if (store.get().file?.gen !== f.gen || store.get().decodeResult !== decodeRef) return ui.toast('解碼結果已變更，請重新匯出', 'error');
+    if (!sameKey(key0, reportKey(store.get()))) return ui.toast('畫面或解碼結果已變更，請重新匯出', 'error');
     if (stale()) return ui.toast('檔案或量測已變更，請重新匯出', 'error');
     const r = await bridge.call('export_report', { html, directory: dir });
     ui.toast(`已匯出：${r.path}`, 'ok', 6000);
-  } catch (e) { ui.showError(e, '匯出報告失敗'); }
+  } catch (e) { if (e?.code === 'REPORT_BUSY') ui.toast(e.message, 'error'); else ui.showError(e, '匯出報告失敗'); }
 }
