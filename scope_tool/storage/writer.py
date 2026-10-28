@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -18,26 +19,52 @@ from scope_tool.contracts import (
 )
 
 
+_CH_RE = re.compile(r"(?:CHAN|CH|Channel ?)(\d+)")
+
+
+def _unique_names(channels: list[str], fmt: str) -> list[str]:
+    """通道名 → 輸出名。僅 CHAN1／CH1／Channel 1 這類完整符合者轉成 fmt（含 {n}）；
+    SDA1 等其他名稱原樣保留。轉換後撞名者改回原名，仍撞名再接 _2、_3。"""
+    out = []
+    for c in channels:
+        m = _CH_RE.fullmatch(c)
+        out.append(fmt.format(n=m.group(1)) if m else c)
+    for i, c in enumerate(channels):
+        if out.count(out[i]) > 1:
+            out[i] = c
+    seen: dict[str, int] = {}
+    for i, name in enumerate(out):
+        seen[name] = seen.get(name, 0) + 1
+        if seen[name] > 1:
+            out[i] = f"{name}_{seen[name]}"
+    return out
+
+
 def _channel_to_csv_header(channel: str) -> str:
-    """把通道名轉成 CSV 欄位名。例如 CHAN1 或 CH1 → CH1。"""
-    match = re.search(r'\d+', channel)
-    if match:
-        num = match.group()
-        return f"CH{num}"
-    return channel
+    """CHAN1 或 CH1 → CH1；其他名稱原樣。"""
+    return _unique_names([channel], "CH{n}")[0]
 
 
 def _channel_to_hdf5_name(channel: str) -> str:
-    """把通道名轉成 HDF5 群組名。例如 CHAN1 → Channel 1。"""
-    match = re.search(r'\d+', channel)
-    if match:
-        num = match.group()
-        return f"Channel {num}"
-    return channel
+    """CHAN1 → Channel 1；其他名稱原樣。"""
+    return _unique_names([channel], "Channel {n}")[0]
+
+
+def _atomic(path: Path, write) -> Path:
+    """先寫 path.tmp 再 os.replace；失敗時清掉 tmp 與 timestamped 佔位的空檔。"""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        write(tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
+        raise
+    return path
 
 
 def timestamped(directory: Path, name: str, ext: str) -> Path:
-    """產生時間戳檔名，同秒撞名就接 _2、_3，永不覆蓋。
+    """產生時間戳檔名並原子建立空檔，同秒撞名就接 _2、_3，永不覆蓋。
 
     格式：{name}_{YYYYMMDD}_{HHMMSS}.{ext}
     若檔案已存在，改為 {name}_{YYYYMMDD}_{HHMMSS}_2.{ext} 等。
@@ -50,17 +77,15 @@ def timestamped(directory: Path, name: str, ext: str) -> Path:
     time_str = now.strftime("%H%M%S")
 
     base = f"{name}_{date_str}_{time_str}"
-    filepath = directory / f"{base}.{ext}"
-
-    if filepath.exists():
-        counter = 2
-        while True:
-            filepath = directory / f"{base}_{counter}.{ext}"
-            if not filepath.exists():
-                break
+    # "x" 原子佔檔名（建立空檔），避免檢查與開檔之間被別的執行緒搶走
+    counter = 1
+    while True:
+        filepath = directory / (f"{base}.{ext}" if counter == 1 else f"{base}_{counter}.{ext}")
+        try:
+            filepath.open("x").close()
+            return filepath
+        except FileExistsError:
             counter += 1
-
-    return filepath
 
 
 def write_screenshot(directory: Path, name: str, data: bytes,
@@ -77,8 +102,7 @@ def write_screenshot(directory: Path, name: str, data: bytes,
         寫出的檔案路徑
     """
     filepath = timestamped(directory, name, fmt.value.lower())
-    filepath.write_bytes(data)
-    return filepath
+    return _atomic(filepath, lambda t: t.write_bytes(data))
 
 
 def write_waveform(directory: Path, name: str, result: CaptureResult,
@@ -101,8 +125,7 @@ def write_waveform(directory: Path, name: str, result: CaptureResult,
     # 直接寫原生位元組（若有）
     if result.native_file is not None and fmt == WaveformFormat.HDF5:
         filepath = timestamped(directory, name, "h5")
-        filepath.write_bytes(result.native_file)
-        return filepath
+        return _atomic(filepath, lambda t: t.write_bytes(result.native_file))
 
     # 寫 CSV
     if fmt == WaveformFormat.CSV:
@@ -112,8 +135,7 @@ def write_waveform(directory: Path, name: str, result: CaptureResult,
 
     # 寫 HDF5
     filepath = timestamped(directory, name, "h5")
-    _write_hdf5(filepath, result)
-    return filepath
+    return _atomic(filepath, lambda t: _write_hdf5(t, result))
 
 
 def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
@@ -128,8 +150,8 @@ def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
     with h5py.File(filepath, 'w') as f:
         waveforms_group = f.create_group('Waveforms')
 
-        for wf in result.waveforms:
-            ch_name = _channel_to_hdf5_name(wf.channel)
+        names = _unique_names([w.channel for w in result.waveforms], "Channel {n}")
+        for wf, ch_name in zip(result.waveforms, names):
             ch_group = waveforms_group.create_group(ch_name)
 
             # 有前導參數且能還原原始碼值時，存 uint16 節省空間
@@ -160,11 +182,18 @@ def _write_hdf5(filepath: Path, result: CaptureResult) -> None:
 
 
 if __name__ == "__main__":
+    assert _unique_names(["CHAN1", "SDA1", "Channel 2", "CH1", "SCL1"], "CH{n}") == ["CHAN1", "SDA1", "CH2", "CH1", "SCL1"]
     from scope_tool.instruments.fake import FakeDriver
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         driver = FakeDriver()
+
+        # 多執行緒同秒搶同名 → 路徑全部不同（原子佔檔名）
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(8) as ex:
+            ps = list(ex.map(lambda _: timestamped(tmpdir, "race", "csv"), range(40)))
+        assert len(set(ps)) == 40, "timestamped 撞名"
 
         # 驗收條件 1: 連寫兩次同名 → 兩個不同檔名，第一個檔沒被覆蓋
         result1 = driver.capture(["CHAN1", "CHAN2"], 100, retrigger=False)

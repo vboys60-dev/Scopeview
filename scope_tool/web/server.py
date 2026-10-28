@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
+from scope_tool.web.analysis_params import validate_params
 from scope_tool.web.api import CONTRACT_PATH, STATIC
 from scope_tool.web.jobs import BadRequestError, Jobs, dumps, map_error
 
@@ -82,6 +83,7 @@ class Server:
             want = {p["name"] for p in m["params"]}
             if set(body) != want:
                 raise BadRequestError(f"參數鍵不符：缺 {sorted(want - set(body))}，多 {sorted(set(body) - want)}")
+            validate_params(name, body)  # 型別／null／列舉；在登記 request_id 與碰儀器之前擋掉
             owner = self.api if m["owner"] == "Api" else self.analysis
             fn = getattr(owner, name)
             with self.jobs.request(rid, body):
@@ -259,6 +261,9 @@ def _self_check() -> None:
     for bad in ({"screenshot_dir": None}, {"screenshot_dir": ""}, {"points": None}, {"points": 0}):
         assert rpc("save_config", {"patch": bad})[1]["error"]["code"] == "BAD_REQUEST", bad  # 型別錯誤
     assert rpc("connect_fake", {})[1]["result"]["model"] == "FAKE-SCOPE"
+    cap = dict(directory="/x", name="n", channels=["CHAN1"], points=10, retrigger=False)
+    for bad in ({"retrigger": "false"}, {"channels": "CHAN1"}, {"channels": ["CHAN10"]}):  # 型別／白名單：不得碰儀器
+        assert rpc("capture", {**cap, **bad})[1]["error"]["code"] == "BAD_REQUEST", bad
     api._drv = SlowFake()
     tmp = tempfile.mkdtemp()
     shot = {"directory": tmp, "name": "s", "image_format": "PNG", "inverted": False, "area": "full"}

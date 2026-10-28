@@ -70,9 +70,9 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
         b = int(np.searchsorted(w.time, rng[1] - d, "right"))
         return w.time[a:b], w.voltage[a:b]
 
-    def _info(self, w: Waveform, units: dict[str, str], gen: int) -> dict:
+    def _info(self, w: Waveform, units: dict[str, str], gen: int, raw: set[str] | None = None) -> dict:
         v = w.voltage[np.isfinite(w.voltage)]
-        return {"name": w.channel, "unit": units[w.channel], "derived": w.channel not in self._raw_names(),
+        return {"name": w.channel, "unit": units[w.channel], "derived": w.channel not in (self._raw_names() if raw is None else raw),
                 "points": len(w.time), "t0": float(w.time[0]), "t1": float(w.time[-1]),
                 "vmin": float(v.min()) if len(v) else None, "vmax": float(v.max()) if len(v) else None, "gen": gen}
 
@@ -88,21 +88,21 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
             if not waves:
                 raise ScopeError("沒有波形資料可畫。")
             info = read_file_info(p)
+            # 重活（金字塔）先建在區域變數；鎖內只換狀態，所以與 close／_reset 不會互相踩
+            pyr = {w.channel: decimate.Pyramid(w.voltage) for w in waves if len(w.time) > decimate.PYRAMID_MIN}
+            main = [w.channel for w in waves]
             with self._lock:
                 self._gen += 1
                 self._reset(p)
-                self._waves, self._main = list(waves), [w.channel for w in waves]
-                self._units = {w.channel: "V" for w in waves}
+                self._waves, self._main = list(waves), main
+                self._units = {c: "V" for c in main}
+                self._pyr.update(pyr)
                 gen = self._gen
-            big = any(len(w.time) > decimate.PYRAMID_MIN for w in waves)
-            if big:  # 單層金字塔：在分析執行緒預建，之後 /wave 縮放不必掃全部原始點
-                for w in waves:
-                    if len(w.time) > decimate.PYRAMID_MIN:
-                        self._pyr[w.channel] = decimate.Pyramid(w.voltage)
+            big = bool(pyr)
             rows = _file_rows(p, info, waves)
             return _clean({"path": str(p), "gen": gen, "model": info.get("Model"), "series": info.get("Series"),
                            "captured_at": info.get("CapturedAt"), "info": [list(r) for r in rows],
-                           "channels": [self._info(w, self._units, gen) for w in waves], "pyramid": big})
+                           "channels": [self._info(w, {c: "V" for c in main}, gen, set(main)) for w in waves], "pyramid": big})
 
         return work()
 

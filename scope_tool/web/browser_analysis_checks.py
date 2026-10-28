@@ -185,7 +185,7 @@ def compact_results(c: Cdp, prep: str) -> None:
     original_count = c.js("document.querySelector('[data-column=count]').checked")
     if not original_count:
         c.js("document.querySelector('[data-column=count]').click()")
-    assert c.js("[...document.querySelectorAll('.analysis__results th')].some(e=>e.textContent==='次數')")
+    assert c.js("[...document.querySelectorAll('.analysis__results th')].some(e=>e.textContent==='Count')")
     if not original_count:
         c.js("document.querySelector('[data-column=count]').click()")
     c.js("document.querySelector('.results__menu summary').click()")
@@ -197,7 +197,12 @@ def compact_results(c: Cdp, prep: str) -> None:
             return old.call(this,method,args);
         };
         try {
-            document.querySelector('.results__export').click(); await Promise.resolve();
+            document.querySelector('.results__export').click();
+            // 匯出先選資料夾：無原生對話框時是頁內 <dialog> prompt，填路徑後按確定
+            for(let i=0;i<50&&!document.querySelector('dialog[open] input');i++) await new Promise(r=>setTimeout(r,20));
+            document.querySelector('dialog[open] input').value='/tmp';
+            document.querySelector('dialog[open] .btn--primary').click();
+            for(let i=0;i<50&&!exported;i++) await new Promise(r=>setTimeout(r,20));
             document.querySelector('.results__clear').click();
             return {exported,cleared:S.state.measurements.length===0};
         } finally { B.call=old;S.set({measurements:list},'program'); }

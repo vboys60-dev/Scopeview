@@ -57,6 +57,8 @@ def map_error(exc: BaseException) -> dict[str, Any]:
         return {"code": code, "message": str(exc), "retryable": code == "BUSY"}
     if isinstance(exc, ValueError):  # 分析層 ValueError
         return {"code": "BAD_REQUEST", "message": str(exc), "retryable": False}
+    if isinstance(exc, OSError):  # 檔案系統：權限、磁碟滿、路徑不存在等
+        return {"code": "BAD_REQUEST", "message": f"檔案操作失敗：{exc.strerror or exc}", "retryable": False}
     log.exception("未預期錯誤", exc_info=exc)
     return {"code": "UNEXPECTED", "message": f"未預期錯誤：{exc}", "retryable": False}
 

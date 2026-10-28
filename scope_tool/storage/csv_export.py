@@ -55,14 +55,15 @@ def export_csv(directory: Path, name: str, waveforms: list[Waveform],
     stride = math.ceil(count / max_points) if max_points else 1
     selected = [c[lo:hi:stride] for c in columns]
     formats = [_sci_format(column) for column in selected]
-    header = ["Time(s)"] + [f"{writer._channel_to_csv_header(w.channel)}(V)" for w in waveforms]
+    header = ["Time(s)"] + [f"{n}(V)" for n in writer._unique_names([w.channel for w in waveforms], "CH{n}")]
     try:
-        path = writer.timestamped(directory, name, "csv")
-        with path.open("w", encoding="utf-8", newline="") as stream:
-            stream.write(",".join(header) + "\n")
-            for start in range(0, len(selected[0]), _BLOCK):
-                block = np.column_stack([column[start:start + _BLOCK] for column in selected])
-                np.savetxt(stream, block, fmt=formats, delimiter=",")
+        def write(tmp: Path) -> None:
+            with tmp.open("w", encoding="utf-8", newline="") as stream:
+                stream.write(",".join(header) + "\n")
+                for start in range(0, len(selected[0]), _BLOCK):
+                    block = np.column_stack([column[start:start + _BLOCK] for column in selected])
+                    np.savetxt(stream, block, fmt=formats, delimiter=",")
+        path = writer._atomic(writer.timestamped(directory, name, "csv"), write)
     except OSError as exc:
         raise ScopeError(f"匯出 CSV 失敗：{exc}") from exc
     return path

@@ -93,6 +93,20 @@
 - 匯出（波形 CSV、量測 CSV、解碼 CSV、HTML 報告）一律先 `ui.pickPath` 選資料夾，取消即中止；檔名仍自動（來源檔名＋類型＋時間戳）。
 - HTML 報告字級放大並加 `@page A4`，列印時表格可換行。
 
+## 全專案審查與修正（2026-10-28，已 commit）
+
+- 審查：Opus 審 Python 後端、Codex 三路唯讀審全專案，交叉驗證後排出優先序；授權項目 1～4、7、8 已全部完成並經 Opus 審。Codex 寫入模式兩次卡死無改動，改由 Claude 自己改、Opus 審。
+- ①RPC 入口 `validate_params`（型別／null／列舉，在 `jobs.request` 與碰儀器前擋，BAD_REQUEST）＋ capture 通道白名單 `CHAN[1-8]` 且不得重複。
+- ②`writer.timestamped` 以 `open("x")` 原子保留檔名。
+- ③寫檔 tmp＋`os.replace`（`writer._atomic`，失敗清 tmp 與佔位空檔）；截圖／擷取碰儀器前 `_check_writable`，儀器擷取後寫入失敗改存 `<系統暫存>/scope_tool`（只寫 log，回傳無旗標）；`map_error` 把 OSError 對應 BAD_REQUEST。
+- ④`analysis_api.open_waveform` 金字塔先建在區域變數，鎖內只換狀態。
+- ⑦`config.load` 逐鍵型別驗證、`save` 原子寫＋`strict`（Qt 沿用預設不拋）；`api.save_config` 存檔成功才換記憶體設定，失敗拋 OSError。
+- ⑧通道名正規化 `writer._unique_names`：僅完整符合 `(CHAN|CH|Channel ?)\d+` 轉 `CH{n}`／`Channel {n}`，SDA1／SCL1 保留，撞名改回原名；已用真 X6000A BIN 驗 CSV 讀回。
+- 測試同步：`e2e_check` 錯參走同步 `rpc`；`browser_check` 系列改 "Frequency"／"Count"，匯出步驟要填 `pickPath` 的頁內 `<dialog>`。
+- 已知小項（Opus 列、未修）：`config.load` 不驗清單／enum／points<=0；`_shutdown` 存檔不持鎖；`add_manual_ip`／`connect` 存檔失敗不回滾；撞名改回原名後 CSV 讀回可能再撞；CSV 表頭未加引號。
+- 需真機、未授權：device clear／`_check_error` 解析、VISA 斷線後 `_drv` 未清、DIGitize 逾時與無上限 sleep、離開時卡住。
+- 前端另列：`fft_track_rf` level 可能 NaN；主圖快取競態、報告狀態一致性、解碼來源版本、事件連線失敗無期限、擷取鈕鍵盤重複送出等（Codex 清單）。
+
 ## 後續待辦
 
 1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。

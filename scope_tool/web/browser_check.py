@@ -194,7 +194,7 @@ def main() -> None:
         step("P2b2 Vertical 1400／1000 控件無截斷", lambda: analysis_checks.vertical_bounds(c, prep, click, out))
         step("通道 dx 位移", lambda: (c.js(f"(async()=>{{{prep} S.updateChannel(S.state.channels[1].name,{{time_offset:(S.state.view.t1-S.state.view.t0)*0.05}},'user')}})()"), c.pump(1)))
         def measure() -> None:
-            for t in ("頻率", "Vp-p"):
+            for t in ("Frequency", "Vp-p"):
                 c.js(f"({click})({json.dumps(t)})")
             c.pump(2)
         step("新增量測", measure)

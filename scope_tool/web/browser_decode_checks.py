@@ -74,6 +74,9 @@ def decode_page(c: Cdp, prep: str, out: Path, directory: str) -> None:
     # 點真正的匯出按鈕，以新增檔確認工作完成，再核對完整 field 與位址列數。
     old = set(Path(directory).glob('*解碼*.csv'))
     c.js("document.querySelector('[data-decode-action=export]').click()")
+    # 匯出先選資料夾（頁內 <dialog> prompt）：填入 directory 並確定
+    c.wait("!!document.querySelector('dialog[open] input')")
+    c.js(f"(()=>{{const d=document.querySelector('dialog[open]');d.querySelector('input').value={json.dumps(str(directory))};d.querySelector('.btn--primary').click()}})()")
     for _ in range(50):
         c.pump(.2)
         created = set(Path(directory).glob('*解碼*.csv')) - old
@@ -151,7 +154,7 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
     old = set(Path(directory).glob('*.html'))
     c.js(f"""(async()=>{{{prep}
       const {{exportReport}}=await import('/js/analysis/report.js'),fmt=await import('/js/fmt.js');
-      const ui={{toast(){{}},showError(e){{throw e}}}};
+      const ui={{toast(){{}},showError(e){{throw e}},pickPath:async()=>{json.dumps(str(directory))}}};
       await exportReport({{store:S,bridge:B,fmt,ui}},document.querySelector('.analysis'),async()=>({{title:'I3C P4 驗收',invert:false}}));
     }})()""")
     created = set(Path(directory).glob('*.html')) - old
@@ -241,6 +244,8 @@ def protocol_pages(c: Cdp, prep: str, out: Path, directory: str) -> None:
         assert centered < .01
         before = set(Path(directory).glob('*解碼*.csv'))
         c.js("document.querySelector('[data-decode-action=export]').click()")
+        c.wait("!!document.querySelector('dialog[open] input')")
+        c.js(f"(()=>{{const d=document.querySelector('dialog[open]');d.querySelector('input').value={json.dumps(str(directory))};d.querySelector('.btn--primary').click()}})()")
         for _ in range(30):
             c.pump(.1)
             created = set(Path(directory).glob('*解碼*.csv')) - before

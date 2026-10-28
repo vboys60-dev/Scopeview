@@ -124,8 +124,8 @@ def main() -> None:
         assert m_rev["results"][0]["stats"]["current"] == m["results"][0]["stats"]["current"]
         m_dx = job_ok("measure", entries=ent[:1], range=[t0, mid], dx={"CHAN1": (t1 - t0) / 4}, threshold="20/50/80 %")
         assert m_dx["results"][0]["ok"] and m_dx["revision"] > m["revision"]
-        # 註：Analysis 工作型方法的參數錯誤經 job 事件回報（非同步 RPC 信封），見問題清單
-        bad = job("measure", entries=[{"channel": "CHAN1", "name": "不存在"}], range=None, dx={}, threshold="10/50/90 %")
+        # 註：參數錯誤由 server 的 validate_params 在提交工作前同步擋下（RPC 信封 ok=False）
+        bad = rpc("measure", entries=[{"channel": "CHAN1", "name": "不存在"}], range=None, dx={}, threshold="10/50/90 %")
         assert bad["ok"] is False and bad["error"]["code"] == "BAD_REQUEST", bad
         empty = job_ok("measure", entries=ent[:1], range=[t1 + 1, t1 + 2], dx={}, threshold="10/50/90 %")
         assert empty["results"][0]["ok"] is False and empty["results"][0]["reason"]
@@ -167,7 +167,7 @@ def main() -> None:
         assert Path(csvp["path"]).exists() and Path(csvp["path"]).suffix == ".csv"
         mm = job_ok("measure", entries=ent, range=None, dx={}, threshold="10/50/90 %")
         exm = ok("export_measurements", rows=[{}] * 2, gen=mm["gen"], revision=mm["revision"], directory=str(tmp))
-        assert Path(exm["path"]).exists() and "量測" in Path(exm["path"]).read_text("utf-8-sig")
+        assert Path(exm["path"]).exists() and "Measure" in Path(exm["path"]).read_text("utf-8-sig")
         rep = ok("export_report", html="<!doctype html><p>報告 ✓</p>", directory=None)
         assert Path(rep["path"]).parent == Path(cap["path"]).parent and Path(rep["path"]).read_text("utf-8").endswith("報告 ✓</p>")
         assert rpc("export_report", html=None, directory=str(tmp))["error"]["code"] == "BAD_REQUEST"

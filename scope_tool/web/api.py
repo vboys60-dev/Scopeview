@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -34,6 +36,28 @@ def _path(s: str) -> Path:
 
 def _asdict(f: FoundInstrument) -> dict[str, str]:
     return dict(resource=f.resource, source=f.source, label=f.label)
+
+
+log = logging.getLogger(__name__)
+
+
+def _check_writable(d: Path) -> None:
+    """碰儀器前先確認資料夾能建立並寫入，失敗給可讀訊息。"""
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryFile(dir=d):
+            pass
+    except OSError as e:
+        raise BadRequestError(f"資料夾無法寫入：{d}（{e.strerror or e}）") from None
+
+
+def _write_or_temp(out: Path, write) -> Path:
+    """寫入失敗（例如寫到一半被拔除）時改存系統暫存目錄，避免已擷取的資料遺失。"""
+    try:
+        return write(out)
+    except OSError as e:
+        log.warning("寫入 %s 失敗，改存暫存目錄：%s", out, e)
+        return write(Path(tempfile.gettempdir()) / "scope_tool")
 
 
 def _enum(cls: Any, value: Any, what: str) -> Any:
@@ -88,9 +112,9 @@ class Api:
         self._save()
         self._jobs.close(work, 3.0)
 
-    def _save(self) -> None:
+    def _save(self, cfg: dict[str, Any] | None = None, strict: bool = False) -> None:
         if self._persist:
-            config_mod.save(self._cfg)
+            config_mod.save(self._cfg if cfg is None else cfg, strict)
 
     def _config_view(self) -> dict[str, Any]:
         c = json.loads(json.dumps(self._cfg))
@@ -134,9 +158,9 @@ class Api:
         for k, v in patch.items():
             _check_cfg(k, v)
         with self._lock:
-            for k, v in patch.items():
-                self._cfg[k] = str(_path(v)) if k in _PATH_KEYS else v
-            self._save()
+            new = {**self._cfg, **{k: str(_path(v)) if k in _PATH_KEYS else v for k, v in patch.items()}}
+            self._save(new, strict=True)  # 寫失敗拋 OSError（→ 前端錯誤），記憶體設定不變
+            self._cfg = new
         return self._config_view()
 
     def _pick(self, kind: str, initial: str | None) -> str | None:
@@ -242,11 +266,12 @@ class Api:
         fmt = _enum(ImageFormat, image_format, "image_format")
         opts = ScreenshotOptions(fmt, bool(inverted), _enum(CaptureArea, area, "area"))
         out, base = _path(directory), _filename(name)
+        _check_writable(out)
 
         def work() -> dict[str, Any]:
             d = self._need_drv()
             data = d.screenshot(opts)
-            path = writer.write_screenshot(out, base, data, fmt)
+            path = _write_or_temp(out, lambda o: writer.write_screenshot(o, base, data, fmt))
             with self._lock:
                 self._shot_n += 1
                 self._shot = (self._shot_n, data)
@@ -256,16 +281,18 @@ class Api:
     def capture(self, directory: str, name: str, channels: list[str], points: int,
                 retrigger: bool) -> dict[str, Any]:
         from scope_tool.storage import writer
-        if not channels or not all(isinstance(c, str) for c in channels):
-            raise BadRequestError("channels 不可為空")
+        if not channels or not all(isinstance(c, str) and re.fullmatch(r"CHAN[1-8]", c) for c in channels) \
+                or len(set(channels)) != len(channels):
+            raise BadRequestError("channels 必須是非空、不重複的 CHAN1–CHAN8 清單")
         if isinstance(points, bool) or not isinstance(points, int) or points <= 0:
             raise BadRequestError("points 必須是正整數")
         out, base = _path(directory), _filename(name)
+        _check_writable(out)
 
         def work() -> dict[str, Any]:
             d = self._need_drv()
             result = d.capture(list(channels), points, bool(retrigger))
-            path = writer.write_waveform(out, base, result, WaveformFormat.HDF5)  # 規則：擷取一律 HDF5
+            path = _write_or_temp(out, lambda o: writer.write_waveform(o, base, result, WaveformFormat.HDF5))  # 規則：擷取一律 HDF5
             return {"path": str(path), "requested": points,
                     "got_points": min(len(w.voltage) for w in result.waveforms)}
         return self._jobs.submit("capture", work, lock=True)
