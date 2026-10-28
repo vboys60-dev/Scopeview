@@ -179,7 +179,9 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
     if (!fr?.spectrum_id || ![-1, 0, 1].includes(direction) || !num(x)) return;
     const my = ++rfToken, sid = fr.spectrum_id;
     try {
-      const r = await bridge.call("fft_track_rf", { spectrum_id: sid, x, direction, level: store.get().fftMarker ? fftMarkerModel({ store }).displayLevel(fr, false) : fr.peak_level ?? -40 });
+      let level = store.get().fftMarker ? fftMarkerModel({ store }).displayLevel(fr, false) : fr.peak_level ?? -40;
+      if (!Number.isFinite(level)) level = fr.peak_level ?? -40; // 單位換算失敗（如 R 無效）得 NaN，JSON 變 null 會被後端拒
+      const r = await bridge.call("fft_track_rf", { spectrum_id: sid, x, direction, level });
       if (my !== rfToken || store.get().fftResult?.spectrum_id !== sid) return; // 過期丟棄
       store.set({ rfPos: { x: r.x, y: r.y, available: r.available, reason: r.reason } }, "user");
     } catch (e) { if (e.code !== "STALE") onError(e); }
