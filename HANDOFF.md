@@ -110,7 +110,7 @@
   - 解碼來源版本（`decode.js`）：解碼／`decode_frames`／estimate 前後比對來源槽物件參照，被換掉就不寫結果；來源選單隨可解碼通道增減重建（`decode_table.js` `fillSources`），選中通道消失才清。
   - 事件連線（`bridge.js`）：403／404／BAD_REQUEST 視為永久錯誤、停止事件迴圈並讓工作失敗（要重開程式）；其他錯誤連續 5 次通知 desync，仍每秒重試；刻意不加工作逾時（大量點數擷取可跑數分鐘）。
   - 擷取設定存檔失敗改 toast（`tab_capture.js`）。
-  - 小項未修：主圖 canvas 0 尺寸時匯出會等 3 秒；事件失敗原因為空字串時文案「（）」；`browser_slot_checks` 尚無「載入 Mem1 後解碼來源選單有 Mem1.CHAN1」斷言。
+  - 小項未修：主圖 canvas 0 尺寸時匯出會等 3 秒；事件失敗原因為空字串時文案「（）」。`browser_slot_checks` 已補「載入 Mem1 後解碼來源選單有 Mem1.CHAN1」。
 
 ## 後續待辦
 

@@ -96,6 +96,8 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         c.wait("document.querySelector('.analysis__chanbar').textContent.includes('Mem1.CHAN1')")
         c.wait("window.__slotMain.length>0 && window.__slotHttp.some(u=>decodeURIComponent(u).includes('Mem1.CHAN1'))")
         wait('S.state.measurements.length===1 && S.state.measurements[0].result?.ok')
+        # 載入 Mem1 後，解碼來源選單要出現 Mem1.CHAN1（不必切到解碼分頁，選單隨通道清單重建）
+        c.wait("[...document.querySelectorAll('.decode__bar select[data-role]')].some(s=>[...s.options].some(o=>o.value==='Mem1.CHAN1'))")
         after = state('({cursors:S.state.cursors,ids:S.state.measurements.map(m=>m.id),gen:S.state.file.gen})')
         assert before == after, (before, after)
         old_wave = c.js('window.__slotMain.at(-1).hi')
