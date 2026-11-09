@@ -140,6 +140,7 @@
 - 一律存 HDF5（uint16 原始整數 + group attrs `YInc/YOrg/YReference`；無 preamble 才存 float64 電壓）；CSV 只能從分析頁匯出（`storage/csv_export.py`）：範圍全部／游標區間，可縮點（上限預設 10M），欄名 `CH1(V)`，時間位數依最小相異間隔。
 - `max_points()`：HD3 100M、3000G 4M、Infiniium 查 `:ACQuire:POINts:MAXimum?`。InfiniiVision 的點數由時基決定（20 ns/div 只有 2000 點），`:ACQuire:POINts` 設了無效。
 - Infiniium 存檔轉取整筆記錄（`:DISK:SAVE ALL` → `GETFILE?` → `DELete`），「點數」只當上限，超過丟 ScopeError，不改使用者記憶體深度。
+- Web 擷取頁（`tab_capture.js`）通道選項一律列 CHAN1～8（EXR 最多 8 通道），`capture_info` 回報已開啟者預設勾選，其餘不勾；後端本就收 CHAN1–8。勾選關閉中的通道行為未驗；Qt 版 `ui/tab_capture.py` 未改（仍只列開啟通道）。
 
 ## 真機踩到的坑（已修，勿回退）
 

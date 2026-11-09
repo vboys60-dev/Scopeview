@@ -79,8 +79,9 @@ export function mount(el, ctx) {
       const i = await retryBusy(() => bridge.job("capture_info", {}), { onWait: () => { if (my === token) status.textContent = "儀器忙碌中…稍後自動重試"; } });
       if (my !== token) return;
       info = i;
-      for (const c of i.channels) {
-        const l = h("label", "check"), cb = h("input"); cb.type = "checkbox"; cb.checked = true; cb.onchange = refreshRisk;
+      // EXR 最多 8 通道：一律列出 CHAN1–8，目前開啟的預設勾選
+      for (const c of Array.from({ length: 8 }, (_, n) => "CHAN" + (n + 1))) {
+        const l = h("label", "check"), cb = h("input"); cb.type = "checkbox"; cb.checked = i.channels.includes(c); cb.onchange = refreshRisk;
         l.append(cb, h("span", "", c)); chBox.append(l); checks.set(c, cb);
       }
       maxHint.textContent = `這台機器最多可取 ${i.max_points.toLocaleString("en-US")} 點`;
