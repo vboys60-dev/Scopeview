@@ -171,6 +171,41 @@ class Bus:
             self.bit(int(rng.integers(0, 2)))
         return self.hdr_exit()
 
+    def hdr_ddr(self, words: list[tuple[int, int]], bits: str | None = None) -> Bus:
+        """產生前導碼與 16 位負載；bits 可提供完整原始位串供錯誤向量使用。"""
+        if bits is None:
+            crc = 0x1F
+            parts = []
+            for pre, value in words:
+                if pre not in (0, 1, 2, 3) or not 0 <= value <= 0xFFFF:
+                    raise ValueError('HDR 字組超出範圍')
+                p1 = sum((value >> i) & 1 for i in range(1, 16, 2)) % 2
+                p0 = 1 ^ (sum((value >> i) & 1 for i in range(0, 16, 2)) % 2)
+                parts.append(f'{pre:02b}{value:016b}{p1}{p0}')
+                for shift in range(15, -1, -1):
+                    top = ((crc >> 4) ^ (value >> shift)) & 1
+                    crc = ((crc << 1) & 31) ^ (5 if top else 0)
+            # ponytail: CRC 尾部只需解碼器會讀取的 11 位。
+            bits = ''.join(parts) + f'011100{crc:05b}00'
+        if not bits or any(c not in '01' for c in bits):
+            raise ValueError('HDR 位串不可為空且只能包含 0 或 1')
+        self.start().header(0x7E, od=True).byte_w(0x20)
+        # T 位的下降沿即第一位：將 SDA 插在 T 上升與下降之間。
+        fall = self.trans.pop()
+        assert fall[1:] == ('scl', 0)
+        old_now = self.now
+        self.now -= 1 / self.f_pp / 4
+        self.set('sda', int(bits[0]))
+        self.now = old_now
+        self.trans.append(fall)
+        for bit in bits[1:]:
+            self.idle(1 / self.f_pp / 4)
+            self.set('sda', int(bit))
+            self.idle(1 / self.f_pp / 4)
+            self.set('scl', 1 - self.level['scl'])
+        self.idle(1 / self.f_pp / 2)
+        return self.hdr_exit()
+
     def i2c(self, addr: int, rw: int, data: tuple, acks: tuple) -> Bus:
         self.truth.append(('i2c', addr, rw, data, acks))
         self.start().header(addr, rw, od=True)

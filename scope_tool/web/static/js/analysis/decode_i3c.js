@@ -21,7 +21,7 @@ export const eventKind = f => ({ private_write:'私有寫', private_read:'私有
   target_reset:'Target Reset', pattern:'形狀', partial:'不完整區段', error:'錯誤' })[f.kind] ?? f.kind;
 export function frameContent(f) {
   return [f.ccc_name, ...f.fields.filter(x => x.kind !== 'addr').map(x =>
-    (x.ok ? '' : '⚠')+(x.value == null ? x.label : hex(x.value,Math.ceil((x.nbits-(x.ninth_kind ? 1 : 0))/4)))+(x.kind === 'pid' ? ' PID' : ''))].filter(Boolean).join(' ') || f.label;
+    (x.ok ? '' : '⚠')+({ hdr_cmd:'命令 ', hdr_data:'資料 ', hdr_crc:'CRC ' }[x.kind] ?? '')+(x.value == null ? x.label : hex(x.value,Math.ceil((x.nbits-(x.ninth_kind ? 1 : 0))/4)))+(x.kind === 'pid' ? ' PID' : ''))].filter(Boolean).join(' ') || f.label;
 }
 const field = (t, kind, value, ok = true) => ({ t0: t, t1: t + 8, kind, addr: null, value, nbits: 8,
     ninth: 1, ninth_kind: 'parity', ok, label: kind });
@@ -39,7 +39,7 @@ export default {
   kinds:{ private_write:'私有寫',private_read:'私有讀',ccc_broadcast:'CCC 廣播',ccc_direct:'CCC 直接',daa:'DAA 指派',ibi:'IBI',hotjoin:'Hot-Join',i2c:'I2C',hdr:'HDR 區段',hdr_exit:'HDR Exit',target_reset:'Target Reset',pattern:'形狀',partial:'不完整區段',error:'錯誤' },
   eventKind, content:frameContent,
   columns:[{ head:'位址',cell:f => hex(f.addr) },{ head:'R/W',cell:f => f.rw == null ? '—' : f.rw ? 'R' : 'W' }],
-  fieldText:x => x.value == null ? x.label : x.kind === 'addr' ? (x.value>>1).toString(16).toUpperCase().padStart(2,'0')+(x.value & 1 ? ' R' : ' W') : x.value.toString(16).toUpperCase().padStart(Math.ceil((x.nbits-(x.ninth_kind ? 1 : 0))/4),'0'),
+  fieldText:x => ({ hdr_cmd:'命令 ', hdr_data:'資料 ', hdr_crc:'CRC ' }[x.kind] ?? '') + (x.value == null ? x.label : x.kind === 'addr' ? (x.value>>1).toString(16).toUpperCase().padStart(2,'0')+(x.value & 1 ? ' R' : ' W') : x.value.toString(16).toUpperCase().padStart(Math.ceil((x.nbits-(x.ninth_kind ? 1 : 0))/4),'0')),
   lanes:() => null, laneLabels:{}, reportSummary:false,
   addresses:{ head:['DA','PID','BCR','DCR','起','迄','來源','備註'],row:(a,F,dx) =>
     [hex(a.da),hex(a.pid,12),hex(a.bcr),hex(a.dcr),a.t_from == null ? '未知（擷取前）' : F(a.t_from+dx,'s'),

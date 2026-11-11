@@ -6,7 +6,7 @@ from scope_tool.web.logic import Edges, auto_threshold, to_edges, validate_time,
 from scope_tool.web.i3c_events import events
 from scope_tool.web.i3c_fields import frame, field, header, daa_fields
 from scope_tool.web.i3c_ccc import COMMANDS, active, finish_ccc, invalidate, reason
-
+from scope_tool.web.i3c_hdr import apply as hdr_apply
 def parity_ok(v: int, t: int) -> bool:
     return (v.bit_count() + t) % 2 == 1
 
@@ -252,9 +252,9 @@ def decode(scl: Edges, sda: Edges, *, t1: float | None = None,
         d.close(end, True)
     if cuts:
         d.warnings.append(f'邊沿超過上限，只解到 t={end:.12g}')
-    return dict(frames=d.frames, bits_t=np.array([b[0] for b in d.bits]),
+    return hdr_apply(dict(frames=d.frames, bits_t=np.array([b[0] for b in d.bits]),
                 bits_v=np.array([b[1] for b in d.bits], dtype=np.int8), addresses=d.addresses,
-                warnings=d.warnings, truncated=d.truncated or bool(cuts), t1=end)
+                warnings=d.warnings, truncated=d.truncated or bool(cuts), t1=end), scl, sda)
 
 
 def decode_waveforms(t: np.ndarray, scl: np.ndarray, sda: np.ndarray, *,

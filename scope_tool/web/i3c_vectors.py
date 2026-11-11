@@ -37,7 +37,7 @@ def run(b: Bus, **options: object) -> dict:
             expected.append((x[1], x[5], (x[2] << 1) | x[3], 0 if x[4] else 1, 'ack'))
         elif x[0] in ('write', 'read'):
             expected.append((x[1], x[4], x[2], x[3], 'parity' if x[0] == 'write' else 'tbit'))
-    actual = [x for f in r['frames'] for x in f['fields'] if x['kind'] not in ('pid', 'bcr', 'dcr', 'da')]
+    actual = [x for f in r['frames'] for x in f['fields'] if x['kind'] not in ('pid', 'bcr', 'dcr', 'da') and not x['kind'].startswith('hdr_')]
     if legacy:
         actual = [x for x in actual if x['kind'] == 'addr']
     if not r['truncated']:
@@ -47,9 +47,13 @@ def run(b: Bus, **options: object) -> dict:
         assert abs(f['t0'] - t0) <= 2e-9 and abs(f['t1'] - t1) <= 2e-9
     # 每個取樣 bit 必須對應符號層真正的 SCL 上升，誤差不超過兩點。
     rises = np.array([tm for tm, ln, v in b.trans if ln == 'scl' and v == 1])
-    ix = np.searchsorted(rises, r['bits_t'])
+    bt = r['bits_t']  # HDR 區段的位元取在 SCL 兩個邊沿，不在此檢查範圍
+    for f in r['frames']:
+        if f['kind'] == 'hdr':
+            bt = bt[(bt < f['t0']) | (bt > f['t1'])]
+    ix = np.searchsorted(rises, bt)
     ix = np.minimum(ix, len(rises) - 1)
-    dist = np.minimum(abs(rises[ix] - r['bits_t']), abs(rises[np.maximum(ix - 1, 0)] - r['bits_t']))
+    dist = np.minimum(abs(rises[ix] - bt), abs(rises[np.maximum(ix - 1, 0)] - bt))
     assert np.all(dist <= 2e-9)
     return r
 
@@ -164,7 +168,7 @@ def protocol_vectors() -> list[str]:
         assert [f['kind'] for f in r['frames']] == ['hotjoin', 'daa']
         assert len(r['addresses']) == len(targets) and all(a['da'] != 2 for a in r['addresses'])
     passed.append('20')
-    fs = run(Bus().hdr())['frames']
+    fs = run(Bus().hdr(mode=1))['frames']  # TSP 不解；DDR 見 i3c_hdr_check
     assert [f['kind'] for f in fs] == ['ccc_broadcast', 'hdr', 'hdr_exit']
     assert fs[1]['t1'] == fs[2]['t0'] and not fs[1]['fields']
     passed.append('21')
