@@ -83,10 +83,100 @@ def fixture(path: Path) -> dict:
                 expect_kinds=['data', 'remote'])
 
 
+
+
+FD_LENGTHS = list(range(9)) + [12, 16, 20, 24, 32, 48, 64]
+
+
+def fd_crc(data: list[int], width: int) -> int:
+    """ISO CAN FD CRC；輸入包含動態填充與 SBC。"""
+    if width not in (17, 21):
+        raise ValueError('CRC 寬度不合法')
+    reg, poly = 1 << (width - 1), 0x3685b if width == 17 else 0x302899
+    for bit in data:
+        top = ((reg >> (width - 1)) & 1) ^ bit
+        reg = ((reg << 1) ^ (poly if top else 0)) & ((1 << width) - 1)
+    return reg
+
+
+def fd_frame(id: int, data: bytes | list[int], *, dlc: int, brs: bool = False,
+             ext: bool = False, esi: bool = False, ack: bool = True) -> dict:
+    """回傳線上位元與速率切換位置。"""
+    data = list(data)
+    if not 0 <= id < (1 << (29 if ext else 11)) or not 0 <= dlc <= 15:
+        raise ValueError('CAN FD ID 或 DLC 超出範圍')
+    if len(data) != FD_LENGTHS[dlc] or any(not 0 <= x <= 255 for x in data):
+        raise ValueError('CAN FD 資料長度或內容不合法')
+    header = (bits(id >> 18, 11) + [1, 1] + bits(id & 0x3ffff, 18) + [0, 1, 0]
+              if ext else bits(id, 11) + [0, 0, 1, 0])
+    raw = [0] + header + [int(brs), int(esi)] + bits(dlc, 4)
+    brs_raw = len(header) + 1
+    raw += [b for byte in data for b in bits(byte, 8)]
+    wire: list[int] = []
+    last, run, count, brs_index = -1, 0, 0, 0
+    for i, bit in enumerate(raw):
+        if i == brs_raw:
+            brs_index = len(wire)
+        wire.append(bit)
+        run = run + 1 if bit == last else 1
+        last = bit
+        if run == 5 and i + 1 < len(raw):
+            wire.append(1 - bit)
+            last, run, count = 1 - bit, 1, count + 1
+    gray = (count % 8) ^ ((count % 8) >> 1)
+    sbc = bits(gray, 3) + [gray.bit_count() % 2]
+    width = 17 if len(data) <= 16 else 21
+    crc = fd_crc(wire + sbc, width)
+    groups = sbc + bits(crc, width)
+    fsb_indices = []
+    for i in range(0, len(groups), 4):
+        fsb_indices.append(len(wire))
+        wire.append(1 - wire[-1])
+        wire.extend(groups[i:i + 4])
+    delimiter = len(wire)
+    wire += [1, 0 if ack else 1, 1] + [1] * 7
+    return dict(bits=wire, brs=brs_index if brs else None, delimiter=delimiter,
+                fsb=fsb_indices, stuff_count=count, sbc=sbc, crc=crc)
+
+
+def fd_bus(frames: list[dict | list[int]], *, bitrate: float = 500000,
+           data_bitrate: float = 2000000, sample_point: float = .75,
+           data_sample_point: float = .75, gap: int = 3) -> dict:
+    """合成混排波形；BRS 與 CRC delimiter 的切換發生於取樣點。"""
+    if min(bitrate, data_bitrate) <= 0 or not (0 < sample_point < 1 and 0 < data_sample_point < 1):
+        raise ValueError('CAN FD 時序不合法')
+    tn, td = 1 / bitrate, 1 / data_bitrate
+    trans, time, level = [(0., 'can', 1)], 11 * tn, 1
+    for frame in frames:
+        seq = frame['bits'] if isinstance(frame, dict) else frame
+        brs = frame['brs'] if isinstance(frame, dict) else None
+        delimiter = frame['delimiter'] if isinstance(frame, dict) else None
+        for i, bit in enumerate(seq):
+            if bit != level:
+                trans.append((time, 'can', bit))
+                level = bit
+            duration = tn
+            if brs is not None:
+                if i == brs:
+                    duration = sample_point * tn + (1 - data_sample_point) * td
+                elif brs < i < delimiter:
+                    duration = td
+                elif i == delimiter:
+                    duration = data_sample_point * td + (1 - sample_point) * tn
+            time += duration
+        time += gap * tn
+        if level != 1:
+            trans.append((time - gap * tn, 'can', 1))
+            level = 1
+    return dict(trans=trans, end=time + 11 * tn)
+
+
 if __name__ == '__main__':
     h1 = '000100100011000001100001001000110100011011010110111'
     assert ''.join(map(str, can_frame(0x123, [0x12, 0x34])[:-10])) == h1
     assert crc15([int(b) for c in b'123456789' for b in f'{c:08b}']) == 0x059e
     assert crc15([int(x) for x in '00000110101011111100110111101111000000110100101']) == 0xd9
     assert len(can_frame(0x1abcdef, [0xa5], ext=True)[:-10]) == 66
+    f = fd_frame(0x123, [0xa5], dlc=1)
+    assert f['crc'] == 0x7ab9 and len(f['fsb']) == 6
     print('web.can_synth self-check OK')

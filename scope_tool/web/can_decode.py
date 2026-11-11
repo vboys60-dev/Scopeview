@@ -6,6 +6,7 @@ from scope_tool.web.logic import Edges
 from scope_tool.web.i3c_fields import frame
 from scope_tool.web.i3c_ccc import reason
 from scope_tool.web.can_fields import Bus, Reader, Stop, crc15, field
+from scope_tool.web import can_fd
 
 ROLES = {'can': True, 'canl': False}
 BASE = 'can'
@@ -16,14 +17,16 @@ FLAG_MIN, IDLE_MIN, IFS_BITS = 5.75, 10.75, 1.75  # 以 T 為單位；各留 0.2
 
 
 def options(options: dict, channels: dict) -> dict:
-    if not isinstance(options, dict) or set(options) - {'bitrate', 'sample_point', 'dominant_high'}:
+    if not isinstance(options, dict) or set(options) - {'bitrate', 'sample_point', 'dominant_high', 'data_bitrate', 'data_sample_point'}:
         raise ValueError('CAN 參數不合法')
-    o = dict(bitrate=500000, sample_point=75, dominant_high=True)
+    o = dict(bitrate=500000, sample_point=75, dominant_high=True, data_bitrate=None, data_sample_point=75)
     o.update(options)
-    ok = (all(not isinstance(o[k], bool) and isinstance(o[k], (int, float)) and np.isfinite(o[k]) for k in ('bitrate', 'sample_point'))
-          and o['bitrate'] > 0 and 50 <= o['sample_point'] <= 95 and type(o['dominant_high']) is bool)
+    num = ['bitrate', 'sample_point', 'data_sample_point'] + (['data_bitrate'] if o['data_bitrate'] is not None else [])
+    ok = (all(not isinstance(o[k], bool) and isinstance(o[k], (int, float)) and np.isfinite(o[k]) for k in num)
+          and o['bitrate'] > 0 and 50 <= o['sample_point'] <= 95 and 50 <= o['data_sample_point'] <= 95
+          and (o['data_bitrate'] is None or o['data_bitrate'] > 0) and type(o['dominant_high']) is bool)
     if not ok:
-        raise ValueError('CAN 需 bitrate>0、sample_point 50–95 與布林 dominant_high')
+        raise ValueError('CAN 需 bitrate>0、sample_point 50–95、布林 dominant_high，data_bitrate 選填且 >0')
     return o
 
 
@@ -77,7 +80,7 @@ def _flag(b: Bus, i: int, cs: float, cut: bool) -> tuple[dict, str, float]:
     return f, 'idle', e
 
 
-def _decode(b: Bus, ts: float) -> tuple[dict, list, str, float]:
+def _decode(b: Bus, ts: float, fd: tuple[float, float] | None = None) -> tuple[dict, list, str, float]:
     """解一框，回傳 (frame, 線上位元, 下一步 mode, 下一步起點)。"""
     T = b.T
     rd = Reader(b, ts)
@@ -90,8 +93,8 @@ def _decode(b: Bus, ts: float) -> tuple[dict, list, str, float]:
         raw.extend(v for *_, v in bits)
         return bits
 
-    def add(kind: str, bits: list, **kw: object) -> None:
-        f['fields'].append(field(kind, bits, T, **kw))
+    def add(kind: str, bits: list, tt: float | None = None, **kw: object) -> None:
+        f['fields'].append(field(kind, bits, tt or T, **kw))
 
     try:
         grab(1)  # SOF（呼叫端已確認是真邊沿；取樣為隱性只會是毛刺）
@@ -107,35 +110,48 @@ def _decode(b: Bus, ts: float) -> tuple[dict, list, str, float]:
         ident = field('id', ids, T)['value']
         f.update(addr=ident, label=f'EXT 0x{ident:07X}' if ext else f'STD 0x{ident:03X}')
         add('id', ids)
-        add('ctrl', tail, label=('RTR=%d r1=%d r0=%d' if ext else 'RTR=%d IDE=%d r0=%d') % tuple(v for *_, v in tail))
         f['kind'] = 'fd' if fdf else 'remote' if rtr else 'data'
-        if fdf:  # ponytail: FD 只標示不解（P4 才做）；資料位元率不同，後面全部略過
+        if fdf and fd is None:  # 未填 data_bitrate：只標示不解，略過這一框
+            add('ctrl', tail, label='FDF=1')
             f['label'] = 'CAN FD（未解碼）'
             reason(f, 'fd_unsupported', 'warn')
             f['t1'] = tail[-1][0] + T
             return f, rd.wire, 'idle', f['t1']
-        dlc = grab(4)
-        dv = field('dlc', dlc, T)['value']
-        add('dlc', dlc)
-        if not ext:
-            f['label'] += f' DLC {dv}'
-        for _ in range(0 if rtr else min(dv, 8)):
-            add('data', grab(8))
-        calc = crc15(raw)
-        crcb = rd.take(15)
-        got = field('crc', crcb, T)['value']
-        add('crc', crcb, ok=got == calc, label=f'calc 0x{calc:04X}')
-        rd.flush()
+        if fdf:
+            got, calc, brs = can_fd.read(rd, grab, add, f, ext, tail, *fd)
+        else:
+            add('ctrl', tail, label=('RTR=%d r1=%d r0=%d' if ext else 'RTR=%d IDE=%d r0=%d') % tuple(v for *_, v in tail))
+            dlc = grab(4)
+            dv = field('dlc', dlc, T)['value']
+            add('dlc', dlc)
+            if not ext:
+                f['label'] += f' DLC {dv}'
+            for _ in range(0 if rtr else min(dv, 8)):
+                add('data', grab(8))
+            calc = crc15(raw)
+            crcb = rd.take(15)
+            got = field('crc', crcb, T)['value']
+            add('crc', crcb, ok=got == calc, label=f'calc 0x{calc:04X}')
+            rd.flush()
         st, sm, v = rd.raw()  # CRC delimiter
         if v == 0:
             raise Stop('form', st)
+        if fdf and brs:  # CRC delimiter 位長 = sp_d·Td + (1 − sp_n)·Tn，之後回標稱位元時間
+            rd.rebase(sm + (1 - b.sp) * T, T, b.sp)
         st, sm, v = rd.raw()  # ACK slot：單取樣欄位
+        if fdf and v == 0:  # ponytail: FD 接收器容許 ACK 為 2 位 dominant；CRC delimiter 2 位 recessive 與「無 ACK」難分，不處理
+            ack2 = rd.raw()
+            if ack2[2] == 0:
+                ack2 = rd.raw()
+            st, sm, v, delim = st, sm, 0, ack2
+        else:
+            delim = None
         f['ack'] = v == 0
         f['fields'].append(dict(t0=sm, t1=sm, kind='ack', addr=None, value=v, nbits=1, ninth=None,
                                 ninth_kind=None, ok=True, label=''))
         if v:
             reason(f, 'no_ack', 'warn')
-        st, sm, v = rd.raw()  # ACK delimiter
+        st, sm, v = delim or rd.raw()  # ACK delimiter
         if v == 0:
             raise Stop('form', st)
         if got != calc:  # CRC 錯誤旗標在 ACK delimiter 之後才開始，照常取到這裡為止
@@ -198,7 +214,8 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             if float(b.de[i]) - float(b.ds[i]) < .75 * T and not b.dopen[i]:  # SOF 取樣點仍是隱性＝毛刺
                 t, mode = float(b.de[i]), 'idle'
                 continue
-            f, w, mode, t = _decode(b, float(b.ds[i]))
+            fd = (1 / o['data_bitrate'], o['data_sample_point'] / 100) if o['data_bitrate'] else None
+            f, w, mode, t = _decode(b, float(b.ds[i]), fd)
             found.append((f, w))
         for f, w in found:
             if len(items) >= max_frames or count + len(f['fields']) > max_fields:

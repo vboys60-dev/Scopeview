@@ -53,18 +53,23 @@ class Reader:
 
     def __init__(self, b: Bus, t_sync: float) -> None:
         self.b, self.sync, self.k, self.last_k = b, t_sync, 0, 0
+        self.T, self.sp = b.T, b.sp  # 目前位元時間與取樣點；CAN FD 資料段用 rebase() 切換
         self.ri = int(np.searchsorted(b.ds, t_sync, 'right'))
         self.rv, self.rl, self.stuffing, self.timing = None, 0, True, False
         self.wire: list[tuple[float, int]] = []  # (取樣時間, 0/1；2＝填充位)
 
     def edge_time(self) -> float:
-        return self.sync + self.k * self.b.T
+        return self.sync + self.k * self.T
+
+    def rebase(self, t: float, T: float, sp: float) -> None:
+        """CAN FD 位元時間切換：從 t 起以新的 T／取樣點重新計位（t 處的邊沿仍可重對齊）。"""
+        self.sync, self.k, self.last_k, self.T, self.sp = t, 0, -1, T, sp
 
     def raw(self) -> tuple[float, float, int]:
         """讀一個線上位元：(起點, 取樣點, 值；0＝顯性)。"""
-        b, T = self.b, self.b.T
+        b, T = self.b, self.T
         while True:
-            samp = self.sync + (self.k + b.sp) * T
+            samp = self.sync + (self.k + self.sp) * T
             moved = False
             while self.ri < len(b.ds) and b.ds[self.ri] <= samp:
                 i, self.ri = self.ri, self.ri + 1
