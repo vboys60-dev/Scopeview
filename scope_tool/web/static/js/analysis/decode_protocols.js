@@ -5,3 +5,4 @@ export { default as uart } from './decode_uart.js';
 export { default as spi } from './decode_spi.js';
 export { default as can } from './decode_can.js';
 export { default as espi } from './decode_espi.js';
+export { default as usbpd } from './decode_usbpd.js';
