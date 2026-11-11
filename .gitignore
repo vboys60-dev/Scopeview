@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .DS_Store
 N8900A/
+
+# Keysight 協定 XML（原廠檔案，不入庫）
+rea/Protocols/

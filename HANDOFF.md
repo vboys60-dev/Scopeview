@@ -231,7 +231,11 @@
 **待辦**
 1. 依下方「九協定解碼實作計畫」P1 起做（SPI 為第一項；無實機資料，只有合成向量）。
 2. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
-3. CAN：先決定是否在擷取流程加「取完整記憶體」。
+3. CAN：先決定是否在擷取流程加「取完整記憶體」。**先做真機驗證，再決定要不要改程式**（2026-11-12 查證）：
+   - InfiniiVision（`instruments/infiniivision.py:135`）已有 `:WAVeform:POINts:MODE RAW`＋`:WAVeform:DATA?` 直讀。
+   - Infiniium（`instruments/infiniium.py`，含 DSO-X 6004A）**沒有**這條命令：`capture()` 走 `:DISK:SAVE:WAVeform ALL,…,H5INt,ON` → `:DISK:GETFILE?` → `:DISK:DELete`，只用 `:WAVeform:POINts?`（第 75 行）查記錄長度並與設定點數比較。註解稱此路徑只在 MXR254B 驗過，6004A 未驗。
+   - `:DISK:SAVE` 不吃 `:WAVeform:POINts:MODE`，所以加 MODE 不會讓存檔變完整；只會讓 `POINts?` 在 RAW 時回完整記憶體長度、NORMal 時回螢幕點數，因此**會改變第 77 行的「超過點數即拒絕」判定**。MODE 是設定命令，會動示波器狀態（測試前記下並還原），RAW 需 STOP（`_prepare_capture` 已先 STOP，順序仍須確認）。
+   - 待做驗證：在 6004A 上用 `capture()` 擷取一次 CAN 訊號，看回來的 `NumPoints` 與每位元點數（目標 ≥ 8 點／位元）。已是完整記憶體 → 不需改；只有螢幕點數（約 64516）→ 才改用 `:WAVeform` 直讀路徑或調整存檔設定。與 X6000A 手動存檔的 H5（固定 64516 點）無關，那批檔案不可解。
 
 ## 九協定解碼準則與實作計畫（2026-11-12，只有文件，尚未寫任何程式、未 commit）
 
