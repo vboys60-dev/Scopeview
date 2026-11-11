@@ -5,6 +5,7 @@ export const REASONS = {
   nack:'未應答', ccc_unknown:'未知 CCC', ccc_invalid:'無效 CCC', ccc_format:'CCC 格式錯誤',
   type_unknown:'類型未確認', ibi_unexpected_payload:'IBI 非預期資料', addr_conflict:'位址資料衝突',
   pattern_incomplete:'形狀不完整', pattern_unknown:'未知形狀', truncated:'資料不完整', ambiguous_edge:'邊沿不明確',
+  hdr_nack:'HDR 未應答', hdr_parity:'HDR 同位錯', hdr_crc:'HDR CRC 錯', hdr_preamble:'HDR 前導碼錯誤',
 };
 export const reasonText = code => REASONS[code] ?? code;
 /** I2C 清單只接受 7-bit hex 位址；空白＝無清單。 */

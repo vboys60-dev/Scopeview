@@ -302,7 +302,7 @@ AddrEntry = {"da": "int","pid": "int|null","bcr": "int|null","dcr": "int|null","
 DecodeBits = {"bits": "[float,int][]","truncated": "bool"}
 ```
 
-I3C 列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge kind：addr ccc def data mdb pid bcr dcr da；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。
+I3C 列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge hdr_nack hdr_parity hdr_crc hdr_preamble kind：addr ccc def data mdb pid bcr dcr da hdr_cmd hdr_data hdr_crc；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。
 
 UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）；true 時不要求有效 baud，只估計不解碼，保留既有快照，以 ok=false、reason「估計鮑率 19200；估計值取最短脈寬，請確認」或「無法估計鮑率：<原因>」回覆。估計允許只選 TX 或 RX；正式解碼仍需明確 baud 與 TX。
 
@@ -314,8 +314,8 @@ export_decode 使用解碼當時的來源檔／通道／門檻／options／時�
 多協定說明（version 與型別結構不變）：protocol ∈ i3c i2c spi uart can espi usbpd；channels 鍵為協定角色，thresholds 鍵為邏輯線（CAN 有 canl 時只有 can；UART 有 tx_n／rx_n 差動負端時只有 tx／rx）。frames 依 t0 排序且不重疊，field 在所屬 frame 內；addr 為 I3C／I2C 位址、CAN ID，其餘 null。
 
 - `DecodeFrame.kind.i3c`：`private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error`
-- `DecodeField.kind.i3c`：`addr ccc def data mdb pid bcr dcr da`
-- `DecodeFrame.reasons.i3c`：`parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge`
+- `DecodeField.kind.i3c`：`addr ccc def data mdb pid bcr dcr da hdr_cmd hdr_data hdr_crc`
+- `DecodeFrame.reasons.i3c`：`parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge hdr_nack hdr_parity hdr_crc hdr_preamble`
 - `DecodeFrame.kind.i2c`：`write read gc start_byte hs_code empty partial`
 - `DecodeField.kind.i2c`：`addr addr_lo data`
 - `DecodeFrame.reasons.i2c`：`nack byte_cut empty start_byte_ack hs_code_ack gc_invalid addr10_unresolved reserved_addr sda_glitch truncated ambiguous_edge`
