@@ -266,6 +266,8 @@ def protocol_pages(c: Cdp, prep: str, out: Path, directory: str) -> None:
             c.pump(.3)
             assert c.js("document.documentElement.scrollWidth<=document.documentElement.clientWidth")
             c.shot(out / f'decode_{name}_{width}.png')
+        c.send('Emulation.setDeviceMetricsOverride', width=1400, height=900, deviceScaleFactor=1, mobile=False)  # 還原寬度；模組命名空間依字母排序，後一個協定不可從 1000 寬開始
+        c.pump(.3)
         c.js('window.__protoRestore()')
         assert not c.errors, c.errors
 
