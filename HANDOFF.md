@@ -237,18 +237,19 @@
    - `:DISK:SAVE` 不吃 `:WAVeform:POINts:MODE`，所以加 MODE 不會讓存檔變完整；只會讓 `POINts?` 在 RAW 時回完整記憶體長度、NORMal 時回螢幕點數，因此**會改變第 77 行的「超過點數即拒絕」判定**。MODE 是設定命令，會動示波器狀態（測試前記下並還原），RAW 需 STOP（`_prepare_capture` 已先 STOP，順序仍須確認）。
    - 待做驗證：在 6004A 上用 `capture()` 擷取一次 CAN 訊號，看回來的 `NumPoints` 與每位元點數（目標 ≥ 8 點／位元）。已是完整記憶體 → 不需改；只有螢幕點數（約 64516）→ 才改用 `:WAVeform` 直讀路徑或調整存檔設定。與 X6000A 手動存檔的 H5（固定 64516 點）無關，那批檔案不可解。
 
-## 九協定解碼準則與實作計畫（2026-11-12，只有文件，尚未寫任何程式、未 commit）
+## 九協定解碼準則與實作計畫（2026-11-12，只有文件，尚未寫任何程式；文件已 commit `fad2e7d`、`5f29f26`）
 
-- **使用者要求**：先分析 `rea/Protocols/`（Keysight Infiniium 協定 XML，untracked）可用的解碼準則，涵蓋 I2C／I3C／SPI／eSPI／CAN／CAN FD／RS-232／RS-485／USB PD；再規劃實作。**使用者明講「不要對任何程式編寫，先將計劃寫好後續再安排」**——下一步等使用者核可計畫與回答 §11 才動工。
-- **產出兩份文件（皆 untracked）**：
+- **使用者要求**：先分析 `rea/Protocols/`（Keysight Infiniium 協定 XML，untracked）可用的解碼準則，涵蓋 I2C／I3C／SPI／eSPI／CAN／CAN FD／RS-232／RS-485／USB PD；再規劃實作。**使用者明講「不要對任何程式編寫，先將計劃寫好後續再安排」**——§11 已由使用者回覆（見下），下一步等使用者**明確下令開工**（波 0 → 波 1）。
+- **產出兩份文件（已 commit；`rea/Protocols/` 原廠 XML 已進 `.gitignore`，不入庫）**：
   - `rea/Protocols分析_解碼準則.md`：Opus 與 Codex 各自分析＋交叉比對；「〇之二」是 Claude 與 Codex 兩輪審查後的定案（附錄 A 已就地改正，附錄 B 保留 Codex 原文）。
-  - `docs/解碼實作計畫_20261112.md`：每協定的界線（做／不做／可動檔案）、介面、偽代碼、向量與 `--mutations`、共享檔變更表、排程閘門、待決定 D1–D8。SPI／CAN 細部仍以 `docs/archive/多協定解碼計畫.md.gz` §4／§6 為準。
+  - `docs/解碼實作計畫_20261112.md`：每協定的界線（做／不做／可動檔案）、介面、偽代碼、向量與 `--mutations`、共享檔變更表、排程閘門、使用者決定 D1–D8。SPI／CAN 細部仍以 `docs/archive/多協定解碼計畫.md.gz` §4／§6 為準。
 - **準則要點**：XML 只有欄位表／列舉／固定值檢查，位元切割、去填充、CRC 都在外部引擎與 `agProtocols.dll`，不能單靠 XML 解波形；SPI／RS-232／RS-485 沒有 XML。
 - **審查改正的五個錯誤（勿回退）**：①USB PD 殘值用 `zlib.crc32(data+crc_le)` 是 0x2144DF1C（0xC704DD7B 是另一種暫存器表示）；②RS-485 極性：TIA-485 是 A<B 為 mark，晶片腳位命名常相反 → 極性必須可設定；③CAN intermission 是 3 位（`CAN.xml` 寫 2 位，不照 XML）；④`addr_bits=8` 不含 `I2CIgnoreRW.xml` 的 10-bit→11-bit 顯示；⑤CAN FD 的 CRC delimiter／ACK 1–2 位是接收端容差。
 - **已實算**：CAN CRC-15（0x4599、初值 0、去填充後 SOF..DATA）對 `X6000A-解碼/CAN/x6000can.csv` 208/209 列吻合（CSV 212 列、209 列有 CRC）；eSPI CRC8（0x07、初值 0）`"123456789"`→0xF4、`25`→0xFB、`21 00 04`→0x34、`08 0F 03`→0x9B；USB PD header `41 01` → CRC32 0xDFBC5C2D。
 - **有規格依據、待向量驗證**：CAN FD CRC 含動態填充位與 stuff count、不含固定填充位（CRC-17 共 6 個、CRC-21 共 7 個），ISO 初值最高位為 1；I3C HDR-DDR CRC5（x⁵+x²+1、初值 0x1F）、P1＝奇數位 XOR、P0＝偶數位 XOR 再反相；eSPI 固定上升緣取樣。
 - **計畫順序**：P1 SPI → P2 CAN → P3 RS-485 → P4 CAN FD → P5 eSPI → P6 USB PD → P7 I3C HDR-DDR（P3／P4／P5 可在 P2 後並行）。I2C／I3C SDR／RS-232 不需工作。
-- **計畫中的設計建議（待使用者確認）**：RS-485 併入 `uart`（加 `tx_n`／`rx_n`＋`DIFF`，極性沿用 `invert`）；CAN FD 沿用 `can`（填 `data_bitrate` 才細解，**推翻舊計畫 Q1「不做」**）；eSPI／USB PD 要新增協定名 `espi`／`usbpd`，須 lead 一筆改 L0 契約檔（version 維持 2）；eSPI 第一版只做單線、USB PD 第一版 Data Object 只列原值。
+- **2026-11-12 使用者已決定 D1–D8 全部照建議（計畫 §11）**；尚未下令開工。**開工順序**：波 0（Opus 一次改共享檔：`espi`／`usbpd` 加入 `NAMES`＋契約列舉＋`docs/web-api契約.md`＋`mock_catalog.js`／`mock_backend.js`／`l0_*.mjs`，跑 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check`）→ 波 1（SPI∥CAN∥RS-485 各開 worktree，diff 只能含自己的檔案＋`decode_protocols.js` +1 行＋規格文件自己那節）→ 依序合併並全套驗證 → 波 2（eSPI 需 SPI 已合併、CAN FD 需 CAN 已合併、USB PD 獨立）→ 波 3 I3C HDR（可選）。給 Codex 的提示須寫明 `</dev/null`，手寫真值（CRC 參考值）由計畫提供、Codex 不自行推導，解碼器與真值向量不由同一 agent 產出。分工建議：共享檔／CAN 狀態機／CAN FD／USB PD BMC／I3C HDR／審查合併／真機驗證由 Opus；SPI、RS-485、eSPI、各協定周邊與前端、突變檢查由 Codex；波 1 可並行 SPI∥CAN∥RS-485，合併一次一個。
+- **已定案的設計**：RS-485 併入 `uart`（加 `tx_n`／`rx_n`＋`DIFF`，極性沿用 `invert`）；CAN FD 沿用 `can`（填 `data_bitrate` 才細解，**推翻舊計畫 Q1「不做」**）；eSPI／USB PD 要新增協定名 `espi`／`usbpd`，須 lead 一筆改 L0 契約檔（version 維持 2）；eSPI 第一版只做單線、USB PD 第一版 Data Object 只列原值。
 - **風險**：SPI／eSPI／CAN FD／I3C HDR 沒有實機資料，合成器與解碼器同源，閉環測不出共同誤解；CAN FD 需至少一筆外部真值，否則標「未經外部驗證」；CAN H5 約 2.6 點／位元不足以驗判位，要 RAW 重錄（≥8 點／位元）；USB PD 最容易取得實機資料（充電器交涉序列，≥10 MSa/s）。
 - **SPI 進度**：使用者曾說「依照此準則開始實作 SPI 解碼」，讀完範本（`uart_*.py`、`decode_uart.js`、`decode_proto_check.mjs`、`protocol_pages()`）後被改為先寫計畫；**SPI 檔案一個都還沒建**。契約的 `spi` 列舉已存在、`NAMES` 已含 `spi`，不必動共享檔。
 - 工具備忘：`codex` MCP 連不上，改用 `codex exec --sandbox read-only "$(cat prompt.txt)" </dev/null`（逾時用 `perl -e 'alarm N; exec @ARGV'`）；zsh 下 `echo ====`、未加引號的 `--include=*.py` 會出錯。
