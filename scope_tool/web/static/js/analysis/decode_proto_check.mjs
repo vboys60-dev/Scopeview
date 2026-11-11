@@ -39,7 +39,7 @@ const walk = e => [e,...e.children.flatMap(walk)];
 const find = (e,f) => walk(e).find(f);
 const oldDocument = globalThis.document;
 globalThis.document = { createElement:t => new Element(t) };
-const channels = ['CH1','CH2','CH3'].map(name => ({ name,time_offset:0 }));
+const channels = ['CH1','CH2','CH3','CH4'].map(name => ({ name,time_offset:0 }));
 const makeStore = () => { const s = createStore(); s.set({ file:{ gen:1 },channels,view:{ t0:0,t1:60 },plotRect:{ l:100,w:900 } }); return s; };
 function result(def, options = {}) {
   const config = defaultConfig(channels,def), params = decodeParams(config,def);
