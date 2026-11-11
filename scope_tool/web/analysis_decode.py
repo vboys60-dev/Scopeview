@@ -17,7 +17,7 @@ from scope_tool.web.logic import prepare, validate_time, MAX_FRAMES, MAX_FIELDS
 
 _DECODE_IDS = itertools.count(1)
 MAX_BITS = 4096
-NAMES = ('i3c', 'i2c', 'spi', 'uart', 'can')
+NAMES = ('i3c', 'i2c', 'spi', 'uart', 'can', 'espi', 'usbpd')
 
 
 def _finite(v: object) -> bool:

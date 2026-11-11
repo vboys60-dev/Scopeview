@@ -289,7 +289,7 @@ Class（BEM 風格，`block__element--modifier`）：
 
 ### I3C 解碼追加（2026-10-26，version 維持 2）
 
-所有參數 required；protocol 接受 i3c／i2c／spi／uart／can，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。
+所有參數 required；protocol 接受 i3c／i2c／spi／uart／can／espi／usbpd，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。
 
 型別（欄位型別字串與 api_contract.json 相同）：
 ```
@@ -311,7 +311,7 @@ UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）�
 export_decode 使用解碼當時的來源檔／通道／門檻／options／時間，directory=null 用該來源資料夾；utf-8-sig、檔名 `{stem}_解碼_YYYYMMDD_HHMMSS.csv`，永不覆蓋，寫入失敗 ScopeError。CSV 為 meta、空行、事件表（每 field 一列，無 field 的 frame 仍一列）、空行、位址表（只有 I3C）；時間 repr(float)。
 
 
-多協定說明（version 與型別結構不變）：protocol ∈ i3c i2c spi uart can；channels 鍵為協定角色，thresholds 鍵為邏輯線（CAN 有 canl 時只有 can）。frames 依 t0 排序且不重疊，field 在所屬 frame 內；addr 為 I3C／I2C 位址、CAN ID，其餘 null。
+多協定說明（version 與型別結構不變）：protocol ∈ i3c i2c spi uart can espi usbpd；channels 鍵為協定角色，thresholds 鍵為邏輯線（CAN 有 canl 時只有 can；UART 有 tx_n／rx_n 差動負端時只有 tx／rx）。frames 依 t0 排序且不重疊，field 在所屬 frame 內；addr 為 I3C／I2C 位址、CAN ID，其餘 null。
 
 - `DecodeFrame.kind.i3c`：`private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error`
 - `DecodeField.kind.i3c`：`addr ccc def data mdb pid bcr dcr da`
@@ -328,5 +328,11 @@ export_decode 使用解碼當時的來源檔／通道／門檻／options／時�
 - `DecodeFrame.kind.can`：`data remote error_flag fd partial`
 - `DecodeField.kind.can`：`id ctrl dlc data crc ack eof`
 - `DecodeFrame.reasons.can`：`stuff crc form no_ack timing truncated error_flag fd_unsupported unknown_bit`
+- `DecodeFrame.kind.espi`：`cmd reset partial`
+- `DecodeField.kind.espi`：`opcode hdr addr data resp status crc wait`
+- `DecodeFrame.reasons.espi`：`crc_cmd crc_resp unknown_opcode no_response defer fatal reserved_bit truncated incomplete unknown_bit`
+- `DecodeFrame.kind.usbpd`：`control data extended hard_reset cable_reset partial`
+- `DecodeField.kind.usbpd`：`sop header obj crc eop`
+- `DecodeFrame.reasons.usbpd`：`crc invalid_5b bad_eop bad_sop sampler preamble reserved truncated`
 
 DecodeField.ninth_kind 為 ack parity tbit null。DecodeBits 值 0／1，-1＝未知（X），2＝CAN 填充位；時間嚴格遞增，多線 SPI／UART 只存主線。AddrEntry 只有 I3C 使用，其他協定 addresses=[]。
