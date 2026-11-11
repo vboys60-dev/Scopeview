@@ -170,7 +170,7 @@
 | `MIPI_I3C_01_00.xml` | V1.00（`:16`） | v1.0 r13, 2016-12（`:9`） | Mode 0–16（`:44-60`），新增 Private / Legacy Private、Direct without Sr、GETMXDS turnaround、SETMRL+IBI、HDR Exit/Restart（`:68-88`）；新增 "SDR Broadcast NACK"（`:7519`） |
 | `MIPI_I3C_01_1_1.xml` | V1.1.1（`:16`） | 標頭仍寫 v1.0（`:9`），註記未更新 | Mode 擴到 0x22：Dual/Quad lane、HDR-BT（`:79-119`），BT 欄位用 `MIPI_I3C_BT_Even/Odd_Bits`（`:6235-6236`）；用語改為 Controller/Target；**標準 XML 解析失敗**（`:84`） |
 
-**(2) 實體層**〔規格知識〕SDR 的 SCL 由主控端推挽驅動，SDA 在仲裁與 ACK 時為開汲極，其餘推挽；速率最高 12.5 MHz。HDR-DDR 在 SCL 雙緣取樣。HDR-TSP/TSL 是三元符號，需要另一套符號層。本專案研究文件 `docs/研究_解碼協定.md` §3 已有詳述。
+**(2) 實體層**〔規格知識〕SDR 的 SCL 由主控端推挽驅動，SDA 在仲裁與 ACK 時為開汲極，其餘推挽；速率最高 12.5 MHz。HDR-DDR 在 SCL 雙緣取樣。HDR-TSP/TSL 是三元符號，需要另一套符號層。本專案研究文件 `docs/archive/研究_解碼協定.md.gz` §3 已有詳述。
 
 **(3) 訊框（以 1.00 為準）**
 - SDR header：S + Addr7 + R/W + ACK（`MIPI_I3C_01_00.xml:5127-5134`）。CCC 判別：`data[1:7]==0x7E`；`data[10]` 為 CCC 碼的最高位，0=Broadcast、1=Direct（`:82-83`）。
@@ -201,7 +201,7 @@
 - `QuadSPI.xml`：只定義 8-bit `Command` 欄位（`:49-51`）。`SOPEOPOnSameSymbol="T"`（`:19`）表示框架由 CS 給定，命令後的位址、dummy cycle 與資料全部沒有定義，**幾乎沒有可沿用的內容**。
 - `eSPI.xml` 是建立在 SPI 實體層上的命令層，可以示範「CS 期間的位元流→封包」的模型，但不適用一般 SPI。
 
-**(2) 實體層**〔規格知識；`docs/研究_解碼協定.md` §5.1 已有表〕CPOL/CPHA 四種模式，CS 多為低有效。CPHA=0 在前緣取樣，CPHA=1 在後緣取樣（前緣定義為離開閒置電位的第一個邊緣）。字長可設，常見 MSB first。
+**(2) 實體層**〔規格知識；`docs/archive/研究_解碼協定.md.gz` §5.1 已有表〕CPOL/CPHA 四種模式，CS 多為低有效。CPHA=0 在前緣取樣，CPHA=1 在後緣取樣（前緣定義為離開閒置電位的第一個邊緣）。字長可設，常見 MSB first。
 
 **(3) 訊框** CS 有效期間每個取樣緣讀 MOSI/MISO 各 1 bit，湊滿字長即輸出一個 word，CS 解除時結束 transaction。沒有位址、ACK 或 CRC。
 
@@ -247,7 +247,7 @@
 
 **(1) XML** `CAN.xml`（`:13`，授權名 CAN_Packet_Decode）。另有 `CAN_FD.xml` 內建的 `CANStandardFrame`（`CAN_FD.xml:162-250`）可解 classic 訊框，與 `CAN.xml` 的差別是 EOF 接受 `1111110`（`:246-248`，容許最後一個 EOF 位為 dominant）。
 
-**(2) 實體層**〔規格知識；`docs/研究_解碼協定.md` §8.1〕
+**(2) 實體層**〔規格知識；`docs/archive/研究_解碼協定.md.gz` §8.1〕
 - 電平：差動 CANH−CANL，約 2 V 為 dominant（0），約 0 V 為 recessive（1）；判位門檻約 0.5–0.9 V。
 - 位元率：125k / 250k / 500k / 1M。
 - 取樣：SOF 下降緣做 hard sync，之後每個 recessive→dominant 邊緣做 resync，取樣點在位元時間的 75–87.5%。

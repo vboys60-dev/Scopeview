@@ -1,4 +1,4 @@
-"""二階 type-II PLL 事件層原型（草案：docs/草案_Jitter與RMS.md 案 B）。
+"""二階 type-II PLL 事件層原型（草案：docs/archive/草案_Jitter與RMS.md.gz 案 B）。
 輸入已知標稱速率 NRZ 的中閾值交越時間，逐轉態依實際 Δt 更新 (q, w)，回傳預更新 TIE。
 頻寬 B＝恢復時脈 JTF 高頻側 −3 dB；預設 R/1667。鎖定／捕獲／失鎖門檻為待校準的產品門檻。
 只做事件層：不接 GUI、眼圖與匯出；不處理時脈型。

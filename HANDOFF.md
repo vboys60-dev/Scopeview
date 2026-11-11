@@ -20,47 +20,12 @@
 - **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/驗證.md`。
 - 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
-## 分析頁 GUI 改善（2026-10-24～25，已合入 main）
+## 已完成功能的歷史細節（2026-10-24～28：分析頁 GUI、Marker Table、介面美化、版面編輯器、多檔比對、文件整理匯出、Liquid Glass）
 
-- 計劃書：`docs/archive/分析頁GUI改善計劃書.md.gz`。範圍：A 量測欄、B 結果、C 主圖；操作參考 N8900A。
-- 行為：拖曳＝平移、滾輪＝縮放；框選放大（Shift 暫時框選、Space／中鍵暫時平移）、`view.zoomKind`＝水平｜垂直｜雙向；Undo／Redo；`clampLayout`（<900 窗改分頁／抽屜）。垂直框選改連續 V/格＝選框高÷10。
-- 結構風險未修：`axes.js`／`gestures.js` 各存一份 `zoomKind` 且 `store.command` 不重播，掛載順序不同會不同步。
-- 檔案 lane 已登記 RULES.md（L4／L5／L8）。`browser_check`／`e2e_check` 須在沙箱外跑。
-- 已知小項：Track Measurements 仍 disabled；500 µV V/div 下限；FFT 分隔線拖曳仍重取頻譜；複製在 WKWebView 的 user gesture 未真機驗。
-- **量測問題（使用者 2026-10-25 擱置）**，重現檔 `wave6000-10Mhz_20261022_125915.h5`：①上升／下降時間、斜率顯示「—」：邊緣僅 2～3 點，`edge.transition` 要求 ≥4 點（`edge.py:58`），是設計門檻；②新增量測等約 30 秒：每次重算全部、分析執行緒僅一條（`jobs.py` `ThreadPoolExecutor(1)`）且舊請求不可取消。可能修法：只算新增項、共用邊緣偵測。
-- **3000G 量測**：研究見 `docs/研究_3000G量測計算比對.md`。點數不足輸出 `<`／`>` 上界標記；新增 `-工作週期`、Vavg／Vrms 加 `mode`；雙來源 `延遲`／`相位`／`電壓比`；「目前」取最靠近 t=0 的事件。未做：可見範圍量測、Top/Base 真機比對。
-
-## 分析頁 Marker Table（2026-10-25，已完成並真機驗收）
-
-- 計劃書：`docs/archive/分析頁MarkerTable計劃書.md.gz`；契約不升版，store 鍵 `markerTable`／`fftMarker`。
-- 時域：連動組 M1＋每通道最多 10 個獨立點，右鍵選單；FFT：可拖水平基準線，峰表一次抓 1000 峰前端過濾。B 區頁籤 `量測｜游標｜Marker｜FFT 峰值`；「⇥ 右側欄」＝`layout.markerSide`（340px，≥900px）。
-- **使用者決定不做 JSON 匯出入**。右側欄寬度固定不可拖。
-- 坑：WKWebView 點 button 不給焦點，`focusout` 的 `relatedTarget=null` 會使選單點選無效；`menu.remove()` 同步重入 `close()` 也會。headless Chrome 測不出，靠 `marker_check.mjs`。
-- **Codex 背景呼叫必須加 `< /dev/null`**，否則卡在等 stdin。
-
-## 介面美化（2026-10-25）
-
-- 範圍＝token／對比／版面＋圖區（虛點格線、中央十字軸、琥珀重點色）。**不做整套深色主題**（RULES.md）。
-- 通道色 Okabe–Ito，來源 `api_contract.json` `channel_colors`（與 `mock_catalog.js`、`tab_analysis.js`／`toolbar.js` fallback 同步）；canvas 色值讀 CSS token（`plotcore.js plotColors()`）。
-- `analysis.css` 的 `12.5px` 不可改（`p2b_check`／`p2b3_check`／`p3b_check` 斷言寫死）。
-- 數學通道要同時進 `file.channels` 與 `channels`，否則不繪圖；視窗太矮 `clampLayout` 會收掉預覽（`layout.state` 帶 `blocked`）。
-
-## 主圖包絡修正與版面編輯器（2026-10-26）
-
-- 包絡破圖已修：`plotcore.js drawPixels` 相鄰有限桶補連線；`envelope_check.mjs` 在 `selfcheck_node.js`。
-- 版面編輯器 `docs/版面編輯器/layout_editor.html`（file:// 雙擊）。`shots/` 截圖已於 2026-10-28 整理時刪除，`components.json` 為版面微調**之前**的快照，使用前需重量測。程式的「B 區」＝`bpanel.js` 結果區，左側量測欄是 `measure.js`（A 區）。
-- **待使用者**：排好版面後貼回 JSON／Markdown，再照它改 GUI。
-- Codex CLI 0.163.0 無 `--full-auto`，用 `codex exec --sandbox workspace-write -C "$PWD" - < prompt`；其沙箱禁綁 localhost。
-
-## 分析頁版面微調（2026-10-26）
-
-- 水平控制列在通道列正下方；「X軸Maker歸位」在工具列 Marker 欄；B 區 Marker 分頁叫「Marker Table」。
-- 通道列每通道一欄（固定 236px，`--chanbar-col`），含 chip＋自己的 vertical；電壓控制預設收折；vertical 由 chanbar `sync()` 驅動。
-- 已知：通道多時右側被切掉無提示；1000 寬水平列尾端被截斷；展開電壓控制後主圖變矮。
-
+- 原文存於 `docs/archive/HANDOFF_歷史_20261112.md.gz`（`gzip -dc` 讀）。
 ## 離線分析修正線：Jitter／ΔY/ΔX／草案
 
-- 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/草案_Jitter與RMS.md`；`docs/驗證.md`（至第四輪）。
+- 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/archive/草案_Jitter與RMS.md.gz`；`docs/驗證.md`（至第四輪）。
 - DSO-X 6004A（10 MHz 方波）：示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps，σ 對 50% 中點門檻極敏感。頻譜比值檢查（第四輪）：增益各頻帶平坦約 0.85，無追蹤跡象，不能用此樣本校準 PLL 頻寬。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
 - **契約 v3 先不升**（使用者決定）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
 - 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
@@ -78,20 +43,6 @@
 - 後端 `web/fft_rbw.py`（Welch＋VBW）；`fft` RPC 追加 `rbw`／`vbw`，契約 version 維持 2。頂層分頁剩：資料截取／離線分析／FFT 頻譜；FFT 分頁與分析頁**共用單一 runner／參數**（`fft_state.js`），分析頁內嵌 FFT 窗格都保留。
 - `fftView`＝{f0,f1}；RBW=Auto 隨 Span 連動（≈span/1000，debounce 300 ms，變動 ≥5% 才重算）；FFT 範圍與量測共用 `rangeMode`。
 - 未做：P5 清死碼；Welch／VBW 未真檔肉眼比對；資料截取並排版面無人看過；同頁搶儀器鎖需真機。
-
-## 多檔比對（2026-10-28，已合入 main）
-
-- 計畫書：`docs/archive/分析頁多檔比對計畫書.md.gz`。槽位 Mem1～Mem4，各檔以觸發零點為 0 再用 dx 微調；通道改名 `Mem1.CHAN1` 併入 `_waves`；槽位資料在 store 鍵 `slots`／`dataRev`，**不寫 `file`**（否則清量測與游標）。後端 `web/analysis_slots.py`。
-- 限制：解碼要求同軸，跨檔拒絕；游標吸附主檔第一通道；FFT 一次一個來源；二元數學不含 dx（另立小案）；CSV 只匯出主檔；開新檔／關閉清空槽位。解碼鎖外存回競態已修（鎖內核對來源物件，`StaleError`）。
-- GUI：Mem 通道零位標籤縮短為 `M1·1`；通道列每通道加底框；通道顏色可自訂（`channel_colors.js`，localStorage 鍵 `scopeChanColor:<通道名>`）。
-- 未驗證：真人手感、WKWebView 對話框與色盤、大檔載入、不同取樣率跨檔量測、改色後游標／Marker 是否全跟著變；清單見 `docs/驗證.md`。
-- 流程：worktree 分支開發後 fast-forward 合入；Codex 實作、Opus 審查、e2e／browser_check 由 Claude 沙箱外跑。
-
-## 文件整理與離線分析匯出（2026-10-28）
-- 文件整理：已完成計畫書與 3000G 原始報告壓成 `docs/archive/*.md.gz`（`zcat` 讀）；解碼研究、草案、驗證、`docs/reference/` 的 infiniium／infiniivision／N8900A 各合併為單檔（原樣接起，未去重）；刪 `docs/版面編輯器/shots/` 與 `pywebview-GUI規劃建議書.html`（見 git 歷史）。Qt 舊版未動。
-- 量測／數學名詞畫面改英文：對照表在 `static/js/analysis/terms.js`（`T()`），後端、契約、存檔仍用中文 key；量測 CSV 的表頭與名稱在 `analysis_export.py` 另有一份 `EN`，改譯名兩處都要改。量測 tooltip、報告章節標題、波形／解碼 CSV 欄位仍是中文。
-- 匯出（波形 CSV、量測 CSV、解碼 CSV、HTML 報告）一律先 `ui.pickPath` 選資料夾，取消即中止；檔名仍自動（來源檔名＋類型＋時間戳）。
-- HTML 報告字級放大並加 `@page A4`，列印時表格可換行。
 
 ## 全專案審查與修正（2026-10-28，已 commit）
 
@@ -192,21 +143,10 @@
 - I/O 全在 QThread；逾時截圖 15 s、擷取每個 VISA 操作 60 s；Error 273 → 「請關閉遠端桌面」；不做取消。
 - 不做：掃網段搜尋、傳輸取消、面板 USB CSV 解析、自訂 HDF5 結構。
 
-## Liquid Glass（2026-10-26，P1～P3 已合入 main）
-
-- 計畫：`docs/archive/LiquidGlass風格計畫.md.gz`。Web 採深色單一主題，Qt 不動；`app.css` 放 tokens，`glass.css` 最後載入。浮動面板不加圓角。`browser_check.py` 有 `glass_smoke`。
-- 效能：headless Chrome 浮層拖曳 60fps，增幅 0%。**WKWebView／WebView2 實機驗收尚未做**（`docs/驗證.md` #26）。
-- 軸刻度 `tickLabel`：格距超過三位有效數字只取兩位、電壓換 mV。
-
-## I3C（2026-10-26，P2～P4 已完成）
-
-- 計畫：`docs/archive/I3C解碼計畫.md.gz`。契約 version=2 加 decode（job）／decode_frames／decode_bits／export_decode；`analysis_decode.py` 鎖內快照＋gen 檢查；B 區「解碼 (N)」分頁（`decode.js`／`decode_table.js`）；主圖下方標註列（狀態色 transaction、hex／第九位、逐 bit）。報告含解碼段落，完整請求約 7.3 MB < 8 MB。
-- **無實測波形**，待與示波器內建 I3C 解碼比對（事件、時間、第九位、DAA／IBI、錯誤判定）。
-
 ## 多協定解碼與 X6000A 實機資料（2026-10-27）
 
 **計畫與狀態**
-- 計畫 `docs/archive/多協定解碼計畫.md.gz`（Codex 三輪審查；Q1–Q11 全照建議）。**使用者 2026-10-27 說「可以開工」**：第 0 步與 I2C／UART 接線已完成並 commit，畫面「協定」下拉可選 I3C／I2C／UART。SPI／CAN 尚無模組，後端回「此協定尚未實作」。
+- 計畫 `docs/archive/多協定解碼計畫.md.gz`（Codex 三輪審查；Q1–Q11 全照建議）。**使用者 2026-10-27 說「可以開工」**：第 0 步與 I2C／UART 接線已完成並 commit，畫面「協定」下拉可選 I3C／I2C／UART。（SPI／CAN 等後續已全部實作，見下方「九協定解碼」。）
 - **第 0 步 `47f3985`**：後端 `analysis_decode.NAMES` 依協定匯入模組、`logic.prepare／levels_at`、`synth.py`；前端協定定義檔（`decode_protocols.js` 每協定一行、`decode_i3c.js` 範本）＋資料驅動表單（設定兩列）、標註列雙 lane／bit 代碼 X／S／單取樣欄位、報告與 mock 由定義檔驅動；契約只改 `types_doc` 說明（version 仍 2）。I3C 五組基準指紋（lead 腳本在 session scratchpad，不入庫）前後完全相同。驗證：模組自檢、`selfcheck_node`（含新 `decode_proto_check.mjs`）、`e2e_check`、`browser_check` 全綠。
 - 接線 commit：`decode_i2c.js`、`decode_uart.js` 各加一行註冊；UART 預設 8N1、雙 lane（TX／RX）、`invert` 勾選；`browser_check` 的 `protocol_pages()` 對兩者用各自 fixture 實跑（開檔→選協定→解碼→表格→點選跳轉→CSV→標註列→兩種寬度）。
 - 修過的小坑：Codex 把 `protocol_pages` 呼叫放進沒有 `out` 的函式；「1000px 設定列必須溢出」的舊斷言在兩列版面不成立（改為不溢出或可捲到）；I2C／UART fixture 通道名要 `CHAN1／CHAN2`；UART fixture 案例間距要 >2 字元否則被分組成一個 frame。`i2c_decode.REQUIRE_EDGES=True` 與計畫「只有 I3C」不同，保留（I2C 整段無轉態本來就無意義）。
@@ -229,7 +169,7 @@
 - 使用者指出「定義上緣下緣訊號（Pull Low／Pull High 極性）」後自述誤判、撤回，未做；若日後再提，候選是每條訊號線可反相（UART 現有 `invert` 可併入）。
 
 **待辦**
-1. 波 1、波 2（eSPI／CAN FD／USB PD）已併入 main；波 3（I3C HDR-DDR）也已併入 main；下一步用真機錄 USB PD／CAN FD／eSPI／SPI 波形驗證。
+1. 九協定解碼已全部完成；下一步用真機錄 USB PD／CAN FD／eSPI／SPI 波形驗證（見「九協定解碼」的限制）。
 2. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
 3. CAN：先決定是否在擷取流程加「取完整記憶體」。**先做真機驗證，再決定要不要改程式**（2026-11-12 查證）：
    - InfiniiVision（`instruments/infiniivision.py:135`）已有 `:WAVeform:POINts:MODE RAW`＋`:WAVeform:DATA?` 直讀。
@@ -237,25 +177,18 @@
    - `:DISK:SAVE` 不吃 `:WAVeform:POINts:MODE`，所以加 MODE 不會讓存檔變完整；只會讓 `POINts?` 在 RAW 時回完整記憶體長度、NORMal 時回螢幕點數，因此**會改變第 77 行的「超過點數即拒絕」判定**。MODE 是設定命令，會動示波器狀態（測試前記下並還原），RAW 需 STOP（`_prepare_capture` 已先 STOP，順序仍須確認）。
    - 待做驗證：在 6004A 上用 `capture()` 擷取一次 CAN 訊號，看回來的 `NumPoints` 與每位元點數（目標 ≥ 8 點／位元）。已是完整記憶體 → 不需改；只有螢幕點數（約 64516）→ 才改用 `:WAVeform` 直讀路徑或調整存檔設定。與 X6000A 手動存檔的 H5（固定 64516 點）無關，那批檔案不可解。
 
-## 九協定解碼準則與實作計畫（2026-11-12，只有文件，尚未寫任何程式；文件已 commit `fad2e7d`、`5f29f26`）
+## 九協定解碼（2026-11-12，波 0～3 全部完成並併入 main）
 
-- **使用者要求**：先分析 `rea/Protocols/`（Keysight Infiniium 協定 XML，untracked）可用的解碼準則，涵蓋 I2C／I3C／SPI／eSPI／CAN／CAN FD／RS-232／RS-485／USB PD；再規劃實作。**使用者明講「不要對任何程式編寫，先將計劃寫好後續再安排」**——§11 已由使用者回覆（見下），下一步等使用者**明確下令開工**（波 0 → 波 1）。
-- **產出兩份文件（已 commit；`rea/Protocols/` 原廠 XML 已進 `.gitignore`，不入庫）**：
-  - `rea/Protocols分析_解碼準則.md`：Opus 與 Codex 各自分析＋交叉比對；「〇之二」是 Claude 與 Codex 兩輪審查後的定案（附錄 A 已就地改正，附錄 B 保留 Codex 原文）。
-  - `docs/解碼實作計畫_20261112.md`：每協定的界線（做／不做／可動檔案）、介面、偽代碼、向量與 `--mutations`、共享檔變更表、排程閘門、使用者決定 D1–D8。SPI／CAN 細部仍以 `docs/archive/多協定解碼計畫.md.gz` §4／§6 為準。
-- **準則要點**：XML 只有欄位表／列舉／固定值檢查，位元切割、去填充、CRC 都在外部引擎與 `agProtocols.dll`，不能單靠 XML 解波形；SPI／RS-232／RS-485 沒有 XML。
-- **審查改正的五個錯誤（勿回退）**：①USB PD 殘值用 `zlib.crc32(data+crc_le)` 是 0x2144DF1C（0xC704DD7B 是另一種暫存器表示）；②RS-485 極性：TIA-485 是 A<B 為 mark，晶片腳位命名常相反 → 極性必須可設定；③CAN intermission 是 3 位（`CAN.xml` 寫 2 位，不照 XML）；④`addr_bits=8` 不含 `I2CIgnoreRW.xml` 的 10-bit→11-bit 顯示；⑤CAN FD 的 CRC delimiter／ACK 1–2 位是接收端容差。
-- **已實算**：CAN CRC-15（0x4599、初值 0、去填充後 SOF..DATA）對 `X6000A-解碼/CAN/x6000can.csv` 208/209 列吻合（CSV 212 列、209 列有 CRC）；eSPI CRC8（0x07、初值 0）`"123456789"`→0xF4、`25`→0xFB、`21 00 04`→0x34、`08 0F 03`→0x9B；USB PD header `41 01` → CRC32 0xDFBC5C2D。
-- **有規格依據、待向量驗證**：CAN FD CRC 含動態填充位與 stuff count、不含固定填充位（CRC-17 共 6 個、CRC-21 共 7 個），ISO 初值最高位為 1；I3C HDR-DDR CRC5（x⁵+x²+1、初值 0x1F）、P1＝奇數位 XOR、P0＝偶數位 XOR 再反相；eSPI 固定上升緣取樣。
-- **計畫順序**：P1 SPI → P2 CAN → P3 RS-485 → P4 CAN FD → P5 eSPI → P6 USB PD → P7 I3C HDR-DDR（P3／P4／P5 可在 P2 後並行）。I2C／I3C SDR／RS-232 不需工作。
-- **2026-11-12 使用者已決定 D1–D8 全部照建議（計畫 §11）**；尚未下令開工。**開工順序**：波 0（Opus 一次改共享檔：`espi`／`usbpd` 加入 `NAMES`＋契約列舉＋`docs/web-api契約.md`＋`mock_catalog.js`／`mock_backend.js`／`l0_*.mjs`，跑 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check`）→ 波 1（SPI∥CAN∥RS-485 各開 worktree，diff 只能含自己的檔案＋`decode_protocols.js` +1 行＋規格文件自己那節）→ 依序合併並全套驗證 → 波 2（eSPI 需 SPI 已合併、CAN FD 需 CAN 已合併、USB PD 獨立）→ 波 3 I3C HDR（可選）。給 Codex 的提示須寫明 `</dev/null`，手寫真值（CRC 參考值）由計畫提供、Codex 不自行推導，解碼器與真值向量不由同一 agent 產出。分工建議：共享檔／CAN 狀態機／CAN FD／USB PD BMC／I3C HDR／審查合併／真機驗證由 Opus；SPI、RS-485、eSPI、各協定周邊與前端、突變檢查由 Codex；波 1 可並行 SPI∥CAN∥RS-485，合併一次一個。
-- **已定案的設計**：RS-485 併入 `uart`（加 `tx_n`／`rx_n`＋`DIFF`，極性沿用 `invert`）；CAN FD 沿用 `can`（填 `data_bitrate` 才細解，**推翻舊計畫 Q1「不做」**）；eSPI／USB PD 要新增協定名 `espi`／`usbpd`，須 lead 一筆改 L0 契約檔（version 維持 2）；eSPI 第一版只做單線、USB PD 第一版 Data Object 只列原值。
-- **風險**：SPI／eSPI／CAN FD／I3C HDR 沒有實機資料，合成器與解碼器同源，閉環測不出共同誤解；CAN FD 需至少一筆外部真值，否則標「未經外部驗證」；CAN H5 約 2.6 點／位元不足以驗判位，要 RAW 重錄（≥8 點／位元）；USB PD 最容易取得實機資料（充電器交涉序列，≥10 MSa/s）。
-- **SPI 進度**：使用者曾說「依照此準則開始實作 SPI 解碼」，讀完範本（`uart_*.py`、`decode_uart.js`、`decode_proto_check.mjs`、`protocol_pages()`）後被改為先寫計畫；**SPI 檔案一個都還沒建**。契約的 `spi` 列舉已存在、`NAMES` 已含 `spi`，不必動共享檔。
-- **波 0（`ab5f2e7`，已在 main）**：`NAMES` 加 `espi`／`usbpd`，契約補兩協定列舉與 UART 差動說明（version 仍 2）。
-- **波 1 實作完成並已 squash 併入 main（SPI、CAN、RS-485 各一個提交）**：SPI（Codex）、CAN（解碼器 `can_decode.py`＋`can_fields.py` 為 Claude 寫；synth／check／前端為 Codex）、RS-485（併入 `uart`：`tx_n`／`rx_n`＋`DIFF`，Codex）。功能分支與工作樹已於波 3 後刪除。併入前已跑：全部模組自檢＋三個 `--mutations`、`selfcheck_node`、`e2e_check`、`browser_check`（含 spi／can 的 `protocol_pages`）皆通過。
-- **波 2 已 squash 併入 main（eSPI、USB PD、CAN FD 各一個提交）**：eSPI、USB PD 全由 Codex 寫（解碼器與檢查同一 agent，手寫真值取自計畫常數）；CAN FD 解碼器 `can_fd.py`＋`can_decode.py`／`can_fields.py`（`Reader.rebase()` 切換位元時間）為 Claude 寫，合成器與 `can_fd_check.py` 為 Codex。併入後全套自檢通過。功能分支與工作樹已刪除。
-- **波 3（I3C HDR-DDR）已 squash 併入 main**：解碼器 `i3c_hdr.py`（Claude；由 `i3c_decode.decode()` 結尾 `hdr_apply` 呼叫，該檔仍 299 行）；合成器 `Bus.hdr_ddr`、`i3c_hdr_check.py`（含 `--mutations`）、前端文字、規格為 Codex。契約補 reasons `hdr_nack hdr_parity hdr_crc hdr_preamble` 與 field kind `hdr_cmd hdr_data hdr_crc`。HDR 位元（SCL 兩邊沿取樣）併入 `bits_t`，故 `i3c_vectors` 的 SDR 專用檢查略過 hdr 區段；向量 21 改用 TSP 模式（`hdr(mode=1)`，不解）。**未經外部驗證、無實機波形**：P1／P0、CRC5 範圍、CRC 字組尾段（忽略）只依規格理解；SDA 在 SCL 邊沿的取樣時機為假設。不處理 HDR Restart 後第二筆（現有程式把 Restart 當 `pattern`，會結束 HDR 區段）；TSP／TSL／BT 仍不解。分支與工作樹已刪除。
-- **波 2 注意事項**：①CAN FD **未經外部驗證**（合成器與解碼器同一份規格理解），`--mutations` 缺「DATA 末 5 同值多插動態填充位」一項；FD 接收器 ACK 2 位容忍已做，CRC delimiter 2 位未做。②eSPI 只做單線；附加通道回應與 PUT_* 細解未做；缺獨立手寫波形真值。③USB PD 未檢查 SOP 類型與訊息型別相容、末位無收尾邊沿未補；建議使用者用 ≥10 MSa/s 錄充電器 Source_Capabilities→Request→Accept→PS_RDY 驗證。④`decode_proto_check.mjs` 通道由 3 增為 4（eSPI 需 4 個必填角色）。⑤三者皆無實機波形。
-- **波 1 注意事項**：①前端 `Object.keys(decode_protocols)` 依字母序，`can` 排在 `i2c` 前，原本每個協定頁驗完停在 1000 寬，使 I2C 的 `A0` 標註檢查失敗；已在 `browser_decode_checks.py` 驗完還原 1400 寬（main `cb6d252`）。②`browser_check` 曾出現一次 `P2b3 緊湊結果` 失敗，重跑即過，疑為既有的時序不穩，與解碼無關。③CAN 假設「CRC 末位後若恰為 5 個同值，仍有一個填充位」（研究文件未明說，未經實機驗證）。④CAN 旗標 frame `status='error'`；EXT 的 `label` 不含 DLC（照計畫）；剛結束一框後 intermission 第 1、2 位顯性 → `error_flag`（過載）；擷取起點在框中 → `partial`＋`truncated`。⑤`x6000can.csv` 209 列中 208 列 CRC 與獨立 CRC-15 吻合，不吻合列為 ID `0x0296A95D`、資料 `06 08 00 02 04`（CSV `0x1171`、計算 `0x1170`），原因未明，檢查保留 CSV 值並預期該列 CRC 不通過。⑥SPI、CAN 都沒有實機波形；CAN 的 H5 仍只有約 2.6 點／位元（見上方 CAN 待辦）。⑦`decode_spi.js`／`decode_can.js` 的 `order` 為 3／4。
-- 工具備忘：`codex` MCP 連不上，改用 `codex exec --sandbox read-only "$(cat prompt.txt)" </dev/null`（逾時用 `perl -e 'alarm N; exec @ARGV'`）；zsh 下 `echo ====`、未加引號的 `--include=*.py` 會出錯。
+- **文件**：`rea/Protocols分析_解碼準則.md`（Keysight 協定 XML 分析，含兩輪審查定案；`rea/Protocols/` 原廠 XML 在 `.gitignore`）、`docs/解碼實作計畫_20261112.md`（界線、偽代碼、向量、D1–D8 決定，全照建議）。SPI／CAN 細部原計畫在 `docs/archive/多協定解碼計畫.md.gz`；舊研究在 `docs/archive/研究_解碼協定.md.gz`。
+- **現況**：`analysis_decode.NAMES` = i3c／i2c／spi／uart／can／espi／usbpd。各自一個 squash 提交：SPI、CAN、RS-485（併入 `uart` 的 `tx_n`／`rx_n`＋`DIFF`）、eSPI（單線）、USB PD、CAN FD（沿用 `can`，填 `data_bitrate` 才細解）、I3C HDR-DDR（`i3c_hdr.py`，由 `i3c_decode.decode()` 結尾 `hdr_apply` 呼叫；該檔 299 行，勿再加行）。契約 version 維持 2，列舉已補。功能分支與工作樹已刪除。
+- **分工紀錄**：Claude 寫 CAN 解碼器（`can_decode/can_fields`）、CAN FD（`can_fd`＋`Reader.rebase()`）、I3C HDR 解碼器、共享檔與審查；Codex 寫 SPI、RS-485、eSPI、USB PD 與各協定 synth／check／前端。原則：解碼器與真值向量不由同一 agent 產出（SPI／eSPI／USB PD 例外，手寫真值取自計畫常數）。
+- **審查改正（勿回退）**：①USB PD 殘值 `zlib.crc32(data+crc_le)`＝0x2144DF1C；②RS-485 極性必須可設定（TIA-485 A<B 為 mark，晶片腳位常相反）；③CAN intermission 3 位（`CAN.xml` 寫 2）；④`addr_bits=8` 不含 `I2CIgnoreRW.xml` 的 10→11 位顯示；⑤CAN FD CRC 含動態填充位與 stuff count、不含固定填充位（CRC-17 共 6、CRC-21 共 7 個），ISO 初值最高位為 1，CRC delimiter／ACK 的 1–2 位是接收器容忍。XML 只有欄位表／列舉／固定值，切割、去填充、CRC 在外部引擎，不能單靠 XML 解波形。
+- **參考值**：CRC-15 poly 0x4599（`"123456789"`→0x059E）；eSPI CRC8 0x07（`"123456789"`→0xF4、`25`→0xFB、`21 00 04`→0x34、`08 0F 03`→0x9B）；USB PD `41 01`→CRC32 0xDFBC5C2D；I3C CRC5 x⁵+x²+1 init 0x1F、P1＝奇數位 XOR、P0＝偶數位 XOR 再反相。
+- **限制（皆無實機波形；SPI／CAN 只有合成向量與 209 列 CAN CSV 閉環）**：
+  - CAN：CRC 末位後若恰 5 個同值仍有填充位（未驗）；`x6000can.csv` 列 ID `0x0296A95D` CSV CRC `0x1171`、計算 `0x1170`，原因未明（檢查保留 CSV 值並預期不通過）；H5 僅 ~2.6 點／位元。
+  - CAN FD：**未經外部驗證**；`--mutations` 缺「DATA 末 5 同值多插動態填充位」；CRC delimiter 2 位未處理。
+  - eSPI：僅單線；附加通道回應與 PUT_* 細解未做；缺獨立手寫波形真值。
+  - USB PD：未檢查 SOP 類型與訊息型別相容、末位無收尾邊沿未補；最容易取得實機資料，建議錄充電器 Source_Capabilities→Request→Accept→PS_RDY（≥10 MSa/s）。
+  - I3C HDR-DDR：P1／P0、CRC5 範圍、SCL 邊沿取樣時機皆為對規格的理解；不處理 HDR Restart 後第二筆（現被當 `pattern`）、TSP／TSL／BT 不解。HDR 位元併入 `bits_t`，`i3c_vectors` 的 SDR 檢查略過 hdr 區段，向量 21 改用 `hdr(mode=1)`。
+- **測試備忘**：前端 `Object.keys(decode_protocols)` 依字母序，`browser_decode_checks.protocol_pages` 驗完須還原 1400 寬（否則後一協定的標註檢查失敗）；`browser_check` 曾偶發一次 `P2b3 緊湊結果` 失敗，重跑即過；`decode_proto_check.mjs` 通道為 CH1–CH4；`decode_spi.js`／`decode_can.js` 的 `order` 為 3／4。
+- 工具備忘：`codex` MCP 連不上，改用 `codex exec --sandbox workspace-write "$(cat prompt.txt)" </dev/null`（逾時用 `perl -e 'alarm N; exec @ARGV'`）；Codex 常在遇到小阻礙時提前結束，提示要寫「全部完成才報告」；zsh 下未加引號的 `--include=*.py` 會出錯。
