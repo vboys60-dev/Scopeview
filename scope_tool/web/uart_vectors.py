@@ -57,6 +57,65 @@ def vectors() -> list[tuple]:
     return result
 
 
+def differential_checks(mutation: bool = False) -> None:
+    """以實際 CSV 與共用解碼入口驗差動、極性與三態。"""
+    import tempfile
+    from pathlib import Path
+    import numpy as np
+    from scope_tool.web import uart_decode as dec
+    from scope_tool.web.analysis_api import Analysis
+    from scope_tool.web.synth import write_csv
+    from scope_tool.web.uart_synth import differential, render
+
+    line = uart_line([0x55] * 8, gaps=[4] + [0] * 7)
+    t, pos, neg = differential(line, vcm=9.5)
+    _, single = render(line, levels=(-2., 2.))
+    start = line['truth'][0]['start'] + 10 / 9600
+    stop = start + 3 / 9600
+    _, tri_pos, tri_neg = differential(line, vcm=9.5, tristate=((start, stop),))
+    assert np.all(tri_pos[(t >= start) & (t < stop)] == 9.5)
+    assert np.all(tri_neg[(t >= start) & (t < stop)] == 9.5)
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / '差動_20261112_000000.csv'
+        write_csv(path, (t, pos, neg, single, tri_pos, tri_neg))
+        api = Analysis()
+        api.open_waveform(str(path))
+        def decode(channels: dict, invert: bool = False, thresholds: dict | None = None) -> tuple:
+            th = thresholds if thresholds is not None else {'tx': [-.2, .2]}
+            result = api.decode('uart', channels, th, {'baud': 9600, 'invert': invert})
+            return result, api.decode_frames(result['decode_id'])['frames'] if result['ok'] else []
+        base, expected = decode({'tx': 'CHAN3'})
+        assert base['ok'] and [x['value'] for f in expected for x in f['fields']] == [0x55] * 8
+        if mutation:
+            old = dec.DIFF
+            try:
+                dec.DIFF = {}
+                result, actual = decode({'tx': 'CHAN1', 'tx_n': 'CHAN2'},
+                                        thresholds={'tx': [-.2, .2], 'tx_n': [-.2, .2]})
+                assert result['ok'] and actual == expected
+            finally:
+                dec.DIFF = old
+            return
+        result, actual = decode({'tx': 'CHAN1', 'tx_n': 'CHAN2'})
+        assert result['ok'] and actual == expected and set(result['thresholds']) == {'tx'}
+        auto, auto_frames = decode({'tx': 'CHAN1', 'tx_n': 'CHAN2'}, thresholds={'tx': None})
+        assert auto['ok'] and [x['value'] for f in auto_frames for x in f['fields']] == [0x55] * 8
+        wrong, _ = decode({'tx': 'CHAN2', 'tx_n': 'CHAN1'})
+        assert any('可能需切換反相' in w for w in wrong['warnings'])
+        corrected, actual = decode({'tx': 'CHAN2', 'tx_n': 'CHAN1'}, invert=True)
+        assert corrected['ok'] and actual == expected
+        tri, actual = decode({'tx': 'CHAN4', 'tx_n': 'CHAN5'})
+        assert tri['ok'] and actual == expected
+        for channels in ({'tx_n': 'CHAN2'}, {'tx': 'CHAN1', 'rx_n': 'CHAN2'}):
+            try:
+                dec.options({'baud': 9600}, channels)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(channels)
+    print('RS-485 V1–V4／CSV／門檻／負端驗證：OK')
+
+
 if __name__ == '__main__':
     assert len(vectors()) >= 20
     print('web.uart_vectors self-check OK')

@@ -7,7 +7,8 @@ from scope_tool.web.logic import Edges, auto_threshold, validate_time, to_edges,
 from scope_tool.web.i3c_fields import frame
 from scope_tool.web.i3c_ccc import reason
 
-ROLES = {'tx': True, 'rx': False}
+ROLES = {'tx': True, 'rx': False, 'tx_n': False, 'rx_n': False}
+DIFF = {'tx_n': 'tx', 'rx_n': 'rx'}
 BASE = 'tx'
 ADDR_TABLE = False
 REQUIRE_EDGES = False
@@ -16,6 +17,8 @@ _levels_at = levels_at  # 保留既有自檢的私有匯入點；實作統一使
 
 
 def options(options: dict, channels: dict) -> dict:
+    if any(neg in channels and pos not in channels for neg, pos in DIFF.items()):
+        raise ValueError('差動負端須搭配正端')
     if not isinstance(options, dict) or set(options) - {'baud', 'bits', 'parity', 'stop', 'invert', 'estimate'}:
         raise ValueError('UART 參數不合法')
     if 'estimate' in options and type(options['estimate']) is not bool:

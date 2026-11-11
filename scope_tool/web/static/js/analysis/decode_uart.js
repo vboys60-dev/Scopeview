@@ -34,8 +34,9 @@ const estimate = { label:'估計',key:'estimate',run:({ model,input }) => model.
 }) };
 
 export default {
-  name:'uart', label:'UART', order:2, base:'tx', diff:{},
-  roles:[{ key:'tx',label:'TX',allowEmpty:true },{ key:'rx',label:'RX',optional:true }],
+  name:'uart', label:'UART', order:2, base:'tx', diff:{ tx_n:'tx',rx_n:'rx' },
+  roles:[{ key:'tx',label:'TX',allowEmpty:true },{ key:'rx',label:'RX',optional:true },
+    { key:'tx_n',label:'TX−（B 線，可省）',optional:true },{ key:'rx_n',label:'RX−（B 線，可省）',optional:true }],
   options:[{ key:'baud',label:'鮑率（必填）',type:'text',value:'115200',action:estimate,
     list:[9600,19200,38400,57600,115200,230400,460800,921600,1000000],
     parse:s => { const n = Number(s); if (!s.trim() || !Number.isFinite(n) || n <= 0) throw Error('鮑率須為有限正數'); return n; } },

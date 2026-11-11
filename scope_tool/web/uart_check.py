@@ -10,7 +10,7 @@ import numpy as np
 from scope_tool.web import uart_decode as dec
 from scope_tool.web.logic import to_edges
 from scope_tool.web.uart_synth import uart_line, edge, render
-from scope_tool.web.uart_vectors import vectors, raw
+from scope_tool.web.uart_vectors import vectors, raw, differential_checks
 
 
 def fields(r: dict) -> list:
@@ -277,6 +277,13 @@ if __name__ == '__main__':
     quality()
     estimation()
     performance()
+    differential_checks()
     if '--mutations' in sys.argv:
         mutations()
+        try:
+            differential_checks(mutation=True)
+        except AssertionError:
+            print('變異已抓到：移除 DIFF')
+        else:
+            raise AssertionError('變異漏網：移除 DIFF')
     print('web.uart_check self-check OK')

@@ -229,7 +229,7 @@
 - 使用者指出「定義上緣下緣訊號（Pull Low／Pull High 極性）」後自述誤判、撤回，未做；若日後再提，候選是每條訊號線可反相（UART 現有 `invert` 可併入）。
 
 **待辦**
-1. 依下方「九協定解碼實作計畫」P1 起做（SPI 為第一項；無實機資料，只有合成向量）。
+1. 波 1（SPI／CAN／RS-485）已併入 main；下一步波 2：eSPI（需 SPI 已合併）、CAN FD（需 CAN 已合併）、USB PD。
 2. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
 3. CAN：先決定是否在擷取流程加「取完整記憶體」。**先做真機驗證，再決定要不要改程式**（2026-11-12 查證）：
    - InfiniiVision（`instruments/infiniivision.py:135`）已有 `:WAVeform:POINts:MODE RAW`＋`:WAVeform:DATA?` 直讀。
@@ -252,4 +252,7 @@
 - **已定案的設計**：RS-485 併入 `uart`（加 `tx_n`／`rx_n`＋`DIFF`，極性沿用 `invert`）；CAN FD 沿用 `can`（填 `data_bitrate` 才細解，**推翻舊計畫 Q1「不做」**）；eSPI／USB PD 要新增協定名 `espi`／`usbpd`，須 lead 一筆改 L0 契約檔（version 維持 2）；eSPI 第一版只做單線、USB PD 第一版 Data Object 只列原值。
 - **風險**：SPI／eSPI／CAN FD／I3C HDR 沒有實機資料，合成器與解碼器同源，閉環測不出共同誤解；CAN FD 需至少一筆外部真值，否則標「未經外部驗證」；CAN H5 約 2.6 點／位元不足以驗判位，要 RAW 重錄（≥8 點／位元）；USB PD 最容易取得實機資料（充電器交涉序列，≥10 MSa/s）。
 - **SPI 進度**：使用者曾說「依照此準則開始實作 SPI 解碼」，讀完範本（`uart_*.py`、`decode_uart.js`、`decode_proto_check.mjs`、`protocol_pages()`）後被改為先寫計畫；**SPI 檔案一個都還沒建**。契約的 `spi` 列舉已存在、`NAMES` 已含 `spi`，不必動共享檔。
+- **波 0（`ab5f2e7`，已在 main）**：`NAMES` 加 `espi`／`usbpd`，契約補兩協定列舉與 UART 差動說明（version 仍 2）。
+- **波 1 實作完成並已 squash 併入 main（SPI、CAN、RS-485 各一個提交）**：SPI（Codex）、CAN（解碼器 `can_decode.py`＋`can_fields.py` 為 Claude 寫；synth／check／前端為 Codex）、RS-485（併入 `uart`：`tx_n`／`rx_n`＋`DIFF`，Codex）。功能分支 `decode-{spi,can,rs485}`、`wave1-integrate` 與 `../示波器截圖_html_wt/` 的工作樹仍在，可在確認後刪除。併入前已跑：全部模組自檢＋三個 `--mutations`、`selfcheck_node`、`e2e_check`、`browser_check`（含 spi／can 的 `protocol_pages`）皆通過。
+- **波 1 注意事項**：①前端 `Object.keys(decode_protocols)` 依字母序，`can` 排在 `i2c` 前，原本每個協定頁驗完停在 1000 寬，使 I2C 的 `A0` 標註檢查失敗；已在 `browser_decode_checks.py` 驗完還原 1400 寬（main `cb6d252`）。②`browser_check` 曾出現一次 `P2b3 緊湊結果` 失敗，重跑即過，疑為既有的時序不穩，與解碼無關。③CAN 假設「CRC 末位後若恰為 5 個同值，仍有一個填充位」（研究文件未明說，未經實機驗證）。④CAN 旗標 frame `status='error'`；EXT 的 `label` 不含 DLC（照計畫）；剛結束一框後 intermission 第 1、2 位顯性 → `error_flag`（過載）；擷取起點在框中 → `partial`＋`truncated`。⑤`x6000can.csv` 209 列中 208 列 CRC 與獨立 CRC-15 吻合，不吻合列為 ID `0x0296A95D`、資料 `06 08 00 02 04`（CSV `0x1171`、計算 `0x1170`），原因未明，檢查保留 CSV 值並預期該列 CRC 不通過。⑥SPI、CAN 都沒有實機波形；CAN 的 H5 仍只有約 2.6 點／位元（見上方 CAN 待辦）。⑦`decode_spi.js`／`decode_can.js` 的 `order` 為 3／4。
 - 工具備忘：`codex` MCP 連不上，改用 `codex exec --sandbox read-only "$(cat prompt.txt)" </dev/null`（逾時用 `perl -e 'alarm N; exec @ARGV'`）；zsh 下 `echo ====`、未加引號的 `--include=*.py` 會出錯。

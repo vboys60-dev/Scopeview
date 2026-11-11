@@ -66,6 +66,26 @@ def render(tx: dict, rx: dict | None = None, *, fs: float = 9600 * 64,
     return (t, *waves)
 
 
+def differential(line: dict, *, fs: float = 9600 * 64, vcm: float = 2.5,
+                 vod: float = 2., tristate: tuple = ()) -> tuple:
+    """渲染差動兩線；三態區間以秒指定，結束後恢復當時邏輯電位。"""
+    from scope_tool.web.synth import render as render_bus
+    trans = [(t, 'tx', v) for t, v in line['trans']]
+    for start, stop in tristate:
+        trans.extend([(start, 'tx', 2), (stop, 'tx', 0)])
+    trans.sort(key=lambda x: x[0])
+    # ponytail: 三態區間不得跨越資料轉態，只用於字元之間的閒置。
+    for start, stop in tristate:
+        assert 0 <= start < stop <= line['end']
+        assert not any(start <= t <= stop for t, _ in line['trans'])
+    trans = [(t, ln, next((v for tm, v in reversed(line['trans']) if tm <= t), 1)
+              if any(t == stop for _, stop in tristate) else val) for t, ln, val in trans]
+    trans += [(t, 'tx_n', v) for t, _, v in trans]
+    levels = {'tx': (vcm - vod/2, vcm + vod/2, vcm),
+              'tx_n': (vcm + vod/2, vcm - vod/2, vcm)}
+    return render_bus(trans, fs, lines=('tx', 'tx_n'), levels=levels, tr=0, noise=0, end=line['end'])
+
+
 def fixture(path: Path) -> dict:
     """雙通道五組原生格式；sections 保留各段格式與裁切時間。"""
     bad = uart_line([0x55, 0x41])
@@ -98,4 +118,6 @@ def fixture(path: Path) -> dict:
 
 if __name__ == '__main__':
     assert uart_line([0x55])['truth'][0]['symbol'] == [0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+    t, pos, neg = differential(uart_line([0x55]), vcm=9.5)
+    assert np.allclose(pos + neg, 19.) and set(pos - neg) == {-2., 2.}
     print('web.uart_synth self-check OK')
