@@ -1,4 +1,5 @@
 // L5：各通道的 Vertical 欄位；沿用通道列唯一換檔／微調入口。
+import { alignSlot } from "./slots.js";
 import { tickLabel } from "./plotcore.js";
 export const centerPotential = (c) => -c.position * c.scale + 0;
 export const positionOf = (value, scale) => -value / scale + 0;
@@ -81,6 +82,8 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
     finally { render(); }
   }, "適配目前通道的可見資料範圍（含 dx）");
   fields[2].wrap.append(fit);
+  const align = button("對齊主檔", async () => { align.disabled = true; try { await alignSlot({ store, bridge, ui }, name); } finally { render(); } });
+  if (/^Mem[1-4]\./.test(name)) fields[2].wrap.append(align);
   function render(force = false) {
     const c = current();
     for (const f of fields) {
@@ -90,7 +93,7 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
         f.input.dataset.rendered = f.input.value;
       }
     }
-    fit.disabled = !c || !store.get().file;
+    fit.disabled = !c || !store.get().file; align.disabled = !c || !store.get().file;
   }
   render();
   return { render, setExpanded(expanded) { el.hidden = !expanded; } };

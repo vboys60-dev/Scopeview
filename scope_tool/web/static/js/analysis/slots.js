@@ -1,5 +1,6 @@
 // 多檔比對：槽位更新不寫 file，保留量測、游標與檢視歷史。
 import { channelRecord } from './toolbar.js';
+import { rangeOf, dxOf } from './measure.js';
 
 /** 被替換的來源有參與解碼時，沿用解碼面板的過期標記。 */
 export function staleDecode(st, names) {
@@ -33,7 +34,7 @@ const filename = path => path.split(/[\\/]/).pop();
 
 /** 對話框與檔案資訊共用的比對限制。 */
 export const SLOT_LIMITS = Object.freeze([
-  '各檔以自己的觸發點為時間 0；要對齊請調該通道的 dx。',
+  '各檔以自己的觸發點為時間 0；可用「對齊主檔」一鍵調整整槽 dx。',
   '游標吸附主檔第一通道；「完整時間」以主檔範圍為準。',
   '解碼的通道需來自同一檔（時間軸相同）。',
   'FFT 一次只算一個來源。',
@@ -167,4 +168,25 @@ export async function openSlots(ctx, modal) {
     });
     render();
   }, null);
+}
+
+/** 用目前量測範圍的第一個上升緣對齊整個比對槽。 */
+export async function alignSlot({ store, bridge, ui }, name) {
+  const st = store.get(), slot = (st.slots ?? []).find(s => s.channels.includes(name));
+  const main = st.file?.channels.find(c => c.name === name.slice(name.indexOf('.') + 1)) ?? st.file?.channels[0];
+  if (!slot || !main) { ui.toast('無法對齊：找不到主檔或比對通道'); return; }
+  const signature = s => JSON.stringify([s.file?.gen, s.dataRev, rangeOf(s), s.threshold, dxOf(s.channels)]);
+  const sig = signature(st);
+  try {
+    const r = await bridge.job('measure', { entries: [{ channel: main.name, channel2: name, name: 'Delta Time',
+      rising: true, rising2: true, edge_num: 1, edge_num2: 1, edge_level: 'middle', edge_level2: 'middle' }],
+      range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
+    const row = r.results?.[0], delta = row?.stats?.current;
+    if (signature(store.get()) !== sig || r.gen !== st.file.gen) throw new Error('資料或量測設定已變更，請重新對齊');
+    if (!row?.ok || !Number.isFinite(delta)) throw new Error(row?.reason || '量測沒有有效結果');
+    const channels = store.get().channels.filter(c => slot.channels.includes(c.name))
+      .map(c => ({ name: c.name, time_offset: (c.time_offset ?? 0) - delta }));
+    store.command('view.historyGroup', { key: 'align', continuous: true });
+    try { store.command('view.zoomRect', { channels }); } finally { store.command('view.historyGroup', { end: true }); }
+  } catch (e) { ui.toast(`無法對齊：${e?.message || e?.reason || '量測失敗'}`); }
 }

@@ -10,12 +10,12 @@ if TYPE_CHECKING:
     from scope_tool.web.browser_check import Cdp
 
 
-def fixture(path: Path, amplitude: float) -> None:
+def fixture(path: Path, amplitude: float, delay: int = 0) -> None:
     """同通道名、不同電壓，讓換槽的波形差異可被觀察。"""
     rows = ['Time(s),CH1(V),CH2(V)\n']
     for i in range(2000):
         t = i * 1e-6
-        rows.append(f'{t:.9e},{amplitude * math.sin(i * .1):.9e},{amplitude * math.cos(i * .1):.9e}\n')
+        rows.append(f'{t:.9e},{amplitude * math.sin((i - delay) * .1 - 1):.9e},{amplitude * math.cos((i - delay) * .1 - 1):.9e}\n')
     path.write_text(''.join(rows), encoding='utf-8')
 
 
@@ -23,7 +23,7 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
     """實際選檔／套用／移除；觀察主圖 fetchWave 與 /wave，並核對量測和游標。"""
     paths = [Path(directory) / f'slots_{i}.csv' for i in range(3)]
     for path, amplitude in zip(paths, (1, 2, 4)):
-        fixture(path, amplitude)
+        fixture(path, amplitude, 10 if path == paths[1] else 0)
 
     def state(expr: str) -> Any:
         return c.js(f'(async()=>{{{prep}return {expr}}})()')
@@ -129,6 +129,11 @@ def slot_page(c: Cdp, prep: str, click: str, out: Path, directory: str) -> None:
         choose(paths[1])
         choose(paths[2], 'Mem2')
         close_dialog()
+        # 第一個完整上升緣延遲 10 個取樣；兩通道共用同一 dx。
+        c.js("document.querySelector('[data-channel=\"Mem1.CHAN1\"] .chip__name').click()")
+        c.js("[...document.querySelectorAll('[data-channel=\"Mem1.CHAN1\"] button')].find(b=>b.textContent==='對齊主檔').click()")
+        wait("Math.abs(S.state.channels.find(c=>c.name==='Mem1.CHAN1').time_offset + .00001)<.0000001")
+        assert abs(state("S.state.channels.find(c=>c.name==='Mem1.CHAN2').time_offset") + .00001) < .0000001
         check_info(limits)  # 多槽分段、各自檔案資訊與共用限制。
         c.shot(out / 'slots_loaded.png')
         open_main(paths[0])

@@ -1,6 +1,7 @@
 // 多檔比對純函式與既有量測／游標控制器的回歸檢查。
 import assert from 'node:assert/strict';
-import { slotPatch, staleDecode, openSlots, appendFileInfo, SLOT_LIMITS } from './slots.js';
+import { slotPatch, staleDecode, openSlots, appendFileInfo, SLOT_LIMITS, alignSlot } from './slots.js';
+import { bindViewport } from './gestures.js';
 import { createStore } from './store.js';
 import { createMeasure } from './measure.js';
 import { createController, defaultCursors } from './cursors.js';
@@ -210,5 +211,20 @@ assert.equal(slotPatch({ ...st, decodeResult }, 'Mem1', null, colors, scales).de
   assert.deepEqual(errors, [failure], '批次 STALE 靜默略過');
   assert.deepEqual(store.get().slots.map(s => s.slot), ['Mem1']);
   delete globalThis.document;
+}
+// 真實歷史機制：整槽一起移動、失敗不動、一次復原。
+{
+  const store = createStore(), messages = [], calls = [];
+  store.set({ file: { gen: 7, channels: [{ name: 'CHAN1' }] }, slots: [{ slot: 'Mem1', channels: ['Mem1.CHAN1', 'Mem1.CHAN2'] }],
+    channels: [{ name: 'CHAN1', time_offset: 0 }, { name: 'Mem1.CHAN1', time_offset: .1 }, { name: 'Mem1.CHAN2', time_offset: .2 }] });
+  bindViewport(store);
+  let row = { ok: true, stats: { current: .05 } };
+  const ctx = { store, ui: { toast: m => messages.push(m) }, bridge: { job: async (n, p) => { calls.push([n, p]); return { gen: 7, results: [row] }; } } };
+  await alignSlot(ctx, 'Mem1.CHAN1');
+  assert.equal(calls[0][1].entries[0].channel, 'CHAN1'); assert.equal(calls[0][1].entries[0].edge_level2, 'middle');
+  assert.deepEqual(store.get().channels.map(c => c.time_offset), [0, .05, .15000000000000002]);
+  store.command('view.undo'); assert.deepEqual(store.get().channels.map(c => c.time_offset), [0, .1, .2]);
+  row = { ok: false, reason: 'EDGE_NOT_FOUND' }; await alignSlot(ctx, 'Mem1.CHAN1');
+  assert.deepEqual(store.get().channels.map(c => c.time_offset), [0, .1, .2]); assert.match(messages.at(-1), /EDGE_NOT_FOUND/);
 }
 console.log('slot self-check OK');

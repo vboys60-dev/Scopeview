@@ -74,13 +74,14 @@ export function bindViewport(store) {
   let group = {};
   const snapshot = (item) => ({
     ...(item.t0 !== undefined ? store.get().view : {}),
-    ...(item.channels ? { channels: store.get().channels.filter((c) => item.channels.some((n) => n.name === c.name)).map(({ name, scale, position }) => ({ name, scale, position })) } : {}),
+    ...(item.channels ? { channels: store.get().channels.filter((c) => item.channels.some((n) => n.name === c.name)).map((c) => Object.fromEntries(Object.keys(item.channels.find(n => n.name === c.name)).map(k => [k, c[k] ?? (k === "time_offset" ? 0 : c[k])]))) } : {}),
   });
   const apply = (next) => {
     if (next.t0 !== undefined) store.set({ view: { t0: next.t0, t1: next.t1 } }, "user");
     for (const c of next.channels ?? []) {
       const current = store.get().channels.find((ch) => ch.name === c.name);
-      if (current && (current.scale !== c.scale || current.position !== c.position)) store.command("channel.scale_intent", c);
+      if (current && "time_offset" in c) store.updateChannel(c.name, { time_offset: c.time_offset }, "user");
+      if (current && "scale" in c && (current.scale !== c.scale || current.position !== c.position)) store.command("channel.scale_intent", c);
     }
   };
   const notify = () => store.command("view.history", history.status());
@@ -94,7 +95,7 @@ export function bindViewport(store) {
   store.onCommand("view.zoomRect", ({ view, channels = [] }) => {
     const valid = view ? limitView(view, viewLimits(store.get().file)) : null;
     if (view && !valid) return;
-    const changed = channels.filter((n) => store.get().channels.some((c) => c.name === n.name && c.visible && (c.scale !== n.scale || c.position !== n.position))).map(({ name, scale, position }) => ({ name, scale, position }));
+    const changed = channels.filter((n) => store.get().channels.some((c) => c.name === n.name && ("time_offset" in n ? (c.time_offset ?? 0) !== n.time_offset : c.visible && (c.scale !== n.scale || c.position !== n.position))));
     const next = { ...(valid && !same(valid, store.get().view) ? valid : {}), ...(changed.length ? { channels: changed } : {}) };
     const before = snapshot(next);
     history.end(); history.record(before, next); apply(next); notify();
