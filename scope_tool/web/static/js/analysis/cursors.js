@@ -94,6 +94,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
 
   function setSnap(patch) { // 只在真的不同時以 snap 回寫
     const cur = store.get().cursors;
+    if (store.get().markerMode === "Track Measurements") return;
     if (Object.keys(patch).some((k) => differs(cur[k], patch[k]))) store.set({ cursors: { ...cur, ...patch } }, "snap");
   }
   function schedule() {
@@ -121,11 +122,16 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         store.set({ markerResult: null }, "program");
         return;
       }
-      if (!ch) return emit(null);
-      if (mode === "Track Measurements") { // MeasureResult 無事件座標，已知限制：明確提示，不送空陣列
-        store.set({ markerResult: null }, "program");
-        return emit({ kind: "unsupported", reason: "Track Measurements 尚未支援" });
+      if (mode === "Track Measurements") {
+        const entry = st.measurements.find(e => e.track), marks = entry?.result?.marks ?? [];
+        const points = marks.flatMap(([x, y, name], i) => { const c = st.channels.find(c => c.name === name); return c && num(x) && num(y) ? [{ x, y: divisionAt(y, c), label: `M${i + 1}` }] : []; });
+        const reason = entry ? "此量測沒有單一位置" : "請在結果表點選要追蹤的量測";
+        const [a, b] = marks, ca = st.channels.find(c => c.name === a?.[2]), cb = st.channels.find(c => c.name === b?.[2]);
+        const dx = a && b ? b[0] - a[0] : null, dy = a && b && ca && cb && ca.unit === cb.unit ? b[1] - a[1] : null;
+        store.set({ markerResult: { mode, available: !!points.length, reason: points.length ? null : reason, points } }, "program");
+        return emit({ kind: "marker", mode, available: !!points.length, reason, read_only: true, t1: a?.[0] ?? null, t2: b?.[0] ?? null, v1: a?.[1] ?? null, v2: b?.[1] ?? null, unit: ca?.unit ?? "", source: a?.[2] ?? "", dx, inv: dx ? 1 / dx : null, dy });
       }
+      if (!ch) return emit(null);
       const src = { ...toSource(cur, ch), y1: source.y1, y2: source.y2 }, v = st.view;
       const r = await bridge.call("marker_eval", { mode, channel: ch.name, ...src, screen_width: v.t1 - v.t0, measurements: [] }); // 只有非 Track Measurements 模式會走到這裡
       if (!alive()) return;
@@ -150,9 +156,9 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
     pendingInit = false; // 以檔案時間範圍（不依賴 view，避免吃到上一檔的舊視圖）
     store.set({ cursors: defaultCursors({ t0: Math.min(...cs.map((c) => c.t0)), t1: Math.max(...cs.map((c) => c.t1)) }) }, "program");
   }
-  const chSig = () => store.get().channels.map((c) => `${c.name}:${c.time_offset}:${c.scale}:${c.position}`).join(",");
+  const chSig = () => store.get().channels.map((c) => `${c.name}:${c.time_offset}:${c.scale}:${c.position}:${c.unit}`).join(",");
   let lastSig = chSig();
-  store.on(["file", "view", "cursors", "markerMode", "channels"], (s, keys, origin) => {
+  store.on(["file", "view", "cursors", "markerMode", "channels", "measurements"], (s, keys, origin) => {
     if (keys.includes("file")) { // 換檔／關檔：游標清空，等新通道（L4 的 setChannels 在 file 之後）到位再放預設
       pendingInit = !!s.file; token++; preferred = unit = null; source.channel = null; source.y1 = source.y2 = null; emit(null);
       store.set({ cursors: { x1: null, x2: null, y1: null, y2: null }, markerResult: null }, "program");
@@ -163,12 +169,13 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
       if (next !== source.channel) changeSource(next, false, keys.includes("cursors"));
       ensureDefaults();
     }
+    if (keys.includes("markerMode") && s.markerMode !== "Track Measurements" && s.markerResult?.mode === "Track Measurements") store.set({ markerResult: null }, "program");
     if (keys.includes("cursors")) { capture(source.channel); notify(); }
     if (origin === "snap") return;
     const sig = chSig();
     const chChanged = keys.some((k) => k === "channels") && sig !== lastSig;
     lastSig = sig;
-    if (keys.some((k) => ["file", "cursors", "markerMode"].includes(k)) || chChanged || (keys.includes("view") && s.markerMode === "Track Waveforms")) schedule();
+    if (keys.some((k) => ["file", "cursors", "markerMode"].includes(k)) || chChanged || (keys.includes("measurements") && s.markerMode === "Track Measurements") || (keys.includes("view") && s.markerMode === "Track Waveforms")) schedule();
   });
   store.onCommand("cursor.intent", ({ which, value }) => {
     if (!["x1", "x2", "y1", "y2"].includes(which) || !(value === null || num(value))) return;

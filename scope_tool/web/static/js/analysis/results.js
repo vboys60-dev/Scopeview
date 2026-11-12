@@ -86,9 +86,10 @@ export function mount(el, ctx) {
       const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : (defs[e.name]?.sloped && e.all_edges !== false) || cycles ? (e.rising ? " ↑" : " ↓") : "";
       const deltaLabel = e.name === "Delta Time" ? `Delta Time(${e.channel}#${e.edge_num ?? 1}${e.rising ? "↑" : "↓"}→${e.channel2}#${e.edge_num2 ?? 1}${(e.rising2 ?? e.rising) ? "↑" : "↓"} ${{lower:"下",middle:"中",upper:"上"}[e.edge_level ?? "middle"]}／${{lower:"下",middle:"中",upper:"上"}[e.edge_level2 ?? "middle"]})` : null;
       const row = tr([deltaLabel ?? `${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), ""], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      if (store.get().markerMode === "Track Measurements") { row.classList.toggle("is-selected", !!e.track); row.onclick = () => store.command("measure.track", e.id); }
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
-      const x = h("button", "results__remove", "×"); x.type = "button"; x.setAttribute("aria-label", "刪除此量測"); x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id); row.lastChild.append(x);
+      const x = h("button", "results__remove", "×"); x.type = "button"; x.setAttribute("aria-label", "刪除此量測"); x.title = "刪除此量測"; x.onclick = (event) => { event?.stopPropagation(); store.command("measure.remove", e.id); }; row.lastChild.append(x);
       rows.push(row);
     }
     meas.replaceChildren(...rows); empty.hidden = list.length > 0;
@@ -105,7 +106,7 @@ export function mount(el, ctx) {
       ui.toast(`已匯出：${r.path}`, "ok", 6000);
     } catch (e) { if (e.code === "STALE") ui.toast("結果已過期，等量測重新計算後再匯出", "error"); else ui.showError(e, "匯出失敗"); }
   };
-  store.on(["measurements", "file", "channels"], renderMeas);
+  store.on(["measurements", "file", "channels", "markerMode"], renderMeas);
   store.onCommand('layout.float.state',on=>{ floating=on; if (!on) prefs=load(); renderMeas(); });
   renderMeas();
 }

@@ -52,10 +52,10 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
     // 刪除來源也送入同一批，讓後端快照與畫面保留相同列數。
     let results = [];
     try {
-      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full", all_edges = true, edge_num, edge_num2, edge_level, edge_level2 }) => ({
+      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full", all_edges = true, edge_num, edge_num2, edge_level, edge_level2, track }) => ({
         channel, name, rising, mode, all_edges,
         ...(channel2 === undefined ? {} : { channel2, rising2: rising2 ?? rising }),
-        ...(name === "Delta Time" ? { edge_num, edge_num2, edge_level, edge_level2 } : {}),
+        ...(name === "Delta Time" ? { edge_num, edge_num2, edge_level, edge_level2 } : {}), ...(track ? { track: true } : {}),
       }));
       const r = await bridge.job("measure", { entries, range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
       if (my !== token || store.get().file?.gen !== gen || r.gen !== gen) return; // 過期丟棄
@@ -77,8 +77,17 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
   function add(name, channel, rising, mode = "full", channel2, rising2 = rising, all_edges = true, delta = {}) {
     if (!channel) return;
     store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, all_edges, ...(channel2 === undefined ? {} : { channel2, rising2 }), ...(name === "Delta Time" ? { edge_num: 1, edge_num2: 1, edge_level: "middle", edge_level2: "middle", ...delta } : {}), result: null }] }, "program");
-    schedule();
+    if (store.get().markerMode === "Track Measurements" && !store.get().measurements.some(e => e.track)) track(store.get().measurements[0].id); else schedule();
   }
+  function track(id) {
+    const list = store.get().measurements;
+    if (!list.some(e => e.id === id) || list.some(e => e.id === id && e.track)) return;
+    setEntries(list.map(e => ({ ...e, track: e.id === id }))); schedule();
+  }
+  store.on(["markerMode"], st => {
+    if (st.markerMode === "Track Measurements") { if (!st.measurements.some(e => e.track) && st.measurements.length) track(st.measurements[0].id); }
+    else if (st.measurements.some(e => e.track)) setEntries(st.measurements.map(({ track, ...e }) => e));
+  });
   function remove(id) { store.set({ measurements: store.get().measurements.filter((e) => e.id !== id) }, "program"); schedule(); }
   function clear() { store.set({ measurements: [] }, "program"); token++; }
 
@@ -92,7 +101,7 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
     if (st.measurements.length) schedule();
   });
   lastSig = sigOf(store.get());
-  return Object.assign(ctl, { add, remove, clear, schedule, run });
+  return Object.assign(ctl, { add, remove, clear, track, schedule, run });
 }
 
 export function mount(el, ctx) {
@@ -110,6 +119,7 @@ export function mount(el, ctx) {
   store.on(["channels", "selected", "rangeMode", "threshold", "file"], syncHead); syncHead(store.get());
   const m = createMeasure(ctx, { onError: (e) => ctx.ui.toast(e.message, "error") });
   // 結果表的刪除／清除由 results.js 發出 measure.remove／measure.clear 指令
+  store.onCommand("measure.track", (id) => m.track(id));
   store.onCommand("measure.remove", (id) => m.remove(id));
   store.onCommand("measure.clear", () => m.clear());
   const slope = h("select", "select");

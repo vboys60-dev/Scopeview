@@ -2,7 +2,6 @@ import { T } from "./terms.js";
 import { channelColors } from "./channel_colors.js";
 import { getFftState, mountFftControls } from './fft_state.js';
 export { createFft, fftParams } from './fft_runner.js';
-import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
 import { openSlots, appendFileInfo } from "./slots.js";
 import { exportReport } from "./report.js";
@@ -109,8 +108,7 @@ export function mount(el, ctx) {
 
   // ── 一般控制 ──
   const marker = select([["", "傳統游標 X1/X2"], ...(catalog.marker_modes ?? []).map((m) => [m, m])]);
-  disableTrackMeasurements(marker);
-  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
+  marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { store.set({ markerMode: marker.value || null }, "user"); };
   // 工具列只留常用鈕；其餘收進「檔案 ▾／分析 ▾」Popover（panel 緊接在按鈕後，Tab 順序相鄰）。
   const item = (t, fn) => { const b = btn(t, fn, "btn"); b.setAttribute("role", "menuitem"); return b; };
   const menu = (title, ...kids) => {

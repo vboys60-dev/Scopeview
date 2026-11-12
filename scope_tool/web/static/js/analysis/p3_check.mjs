@@ -10,7 +10,7 @@ import { createController, cursorSource, divisionAt, toSource, toDisplay, mount,
 import { mount as mountPlot } from './mainplot.js';
 import { voltageAt } from './voltage.js';
 import { nearestCursor, bindGestures } from './gestures.js';
-import { disableTrackMeasurements } from './summary.js';
+// Track Measurements is available in the toolbar.
 import * as fmt from '../fmt.js';
 class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.style = {}; this.dataset = {}; this.attrs = {}; this.listeners = {}; }
@@ -99,8 +99,7 @@ assert.equal(nearestCursor({...cur,x2:null},v,r,58,30),'x1'); assert.equal(neare
 assert.equal(nearestCursor({y1:0,y2:0.6},v,r,30,45),'y2');
 for (const [x,y] of [[50,-1],[50,101],[-1,50],[101,50]]) assert.equal(nearestCursor({...cur,y1:0},v,r,x,y),null,'圖框外不可命中');
 for (const x1 of [-0.01,1.01]) assert.equal(nearestCursor({x1},v,r,x1<0?0:100,30),null,'畫面外 X 不可抓');
-const select = new Element('select'); disableTrackMeasurements(select); disableTrackMeasurements(select);
-assert.equal(select.children.length,1); assert.equal(select.children[0].disabled,true); assert.match(select.children[0].title,/需先補後端事件座標/);
+const select = new Element('select'); assert.equal(select.children.length, 0);
 // 真正 mount 的輸入 parseSI／來源下拉／單位標題。
 const domStore = createStore(), panel = new Element('div');
 mount(panel,{store:domStore,bridge,fmt,ui:{toast:()=>{}}});
@@ -141,7 +140,7 @@ assert.ok(strokes.includes(3),'hover 必須實際用粗線繪製'); plot.dispose
 
 const css = readFileSync(new URL('../../css/analysis.css',import.meta.url),'utf8');
 assert.match(css,/\.cursors__field--y \{[^}]*flex: 1 1 11ch;[^}]*min-width: 11ch;/,'Y 物理值須保留負號、小數與單位寬度');
-const toolbar = readFileSync(new URL('./toolbar.js',import.meta.url),'utf8'); assert.match(toolbar,/disableTrackMeasurements\(marker\)/);
+const toolbar = readFileSync(new URL('./toolbar.js',import.meta.url),'utf8'); assert.doesNotMatch(toolbar,/disableTrackMeasurements/);
 console.log('P3a self-check OK：物理往返／來源脫鉤／重投影／隱藏與移除／格意圖／最近命中／DOM／防迴圈');
 if (process.argv.includes('--mutations')) {
   const mutations = [

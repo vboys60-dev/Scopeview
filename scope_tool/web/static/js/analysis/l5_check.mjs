@@ -227,7 +227,7 @@ async function setup(hook) {
   const ctl = createController({ store, bridge }, { delay: 5 });
   store.set({ file: sum, channels, selected: "CHAN1" }, "program");
   store.set({ markerMode: "Track Measurements" }, "user"); await sleep(40);
-  assert.equal(ctl.readout.kind, "unsupported"); assert.match(ctl.readout.reason, /尚未支援/);
+  assert.equal(ctl.readout.kind, "marker"); assert.match(ctl.readout.reason, /請在結果表點選/);
   assert.ok(!bridge.calls.some(([c, q]) => c === "marker_eval" && q.mode === "Track Measurements"), "不靜默送空陣列");
 }
 // 10. 自動 FFT 失敗不用 modal；換檔重置 FFT 勾選

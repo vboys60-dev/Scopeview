@@ -33,16 +33,16 @@ def p3a_markers(c: Cdp, prep: str) -> None:
                 projected:Math.abs(projected-expected)<1e-12,moved:projected!==division,
                 input:Math.abs(F.parseSI(field.value)-before)<Math.max(1e-12,Math.abs(before)*0.001),unit:field.parentElement.textContent,
                 drawn:Math.abs(draws.at(-1)?.y-expectedY)<1&&draws.at(-1)?.t===`v1 ${F.fmt(before,first.unit)}`,
-                disabled:track?.disabled,title:track?.title,source:source.value};
+                selectable:!!track&&!track.disabled,title:track?.title,source:source.value};
         } finally {
             S.set({channels:original,selected,markerMode:mode},'program');
             if(originalSource)choose(originalSource);
             for(const [which,value] of Object.entries(cur))S.command('cursor.intent',{which,value});
         }
     })()""")
-    assert all(result[k] for k in ('independent', 'physical', 'projected', 'moved', 'disabled', 'input', 'drawn')), result
+    assert all(result[k] for k in ('independent', 'physical', 'projected', 'moved', 'selectable', 'input', 'drawn')), result
     assert result['source'] == 'CHAN1' and '(V)' in result['unit'], result
-    assert result['title'] == '需先補後端事件座標，暫未提供', result
+    assert result['selectable'], result
     for width, height in ((1360, 860), (900, 600)):
         c.send('Emulation.setDeviceMetricsOverride', width=width, height=height, deviceScaleFactor=1, mobile=False)
         c.pump(0.3)
