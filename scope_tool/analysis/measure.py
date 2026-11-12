@@ -105,7 +105,7 @@ def _validate_pct(pct: tuple[float, float, float]) -> None:
 
 
 def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, float] = (10, 50, 90),
-            rising: bool = True, mode: str = "full", ref_time: float = 0.0) -> np.ndarray:
+            rising: bool = True, mode: str = "full", ref_time: float = 0.0, dx: float = 0.0) -> np.ndarray:
     """回傳該量測在範圍內每個事件的值（整段量測長度 1）；量測不出來丟 ScopeError（訊息即原因）。"""
     if mode not in ("full", "cycles", "cycle"):
         raise ScopeError(f"未知的量測模式：{mode}（可用 full、cycles、cycle）")
@@ -126,7 +126,7 @@ def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, fl
         if mode == "cycle":
             if not es:
                 raise ScopeError("EDGE：範圍內不足一個完整週期")
-            e0 = min(es, key=lambda e: (abs(e.t_mid - (ref_time - t[0])), e.t_mid))
+            e0 = min(es, key=lambda e: (abs((t[0] + e.t_mid + dx) - ref_time), e.t_mid))
             mids = [e.t_mid for e in es if e.rising == e0.rising and e.t_mid >= e0.t_mid][:2]
         else:
             mids = [e.t_mid for e in es if e.rising == rising]
@@ -227,28 +227,37 @@ def stats(values: np.ndarray, ref: float | None = None, meas_all_edges: bool = T
     return (float(values[i]), float(values.mean()), lo, hi, hi - lo, float(values.std()), len(values))
 
 
+def measure_event(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, float],
+                  rising: bool, mode: str = "full", ref_time: float = 0.0,
+                  dx: float = 0.0, meas_all_edges: bool = True) -> np.ndarray:
+    """單事件模式對需選方向的量測合併兩種極性。"""
+    try:
+        values = measure(name, t, v, pct, rising, mode, ref_time=ref_time, dx=dx)
+    except ScopeError:
+        if meas_all_edges or name not in SLOPED:
+            raise
+        rising = not rising
+        values = measure(name, t, v, pct, rising, mode, ref_time=ref_time, dx=dx)
+    if not meas_all_edges and name in SLOPED:
+        try:
+            other = measure(name, t, v, pct, not rising, mode, ref_time=ref_time, dx=dx)
+            values = edge.timed(np.concatenate((values, other)), np.concatenate((values.at, other.at)))
+        except ScopeError:
+            pass
+    return values
+
+
 def measure_all(tasks: list[tuple[str, np.ndarray, np.ndarray, bool]],
                 pct: tuple[float, float, float], ref_time: float = 0.0,
-                meas_all_edges: bool = True) -> list[tuple | str]:
+                meas_all_edges: bool = True, dx: float = 0.0) -> list[tuple | str]:
     """背景執行用：每筆回傳 stats 結果，失敗回傳原因字串（一筆失敗不影響其他筆）。"""
     out: list[tuple | str] = []
     for name, t, v, rising in tasks:
         try:
-            try:
-                values = measure(name, t, v, pct, rising)
-            except ScopeError:
-                if meas_all_edges or name not in SLOPED:
-                    raise
-                values = measure(name, t, v, pct, not rising)
-                rising = not rising
-            if not meas_all_edges and name in SLOPED:
-                try:
-                    other = measure(name, t, v, pct, not rising)
-                except ScopeError:
-                    other = None
-                if other is not None:
-                    values = edge.timed(np.concatenate((values, other)), np.concatenate((values.at, other.at)))
+            values = measure_event(name, t, v, pct, rising, ref_time=ref_time, dx=dx, meas_all_edges=meas_all_edges)
             bound = getattr(values, "bound", None)
+            if getattr(values, "at", None) is not None and dx != 0.0:
+                values.at = values.at + dx
             out.append(f"點數不足，僅得{'下界' if bound == '>' else '上界'} {bound}" if bound else stats(values, ref_time, meas_all_edges))
         except Exception as exc:
             out.append(str(exc))

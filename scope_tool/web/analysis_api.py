@@ -15,7 +15,7 @@ import numpy as np
 
 from scope_tool.analysis import marker as markermod
 from scope_tool.analysis import mathfn
-from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure as _measure, measure2, stats as _stats, unit_of
+from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure_event, measure2, stats as _stats, unit_of
 from scope_tool.contracts import ScopeError, Waveform
 from scope_tool.storage.reader import read_file_info, read_waveform_file
 from scope_tool.web import decimate
@@ -148,7 +148,9 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
         for e in entries:
             if ("channel2" in e and not isinstance(e["channel2"], str)) or ("rising2" in e and not isinstance(e["rising2"], bool)):
                 raise BadRequest("channel2 必須為字串，rising2 必須為布林值")
-            if e.get("mode", "full") not in ("full", "cycles"):
+            if "all_edges" in e and not isinstance(e["all_edges"], bool):
+                raise BadRequest("all_edges 必須為布林值")
+            if e.get("mode", "full") not in ("full", "cycles", "cycle"):
                 raise BadRequest("未知區間模式")
             if e.get("name") in DUAL and "channel2" not in e:
                 raise BadRequest("雙來源量測必須指定 channel2")
@@ -168,14 +170,15 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
             for e in entries:
                 ch, name, rising = e["channel"], e["name"], bool(e.get("rising", True))
                 cycles = name in INTERVAL and e.get("mode") == "cycles"
-                suffix = (" ↑" if rising else " ↓") if name in SLOPED or cycles else ""
+                cycle = name in INTERVAL and e.get("mode") == "cycle"
+                suffix = (" ↑" if rising else " ↓") if (name in SLOPED and e.get("all_edges", True)) or cycles else ""
                 dual, ch2 = name in DUAL, e.get("channel2")
                 if dual:
                     suffix = (" ↑" if rising else " ↓") + ("↑" if e.get("rising2", rising) else "↓") if name != "電壓比" else ""
                 w = by.get(ch)
                 row = {"channel": ch, "name": name, "unit": unit_of(name, units.get(ch, "V")), "ok": False,
                        "stats": None, "reason": None, "gen": gen, "revision": rev,
-                       "_label": f"{name}({ch + ('→' + str(ch2) if dual else '')}{' 整數週期' if cycles else ''}{suffix})"}
+                       "_label": f"{name}({ch + ('→' + str(ch2) if dual else '')}{' 整數週期' if cycles else ' 單週期' if cycle else ''}{suffix}{' 全部邊緣' if name == '相位' and not e.get('all_edges', True) else ' 單一事件' if not e.get('all_edges', True) else ''})"}
                 if dual:
                     row["channel2"] = ch2
                 if w is None or (dual and ch2 not in by):
@@ -186,6 +189,9 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
                         row["reason"] = ("來源 1：" if dual else "") + "所選範圍內沒有資料"
                     else:
                         try:
+                            d = dx.get(ch, 0.0)
+                            start, end = float(t[0]) + d, float(t[-1]) + d
+                            ref = 0.0 if start <= 0 <= end else (start + end) / 2
                             if dual:
                                 # _cut 保留來源時間（供 FFT）；配對前加各自 dx 換成顯示時間。
                                 t2, v2 = self._cut(by[ch2], rng, dx)
@@ -194,14 +200,12 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin):
                                 values = measure2(name, t + dx.get(ch, 0), v, t2 + dx.get(ch2, 0), v2,
                                                   pct, rising, e.get("rising2", rising))
                             else:
-                                values = _measure(name, t, v, pct, rising, e.get("mode", "full"))
+                                values = measure_event(name, t, v, pct, rising, e.get("mode", "full"),
+                                                       ref_time=ref, dx=d, meas_all_edges=e.get("all_edges", True))
                             # 參考與事件皆以顯示時間比較，避免反向平移的浮點誤差破壞同距規則。
-                            d = dx.get(ch, 0.0)
-                            start, end = float(t[0]) + d, float(t[-1]) + d
-                            ref = 0.0 if start <= 0 <= end else (start + end) / 2
                             if not dual and getattr(values, "at", None) is not None:
                                 values.at = values.at + d
-                            s = _stats(values, ref)
+                            s = _stats(values, ref, meas_all_edges=e.get("all_edges", True) or name == "相位")
                             if getattr(values, "bound", None):
                                 row["bound"] = values.bound
                             row["ok"] = True

@@ -52,7 +52,7 @@
   "CursorReadout": {"t1": "float","t2": "float","index1": "int","index2": "int","y": "map<CursorY>"},
   "Position": {"x1": "float|null","x2": "float|null","y1": "float|null","y2": "float|null"},
   "MarkerResult": {"position": "Position","available": "bool","reason": "str","read_only": "bool","points": "[float,float,str][]","versus": "bool","delta_x": "float|null","inverse_delta_x": "float|null","delta_y": "float|null"},
-  "MeasureEntry": {"channel": "str","name": "str","rising": "bool","mode": "str","channel2": "str","rising2": "bool"},
+  "MeasureEntry": {"channel": "str","name": "str","rising": "bool","mode": "str","all_edges": "bool","channel2": "str","rising2": "bool"},
   "Stats": {"current": "float|null","mean": "float|null","min": "float|null","max": "float|null","range": "float|null","std": "float|null","count": "int"},
   "MeasureResult": {"channel": "str","name": "str","unit": "str","ok": "bool","stats": "Stats|null","reason": "str|null","gen": "int","revision": "int","bound": "str|null","channel2": "str|null"},
   "MeasureBatch": {"gen": "int","revision": "int","results": "MeasureResult[]"},
@@ -77,7 +77,7 @@
   "MeasureResult": "ok=true 時 stats 為 Stats；ok=false 時 stats=null、reason 說明；NaN／Infinity 一律轉 null；bound 表示真值相對顯示值的方向；可省略／null（一般值），<＝時間上界，>＝上升斜率下界；< 亦用於下降斜率（真值更負）；顯示與 CSV 的統計值加前綴，次數除外；channel2 可省略／null，雙來源回傳來源 2 通道名",
   "FileSummary": "info＝[標籤,值][] 檔案資訊表（取代 Qt file_info_rows）；model／series／captured_at 檔內缺值為 null",
   "ChannelInfo": "gen＝產生它時的開檔世代；vmin／vmax 全為 NaN 時 null",
-  "MeasureEntry": "mode 可省略（full），不可為 null：full＝整段、cycles＝整數週期；只對 Vavg／Vrms(DC)／Vrms(AC) 有意義，方向由 rising 決定；不足一完整週期回 No edges，不退回整段；channel2／rising2 可省略但不可 null；雙來源必填 channel2，rising2 缺省同 rising；單來源忽略兩欄",
+  "MeasureEntry": "mode 可省略（full），不可為 null：full＝整段、cycles＝整數週期、cycle＝最接近參考點邊緣起的單週期；all_edges 可省略，預設 true，false 時統計只取最接近參考點的單一事件，SLOPED 比較兩種極性且不顯示方向箭頭；相位強制全部邊緣並註明；CSV 單週期標籤為 One Cycle；模式只對 Vavg／Vrms(DC)／Vrms(AC) 有意義，cycles 方向由 rising 決定，cycle 由最近邊緣決定；不足一完整週期分別回 No edges／EDGE，不退回整段；channel2／rising2 可省略但不可 null；雙來源必填 channel2，rising2 缺省同 rising；單來源忽略兩欄",
   "DecodeSummary": "protocol ∈ i3c i2c spi uart can espi usbpd；channels 鍵＝協定角色，thresholds 鍵＝邏輯線（CAN 有 canl 時只有 can；UART 有 tx_n／rx_n 差動負端時只有 tx／rx，邏輯線＝正端減負端）；來源時間不套 dx。thresholds 回實際門檻，失敗線可 null；失敗 ok=false、reason 有說明、decode_id/t0/t1=null、counts 四欄為 0。大結果僅存目前快照，不放 job。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）；true 時不要求有效 baud，只估計不解碼，保留既有快照，以 ok=false、reason「估計鮑率 19200；估計值取最短脈寬，請確認」或「無法估計鮑率：<原因>」回覆。估計允許只選 TX 或 RX；正式解碼仍需明確 baud 與 TX。",
   "DecodeFrame": "各協定 kind／reasons 見分列列舉；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊，field 在所屬 frame 內；addr＝I3C／I2C 位址、CAN ID，其餘 null。",
   "DecodeFrame.kind.i3c": "private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error",
@@ -178,7 +178,7 @@
   "rf_directions": [-1,0,1]
  },
  "optional_fields": {
-  "MeasureEntry": ["mode","channel2","rising2"],
+  "MeasureEntry": ["mode","all_edges","channel2","rising2"],
   "MeasureResult": ["bound","channel2"]
  }
 }

@@ -4,6 +4,7 @@ import { eventStats, singleResult } from './mock_measure.js';
 import { dualResult } from './mock_measure2.js';
 export function currentCheck() {
   assert.equal(eventStats([9,3],[1,-1],[-2,2]).current,3);
+  assert.deepEqual(eventStats([9,3],[1,-1],[-2,2],0,false), {current:3,mean:3,min:3,max:3,range:0,std:0,count:1});
   assert.equal(eventStats([9,3],undefined,[-2,2]).current,9);
   assert.equal(eventStats([7],undefined,[10,20]).current,7);
   const t = Float64Array.from({length:5501},(_,i) => -25+i*.01);
@@ -17,7 +18,10 @@ export function currentCheck() {
   for (const [dx,range,i] of [[{},null,2],[{A:100,B:100},null,3],[{A:-10,B:-10},null,3],[{A:100,B:100},[105,128],4]]) {
     near(dualResult(entry,data,range,dx,pct,{}).stats.current,delay[i]);
   }
-  const MEAS = { Vmin:v => Math.min(...v), Vmax:v => Math.max(...v) };
+  const MEAS = { Vmin:v => Math.min(...v), Vmax:v => Math.max(...v), Vavg:v => v.reduce((a,b) => a+b,0)/v.length };
+  const oneCycle = d => singleResult({name:"Vavg",rising:true,mode:"cycle"},t,v,pct,{},MEAS,d);
+  assert.ok(oneCycle(0).ok && oneCycle(-10).ok);
+  assert.notEqual(oneCycle(0).stats.current, oneCycle(-10).stats.current);
   const period = d => singleResult({name:'週期',rising:true},t,v,pct,{},MEAS,d).stats;
   near(period(0).current,10); near(period(-10).current,13);
   const positive = singleResult({name:'週期',rising:true},Float64Array.from(t,x => x+100),v,pct,{},MEAS,0).stats;

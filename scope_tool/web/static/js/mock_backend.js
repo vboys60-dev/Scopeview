@@ -161,7 +161,8 @@ export function createMock(opts = {}) {
     measure: ({ entries, range, dx, threshold }) => {
       inCat(threshold, Object.keys(CATALOG.thresholds), "閾值"); checkRange(range);
       for (const e of entries) {
-        inCat(e.mode === undefined ? "full" : e.mode, ["full", "cycles"], "區間模式");
+        inCat(e.mode === undefined ? "full" : e.mode, ["full", "cycles", "cycle"], "區間模式");
+        if ("all_edges" in e && typeof e.all_edges !== "boolean") bad("all_edges 必須為布林值");
         if (isDual(e.name) && !("channel2" in e)) bad("雙來源量測必須指定 channel2");
         if ("channel2" in e && typeof e.channel2 !== "string") bad("channel2 必須為字串");
         if ("rising2" in e && typeof e.rising2 !== "boolean") bad("rising2 必須為布林值");

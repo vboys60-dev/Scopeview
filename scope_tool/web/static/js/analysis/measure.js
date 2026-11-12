@@ -1,5 +1,5 @@
 // 量測項目管理：新增／刪除、防抖 150 ms 呼叫 bridge.measure，結果寫入 store.measurements。
-// store.measurements 每筆：{id, channel, channel2?, name, rising, rising2?, mode, result: MeasureResult|null（null＝計算中）}。
+// store.measurements 每筆：{id, channel, channel2?, name, rising, rising2?, mode, all_edges, result: MeasureResult|null（null＝計算中）}。
 // 來源通道與邊緣方向在加入時固定；範圍、閾值、dx、游標（rangeMode=cursors 時）變動都會重算；過期（token／gen）結果丟棄。
 import { T } from "./terms.js";
 
@@ -33,8 +33,8 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
     // 刪除來源也送入同一批，讓後端快照與畫面保留相同列數。
     let results = [];
     try {
-      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full" }) => ({
-        channel, name, rising, mode,
+      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full", all_edges = true }) => ({
+        channel, name, rising, mode, all_edges,
         ...(channel2 === undefined ? {} : { channel2, rising2: rising2 ?? rising }),
       }));
       const r = await bridge.job("measure", { entries, range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
@@ -54,9 +54,9 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
         ...(dual(e.name) ? {channel2:e.channel2} : {}), ok:false, stats:null, reason:"來源通道已刪除" } : result };
     }));
   }
-  function add(name, channel, rising, mode = "full", channel2, rising2 = rising) {
+  function add(name, channel, rising, mode = "full", channel2, rising2 = rising, all_edges = true) {
     if (!channel) return;
-    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, ...(channel2 === undefined ? {} : { channel2, rising2 }), result: null }] }, "program");
+    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, all_edges, ...(channel2 === undefined ? {} : { channel2, rising2 }), result: null }] }, "program");
     schedule();
   }
   function remove(id) { store.set({ measurements: store.get().measurements.filter((e) => e.id !== id) }, "program"); schedule(); }
@@ -86,8 +86,11 @@ export function mount(el, ctx) {
   slope.append(new Option("上升緣 ↑", "1"), new Option("下降緣 ↓", "0"));
   slope.title = "週期、頻率、工作週期、過衝、前衝、延遲、相位及整數週期使用的來源 1 邊緣方向";
   const mode = h("select", "select"); mode.title = "Vavg／Vrms 的區間";
-  mode.append(new Option("Full Screen", "full"), new Option("N Cycles", "cycles"));
-  el.append(slope, h("label", "field__label", T("區間")), mode);
+  mode.append(new Option("Full Screen", "full"), new Option("N Cycles", "cycles"), new Option("One Cycle", "cycle"));
+  const allEdges = h("input"); allEdges.type = "checkbox"; allEdges.checked = true;
+  allEdges.title = "只影響之後新增的量測；未勾選時統計只取最接近參考點的單一事件（相位仍使用全部邊緣）";
+  const edgesLabel = h("label", "field__label"); edgesLabel.title = allEdges.title; edgesLabel.append(allEdges, h("span", "", "全部邊緣"));
+  el.append(slope, h("label", "field__label", T("區間")), mode, edgesLabel);
   const source2 = h("select", "select"), slope2 = h("select", "select"), dualButtons = [];
   let source2Set = false;
   source2.onchange = () => { source2Set = true; };
@@ -115,7 +118,7 @@ export function mount(el, ctx) {
         const st = store.get();
         if (!st.file || (it.sources === 2 && st.channels.length < 2)) return;
         const rising2 = slope2.value === "same" ? slope.value === "1" : slope2.value === "1";
-        m.add(it.name, st.selected, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2);
+        m.add(it.name, st.selected, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked);
       };
       box.append(b);
     }

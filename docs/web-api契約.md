@@ -102,13 +102,14 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - `range`＝**顯示時間**，可反序（後端排序）；對每個通道先扣自己的 dx（`source = display − dx[ch]`），兩端含。`null`＝全部。
 - `dx = {通道名: 秒}`，缺鍵＝0；「第一通道」＝`FileSummary.channels[0]`。
 - 空區間（或區間內全為 NaN）→ **具名失敗結果**：measure 該列 `ok=false`＋`reason="所選範圍內沒有資料"`、`stats=null`；fft 回 `FFTResult{ok:false, reason, spectrum_id:null, peaks:[]，數值欄 null}`。**不得**回 `count=1` 的成功結果。
-- `MeasureEntry.mode` 可省略但不可為 null，預設 `"full"`（整段樣本）。`"cycles"` 只對 Vavg、Vrms(DC)、Vrms(AC) 有意義；其他項目忽略。cycles 使用三閾值完整邊緣中，第一到最後一個 `rising` 指定方向的中閾交越，至少兩個同向邊緣（含中間反向緣，至少三緣）。樣本左閉右開，不足回 `No edges：範圍內不足一個完整週期`，不退回整段。Vavg 預設已改為整段算術平均，舊單週期／靜默退回取消。
+- `MeasureEntry.mode` 可省略但不可為 null，預設 `"full"`（整段樣本）。`"cycles"` 只對 Vavg、Vrms(DC)、Vrms(AC) 有意義；其他項目忽略。cycles 使用三閾值完整邊緣中，第一到最後一個 `rising` 指定方向的中閾交越，至少兩個同向邊緣（含中間反向緣，至少三緣）。樣本左閉右開，不足回 `No edges：範圍內不足一個完整週期`，不退回整段。Vavg 預設為整段算術平均，不足週期時不靜默退回。
 - `MeasureResult.bound` 可省略／null，或 `"<"`（時間上界或下降斜率真值更負）、`">"`（上升斜率下界），方向皆表示真值相對顯示值。有 ≥4 點的同方向邊緣時只採可信值；全不足時使用括住樣本時間差及閾值差÷時間差。畫面與 CSV 統計欄加相同前綴（次數除外）。
 - catalog 新增 `-工作週期`（時間、%、sloped），等於同組邊緣下 `100 - 工作週期`；工作週期為＋寬度／週期，週期由所選方向定義。cycles 結果標籤如 `Vavg(CH1 整數週期 ↑)`，full 不加註；CSV 同樣標示。
 - JSON `optional_fields` 列出 types 中可省略的欄位；存在時仍須符合欄位型別與上述列舉值。
 - `Stats.current`＝最靠近顯示時間 t=0 的事件；切片不含 0 時取最靠近切片時間中點者，同距取較早。事件時間為起始邊緣中閾交越（延遲／相位用來源 1）；單值取範圍結果，無事件時間時退回首事件。雙來源的參考點依來源 1 切片決定，其他統計欄不變。
 - `MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
 - 雙來源 catalog：`延遲`（s）、`相位`（°）、`電壓比`（dB），分類「雙來源」、可選欄 `sources:2`（單來源省略或 1）。Qt 的 MEASUREMENTS 不含雙來源。
+- `MeasureEntry.mode` 亦可為 `cycle`，以顯示時間參考點選最近邊緣開始的單週期；參考點為範圍含零時的零，否則為範圍中點。CSV 使用英文標籤：單週期為 One Cycle、單一事件為 Single Event、全部邊緣為 All Edges。`all_edges` 可省略，預設為 true；false 時統計僅使用最近的單一事件，SLOPED 比較兩種極性並依最近事件決定方向，標籤不顯示方向箭頭；相位強制使用全部邊緣，標籤註明「全部邊緣」。勾選框只影響之後新增的量測。
 - `MeasureEntry.channel2:str`、`rising2:bool` 可省略，不可 null。雙來源缺少 channel2 → BAD_REQUEST；通道不存在／已刪除 → 該列失敗「來源通道已刪除」。rising2 預設同 rising；單來源忽略兩欄。`MeasureResult.channel2:str|null` 可省略／null；雙來源帶來源 2 名稱。
 - 各通道獨立切顯示時間範圍（含各自 dx），獨立由 levels 與共用 threshold 決定三閾值。延遲／相位配對前，來源 1 邊緣先限於兩來源顯示時間交集，裁後無事件回「兩來源時間範圍沒有重疊」。延遲＝每個來源 1 指定邊緣的中閾交越，到來源 2 最近指定方向邊緣之 `t2−t1`（同距取較早），可負。相位＝該延遲／來源 1 到下一個同向邊緣的週期 ×360；最後事件略過，不包裹。
 - 電壓比＝`20 log10(rms_ac(來源1)/rms_ac(來源2))`，各用自己的完整量測區間，事件數 1；任一 AC RMS 為 0 → 失敗並說明來源。任一來源沒有資料／指定邊緣／完整週期都回具名失敗列。

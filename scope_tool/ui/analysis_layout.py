@@ -80,6 +80,7 @@ def wire(tab: AnalysisTab) -> None:
     tb.preview_action.toggled.connect(tab.overview.setVisible)
     tb.threshold.currentIndexChanged.connect(tab._range_changed)
     tb.range.currentIndexChanged.connect(tab._range_changed)
+    tab.measbar.all_edges.toggled.connect(tab.runner.set_all_edges)
     tab.measbar.measure_requested.connect(tab._add_measurement)
     bar.visibility_changed.connect(plot.set_visible)
     bar.visibility_changed.connect(lambda i, on: i < tab._n_raw and tab.overview.set_visible(i, on))

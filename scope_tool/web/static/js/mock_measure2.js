@@ -50,5 +50,5 @@ export function dualResult(e, data, range, dx, pct, base) {
       values = values.slice(0,-1).map((d,i) => d/(a[i+1]-a[i])*360);
     }
   }
-  return { ...base, ok:true, reason:null, stats:eventStats(values,at,signals[0].t) };
+  return { ...base, ok:true, reason:null, stats:eventStats(values,at,signals[0].t,0,e.all_edges !== false || e.name === "相位") };
 }

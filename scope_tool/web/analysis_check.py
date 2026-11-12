@@ -258,6 +258,8 @@ def _self_check() -> None:
                     threshold="10/50/90 %")
         vp("measure", good)
         vp("measure", dict(good, entries=[dict(good["entries"][0], mode="cycles")]))
+        vp("measure", dict(good, entries=[dict(good["entries"][0], mode="cycle", all_edges=False)]))
+        assert isinstance(err(vp, "measure", dict(good, entries=[dict(good["entries"][0], all_edges=None)]), exc=BadRequest), BadRequest)
         for mode in (None, 1, "bad"):
             assert isinstance(err(vp, "measure", dict(good, entries=[dict(good["entries"][0], mode=mode)]),
                                   exc=BadRequest), BadRequest)

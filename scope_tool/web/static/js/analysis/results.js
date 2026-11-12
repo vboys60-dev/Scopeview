@@ -81,8 +81,9 @@ export function mount(el, ctx) {
       // 區間量測名稱依 analysis/measure.py 的 INTERVAL；catalog 尚無區間欄位。
       const cycles = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycles";
       const dual = defs[e.name]?.sources === 2;
-      const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : defs[e.name]?.sloped || cycles ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : ""}${arrow})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const cycle = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycle";
+      const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : (defs[e.name]?.sloped && e.all_edges !== false) || cycles ? (e.rising ? " ↑" : " ↓") : "";
+      const row = tr([`${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
       const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);

@@ -9,7 +9,7 @@ os.environ["PYQTGRAPH_QT_LIB"] = "PySide6"
 from typing import Callable
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import (QComboBox, QLabel, QMenu, QTabWidget, QToolBar, QToolButton,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QLabel, QMenu, QTabWidget, QToolBar, QToolButton,
                                QVBoxLayout, QWidget, QWidgetAction)
 
 from scope_tool.analysis.marker import MODES
@@ -108,6 +108,10 @@ class MeasureBar(QWidget):
         self.slope.addItems(["上升緣 ↑", "下降緣 ↓"])
         self.slope.setToolTip("週期、頻率、工作週期、過衝、前衝使用的邊緣方向")
         lay.addWidget(self.slope)
+        self.all_edges = QCheckBox("全部邊緣")
+        self.all_edges.setChecked(True)
+        self.all_edges.setToolTip("未勾選時統計只取最接近參考點的單一事件")
+        lay.addWidget(self.all_edges)
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.West)
         self.buttons: dict[str, QToolButton] = {}

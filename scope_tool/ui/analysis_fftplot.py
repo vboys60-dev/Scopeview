@@ -20,8 +20,8 @@ from scope_tool.ui.analysis_marker import RFMarkerController
 from scope_tool.ui.analysis_results import fmt
 from scope_tool.ui.worker import Job
 
-# provider(通道名) -> (時間, 數值, 單位, 顏色) 或 None；範圍由分析頁決定（游標區間／全部）。
-Provider = Callable[[str], "tuple[np.ndarray, np.ndarray, str, str] | None"]
+# provider(通道名) -> (時間, 數值, 單位, 顏色, dx) 或 None；範圍由分析頁決定（游標區間／全部）。
+Provider = Callable[[str], "tuple[np.ndarray, np.ndarray, str, str, float] | None"]
 
 
 def _compute(t: np.ndarray, v: np.ndarray, window: str, unit: str, r_ohm: float, source_unit: str,
@@ -163,7 +163,7 @@ class FFTPane(QWidget):
             if src is None:
                 self._fail("沒有 FFT 來源。")
                 return
-            t, v, source_unit, _ = src
+            t, v, source_unit, *_ = src
             job = Job(_compute, t, v, *key[1:], source_unit, *peak_args)
         self.status.setText("計算中…")
         job.done.connect(lambda res, s=seq, n=name, k=key: self._done(s, n, res, k))
@@ -209,7 +209,7 @@ def _self_check() -> None:
 
     app = QApplication.instance() or QApplication([])
     t = np.arange(4096) * 1e-6
-    data = {"CHAN1": (t, np.sin(2 * np.pi * 10e3 * t), "V", "#ffcc00"), "CHAN2": (t[:1], t[:1], "V", "#fff")}
+    data = {"CHAN1": (t, np.sin(2 * np.pi * 10e3 * t), "V", "#ffcc00", 0.0), "CHAN2": (t[:1], t[:1], "V", "#fff", 0.0)}
     pane = FFTPane(data.get)
     got: list[tuple] = []
     pane.result_ready.connect(lambda info, pk, unit: got.append((info, pk, unit)))
@@ -266,7 +266,7 @@ def _self_check() -> None:
         wait()
         assert len(calls) == 1
         got.clear()  # 換資料但不換任何設定：快取不得沿用
-        data["CHAN1"] = (t, np.sin(2 * np.pi * 20e3 * t), "V", "#ffcc00")
+        data["CHAN1"] = (t, np.sin(2 * np.pi * 20e3 * t), "V", "#ffcc00", 0.0)
         pane.refresh()  # 分析頁在範圍／游標／通道變動時呼叫
         wait()
         assert len(calls) == 2 and abs(got[-1][1][0][0] - 20e3) < 300

@@ -20,7 +20,7 @@ EN = {"上升時間": "Rise Time", "下降時間": "Fall Time", "上升斜率": 
 
 def _en_label(label: str) -> str:
     name, _, rest = label.partition("(")
-    return EN.get(name, name) + ("(" + rest if rest else "").replace(" 整數週期", " N Cycles")
+    return EN.get(name, name) + ("(" + rest if rest else "").replace(" 整數週期", " N Cycles").replace(" 單週期", " One Cycle").replace(" 單一事件", " Single Event").replace(" 全部邊緣", " All Edges")
 
 
 class ExportMixin:

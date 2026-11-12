@@ -99,7 +99,7 @@ class ResultsPane(QWidget):
         self.clear_button, self.export_button = QPushButton("清除全部"), QPushButton("匯出結果 CSV")
         self.clear_button.clicked.connect(self.clear_requested.emit)
         self.export_button.clicked.connect(self.export_requested.emit)
-        self.note = QLabel("「目前」＝範圍內最左邊的事件（離線單檔，與 Infiniium 的最近一次擷取不同）")
+        self.note = QLabel("「目前」＝最接近顯示時間參考點的事件（範圍含零取零，否則取中點）")
         self.note.setStyleSheet("color: gray; font-size: 11px;")
         self.note.setWordWrap(True)
         for w in (self.note, self.clear_button, self.export_button):

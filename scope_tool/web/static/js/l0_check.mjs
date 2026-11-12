@@ -38,7 +38,8 @@ import { runSemantics } from "./l0_sem.mjs";
 // 可選欄位省略／null 與存在時的型別、列舉值仍要驗證。
 {
   const entry = { channel: "CH1", name: "Vavg", rising: true };
-  tc(entry, "MeasureEntry"); tc({ ...entry, mode: "cycles" }, "MeasureEntry");
+  tc(entry, "MeasureEntry"); tc({ ...entry, mode: "cycles" }, "MeasureEntry"); tc({ ...entry, mode: "cycle", all_edges: false }, "MeasureEntry");
+  assert.throws(() => tc({ ...entry, all_edges: null }, "MeasureEntry"));
   for (const mode of [null, 1, "bad"]) assert.throws(() => tc({ ...entry, mode }, "MeasureEntry"));
   const row = { channel: "CH1", name: "上升時間", unit: "s", ok: false, stats: null, reason: "x", gen: 1, revision: 1 };
   for (const bound of [null, "<", ">"]) tc({ ...row, bound }, "MeasureResult");

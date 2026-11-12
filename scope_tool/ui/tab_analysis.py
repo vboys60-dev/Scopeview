@@ -169,13 +169,13 @@ class AnalysisTab(QWidget):
         a, b = np.searchsorted(wf.time, lo, "left"), np.searchsorted(wf.time, hi, "right")
         return wf.time[a:b], wf.voltage[a:b]
 
-    def _source(self, name: str) -> tuple[np.ndarray, np.ndarray, str, str] | None:
-        """量測／FFT 的資料來源：(範圍內時間, 數值, 單位, 顏色)；通道已不存在回傳 None。"""
+    def _source(self, name: str) -> tuple[np.ndarray, np.ndarray, str, str, float] | None:
+        """量測／FFT 的資料來源：(範圍內時間, 數值, 單位, 顏色, dx)；通道已不存在回傳 None。"""
         names = self._names()
         if name not in names:
             return None
         i = names.index(name)
-        return (*self._slice(i), self._units[name], self._colors[i])
+        return (*self._slice(i), self._units[name], self._colors[i], self.plot_widget.offsets[i][0])
 
     def _range_changed(self, *_: object) -> None:
         self.runner.schedule()
