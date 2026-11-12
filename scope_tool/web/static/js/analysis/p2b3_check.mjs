@@ -76,6 +76,7 @@ mountMeasure(new Element('div'),ctx); mountResults(panels.measure,ctx);
 assert.ok(actions.firstChild.title.includes('最靠近顯示時間 t=0') && actions.firstChild.title.includes('同距取較早'));
 const table = panels.measure.firstChild;
 assert.ok(table.className.includes('results__table'));
+const empty = panels.measure.children[1]; assert.equal(empty.hidden,false);
 assert.deepEqual(table.firstChild.children.map(c => c.textContent),['Measure','Current','Mean','Min','Max','Std Dev','']);
 const menu = actions.children[1], boxes = menu.children[1].children.map(l => l.firstChild);
 assert.deepEqual(boxes.filter(b => b.checked).map(b => b.dataset.column),expected);
@@ -89,12 +90,14 @@ assert.ok(otherActions.children[1].children[1].lastChild.firstChild.checked,'選
 store.set({ file:{ gen:1 },channels:[{ name:'CH1',visible:true,unit:'V',scale:1,position:0,time_offset:0 }],selected:'CH1' });
 const stats = { current:954.126,mean:954,min:950,max:960,range:10,std:1,count:42 };
 store.set({ measurements:[1,2].map(id => ({ id,name:'上升時間',channel:'CH1',result:{ ok:true,gen:1,revision:2,unit:'ps',stats } })) });
-assert.equal(table.children.length,3);
+assert.equal(table.children.length,3); assert.equal(empty.hidden,true);
+const remove = table.children[1].lastChild.firstChild; assert.equal(remove.tagName,'button'); assert.equal(remove.type,'button'); assert.equal(remove.attrs['aria-label'],'刪除此量測');
 function checkRows(keys) {
   const labels = { current:'Current',mean:'Mean',min:'Min',max:'Max',range:'Range',std:'Std Dev',count:'Count' };
   assert.deepEqual(table.firstChild.children.map(c => c.textContent),['Measure',...keys.map(k => labels[k]),'']);
   for (const row of table.children.slice(1)) {
-    assert.deepEqual(row.children.map(c => c.textContent),['Rise Time(CH1)',...keys.map(k => k === 'count' ? '42' : fmt.fmt(stats[k],'ps')),'×']);
+    assert.deepEqual(row.children.slice(0,-1).map(c => c.textContent),['Rise Time(CH1)',...keys.map(k => k === 'count' ? '42' : fmt.fmt(stats[k],'ps'))]);
+    assert.equal(row.children.at(-1).firstChild.textContent,'×');
     assert.equal(row.firstChild.title,'Rise Time(CH1)');
   }
 }
@@ -106,8 +109,9 @@ const clear = actions.children.find(e => e.className.includes('results__clear'))
 assert.ok(clear.title && exp.title); assert.equal(exp.textContent,'匯出結果');
 assert.equal(actions.firstChild.attrs['aria-label'],actions.firstChild.title); assert.equal(exp.disabled,false); await exp.onclick();
 assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2); assert.equal(calls[0][1].directory,'/out');
+const savedMeasurements = store.get().measurements; remove.onclick(); assert.equal(store.get().measurements.length,1); store.set({ measurements:savedMeasurements });
 ctx.ui.confirm = async () => false; await clear.onclick(); assert.equal(store.get().measurements.length,2); ctx.ui.confirm = async () => true;
-await clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true);
+await clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true); assert.equal(empty.hidden,false);
 // 結果標籤保留區間與方向；界限值的畫面與匯出列一致。
 store.set({ measurements:[{ id:3,name:'Vavg',channel:'CH1',mode:'cycles',rising:false,
   result:{ ok:true,gen:1,revision:3,unit:'V',stats,bound:'<' } }] });
@@ -166,7 +170,7 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); await clear.
   state.command('measure.clear');
 }
 store.set({ fftResult:{ ok:true,unit:'dBV',peaks:[{ x:100,y:2 }] } });
-assert.equal(panels.peaks.children.find(e => e.tagName === 'table').children.length,2); assert.equal(panels.measure.children.length,1,'FFT 表不能回到量測面板');
+assert.equal(panels.peaks.children.find(e => e.tagName === 'table').children.length,2); assert.deepEqual(panels.measure.children,[table,empty],'FFT 表不能回到量測面板');
 let readoutDone;
 const done = new Promise(resolve => { readoutDone = resolve; });
 const originalCall = ctx.bridge.call;

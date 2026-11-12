@@ -68,7 +68,7 @@ export function mount(el, ctx) {
   if (!ctx.resultActions) el.append(bar);
   const fftBox = ctx.fftPeaks ?? h("div", "analysis__peaks");
   mountFftMarkerTable(fftBox, ctx, fftInfo);
-  el.append(meas);
+  const empty = h("p", "analysis__placeholder results__empty", "尚無量測：在左欄選來源後按量測項目"); el.append(meas, empty);
   if (!ctx.fftPeaks) el.append(fftBox);
 
   function tr(cells, tag = "td", title) { const r = h("tr"); cells.forEach((c) => { const d = h(tag, "", c); r.append(d); }); if (title) r.title = title; return r; }
@@ -84,13 +84,13 @@ export function mount(el, ctx) {
       const dual = defs[e.name]?.sources === 2;
       const cycle = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycle";
       const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : (defs[e.name]?.sloped && e.all_edges !== false) || cycles ? (e.rising ? " ↑" : " ↓") : "";
-      const row = tr([`${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), "×"], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const row = tr([`${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), ""], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";
-      const x = row.lastChild; x.style.cursor = "pointer"; x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id);
+      const x = h("button", "results__remove", "×"); x.type = "button"; x.setAttribute("aria-label", "刪除此量測"); x.title = "刪除此量測"; x.onclick = () => store.command("measure.remove", e.id); row.lastChild.append(x);
       rows.push(row);
     }
-    meas.replaceChildren(...rows);
+    meas.replaceChildren(...rows); empty.hidden = list.length > 0;
     bExp.disabled = !exportable(list, file); bClear.disabled = !list.length;
   }
   const unitFor = (tpl, u) => String(tpl ?? "").replace("{u}", u);

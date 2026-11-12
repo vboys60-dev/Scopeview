@@ -37,7 +37,7 @@
 
 /* 單列 28px；靠縮欄寬與窄時隱藏讀值、◀▶避免橫捲，橫捲只作退路。 */
 .analysis__horizontal { container-type: inline-size; background: var(--c-surface); color: var(--c-text); display: flex; flex: 0 0 28px; align-items: center; gap: 4px; white-space: nowrap; overflow-x: auto; font-size: 12.5px; }
-.analysis__horizontal .btn { flex-shrink: 0; padding: 1px 4px; min-height: 22px; }
+.analysis__horizontal .btn { flex-shrink: 0; padding: 1px 4px; min-height: 24px; }
 .analysis__horizontal [aria-pressed="true"] { background: var(--c-primary, #1676c0); color: #fff; }
 .analysis__hfield { flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; }
 .analysis__hfield input { width: 12ch; min-width: 12ch; min-height: 22px; height: 24px; padding: 1px 4px; font-size: 12.5px; }
@@ -65,6 +65,7 @@
 .analysis__lowerbody[data-result-tabbed="true"] > *, .analysis__lowerbody > .analysis__peaks { flex: 1 1 0; }
 .results__table { width: 100%; }
 .results__table th, .results__table td { white-space: nowrap; padding: 3px 6px; height: 26px; line-height: 19px; font-size: 13px; }
+.results__remove { border: 0; background: none; color: inherit; font: inherit; line-height: inherit; padding: 0; cursor: pointer; }
 .results__menu { position: relative; }
 .results__menu > button { cursor: pointer; min-width: 24px; text-align: center; }
 .results__choices { position: fixed; inset: auto; margin: 0; padding: 8px; background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-dlg); }

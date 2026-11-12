@@ -69,7 +69,7 @@
 2. 上機：HD304 四通道 100M 與 `:DIGitize`（先確認設定已還原）、MXR Error 273／LAN／慢時基、3000T、MSO9254A 截圖／擷取／分析、DSO-X 6004A 的 GUI 全流程與 Single／Normal／`:DIGitize`。
 3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
 4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/驗證.md` 第 26 項）；多協定計畫見下方「多協定解碼」與「九協定解碼準則與實作計畫」（`docs/解碼實作計畫_20261112.md`，待使用者核可後開工）。
-5. 離線分析 UI 修正：D1～D6 已確認、規則已授權；階段 A、B 已完成，**下一步階段 C（確認對話框＋版面重排），再 D**（見「離線分析 UI 修正第二輪」）。
+5. 離線分析 UI 修正：D1～D6 已確認、規則已授權；階段 A～D 全部完成（2026-11-13）；剩真視窗人工確認（見「離線分析 UI 修正第二輪」）。
 6. 基本量測真機校準：Top/Base 直方圖範圍與格數（N9），見「基本量測審查與修正」。
 8. 分析頁選單與拖放的人工確認與後續（見「分析頁選單與拖放」）：真視窗手感、Qt 版延後、選單 `role="menu"`／方向鍵、`toolbar.js` Node 單元測試。
 7. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
@@ -190,15 +190,15 @@
 - 本輪不做：通道欄固定 246px（兩個既有測試鎖定）；1100×700 左欄垂直捲動維持。
 - 暫存：工作樹 `../ui-fix`（分支 `ui-fix`，目前與 main 同一提交，無改動）；審查原始報告與量測腳本在本次 session 的 scratchpad，不入庫。
 
-## 離線分析 UI 修正第二輪（2026-11-13，階段 A、B 已完成；C、D 待做；僅 Web）
+## 離線分析 UI 修正第二輪（2026-11-13，階段 A～D 全部完成；僅 Web）
 
 - **決定**：使用者 D1～D6 全照預設（Marker 模式與游標置中留工具列、FFT 開關留工具列、FFT 次要參數進「更多…」、關閉／清除全部／× 加確認、下方頁籤中文、解碼分頁自動加高），並授權 RULES.md 補段（已貼檔尾）與解凍 `decode_table.js`（只為「解碼」鈕移位）。D7＝停靠門檻 1280（殘留橫捲接受）、D8＝「更多…」內下拉先照做，待真視窗確認。
 - **計畫書**：Opus 版 `plan2_opus.md`、Codex 版 `plan2_codex.md` 在上一個 session 的 scratchpad（不入庫）；重點已寫在本段。四階段**依序做、不平行**（都改 `analysis.css`／`toolbar.js`／`results.js`）。
 - **階段 A（`4d24553`）**：「完整時間」移到 ↷ 後；「⬚ 框選放大」→「⬚ 框選」；「時間軸位移」→「位置」；範圍讀值去「範圍 」前綴；欄寬 12ch；水平列 `container-type: inline-size`，≤1000px 隱藏讀值、≤820px 隱藏 ◀▶；`DOCK_MIN_VW` 900→1280。
 - **階段 B（尚未 commit 時寫入，見 git log）**：FFT 次要參數（阻抗、R、排序、基準線、顯示數量）收進 `更多…` popover（`fft_state.js` 加 `impHost`、`toolbar.js` 掛 `popMenu`）；RBW 狀態文字可縮、title 放全文；「FFT 計算」checkbox 從「分析 ▾」移回工具列（[分析 ▾] 與 Marker 之間），「分析 ▾」只剩「FFT 頻譜 ↗」「Math…」。`browser_check.py:213/215` 原地改（維持 300 行），`browser_menu_checks.py` 加「更多…」三尺寸檢查（132 行）。實測 FFT 列：1400／1280／1100／900(點 FFT 頁籤) 皆單列 40px、無橫捲、可見 label 4 個。
 - **階段 B 測試踩坑**：`c.wait()` 的運算式必須回布林，回 DOM 元素會永遠逾時（要加 `!!`）；測 FFT 列要先 `getFftState().setAnalysisOn(true)`，並點 `[data-pane=fft]`（若存在）才會顯示 `.analysis__fftsection`。
-- **階段 C 待做**：用既有 `ui.confirm`（`ui.js`，頁面內 `<dialog>`）。「關閉」只在有量測／衍生通道／比對槽時確認；「清除全部」與衍生通道「×」每次確認；B 區頁籤移左、「解碼」鈕移到參數列最前（解凍 `decode_table.js`，CAN 時 1400／1280 的「解碼」鈕現在在畫面外）、Vertical 控制順序；不再做通道列 Math「＋」。
-- **階段 D 待做**：術語（`terms.js`、`measure.js`、`bpanel.js` 英文頁籤改中文）、空狀態、可及性、解碼分頁自動加高（只在切到解碼時；`tab_analysis.js`）。
+- **階段 C（`1108046`）**：「關閉」（有量測／衍生通道／比對槽才問）、「清除全部」「衍生通道 ×」皆用 `ui.confirm`；B 區頁籤移左、「清除全部」加分隔並置末；「解碼」鈕移到參數列最前（`decode_table.js` 一行，1400／1280／1100 皆可見；900 的 B 區預設收折）；Vertical ▲／歸零對調；`browser_check.py` 的分隔條取點改為 lower 取 1/2、fft 取 1/4（FFT 收折鈕在 1/2 處）。
+- **階段 D**：結果表空狀態文字、單筆刪除改可 Tab 聚焦的 `button.results__remove`（需 CSS 重置字型／行高，否則 `single` 單行檢查失敗）、水平列按鈕 min-height 24、切到「解碼」頁籤時 B 區自動加高（1400／1280＝240、1100／900＝217，主圖 ≥270）。**依使用者指示不把英文改中文**：`terms.js`、`measure.js` 的「範圍」、`Zoom`、`Measure`／`Marker Table` 頁籤維持原樣。
 - **待人工**：真視窗（pywebview）開「更多…」後點裡面的下拉，確認 popover 不會被關掉；若會關，改 `more.popover = 'manual'`（約 +3 行）。
 - **殘留限制**：停靠在 1280～1310 時水平列最多多 31px、1280～1367 FFT 列最多多 88px，仍靠原本橫捲；RBW 在 1100／900 只剩約 75px 靠 tooltip。
 - **流程備忘**：Codex 提示檔放 scratchpad，`codex exec ... -o 絕對路徑 "請讀並照做此提示檔：<路徑>" </dev/null`（別用 `\$(cat)` 逸出）；量尺寸用 scratchpad 的 `measure_plan.py [fft|fftpane]`（不入庫）。
