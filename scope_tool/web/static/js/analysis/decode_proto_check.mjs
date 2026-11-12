@@ -41,6 +41,16 @@ const find = (e,f) => walk(e).find(f);
 const oldDocument = globalThis.document;
 globalThis.document = { createElement:t => new Element(t) };
 const channels = ['CH1','CH2','CH3','CH4'].map(name => ({ name,time_offset:0 }));
+// 優先使用角色標籤，回退時保持順序且不重複使用通道。
+const namedChannels = names => names.map(name => ({ name }));
+assert.deepEqual(defaultConfig(namedChannels(['CHAN1','SCL1','SDA1']),protocols.i2c).ch,{ scl:'SCL1',sda:'SDA1' });
+assert.deepEqual(defaultConfig(namedChannels(['CHAN1','CHAN2']),protocols.i2c).ch,{ scl:'CHAN1',sda:'CHAN2' });
+assert.deepEqual(defaultConfig(namedChannels(['SCL1','CHAN2']),protocols.i2c).ch,{ scl:'SCL1',sda:'CHAN2' });
+assert.deepEqual(defaultConfig(namedChannels(['CHAN1','SCL1','CHAN3']),protocols.i2c).ch,{ scl:'SCL1',sda:'CHAN3' });
+assert.deepEqual(defaultConfig([{ name:'SCL1',derived:true },...namedChannels(['CHAN1','SDA1'])],protocols.i2c).ch,{ scl:'CHAN1',sda:'SDA1' });
+assert.deepEqual(defaultConfig(namedChannels(['CANL1','CANH1']),protocols.can).ch,{ can:'CANL1',canl:'' });
+assert.deepEqual(defaultConfig(namedChannels(['CHAN1','CANL1','CANH1']),protocols.can).ch,{ can:'CHAN1',canl:'CANL1' });
+assert.deepEqual(defaultConfig(namedChannels(['TX1','RX1']),protocols.uart).ch,{ tx:'TX1',rx:'RX1',tx_n:'',rx_n:'' });
 const makeStore = () => { const s = createStore(); s.set({ file:{ gen:1 },channels,view:{ t0:0,t1:60 },plotRect:{ l:100,w:900 } }); return s; };
 function result(def, options = {}) {
   const config = defaultConfig(channels,def), params = decodeParams(config,def);

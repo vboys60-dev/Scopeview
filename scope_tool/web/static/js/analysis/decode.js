@@ -16,7 +16,14 @@ export function withAscii(f, text, on) {
 }
 export const defaultConfig = (channels, def = protocols.i3c) => {
   const raw = channels.filter(c => !c.derived);
-  const ch = Object.fromEntries(def.roles.map((r,i) => [r.key,r.optional ? '' : raw[i]?.name ?? '']));
+  const used = new Set();
+  const ch = Object.fromEntries(def.roles.map((r,i) => {
+    const match = new RegExp(`^${r.key}\\d*$`,'i');
+    const source = raw.find(c => !used.has(c.name) && match.test(c.name))
+      ?? (r.optional ? undefined : raw.slice(i).find(c => !used.has(c.name)));
+    if (source) used.add(source.name);
+    return [r.key,source?.name ?? ''];
+  }));
   return { protocol:def.name,ch,thr:Object.fromEntries(def.roles.filter(r => !def.diff?.[r.key]).map(r => [r.key,null])),
     opt:Object.fromEntries(def.options.map(o => [o.key,o.parse ? o.parse(String(o.value)) : o.value])),band:true };
 };
