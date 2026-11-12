@@ -70,7 +70,8 @@
 3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
 4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/驗證.md` 第 26 項）；多協定計畫見下方「多協定解碼」與「九協定解碼準則與實作計畫」（`docs/解碼實作計畫_20261112.md`，待使用者核可後開工）。
 5. 離線分析 UI 修正：等使用者確認 D1～D6 與規則授權後，由 Codex 在 `ui-fix` 逐階段編碼（見「離線分析 UI 審查與修正計畫」）。
-6. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
+6. 基本量測真機校準：Top/Base 直方圖範圍與格數（N9），見「基本量測審查與修正」。
+7. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
 
 ## 工作流程
 
@@ -203,3 +204,14 @@
   - I3C HDR-DDR：P1／P0、CRC5 範圍、SCL 邊沿取樣時機皆為對規格的理解；不處理 HDR Restart 後第二筆（現被當 `pattern`）、TSP／TSL／BT 不解。HDR 位元併入 `bits_t`，`i3c_vectors` 的 SDR 檢查略過 hdr 區段，向量 21 改用 `hdr(mode=1)`。
 - **測試備忘**：前端 `Object.keys(decode_protocols)` 依字母序，`browser_decode_checks.protocol_pages` 驗完須還原 1400 寬（否則後一協定的標註檢查失敗）；`browser_check` 曾偶發一次 `P2b3 緊湊結果` 失敗，重跑即過；`decode_proto_check.mjs` 通道為 CH1–CH4；`decode_spi.js`／`decode_can.js` 的 `order` 為 3／4。
 - 工具備忘：`codex` MCP 連不上，改用 `codex exec --sandbox workspace-write "$(cat prompt.txt)" </dev/null`（逾時用 `perl -e 'alarm N; exec @ARGV'`）；Codex 常在遇到小阻礙時提前結束，提示要寫「全部完成才報告」；zsh 下未加引號的 `--include=*.py` 會出錯。
+
+## 基本量測審查與修正（2026-11-12，已 commit：`d7a338e`、`e31207c`）
+
+- **審查範圍**：基本電壓／時間量測（Vmax／Vmin／Vp-p／Vtop／Vbase／Vamp／Vavg／Vrms／過衝／前衝、上升／下降時間與斜率、週期、頻率、±寬度、工作週期、延遲／相位），不含眼圖、抖動、PAM、FFT。依 `docs/Infiniium演算法研究/`（`ALGORITHMS.md`、`IMPLEMENTATION_SPEC.md`，衝突以後者裁決）。Codex 與 Opus 各自獨立審。
+- **結論**：公式、符號、正規化、內插、極性、事件時間 `at` 皆正確；問題在邊界輸入、事件選取與 Top/Base 對雜訊的敏感度。
+- **已修（`d7a338e`，核心 `analysis/measure.py`）**：①振幅 ≤256 ULP 視為平坦（`levels()` 仍回 top==base，維持 `web/logic.auto_threshold` 與解碼器契約），避免 `np.histogram` 丟 `ValueError`；`measure()` 對 Vtop／Vbase／Vamp 與需閾值的量測回 `TOP_EQ_BASE`，Vmax／Vmin／Vp-p 與整段 Vavg／Vrms 不受影響。②百分比閾值驗證（`0≤lower≤mid≤upper≤100`、`lower<upper`），`measure`／`measure2` 共用。③`measure_all`／`stats` 的 `meas_all_edges`（False＝只取最近參考點的單一事件，規格 §2.5）。④單週期 Vavg／Vrms（`mode="cycle"`）；`mode` 只認 `full`／`cycles`／`cycle`，其他丟 `ScopeError`。`measure_all` 隔離任何單筆例外。
+- **已接 UI（`e31207c`）**：新增共用 `measure_event`（Web／Qt 共用單事件兩極性合併）、`measure_all` 加 `dx`，Qt 與 Web 的參考點都在**顯示時間**比較（範圍含 0 取 0，否則取中點；同距取較早）。Web：`MeasureEntry` 加 `mode="cycle"`（One Cycle）與可選 `all_edges`（缺省 true），前端「全部邊緣」勾選只影響之後新增的量測；`all_edges=false` 時 SLOPED 量測取兩極性最近事件、標籤去箭頭，相位強制全部邊緣；CSV 標籤 One Cycle／Single Event／All Edges。Qt：「全部邊緣」全域開關，**沒有**新增 Vavg 區間選單（所以 Qt 無單週期入口）。`RULES.md` 末段已補授權登記；`docs/Infiniium演算法研究/` 同次納入版本控制。
+- **預設行為不變**：舊格式 entry 在 Web 後端與 mock 與修改前逐位元相同；`measure`／`measure_all` 不給新參數時 179200 案例 0 差異。唯一刻意變化：Qt「目前」欄在範圍不含 0 或 `dx≠0` 時改用顯示時間參考點（其他統計欄不變）。
+- **驗收**：Opus 三輪獨立驗收，Web 對 Qt（真實 runner 路徑）69472 案例 0 差異；Python／node／Qt offscreen 自檢共 87 項、`browser_check`、`e2e_check` 皆過。抓到過兩次自己引入的問題：`levels()` 改丟例外使解碼器自檢全掛（已改回契約）、Qt 先減 `dx` 再比造成同距選錯事件（已改在顯示時間比）。
+- **未解／限制**：①**N9（最重要）**：Top/Base 用 256 格、資料 min–max、5% 以單格計，含雜訊波形易回退到極值——50% 方波 σ≥約 2% 振幅時 Top／Base 皆回退，Vamp 偏大約 14%、過衝變負值；20% 工作週期 σ 1% 就讓 Top 回退。程式符合規格，需 Infiniium 實機資料決定 `hist_bins`／`hist_range`（目前未開放參數）。②mock 未實作過衝／前衝，這兩項只由真後端與核心自檢驗證。③`measure2` 遇平坦資料回「找不到指定方向的邊緣」而非 `TOP_EQ_BASE`。④float32 輸入且振幅不到 256 個 float32 ULP 時 `np.histogram` 仍會丟 `ValueError`（修改前就存在，專案讀檔器都轉 float64）。⑤延遲／相位為「取最近事件」的自訂規則，非官方 Delta Time（官方可指定邊緣編號），Phase 專頁未讀。⑥Qt 與 Web 的「全部邊緣」語意不同（Qt 全域、Web 只影響之後新增）。⑦`analysis_controls.py:144` 的 `app` 未使用（修改前就有）。
+- **流程備忘**：Codex 實作、Opus 驗收；Codex 的 `-o file` 取最終回覆，第一次呼叫曾在開頭就提前結束無輸出，重跑即可；Codex 沙箱不能綁埠，`browser_check`／`e2e_check` 由 lead 在沙箱外跑；驗收腳本在該 session 的 scratchpad，不入庫。
