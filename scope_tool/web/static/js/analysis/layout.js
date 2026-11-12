@@ -4,7 +4,7 @@ export const FFT_BAR_HEIGHT = 40, FFT_PLOT_MIN = 120, FFT_MIN_HEIGHT = FFT_BAR_H
 export const VERSION = 1, STORAGE_KEY = 'scope.analysis.layout.v1';
 export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, markerSide: false, overview: null });
 /** 版面 C：B 區搬到圖右側的直欄寬度；視窗 <1280px 不啟用（避免圖區被 340px 右欄擠到控制列溢出）。 */
-export const DOCK_WIDTH = 340, DOCK_MIN_VW = 1280;
+export const DOCK_WIDTH = 340, DOCK_MIN_VW = 1280, DOCK_PLOT_MIN = 904;
 const clip = (n, a, b) => Math.min(b, Math.max(a, n));
 export function validatePrefs(raw) {
   const p = defaults();
@@ -34,7 +34,8 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   const narrow = vw <= 899, drawer = narrow && drawerOpen;
   const sideCollapsed = narrow ? !drawer : (p.sideCollapsed ?? vw < 1100);
   const side = narrow || sideCollapsed ? 36 : p.side;
-  const canDock = vw >= DOCK_MIN_VW && !lowerFloating, docked = canDock && p.markerSide;
+  // ponytail: FFT 關閉時可更早停靠，需要時再分成兩個門檻。
+  const canDock = vw >= DOCK_MIN_VW && !lowerFloating && W - side - 10 - DOCK_WIDTH >= DOCK_PLOT_MIN, docked = canDock && p.markerSide;
   let lowerCollapsed = !docked && (lowerFloating || (p.lowerCollapsed ?? (vh <= 700 && fftOn)));
   let lower = lowerCollapsed || docked ? 0 : (p.lower ?? clip(H * .21,150,180)) - 28;
   let overview = (prefs?.overview ?? vh > 700) ? (fftOn ? 40 : 56) : 0;

@@ -3,12 +3,16 @@ import assert from 'node:assert/strict';
 import { clampLayout, defaults, validatePrefs, DOCK_WIDTH } from './layout.js';
 import { mountTabs } from './bpanel.js';
 
-const base = { W: 1400, H: 700, vw: 1400, vh: 900, fftOn: false };
+const base = { W: 1600, H: 700, vw: 1600, vh: 900, fftOn: false };
 const on = { ...defaults(), markerSide: true };
 const off = clampLayout({ ...base, prefs: defaults() }), d = clampLayout({ ...base, prefs: on });
 assert.equal(off.docked, false); assert.equal(d.docked, true);
 assert.equal(d.lower, 0); assert.equal(d.dockWidth, DOCK_WIDTH);
 assert.equal(d.plotWidth, off.plotWidth - DOCK_WIDTH);
+assert.equal(clampLayout({ ...base, W: 1300, vw: 1300, prefs: { ...on, side: 240 } }).docked, false);
+assert.equal(clampLayout({ ...base, W: 1300, vw: 1300, prefs: { ...on, sideCollapsed: true } }).docked, true);
+assert.equal(clampLayout({ ...base, W: 1600, vw: 1600, prefs: { ...on, side: 240 } }).docked, true);
+assert.equal(clampLayout({ ...base, W: 1400, vw: 1400, prefs: { ...on, side: 240 } }).docked, false);
 assert.ok(d.main > off.main, '結果欄移走後主圖變高');
 // <1280px 與浮動時不啟用，也不改偏好
 assert.equal(clampLayout({ ...base, vw: 800, prefs: on }).docked, false);

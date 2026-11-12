@@ -204,9 +204,23 @@ def dock_layout(c: Cdp, prep: str) -> None:
             return {on,pref:JSON.parse(localStorage.getItem('scope.analysis.layout.v1')).markerSide};
         } finally { }
     })()"""
+    c.send('Emulation.setDeviceMetricsOverride', width=1600, height=900, deviceScaleFactor=1, mobile=False); c.pump(0.4)
     res = c.js(check)
     assert res["on"]["dock"] and res["on"]["right"] and res["on"]["stack"] and res["on"]["page"], res
     assert res["pref"] is True and 300 <= res["on"]["w"] <= 360, res
+    c.js("(async()=>{" + prep + "S.command('fft.visible',true)})()")
+    try:
+        for width in (1280, 1300, 1400, 1500, 1540, 1600, 1920):
+            c.send('Emulation.setDeviceMetricsOverride', width=width, height=900, deviceScaleFactor=1, mobile=False)
+            c.pump(0.6)
+            dims = c.js("""(()=>{const fits=s=>{const e=document.querySelector(s);return !!e&&e.scrollWidth<=e.clientWidth+1};
+                return {dock:document.querySelector('.analysis').classList.contains('analysis--dock'),
+                    fft:fits('.analysis__fftbar'),horizontal:fits('.analysis__horizontal'),
+                    page:document.documentElement.scrollWidth<=innerWidth+1}})()""")
+            assert dims['page'] and (not dims['dock'] or (dims['fft'] and dims['horizontal'])), (width, dims)
+    finally:
+        c.send('Emulation.clearDeviceMetricsOverride'); c.pump(0.4)
+        c.js("(async()=>{" + prep + "S.command('fft.visible',false)})()")
     c.send('Emulation.setDeviceMetricsOverride', width=800, height=860, deviceScaleFactor=1, mobile=False)
     c.pump(0.6)
     narrow = c.js("(()=>({dock:document.querySelector('.analysis').classList.contains('analysis--dock'),"
