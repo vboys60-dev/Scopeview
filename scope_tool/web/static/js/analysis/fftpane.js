@@ -1,5 +1,6 @@
 import { createFftMarkerLayer } from './fft_marker_layer.js';
 import { fftMarkerModel } from './fft_markers.js';
+import * as overlay from './fft_overlay.js';
 // FFT 頻譜窗格：顯示 store.fftResult（由 L5 以 fft job 寫入）；頻譜資料走 /fft 二進位。
 // 對數軸、峰值標記、RF 位置（store.rfPos）；RF 操作只發 rf.intent。FFT 參數控制列由 L5 掛在 .analysis__fftbar。
 import { linear, logmap, niceTicks, logTicks, tickLabel, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors, wheelFactor } from "./plotcore.js";
@@ -57,6 +58,7 @@ export function yRange(env) {
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   el.innerHTML = '<div class="analysis__fftbar"><label class="check"><input type="checkbox" data-log> 對數頻率</label>'
+    + '<button class="btn btn--small" data-pin type="button">📌 疊加</button><button class="btn btn--small" data-clear-overlay type="button">清除疊圖</button>'
     + '<span data-rf class="row"><button class="btn btn--small" data-d="-1" type="button">◀ 上一峰</button>'
     + '<button class="btn btn--small" data-d="0" type="button">吸附</button>'
     + '<button class="btn btn--small" data-d="1" type="button">下一峰 ▶</button></span>'
@@ -76,6 +78,7 @@ export function mount(el, ctx) {
   const Fmap = () => { const w = win(); return (log() ? logmap : linear)(w.f0, w.f1, rect.l, rect.l + rect.w); };
   const Ymap = () => linear(yr[1], yr[0], rect.t, rect.t + rect.h);
 
+  overlay.bind(ctx);
   const markers = fftMarkerModel(ctx);
   const baseline = createFftMarkerLayer(canvas, ctx, () => rect, Ymap, res, draw);
 
@@ -85,6 +88,10 @@ export function mount(el, ctx) {
     const col = plotColors(), r = res();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     if (!r) { g.fillStyle = col.text; g.font = "12px sans-serif"; g.fillText("尚無頻譜（開啟 FFT 後顯示）", rect.l + 8, rect.t + 18); return; }
+    const shown = overlay.visible(r.unit), envelopes = [env, ...shown.map(item => log() ? item.log : item.lin)].filter(Boolean);
+    if (envelopes.length) yr = yRange({ n: envelopes.reduce((n, e) => n + e.n, 0),
+      lo: envelopes.flatMap(e => Array.from(e.lo)), hi: envelopes.flatMap(e => Array.from(e.hi)) });
+    else yr = [0, 1];
     const unit = r.unit, yt = niceTicks(yr[0], yr[1], 6);
     g.font = "12px sans-serif"; // 左邊界隨 Y 刻度文字寬度加寬（Vrms 等長單位不被裁切）
     const l = Math.max(MARGIN.l, Math.ceil(Math.max(...yt.map((v) => g.measureText(tickLabel(v, unit)).width))) + 10);
@@ -93,7 +100,13 @@ export function mount(el, ctx) {
     const ft = log() ? logTicks(fw.f0, fw.f1) : niceTicks(fw.f0, fw.f1);
     drawGrid(g, rect, ft.map((v) => ({ p: F(v), label: tickLabel(v, "Hz") })), yt.map((v) => ({ p: Y(v), label: tickLabel(v, unit) })), col);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
+    // ponytail: 疊圖快照的解析度上限為 16384 px，放大後不會增加細節。
+    g.save(); g.globalAlpha = 0.55;
+    for (const item of shown) drawPixels(g, envPixels(log() ? item.log : item.lin, F, Y), item.color);
+    g.restore();
     if (env) drawPixels(g, envPixels(env, F, Y), col.fft);
+    g.font = "10px sans-serif"; g.textAlign = "left";
+    shown.forEach((item, i) => { g.fillStyle = item.color; g.fillText(item.label, rect.l + 6, rect.t + 12 + i * 12); });
     g.fillStyle = col.peak; g.font = "10px sans-serif"; g.textAlign = "center";
     baseline.draw(g);
     for (const p of markers.rows()) { // 峰值：向下三角形＋頻率
@@ -130,11 +143,18 @@ export function mount(el, ctx) {
   const refreshAll = () => {
     const r = res();
     status.textContent = r ? `RBW ${tickLabel(r.rbw, "Hz")}（${r.segments ?? 1} 段）｜VBW ${r.vbw == null ? "Auto（不平滑）" : tickLabel(r.vbw, "Hz")}｜${r.window}｜${r.unit}` : store.get().fftResult?.reason ?? "";
+    const hidden = r ? overlay.list.length - overlay.visible(r.unit).length : 0;
+    if (hidden) status.textContent += `｜${hidden} 條疊圖因單位不同或相位模式隱藏`;
     status.title = status.textContent;
+    el.querySelector('[data-pin]').disabled = !r;
+    el.querySelector('[data-clear-overlay]').disabled = !overlay.list.length;
     if ((r?.spectrum_id ?? null) !== resId) { resId = r?.spectrum_id ?? null; env = null; if (r) setView(store.get().fftView, 'program'); latest.cancel(); if (r) fetchNow(); }
     draw();
   };
-  store.on(["fftResult"], refreshAll);
+  const offOverlay = overlay.on(refreshAll);
+  el.querySelector('[data-pin]').addEventListener('click', () => overlay.pin(ctx).catch(e => ui.toast(`疊圖失敗：${e.message}`, 'error')));
+  el.querySelector('[data-clear-overlay]').addEventListener('click', overlay.clear);
+  const offResult = store.on(["fftResult"], refreshAll);
   const offView = store.on(['fftView'], () => { env = null; latest.cancel(); draw(); fetchSoon(); });
   const offRf = store.on(["rfPos"], () => {
     const rf = store.get().rfPos, v = store.get().fftView, r = res();
@@ -187,5 +207,5 @@ export function mount(el, ctx) {
   canvas.addEventListener('pointercancel', cancelPan);
   canvas.addEventListener('lostpointercapture', cancelPan);
   refreshAll();
-  return { draw, dispose() { offView(); offRf(); baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offOverlay(); offResult(); offView(); offRf(); baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
 }

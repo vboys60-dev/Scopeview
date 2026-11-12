@@ -37,9 +37,23 @@ def fft_page(c: Cdp, prep: str) -> None:
             assert all(e['top'] >= bar['top'] and e['bottom'] <= bar['bottom']
                        for bar in dims['bars'] for e in bar['controls']), dims
             assert len(dims['ids']) == len(set(dims['ids'])), dims
+        # 疊圖色與圖例畫進畫布；切相位後隱藏，重新開檔後清空。
+        c.js("document.querySelector('.fftpage [data-pin]').click()")
+        c.wait("!document.querySelector('.fftpage [data-clear-overlay]').disabled", 20)
+        c.js("document.querySelector('.fftpage [data-pin]').click()")
+        c.wait("""(()=>{const c=document.querySelector('.fftpage canvas'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+            let pink=0,cyan=0;for(let i=0;i<d.length;i+=4){if(d[i]>200&&d[i+1]>40&&d[i+1]<150&&d[i+2]>120) pink++;
+            if(d[i]<120&&d[i+1]>160&&d[i+2]>200) cyan++;}return pink>0&&cyan>0})()""", 20)
         c.js("""(()=>{const root=document.querySelector('.fftpage'), unit=[...root.querySelectorAll('select')].find(e=>[...e.options].some(o=>o.value==='Phase')); unit.dataset.previousUnit=unit.value; unit.value='Phase'; unit.dispatchEvent(new Event('change')); const box=root.querySelector('[aria-label="Unwrap"]'); box.checked=true; box.dispatchEvent(new Event('change'));})()""")
         c.wait(f"(async()=>{{{prep}return S.state.fftResult?.ok && S.state.fftResult.unit === '°'}})()", 20)
+        assert c.js("document.querySelector('.fftpage [data-status]').textContent.includes('2 條疊圖')")
+        assert c.js('''(()=>{const c=document.querySelector('.fftpage canvas'),d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+            for(let i=0;i<d.length;i+=4) if(d[i]>200&&d[i+1]>40&&d[i+1]<150&&d[i+2]>120) return false;return true})()''')
         c.js("""(()=>{const root=document.querySelector('.fftpage'), unit=[...root.querySelectorAll('select')].find(e=>e.dataset.previousUnit); unit.value=unit.dataset.previousUnit; unit.dispatchEvent(new Event('change'));})()""")
+        old_gen = c.js(f"(async()=>{{{prep}return S.state.file.gen}})()")
+        c.js(f"(async()=>{{{prep}S.command('file.open',{{path:S.state.file.path}})}})()")
+        c.wait(f"(async()=>{{{prep}return S.state.file?.gen !== {old_gen} && !!S.state.file}})()", 20)
+        assert c.js("document.querySelector('.fftpage [data-clear-overlay]').disabled")
     finally:
         c.js(f"(async()=>{{{prep}S.command('tab.select','analysis')}})()")
         c.send("Emulation.setDeviceMetricsOverride", width=original['width'], height=original['height'],

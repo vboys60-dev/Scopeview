@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { createStore } from './store.js';
+import * as overlay from './fft_overlay.js';
+
+const store = createStore(), calls = [];
+const env = { n: 1, x: [1], lo: [0], hi: [1], mode: 0 };
+const ctx = { store, bridge: { async fetchSpectrum(args) { calls.push(args); return env; } } };
+store.set({ file: { gen: 1 }, fftResult: { ok: true, spectrum_id: 's', f_min: 0, f_max: 100, df: 1, unit: 'dBm' } });
+for (let i = 0; i < 5; i++) await overlay.pin(ctx);
+assert.equal(overlay.list.length, 4);
+assert.equal(overlay.list[0].label, '疊圖 2');
+assert.equal(calls.length, 10);
+assert.ok(calls.filter(c => c.log).every(c => c.f0 > 0 && c.px === 16384));
+assert.ok(calls.filter(c => !c.log).every(c => c.f0 === 0 && c.px === 16384));
+assert.equal(overlay.visible('dBm').length, 4);
+assert.equal(overlay.visible('V').length, 0);
+assert.equal(overlay.visible('°').length, 0);
+store.set({ file: { gen: 2 } });
+assert.equal(overlay.list.length, 0);
+await overlay.pin(ctx);
+store.set({ file: null });
+assert.equal(overlay.list.length, 0);
+console.log('fft_overlay_check OK');
