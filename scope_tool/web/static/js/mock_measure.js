@@ -42,6 +42,13 @@ export function singleResult(e, t, v, pct, base, MEAS, d) {
     v = v.subarray(t.findIndex(x => x >= mids[0].mid), t.findIndex(x => x >= mids.at(-1).mid));
   }
   let x, values, at;
+  if (["Vmid", "上升邊緣計數", "下降邊緣計數", "+脈衝計數", "-脈衝計數"].includes(e.name)) {
+    if (!(amp > 0)) return { ...base, ok:false, stats:null, reason:"TOP_EQ_BASE：波形沒有振幅（top = base）。" };
+    if (e.name === "Vmid") x = low + amp * mp / 100;
+    else if (e.name.includes("邊緣")) x = es.filter(q => q.rising === e.name.startsWith("上升")).length;
+    else x = es.slice(0,-1).filter((q,i) => q.rising === e.name.startsWith("+") && q.rising !== es[i+1].rising).length;
+    return { ...base, ok:true, stats:eventStats([x], null, t, d), reason:null };
+  }
   if (["上升時間", "下降時間", "上升斜率", "下降斜率"].includes(e.name)) {
     const selected = es.filter(x => x.rising === e.name.startsWith("上升"));
     if (!selected.length) return { ...base, ok: false, stats: null, reason: "沒有完整邊緣" };

@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure_event, measure2, stats as _stats, unit_of
+from scope_tool.analysis.measure_extra import EXTRA, measure_extra
 from scope_tool.contracts import ScopeError
 from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _range
 
@@ -23,7 +24,7 @@ class MeasureMixin:
                 raise BadRequest("未知區間模式")
             if e.get("name") in DUAL and "channel2" not in e:
                 raise BadRequest("雙來源量測必須指定 channel2")
-            if e.get("name") not in MEASUREMENTS and e.get("name") not in DUAL:
+            if e.get("name") not in MEASUREMENTS and e.get("name") not in DUAL and e.get("name") not in EXTRA:
                 raise BadRequest(f"未知量測：{e.get('name')}")
         gen, waves, units = self._need()
         with self._lock:
@@ -45,7 +46,7 @@ class MeasureMixin:
                 if dual:
                     suffix = (" ↑" if rising else " ↓") + ("↑" if e.get("rising2", rising) else "↓") if name != "電壓比" else ""
                 w = by.get(ch)
-                row = {"channel": ch, "name": name, "unit": unit_of(name, units.get(ch, "V")), "ok": False,
+                row = {"channel": ch, "name": name, "unit": EXTRA[name][1].replace("{u}", units.get(ch, "V")) if name in EXTRA else unit_of(name, units.get(ch, "V")), "ok": False,
                        "stats": None, "reason": None, "gen": gen, "revision": rev,
                        "_label": f"{name}({ch + ('→' + str(ch2) if dual else '')}{' 整數週期' if cycles else ' 單週期' if cycle else ''}{suffix}{' 全部邊緣' if name == '相位' and not e.get('all_edges', True) else ' 單一事件' if not e.get('all_edges', True) else ''})"}
                 if dual:
@@ -68,6 +69,8 @@ class MeasureMixin:
                                     raise ScopeError("來源 2：所選範圍內沒有資料")
                                 values = measure2(name, t + dx.get(ch, 0), v, t2 + dx.get(ch2, 0), v2,
                                                   pct, rising, e.get("rising2", rising))
+                            elif name in EXTRA:
+                                values = measure_extra(name, t, v, pct)
                             else:
                                 values = measure_event(name, t, v, pct, rising, e.get("mode", "full"),
                                                        ref_time=ref, dx=d, meas_all_edges=e.get("all_edges", True))

@@ -1,9 +1,7 @@
 # Web API 契約（L0 凍結版 v2）
 
 權威來源：原 pywebview 規劃建議書（已刪，見 git 歷史）；v2 依 Codex／Opus 審查最終裁決修訂。機器可讀版：`scope_tool/web/static/api_contract.json`（rules／methods／types／events／errors／endpoints／binary／envelope／intents／catalog）。
-凍結後只有 lead 能改；其他 lane 需要新欄位或方法一律提需求，不自行加。
-
-**機械驗證**
+凍結後只有 lead 能改；其他 lane 需要新欄位或方法一律提需求，不自行加。 **機械驗證**
 - Python：`owner ∈ {Api, Analysis}` 的公開方法集合 == `methods` 中同 owner 的集合（含參數名）；`wait_events`（owner=server）由 `server.py` 另計。
 - JS：`createMock().methods` 與 `methods`（owner≠server 者）一致、參數名一致；`js/l0_check.mjs` 依 `types` 逐欄檢查 mock 輸出。
 
@@ -30,9 +28,7 @@
 | `screenshotUrl(n)` | → Promise<string>；n 為 `ShotResult.preview`（整數序號，只用來避開快取） |
 | `MOCK` | boolean |
 
-bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應一律轉 `BridgeError`：回應若有 JSON `{ok:false,error}` 以其 code 為準，否則 403→`FORBIDDEN`、404→`NOT_FOUND`、其餘→`UNEXPECTED`；fetch 失敗→`NETWORK`；二進位解碼失敗→`BAD_BINARY`（驗長度、`mode∈{0,1}`、保留欄位為 0）。`AbortError` 原樣丟出（正常流程，`main.js` 的 `unhandledrejection` 忽略它）。
-
-`ui.pickPath(ctx, "folder"|"file", initial)`：`AppState.native_dialogs` 為 true 走 `pick_folder`／`pick_waveform_file`，否則改用 `ui.prompt`；取消回 `null`。
+bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應一律轉 `BridgeError`：回應若有 JSON `{ok:false,error}` 以其 code 為準，否則 403→`FORBIDDEN`、404→`NOT_FOUND`、其餘→`UNEXPECTED`；fetch 失敗→`NETWORK`；二進位解碼失敗→`BAD_BINARY`（驗長度、`mode∈{0,1}`、保留欄位為 0）。`AbortError` 原樣丟出（正常流程，`main.js` 的 `unhandledrejection` 忽略它）。 `ui.pickPath(ctx, "folder"|"file", initial)`：`AppState.native_dialogs` 為 true 走 `pick_folder`／`pick_waveform_file`，否則改用 `ui.prompt`；取消回 `null`。
 
 ### request_id 冪等規則（`envelope`）
 
@@ -133,9 +129,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 
 ### 型別重點
 
-`SlotSummary = {slot:str, path:str, gen:int, info:[str,str][], all:str[], channels:ChannelInfo[]}`；info 與 FileSummary 同格式，all 為全部通道原名（含未選者），channels[].name 含槽位前綴且 derived=false。
-
-`FileSummary.model／series／captured_at` 為 `str|null`，並有 `info:[label,value][]`（檔案資訊表）。`ChannelInfo.vmin／vmax` 全 NaN 時為 null。`CaptureResult.got_points`＝各通道最少點數、`requested`＝請求點數。`ShotResult.preview`＝整數序號。
+`SlotSummary = {slot:str, path:str, gen:int, info:[str,str][], all:str[], channels:ChannelInfo[]}`；info 與 FileSummary 同格式，all 為全部通道原名（含未選者），channels[].name 含槽位前綴且 derived=false。 `FileSummary.model／series／captured_at` 為 `str|null`，並有 `info:[label,value][]`（檔案資訊表）。`ChannelInfo.vmin／vmax` 全 NaN 時為 null。`CaptureResult.got_points`＝各通道最少點數、`requested`＝請求點數。`ShotResult.preview`＝整數序號。
 
 ## 3. 事件與錯誤
 
@@ -144,7 +138,6 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 {"seq":13,"type":"job","id":"j8","kind":"fft","ok":false,"error":{"code":"SCOPE_ERROR","message":"…","retryable":false}}
 {"seq":14,"type":"driver","connected":true,"model":"DSO-X 3014G","series":"InfiniiVision"}
 ```
-
 | code | 說明 | retryable |
 |---|---|---|
 | REMOTE_DESKTOP | RemoteDesktopError（SCPI 273），**優先於 SCOPE_ERROR 判斷**；「請關閉遠端桌面連線後重試」 | false |
@@ -159,7 +152,6 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 | BAD_BINARY | 二進位長度／mode／保留欄位不符，僅 bridge 產生 | false |
 
 UI 規則：錯誤一律用 `ui.showError`（`<dialog>`），不用 `window.alert`。
-
 ### examples
 
 成功（工作型）：
@@ -186,7 +178,6 @@ GET /wave?…&gen=2     → 409 {"ok":false,"error":{"code":"STALE","message":"�
 派送順序 seq=11 → seq=12（j7 的 Promise 完成），第二個 11 被丟棄
 收到 seq=14 但 13 一直不來 → 超過容忍時間：先派送 14，其餘等待中的工作以 NETWORK 失敗並發 desync
 ```
-
 ## 4. 二進位格式（/wave、/fft 共用，little-endian）
 
 ```
@@ -196,24 +187,19 @@ float32 lo[n]   位移 16+8n       （只供顯示）
 float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 總長 16+16n
 ```
-
 - **/wave**：`t0`／`t1` 與回傳 `x` 皆為**來源時間**（前端自行加 dx）；`gen` 不符 → 非 200＋`{ok:false,error:{code:"STALE"}}`。包絡模式 `x`＝每桶起點；`n ≤ 2·px+2`；`px` 上限 16384、單通道回傳上限 32768 點。
 - **/fft**：`log=1` 時 `f0>0`；`log` 只改分桶（對數等距），`x` 仍為 Hz 且排除 0。
 - **NaN 規則**：桶內含 NaN → 該桶 `lo`／`hi` **皆 NaN**（`np.minimum.reduceat` 語義，不得產生 ±Infinity）；二進位保留 NaN，轉 `null` 只在 JSON。
 - **失敗**：非 200＋`{ok:false,error}` JSON；bridge 對任何非 200 一律轉 `BridgeError`。
 - 降採樣為視覺預覽；游標讀值、量測、FFT、CSV 一律用全精度原始資料。
-
 ## 5. 座標定義
-
 - `display_time = source_time + time_offset(dx)`；`display_y_div = source_value / scale_per_div + position_div`。
 - **cursors（store）**：`x`＝顯示時間（秒）、`y`＝顯示格數（div）。送 `marker_eval` 前換成來源座標，**由 L5 `cursors.js` 負責**：`x_src = x − dx[channel]`、`y_src = (y − position) × scale`。
 - 傳統游標 `cursor_readout` 用顯示時間吸附第一通道取樣點，各通道讀值先扣自己的 dx，落在該通道時間軸外回 `null`。
 - 波形 CSV 匯出維持現行行為：原始資料不套顯示位移，以游標時間切原始時間軸。
 - 縱軸 ±5 格（10 格）；V/格表與自動縮放見 `analysis/scales.js`（逐條移植 `ui/analysis_chanbar.py`）。
 - µ 輸出一律 U+00B5；輸入（`parseSI`）U+00B5、U+03BC、`u` 都收。`fmt` 對齊 Qt：單位為 `""`、`%` 或以 `dB` 開頭不加前綴，其餘（含 V²、°）加 SI 前綴。
-
 ## 6. 前端 store 契約（`js/analysis/store.js`）
-
 - 狀態：`file, channels, selected(通道名), view{t0,t1}, cursors{x1,x2,y1,y2}, rangeMode(all|cursors), markerMode, rfPos({x,y}|null，Hz 全精度), threshold, fftResult, measurements`。
 - `slots`：`[{slot, path, info, all:[原名], channels:[改名後名稱], infos:ChannelInfo[]}]`，缺值視為 `[]`。唯一寫入者 L5 `slots.js`；開／關檔由寫 file 的一方一併清為 `[]`。
 - `dataRev`：整數，缺值視為 0；槽位任何變動 +1，唯一寫入者 L5 `slots.js`。槽位變動不寫 file，監聽者用 dataRev 辨識同 gen 的資料變動；開／關檔歸零。
@@ -222,9 +208,7 @@ float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 - `setChannels(list)`：一次 `set({channels, selected})`、一次通知；選取依名稱保留，被刪則選原位置附近者。`updateChannel／removeChannel` 同理。
 - `command(name, payload)`／`onCommand(name, fn)`：fire-and-forget 意圖。保留名稱：`tab.activated`（main 發；切分頁**及初始分頁掛載完成後**各發一次）。
 - 三個 lane 不得同時擁有同一份游標真值：`cursors` 的唯一寫入者為 L5 `cursors.js`。
-
 ### 意圖（`intents`，全部凍結為**絕對值**，各有唯一處理者）
-
 | 意圖 | payload | 唯一處理者 | 說明 |
 |---|---|---|---|
 | viewport.intent | `{t0, t1}` | L4 `tab_analysis.js` | 顯示時間範圍（秒）；寫 `store.view`（origin=user） |
@@ -232,17 +216,12 @@ float32 hi[n]   位移 16+12n      （mode=0 時 hi==lo）
 | channel.scale_intent | `{name, scale?, position?}` | L5 `chanbar.js` | 新的 V/格 與／或位置（格）；未給的鍵不變 |
 | cursor.intent | `{which:"x1"\|"x2"\|"y1"\|"y2", value}` | L5 `cursors.js` | x＝顯示時間（秒）、y＝顯示格數；`null`＝清除 |
 | rf.intent | `{direction:-1\|0\|1, x}` | L5 `cursors.js` | x＝目前 RF 位置（Hz 全精度）；呼叫 `fft_track_rf`，寫 `store.rfPos` |
-
 ## 7. 頁面模組約定（main.js 掛載）
 
 每個頁面模組 `export function mount(el, ctx)`；`ctx = {bridge, store, ui, fmt, scales, MOCK, appState, activeTab}`。對應：`connbar.js→#connbar`、`tab_datacapture.js→#tab-capture（內掛 tab_screenshot.js 與 tab_capture.js 的 mount）`、`analysis/tab_analysis.js→#tab-analysis`。模組不存在時 main 顯示佔位，不中斷其他頁。`ctx.appState` 在 `driver` 事件時由 main 更新（connected／model／series）；`desync` 事件由 main 以 toast 提示重新整理。
-
 ## 8. 樣式 token 與 CSS class 名稱（L6 實作，其他 lane 只能引用）
 
-Liquid Glass 深色單一主題；圖區黑底（#000），不提供淺色切換。字型 `PingFang TC, Microsoft JhengHei, sans-serif`；不用 web font／CDN。窄版斷點約 900 px。
-
-Token（`:root` CSS 變數）：
-
+Liquid Glass 深色單一主題；圖區黑底（#000），不提供淺色切換。字型 `PingFang TC, Microsoft JhengHei, sans-serif`；不用 web font／CDN。窄版斷點約 900 px。 Token（`:root` CSS 變數）：
 | 類別 | 名稱 |
 |---|---|
 | 色 | `--c-bg --c-surface --c-border --c-text --c-text-dim --c-accent --c-accent-text --c-danger --c-ok --c-warn --c-focus` |
@@ -253,12 +232,7 @@ Token（`:root` CSS 變數）：
 | 字 | `--font-ui --font-mono --fs-sm --fs-base --fs-lg` |
 | 其他 | `--radius --shadow-dlg --h-control` |
 
-`--c-surface` 與 `--c-overlay-solid` 永遠實心；玻璃 opt-in、控制項不疊玻璃。`color-scheme: dark`；圖區 tokens、`--radius: 4px` 與幾何 tokens 不變。`glass.css` 最後載入，分為分析頁／FFT 頁／浮層三段；P1 後 token 名稱與分段凍結。降級涵蓋無 backdrop-filter、降低透明度、高對比、強制色彩與降低動態。
-
-通道色：`--c-ch1..6` 的值即 `catalog.channel_colors`（`#ffcc00 #00d0ff #ff5fbf #7be36b #ff8a3d #b79cff`）；通道依序取色，衍生通道接續取用。
-
-Class（BEM 風格，`block__element--modifier`）：
-
+`--c-surface` 與 `--c-overlay-solid` 永遠實心；玻璃 opt-in、控制項不疊玻璃。`color-scheme: dark`；圖區 tokens、`--radius: 4px` 與幾何 tokens 不變。`glass.css` 最後載入，分為分析頁／FFT 頁／浮層三段；P1 後 token 名稱與分段凍結。降級涵蓋無 backdrop-filter、降低透明度、高對比、強制色彩與降低動態。 通道色：`--c-ch1..6` 的值即 `catalog.channel_colors`（`#ffcc00 #00d0ff #ff5fbf #7be36b #ff8a3d #b79cff`）；通道依序取色，衍生通道接續取用。 Class（BEM 風格，`block__element--modifier`）：
 | 區域 | class |
 |---|---|
 | 外框 | `app connbar tabs tab tab--active pages page legacy-warning` |
@@ -267,18 +241,15 @@ Class（BEM 風格，`block__element--modifier`）：
 | 對話框／提示 | `dlg dlg__title dlg__body dlg__msg dlg__actions toast-host toast toast--info toast--ok toast--error` |
 | 表格 | `table table--num table__empty` |
 | 分析頁 | `analysis analysis__toolbar analysis__side analysis__plot analysis__results chanbar chip chip--selected chip__name chip__remove plot plot__canvas plot__overlay split split__handle` |
-
 ## 9. 不在契約內（刻意不做）
 
 傳輸中途取消、掃網段搜尋、多語系、Jitter／眼圖（保持未接線）。
-
 ## 附：lead 裁決（凍結時追加）
 - FFT 空區間：回 `ok=false`＋`reason`，`spectrum_id`／數值欄為 null、`peaks=[]`（不走 SCOPE_ERROR）。
 - 已完成工作重送：回 `{job, done:{ok,result|error}}`。
 - STALE 涵蓋 `/wave`、`/fft` gen／spectrum_id 不符、`export_measurements` 過期 revision；二進位端點 STALE 用 HTTP 409。
 - `export_csv.range` 為來源時間、不套 dx（與 measure／fft 的顯示時間不同，已知刻意差異）。
 - 契約自 commit「P0 契約凍結」起只有 lead 能改。
-
 ## 附：P2 審查後 lead 裁決
 - 新增 `close_waveform()`（Analysis，同步）：釋放後端全部波形資料，gen+1。前端關檔必須呼叫。
 - `add_manual_ip` 回傳整份手動清單，前端以 label 找新增項。
@@ -287,12 +258,9 @@ Class（BEM 風格，`block__element--modifier`）：
 - Track Measurements：MeasureResult 無事件座標，列為已知限制（UI 標「尚未支援」）。
 - CSV 游標區間：游標顯示時間直接切原始軸，不套 dx（與 Qt 一致）。
 - 開檔序列化：開檔進行中，前端禁止再次 file.open／關檔。
-
 ### I3C 解碼追加（2026-10-26，version 維持 2）
 
-所有參數 required；protocol 接受 i3c／i2c／spi／uart／can／espi／usbpd，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。
-
-型別（欄位型別字串與 api_contract.json 相同）：
+所有參數 required；protocol 接受 i3c／i2c／spi／uart／can／espi／usbpd，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。 型別（欄位型別字串與 api_contract.json 相同）：
 ```
 DecodeSummary = {"ok": "bool","reason": "str|null","gen": "int","decode_id": "str|null","protocol": "str","channels": "map<str>","thresholds": "map<[float,float]|null>","t0": "float|null","t1": "float|null","counts": "DecodeCounts","truncated": "bool","warnings": "str[]"}
 DecodeCounts = {"frames": "int","fields": "int","errors": "int","warns": "int"}
@@ -303,17 +271,10 @@ AddrEntry = {"da": "int","pid": "int|null","bcr": "int|null","dcr": "int|null","
 DecodeBits = {"bits": "[float,int][]","truncated": "bool"}
 ```
 
-I3C 列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge hdr_nack hdr_parity hdr_crc hdr_preamble kind：addr ccc def data mdb pid bcr dcr da hdr_cmd hdr_data hdr_crc；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。
-
-UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）；true 時不要求有效 baud，只估計不解碼，保留既有快照，以 ok=false、reason「估計鮑率 19200；估計值取最短脈寬，請確認」或「無法估計鮑率：<原因>」回覆。估計允許只選 TX 或 RX；正式解碼仍需明確 baud 與 TX。
-
-正式解碼一開始清舊快照，任何失敗也失效；完成在鎖內驗 gen。decode_id 不重用。同步三方法先驗型別再鎖內驗 id/gen；換／關檔、重新解碼或失敗後舊 id 均 STALE。decode_frames 同步取得大結果，不帶 request_id、不進 job 事件環。decode_bits 使用 BASE 通道來源時間、不套 dx，兩端含、反序交換；時間須有限，最多前 4096 bit、超出 truncated=true。
-
-export_decode 使用解碼當時的來源檔／通道／門檻／options／時間，directory=null 用該來源資料夾；utf-8-sig、檔名 `{stem}_解碼_YYYYMMDD_HHMMSS.csv`，永不覆蓋，寫入失敗 ScopeError。CSV 為 meta、空行、事件表（每 field 一列，無 field 的 frame 仍一列）、空行、位址表（只有 I3C）；時間 repr(float)。
+I3C 列舉：kind：private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error；start：S Sr null；status：ok warn error。frames 依 t0 排序且不重疊。 parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge hdr_nack hdr_parity hdr_crc hdr_preamble kind：addr ccc def data mdb pid bcr dcr da hdr_cmd hdr_data hdr_crc；ninth_kind：ack parity tbit null；addr 為 Direct 子段目標位址，非子段為 null。 how：ENTDAA SETDASA SETNEWDA observed；t_from=null 表示擷取前存在、有效起點未知。 UART options 可帶布林 estimate（只由估計按鈕送出、不存設定）；true 時不要求有效 baud，只估計不解碼，保留既有快照，以 ok=false、reason「估計鮑率 19200；估計值取最短脈寬，請確認」或「無法估計鮑率：<原因>」回覆。估計允許只選 TX 或 RX；正式解碼仍需明確 baud 與 TX。 正式解碼一開始清舊快照，任何失敗也失效；完成在鎖內驗 gen。decode_id 不重用。同步三方法先驗型別再鎖內驗 id/gen；換／關檔、重新解碼或失敗後舊 id 均 STALE。decode_frames 同步取得大結果，不帶 request_id、不進 job 事件環。decode_bits 使用 BASE 通道來源時間、不套 dx，兩端含、反序交換；時間須有限，最多前 4096 bit、超出 truncated=true。 export_decode 使用解碼當時的來源檔／通道／門檻／options／時間，directory=null 用該來源資料夾；utf-8-sig、檔名 `{stem}_解碼_YYYYMMDD_HHMMSS.csv`，永不覆蓋，寫入失敗 ScopeError。CSV 為 meta、空行、事件表（每 field 一列，無 field 的 frame 仍一列）、空行、位址表（只有 I3C）；時間 repr(float)。
 
 
 多協定說明（version 與型別結構不變）：protocol ∈ i3c i2c spi uart can espi usbpd；channels 鍵為協定角色，thresholds 鍵為邏輯線（CAN 有 canl 時只有 can；UART 有 tx_n／rx_n 差動負端時只有 tx／rx）。frames 依 t0 排序且不重疊，field 在所屬 frame 內；addr 為 I3C／I2C 位址、CAN ID，其餘 null。
-
 - `DecodeFrame.kind.i3c`：`private_write private_read ccc_broadcast ccc_direct daa ibi hotjoin i2c hdr hdr_exit target_reset pattern partial error`
 - `DecodeField.kind.i3c`：`addr ccc def data mdb pid bcr dcr da hdr_cmd hdr_data hdr_crc`
 - `DecodeFrame.reasons.i3c`：`parity t_bit addr_parity addr_7e_read nack ccc_unknown ccc_invalid ccc_format type_unknown ibi_unexpected_payload addr_conflict pattern_incomplete pattern_unknown truncated ambiguous_edge hdr_nack hdr_parity hdr_crc hdr_preamble`
@@ -336,4 +297,4 @@ export_decode 使用解碼當時的來源檔／通道／門檻／options／時�
 - `DecodeField.kind.usbpd`：`sop header obj crc eop`
 - `DecodeFrame.reasons.usbpd`：`crc invalid_5b bad_eop bad_sop sampler preamble reserved truncated`
 
-DecodeField.ninth_kind 為 ack parity tbit null。DecodeBits 值 0／1，-1＝未知（X），2＝CAN 填充位；時間嚴格遞增，多線 SPI／UART 只存主線。AddrEntry 只有 I3C 使用，其他協定 addresses=[]。
+DecodeField.ninth_kind 為 ack parity tbit null。DecodeBits 值 0／1，-1＝未知（X），2＝CAN 填充位；時間嚴格遞增，多線 SPI／UART 只存主線。AddrEntry 只有 I3C 使用，其他協定 addresses=[]。 Web catalog 追加 Vmid（Vbase＋振幅×中閾值%）及上升／下降邊緣計數、正／負脈衝計數；計數只納入三閾值完整轉換，脈衝須有完整相鄰雙緣，單位為空，all_edges 不影響結果。平坦資料回 TOP_EQ_BASE；計數顯示為 6 位有效數字。

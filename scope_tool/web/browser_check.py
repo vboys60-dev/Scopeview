@@ -16,7 +16,7 @@ from scope_tool.web.analysis_api import Analysis
 from scope_tool.web.api import Api
 from scope_tool.web.jobs import Jobs
 from scope_tool.web.server import Server
-from scope_tool.web import browser_analysis_checks as analysis_checks
+from scope_tool.web import browser_analysis_checks as analysis_checks, browser_measure_more_checks as more_checks
 from scope_tool.web import browser_decode_checks as decode_checks, browser_slot_checks as slot_checks
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 9222
@@ -197,7 +197,7 @@ def main() -> None:
         step("新增量測", measure)
         c.shot(out / "07_measure.png")
         step("量測結果表有數值", lambda: c.wait("/\\d/.test(document.querySelector('.results')?.innerText||document.body.innerText)"))
-        step("P2b3 緊湊結果／分頁／欄位／清除與匯出", lambda: analysis_checks.compact_results(c, prep))
+        step("P2b3 緊湊結果／分頁／欄位／清除與匯出", lambda: analysis_checks.compact_results(c, prep)); step("Vmid 量測", lambda: more_checks.measure_more(c, prep))
         def fft() -> None:
             c.js("(()=>{const b=[...document.querySelectorAll('#tab-analysis input[type=checkbox]')].find(i=>/FFT/i.test(i.closest('label,div')?.textContent||''));if(!b)throw Error('no FFT checkbox');b.click()})()")
             c.wait("(async()=>{const S=(await import('/js/analysis/store.js')).store;return S.state.fftResult&&S.state.fftResult.ok})()", 20)
