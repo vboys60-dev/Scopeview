@@ -61,7 +61,7 @@ globalThis.window = { devicePixelRatio: 1 };
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 const store = createStore(), requests = [];
 let resolveFit = null;
-const ctx = { store, fmt, scales, ui: { toast() {}, showError(e) { throw e; } }, bridge: {
+const ctx = { store, fmt, scales, ui: { async confirm() { return true; }, toast() {}, showError(e) { throw e; } }, bridge: {
   fetchWave: async (args) => { requests.push(args); return resolveFit ? await new Promise((r) => { resolveFit = r; }) : env; },
 } };
 store.set({ file: { gen: 3, channels: [] }, view: { t0: 10, t1: 12 }, selected: "CH1", channels: [

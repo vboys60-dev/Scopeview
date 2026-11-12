@@ -143,7 +143,7 @@ def decode_band(c: Cdp, prep: str, directory: str) -> None:
     }})()""")
     assert geometry['ink'] > 100 and geometry['delta'] <= 1 and geometry['height'] == 80, geometry
     c.wait("document.querySelector('.decode__tablewrap tr.is-selected')?.dataset.decodeFrame===String(window.__decodeFrame)")
-    assert c.js("""(()=>{const e=document.querySelector('.analysis__splitter--lower'),r=e.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/4,r.top+r.height/2)===e})()""")
+    assert c.js("""(()=>{const e=document.querySelector('.analysis__splitter--lower'),r=e.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===e})()""")
     # 開關只改顯示；保留有效資料，且 chrome 預算恢復主圖高度。
     c.js("document.querySelector('.decode__bar input[type=checkbox]').click()")
     c.wait("document.querySelector('.analysis__decodeband').hidden")

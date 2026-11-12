@@ -79,7 +79,7 @@ export function mount(el, ctx) {
         button.onclick = () => o.action.run({ ...ctx,model,input }); input.parentNode.append(button); actions.push(button);
       }
     }
-    params.append(run,exp,bandLabel,asciiLabel);
+    params.prepend(run); params.append(exp,bandLabel,asciiLabel);
     eventProtocol = null; rendered = null;
   }
   const autoBtn = node('button','btn btn--small','自動'), manualBtn = node('button','btn btn--small','手動');

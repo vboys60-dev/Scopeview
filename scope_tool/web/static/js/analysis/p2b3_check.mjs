@@ -70,7 +70,7 @@ tabs.update({ width:1360,height:120,lowerCollapsed:true }); assert.ok(header.fir
 assert.equal(load().tab,'measure');
 const actions = new Element('div'), store = createStore(), calls = [];
 const ctx = { store, fmt, resultActions:actions, fftPeaks:panels.peaks,
-  ui:{ pickPath:async () => '/out', toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
+  ui:{ confirm:async () => true, pickPath:async () => '/out', toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
   bridge:{ call:async (method,args) => { calls.push([method,args]); return method === 'cursor_readout' ? { t1:1,t2:2,y:{} } : { path:'/tmp/results.csv' }; } } };
 mountMeasure(new Element('div'),ctx); mountResults(panels.measure,ctx);
 assert.ok(actions.firstChild.title.includes('最靠近顯示時間 t=0') && actions.firstChild.title.includes('同距取較早'));
@@ -106,7 +106,8 @@ const clear = actions.children.find(e => e.className.includes('results__clear'))
 assert.ok(clear.title && exp.title); assert.equal(exp.textContent,'匯出結果');
 assert.equal(actions.firstChild.attrs['aria-label'],actions.firstChild.title); assert.equal(exp.disabled,false); await exp.onclick();
 assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2); assert.equal(calls[0][1].directory,'/out');
-clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true);
+ctx.ui.confirm = async () => false; await clear.onclick(); assert.equal(store.get().measurements.length,2); ctx.ui.confirm = async () => true;
+await clear.onclick(); assert.deepEqual(store.get().measurements,[]); assert.equal(table.children.length,1); assert.equal(exp.disabled,true);
 // 結果標籤保留區間與方向；界限值的畫面與匯出列一致。
 store.set({ measurements:[{ id:3,name:'Vavg',channel:'CH1',mode:'cycles',rising:false,
   result:{ ok:true,gen:1,revision:3,unit:'V',stats,bound:'<' } }] });
@@ -114,7 +115,7 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1 N Cycles ↓)');
 assert.deepEqual(table.children[1].children.slice(1,-1).map(c => c.textContent),['< 954 V','< 10 V','42']);
 await exp.onclick(); assert.equal(calls.at(-1)[1].rows[0].bound,'<');
 store.set({ measurements:[{ ...store.get().measurements[0],mode:'full' }] });
-assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclick();
+assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); await clear.onclick();
 // 量測面板實際下拉／按鈕：每筆保存加入當下的模式與方向，隨 entries 送出。
 {
   const input = new Element('div'), state = createStore(), sent = [];

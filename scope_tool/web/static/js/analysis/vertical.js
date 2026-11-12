@@ -47,8 +47,8 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
     wrap.append(h("span", label));
     if (key !== "dx") wrap.append(button("▼", () => step(false), `${label}減小一${key === "scale" ? "檔（波形較高）" : "格"}`));
     wrap.append(input);
-    if (key === "position") wrap.append(button("歸零", () => { const c = current(); if (c) store.updateChannel(c.name, { position: 0 }, "user"); }));
     if (key !== "dx") wrap.append(button("▲", () => step(true), `${label}增大一${key === "scale" ? "檔（波形較矮）" : "格"}`));
+    if (key === "position") wrap.append(button("歸零", () => { const c = current(); if (c) store.updateChannel(c.name, { position: 0 }, "user"); }));
     if (key === "scale") {
       input.title = "每格大小（如 130m）；↑↓／−+ 微調，Shift＋↑↓／▲▼ 粗調";
       wrap.append(button("−", () => step(false, true), "每格大小微減（V：10 mV；其他：5%）"), button("+", () => step(true, true), "每格大小微增（V：10 mV；其他：5%）"));

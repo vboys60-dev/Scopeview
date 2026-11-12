@@ -203,7 +203,7 @@ def compact_results(c: Cdp, prep: str) -> None:
             document.querySelector('dialog[open] input').value='/tmp';
             document.querySelector('dialog[open] .btn--primary').click();
             for(let i=0;i<50&&!exported;i++) await new Promise(r=>setTimeout(r,20));
-            document.querySelector('.results__clear').click();
+            document.querySelector('.results__clear').click(); for(let i=0;i<50&&!document.querySelector('dialog[open] .btn--primary');i++) await new Promise(r=>setTimeout(r,20)); document.querySelector('dialog[open] .btn--primary').click(); await new Promise(r=>setTimeout(r,50));
             return {exported,cleared:S.state.measurements.length===0};
         } finally { B.call=old;S.set({measurements:list},'program'); }
     })()""")

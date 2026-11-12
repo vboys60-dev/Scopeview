@@ -85,6 +85,7 @@ class Element {
   constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.attrs = {}; this.listeners = {}; this.value = ''; this.textContent = ''; this.className = ''; this.style = {};
     this.classList = { add:k => { this.className += ' '+k; }, toggle:(k,on) => { const set = new Set(this.className.split(' ')); on ? set.add(k) : set.delete(k); this.className = [...set].join(' '); } }; }
   append(...nodes) { for (const n of nodes) { n.parentNode = this; this.children.push(n); } }
+  prepend(...nodes) { for (const n of nodes.reverse()) { this.children = this.children.filter(c => c !== n); n.parentNode = this; this.children.unshift(n); } }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k,v) { this.attrs[k] = v; }
   addEventListener(k,f) { this.listeners[k] = f; }

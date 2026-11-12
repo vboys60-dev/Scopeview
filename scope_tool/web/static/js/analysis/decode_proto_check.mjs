@@ -28,6 +28,7 @@ class Element {
     this.classList = { add:k => { this.className += ' '+k; },toggle() {} };
   }
   append(...nodes) { for (const n of nodes) { n.parentNode = this; this.children.push(n); } }
+  prepend(...nodes) { for (const n of nodes.reverse()) { this.children = this.children.filter(c => c !== n); n.parentNode = this; this.children.unshift(n); } }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k,v) { this.attrs[k] = v; }
   addEventListener(k,f) { this.listeners[k] = f; }

@@ -117,7 +117,7 @@ export function mount(el, ctx) {
     const b = btn(title + " ▾", () => {}), p = h("div", "popmenu"); p.append(...kids); popMenu(b, p); el.append(b, p); return b;
   };
   const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary");
-  const bClose = item("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗")));
+  const bClose = item("關閉", async () => { const st = store.get(); if ((st.measurements.length || st.channels.some(c => c.derived) || st.slots?.length) && !await ui.confirm("關閉後會清除量測、衍生通道與比對槽，確定關閉？", "關閉檔案")) return; closeFile(store, bridge).catch((e) => fail(e, "關閉失敗")); });
   const bSlots = item("比對…", () => openSlots(ctx, modal)), bInfo = item("檔案資訊", info), bMath = item("Math…", math);
   const bCsv = item("匯出波形 CSV…", exportCsv), bRep = item("匯出 HTML 報告…", () => exportReport(ctx, el.closest(".analysis") ?? document, modal));
   const bFft = item("FFT 頻譜 ↗", () => store.command("tab.select", "fft"));

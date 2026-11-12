@@ -180,10 +180,10 @@
 }
 
 /* I3C 解碼分頁：設定列橫捲，事件表沿用結果表。 */
-/* 頁籤靠右，左側留下連續拖曳帶；不足時只橫捲頁籤，不增加 28px 標題列高度。 */
-.analysis:not(.analysis--dock) .analysis__splitter--lower > .analysis__resultTabs { margin-left: auto; flex: 0 1 auto; min-width: 0; height: 28px; overflow-x: auto; scrollbar-width: none; }
+/* 頁籤緊接收折鈕；10px 拖曳帶保留，不足時只橫捲頁籤。 */
+.analysis:not(.analysis--dock) .analysis__splitter--lower > .analysis__resultTabs { margin-left: 0; flex: 0 1 auto; min-width: 0; height: 28px; overflow-x: auto; scrollbar-width: none; }
 .analysis__resultTabs > .btn { flex-shrink: 0; }
-.analysis:not(.analysis--dock) .analysis__splitter--lower > .results__actions { margin-left: 0; flex-shrink: 0; }
+.analysis:not(.analysis--dock) .analysis__splitter--lower > .results__actions { margin-left: auto; flex-shrink: 0; }
 .analysis__splitter--lower > .btn { flex-shrink: 0; }
 .analysis__lowerbody > .analysis__decode { flex: 1 1 0; max-width: 100%; }
 .decode { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: 4px; }
@@ -228,3 +228,4 @@
 .decode__bar { flex-wrap: wrap; }
 .decode__params { flex-basis: 100%; }
 .decode__lanes { font-size: 10px; }
+.results__clear--sep { margin-left: 12px; color: var(--c-danger); }

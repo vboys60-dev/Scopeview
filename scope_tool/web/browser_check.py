@@ -244,7 +244,7 @@ def main() -> None:
                     for kind, delta in (("side", 30), ("fft", -30), ("lower", -30)):
                         c.js(f"(async()=>{{{prep} S.command('fft.visible',{str(kind != 'lower').lower()});S.command('layout.resize',{{kind:'{kind}',value:180}})}})()")
                         c.pump(0.2)
-                        box = c.js(f"(()=>{{const e=document.querySelector('.analysis__splitter--{kind}'),r=e.getBoundingClientRect(),x=r.left+(e.classList.contains('analysis__splitter--side')?2:r.width/4),y=r.top+(e.classList.contains('analysis__splitter--side')?40:r.height/2),hit=document.elementFromPoint(x,y);return {{x,y,v:+e.getAttribute('aria-valuenow'),max:+e.getAttribute('aria-valuemax'),hit:hit?.className,free:hit===e}}}})()")
+                        box = c.js(f"(()=>{{const e=document.querySelector('.analysis__splitter--{kind}'),r=e.getBoundingClientRect(),x=r.left+(e.classList.contains('analysis__splitter--side')?2:r.width/{2 if kind == 'lower' else 4}),y=r.top+(e.classList.contains('analysis__splitter--side')?40:r.height/2),hit=document.elementFromPoint(x,y);return {{x,y,v:+e.getAttribute('aria-valuenow'),max:+e.getAttribute('aria-valuemax'),hit:hit?.className,free:hit===e}}}})()")
                         assert box["free"] and box["max"] >= box["v"] + abs(delta), (kind, box)
                         c.mouse("mousePressed", box["x"], box["y"])
                         c.mouse("mouseMoved", box["x"] + (delta if kind == "side" else 0), box["y"] + (0 if kind == "side" else delta), buttons=1)

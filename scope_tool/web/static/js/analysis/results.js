@@ -41,7 +41,7 @@ export function mount(el, ctx) {
   const note = h("span", "results__info", "ⓘ"); note.tabIndex = 0;
   note.title = "『目前』＝最靠近顯示時間 t=0 的事件；範圍不含 0 時用範圍中點，同距取較早；無事件時間時取首事件（離線單檔）";
   note.setAttribute("aria-label",note.title);
-  const bClear = h("button", "btn btn--small results__clear", "清除全部"), bExp = h("button", "btn btn--small results__export", "匯出結果");
+  const bClear = h("button", "btn btn--small results__clear results__clear--sep", "清除全部"), bExp = h("button", "btn btn--small results__export", "匯出結果");
   bClear.title = "清除全部量測"; bExp.title = "匯出結果 CSV";
   const menu = h("span", "results__menu"), toggle = h("button", "btn btn--small", "⋮"); toggle.title = "選擇量測欄位";
   const place = () => {
@@ -64,7 +64,7 @@ export function mount(el, ctx) {
       renderMeas();
     };
   }
-  const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(note, menu, bClear, bExp);
+  const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(note, menu, bExp, bClear);
   if (!ctx.resultActions) el.append(bar);
   const fftBox = ctx.fftPeaks ?? h("div", "analysis__peaks");
   mountFftMarkerTable(fftBox, ctx, fftInfo);
@@ -91,10 +91,10 @@ export function mount(el, ctx) {
       rows.push(row);
     }
     meas.replaceChildren(...rows);
-    bExp.disabled = !exportable(list, file);
+    bExp.disabled = !exportable(list, file); bClear.disabled = !list.length;
   }
   const unitFor = (tpl, u) => String(tpl ?? "").replace("{u}", u);
-  bClear.onclick = () => store.command("measure.clear");
+  bClear.onclick = async () => { const n = store.get().measurements.length; if (n && await ui.confirm(`清除全部 ${n} 筆量測？`, "清除量測")) store.command("measure.clear"); };
   bExp.onclick = async () => {
     const { measurements: list, file } = store.get(), ex = exportable(list, file);
     if (!ex) return ui.toast("量測計算中或結果已過期，請稍後再匯出", "error");

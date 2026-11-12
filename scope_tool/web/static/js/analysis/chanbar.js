@@ -77,6 +77,7 @@ export function mount(el, ctx) {
     if (c.derived) {
       const rm = h("button", "chip__remove", "×"); rm.title = "刪除此衍生波形";
       rm.onclick = async () => {
+        if (!await ui.confirm(`刪除衍生波形 ${c.name}？`, "刪除波形")) return;
         try { await bridge.call("remove_channel", { name: c.name }); store.removeChannel(c.name, "user"); } catch (e) { ui.showError(e); }
       };
       parts.push(rm);
