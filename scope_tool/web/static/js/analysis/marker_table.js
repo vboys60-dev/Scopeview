@@ -1,10 +1,10 @@
 // Marker 表：註記 Enter 確認、Esc 取消；點列透過既有視圖意圖置中。
 import { markerModel } from './markers.js';
 import { fmt } from '../fmt.js';
-export const HEADERS = ['#', '通道', '時間', '電壓', 'Δt vs M1', '註記', '刪除'];
+export const HEADERS = ['#', '通道', '時間', '電壓', 'Δt', 'ΔV', '基準', '註記', '刪除'];
 export function markerCells(row, format = fmt) {
   const f = (v, u) => Number.isFinite(v) ? format(v, u) : '—';
-  return [row.id, row.ch, f(row.value === null ? null : row.t, 's'), f(row.value, row.channel.unit), f(row.value === null ? null : row.dt, 's'), row.note];
+  return [row.id, row.ch, f(row.value === null ? null : row.t, 's'), f(row.value, row.channel.unit), f(row.value === null ? null : row.dt, 's'), f(row.dv, row.channel.unit), row.ref, row.note];
 }
 export function mount(el, ctx) {
   const { store } = ctx, model = markerModel(ctx);
@@ -22,22 +22,25 @@ export function mount(el, ctx) {
     store.command('marker.add', { ch, t });
   };
   bar.append(title, link, add);
-  const table = h('table'); table.className = 'table table--num'; table.setAttribute('aria-label', 'Marker Table');
+  const table = h('table'); table.className = 'table table--num'; table.setAttribute('aria-label', 'Marker Table'); table.style.tableLayout = 'fixed';
   el.append(bar, table); let editing = false, signature = '';
   const highlight = () => {
     for (const tr of table.children) if (tr.dataset.markerKey) tr.className = tr.dataset.markerKey === model.selected || tr.dataset.markerKey === model.hovered ? 'is-selected' : '';
   };
   function render() {
     link.disabled = add.disabled = !store.get().file;
-    const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row)]));
+    const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row), store.get().markerTable.map(p => p.id)]));
     if (editing || next === signature) { highlight(); return; }
     signature = next;
-    const head = h('tr'); HEADERS.forEach(label => head.append(h('th', label)));
+    const head = h('tr'); HEADERS.forEach(label => { const th = h('th', label); th.style.cssText = 'white-space:normal;overflow-wrap:anywhere;padding:2px'; head.append(th); });
     const rows = data.map(row => {
       const tr = h('tr'); tr.dataset.markerKey = row.key; tr.tabIndex = 0;
       const values = markerCells(row);
-      values.slice(0, 5).forEach(text => tr.append(h('td', text)));
-      const note = h('td'), input = h('input'); input.className = 'input marker-table__note'; input.value = row.note; input.setAttribute('aria-label', `${row.id} ${row.ch} 註記`);
+      values.slice(0, 6).forEach(text => { const td = h('td', text); td.style.cssText = 'white-space:normal;overflow-wrap:anywhere;padding:2px'; tr.append(td); });
+      const refCell = h('td'), select = h('select'); select.setAttribute('aria-label', `${row.id} ${row.ch} 基準`); select.style.cssText = 'width:100%;min-width:0';
+      for (const id of [null, ...store.get().markerTable.map(p => p.id)]) { const option = h('option', id ?? '無'); option.value = id ?? ''; select.append(option); }
+      select.value = row.ref ?? ''; select.onclick = e => e.stopPropagation(); select.onchange = () => model.ref({ id: row.id, ref: select.value || null }); refCell.style.padding = '2px'; refCell.append(select); tr.append(refCell);
+      const note = h('td'), input = h('input'); input.className = 'input marker-table__note'; input.value = row.note; input.style.cssText = 'width:100%;min-width:0;box-sizing:border-box'; input.setAttribute('aria-label', `${row.id} ${row.ch} 註記`);
       input.onfocus = () => { editing = true; };
       input.onblur = () => { editing = false; input.value = row.note; render(); };
       input.onkeydown = e => {
@@ -49,7 +52,7 @@ export function mount(el, ctx) {
       const cell = h('td'), remove = h('button', '✕'); remove.type = 'button'; remove.className = 'btn btn--small'; remove.title = row.link ? '刪除整個連動組' : '刪除 Marker';
       remove.onclick = e => { e.stopPropagation(); model.remove(row.id); }; cell.append(remove); tr.append(cell);
       tr.onclick = () => { tr.focus?.({ preventScroll: true }); model.select(row.key); };
-      tr.onkeydown = e => { if (e.target?.isContentEditable || /^(INPUT|TEXTAREA)$/i.test(e.target?.tagName ?? '')) return; if (['Delete', 'Backspace'].includes(e.key)) { e.preventDefault(); model.remove(row.id); } else if (e.key === 'Enter') model.select(row.key); };
+      tr.onkeydown = e => { if (e.target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/i.test(e.target?.tagName ?? '')) return; if (['Delete', 'Backspace'].includes(e.key)) { e.preventDefault(); model.remove(row.id); } else if (e.key === 'Enter') model.select(row.key); };
       return tr;
     });
     table.replaceChildren(head, ...rows); highlight();

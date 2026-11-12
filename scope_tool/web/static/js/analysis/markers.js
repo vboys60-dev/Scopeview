@@ -12,19 +12,24 @@ export function markerModel(ctx) {
   const entries = () => store.get().markerTable;
   // 僅時間位移／通道集合使讀值失效；註記不影響吸附。
   const channelKey = s => JSON.stringify(s.channels.map(c => [c.name, c.time_offset || 0]).sort((a, b) => a[0].localeCompare(b[0])));
-  const pointKey = s => JSON.stringify(s.markerTable.map(({ note, ...p }) => p));
+  const pointKey = s => JSON.stringify(s.markerTable.map(({ note, ref, ...p }) => p));
   let channelsKey = channelKey(store.get()), pointsKey = pointKey(store.get());
   const display = (p, ch) => p.link ? p.t : p.t_src + (ch.time_offset || 0);
   const model = { on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     get selected() { return selected; }, get hovered() { return hovered; },
     hover(id) { if (hovered !== id) { hovered = id; notify(); } },
     rows() {
-      const st = store.get(), base = entries().find(p => p.link);
-      return entries().flatMap(p => st.channels.filter(ch => p.link || ch.name === p.ch).map(ch => {
+      const st = store.get(), points = entries();
+      const rows = points.flatMap(p => st.channels.filter(ch => p.link || ch.name === p.ch).map(ch => {
         const key = `${p.id}:${ch.name}`, r = readings.get(key), t = preview?.id === p.id ? preview.t : display(p, ch);
-        return { ...p, key, ch: ch.name, channel: ch, t: r && !preview ? r.t : t,
-          value: r?.value ?? null, dt: base ? (r && !preview ? r.t : t) - base.t : null };
+        return { ...p, key, ch: ch.name, channel: ch, t: r && !preview ? r.t : t, value: r?.value ?? null };
       }));
+      return rows.map(row => {
+        const ref = row.ref === undefined ? (points.some(p => p.id === 'M1') ? 'M1' : null) : row.ref;
+        const base = rows.find(r => r.id === ref && (ref !== 'M1' || r.ch === row.ch));
+        return { ...row, ref, dt: base ? row.t - base.t : null,
+          dv: base && base.channel.unit === row.channel.unit && finite(row.value) && finite(base.value) ? row.value - base.value : null };
+      });
     },
     add({ ch = store.get().selected, t, link = false } = {}) {
       if (!store.get().file || !finite(t) || !store.get().channels.some(c => c.name === ch)) return false;
@@ -45,7 +50,8 @@ export function markerModel(ctx) {
       }) }, 'user'); return true;
     },
     preview(id, t) { token++; clearTimeout(timer); preview = id ? { id, t } : null; notify(); },
-    remove(id) { store.set({ markerTable: entries().filter(p => p.id !== id) }, 'user'); },
+    remove(id) { store.set({ markerTable: entries().filter(p => p.id !== id).map(p => { if (p.ref !== id) return p; const { ref, ...rest } = p; return rest; }) }, 'user'); },
+    ref({ id, ref }) { const to = ref == null ? null : entries().find(p => String(p.id) === String(ref))?.id ?? null; store.set({ markerTable: entries().map(p => p.id === id ? { ...p, ref: to } : p) }, 'user'); },
     note({ id, note }) { store.set({ markerTable: entries().map(p => p.id === id ? { ...p, note: String(note) } : p) }, 'user'); },
     select(key, reveal = true) {
       selected = key; const row = model.rows().find(r => r.key === key), v = store.get().view;

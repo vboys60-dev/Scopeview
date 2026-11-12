@@ -233,6 +233,24 @@ def marker_add_button(c: Cdp, prep: str) -> None:
         S.set({markerTable:[]},'program');return r;
     })()""")
     assert res["n"] == 3 and res["rows"] == 3, res
+    # 900 寬量測表格與基準切換；由 browser_check 的 CDP 執行。
+    c.send('Emulation.setDeviceMetricsOverride', width=900, height=600, deviceScaleFactor=1, mobile=False)
+    try:
+        result = c.js("(async()=>{" + prep + """
+            S.command('marker.link',{t:(S.state.view.t0+S.state.view.t1)/2});
+            S.command('marker.add',{ch:S.state.selected,t:(S.state.view.t0+S.state.view.t1)/2});
+            await new Promise(r=>setTimeout(r,700));
+            const p=document.querySelector('.analysis__markers'),t=p.querySelector('table'),s=t.querySelector('tr[data-marker-key] select');
+            const id=S.state.markerTable.find(x=>!x.link).id;s.value=id;s.dispatchEvent(new Event('change',{bubbles:true}));
+            const switched=S.state.markerTable.some(x=>x.ref===id);
+            S.command('marker.remove',id);
+            const reset=S.state.markerTable.every(x=>x.ref===undefined);
+            const dims={panel:p.scrollWidth<=p.clientWidth+1,table:t.scrollWidth<=t.clientWidth+1,page:document.documentElement.scrollWidth<=innerWidth+1};
+            S.set({markerTable:[]},'program');return {switched,reset,...dims};
+        })()""")
+        assert all(result.values()), result
+    finally:
+        c.send('Emulation.clearDeviceMetricsOverride'); c.pump(0.4)
 
 
 def marker_rightclick(c: Cdp, prep: str) -> None:
