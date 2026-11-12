@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from scope_tool.analysis import edge
@@ -61,8 +63,8 @@ def uniform_dt(t: np.ndarray) -> float:
 def levels(v: np.ndarray) -> tuple[float, float, float, float]:
     """回傳 (vmin, vmax, top, base)。格內代表值手冊未載明，保留格內平均。"""
     vmin, vmax = float(v.min()), float(v.max())
-    if vmax == vmin:
-        return vmin, vmax, vmax, vmin
+    if vmax - vmin <= _BINS * math.ulp(max(abs(vmin), abs(vmax))):
+        return vmin, vmax, vmin, vmin
     counts, bins = np.histogram(v, bins=_BINS, range=(vmin, vmax))
     cut = int(_BINS * 0.4)  # 40% 的格數取整方式手冊未載明，保留向下取整。
 
@@ -76,6 +78,8 @@ def levels(v: np.ndarray) -> tuple[float, float, float, float]:
     # 同高峰取內側：Top 選較低格，Base 選較高格。
     top = mode(_BINS - cut + int(counts[-cut:].argmax()), vmax)
     base = mode(cut - 1 - int(counts[:cut][::-1].argmax()), vmin)
+    if top <= base:
+        top = base
     return vmin, vmax, top, base
 
 
@@ -90,22 +94,48 @@ def _sample_index(t: np.ndarray, endpoint: float) -> int:
     return near if abs(t[near] - endpoint) <= 8 * np.spacing(abs(endpoint)) else i
 
 
+def _validate_pct(pct: tuple[float, float, float]) -> None:
+    try:
+        lower, mid, upper = pct
+        valid = 0 <= lower <= mid <= upper <= 100 and lower < upper
+    except (TypeError, ValueError):
+        valid = False
+    if not valid:
+        raise ScopeError("THRESHOLDS：百分比須符合 0 ≤ lower ≤ mid ≤ upper ≤ 100，且 lower < upper。")
+
+
 def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, float] = (10, 50, 90),
-            rising: bool = True, mode: str = "full") -> np.ndarray:
+            rising: bool = True, mode: str = "full", ref_time: float = 0.0) -> np.ndarray:
     """回傳該量測在範圍內每個事件的值（整段量測長度 1）；量測不出來丟 ScopeError（訊息即原因）。"""
+    if mode not in ("full", "cycles", "cycle"):
+        raise ScopeError(f"未知的量測模式：{mode}（可用 full、cycles、cycle）")
+    _validate_pct(pct)
     validate(t, v)
-    vmin, vmax, top, base = levels(v)
+    vmin, vmax = float(v.min()), float(v.max())
+    if name in ("Vmax", "Vmin", "Vp-p"):
+        return np.array([{"Vmax": vmax, "Vmin": vmin, "Vp-p": vmax - vmin}[name]])
     interval = name in INTERVAL
-    if interval and mode == "cycles":
+    if not interval or mode in ("cycles", "cycle"):
+        _, _, top, base = levels(v)
         if top <= base:
-            raise ScopeError("No edges：範圍內不足一個完整週期")
+            raise ScopeError("TOP_EQ_BASE：波形沒有振幅（top = base）。")
+    if interval and mode in ("cycles", "cycle"):
         # 相對時間避免遠離原點時 ULP 吸附過寬；右端不重複計入。
         et = t - t[0]
         es = edge.edges(et, v, *(base + (top - base) * p / 100 for p in pct))
-        mids = [e.t_mid for e in es if e.rising == rising]
+        if mode == "cycle":
+            if not es:
+                raise ScopeError("EDGE：範圍內不足一個完整週期")
+            e0 = min(es, key=lambda e: (abs(e.t_mid - (ref_time - t[0])), e.t_mid))
+            mids = [e.t_mid for e in es if e.rising == e0.rising and e.t_mid >= e0.t_mid][:2]
+        else:
+            mids = [e.t_mid for e in es if e.rising == rising]
         if len(mids) < 2:
-            raise ScopeError("No edges：範圍內不足一個完整週期")
+            reason = "EDGE" if mode == "cycle" else "No edges"
+            raise ScopeError(f"{reason}：範圍內不足一個完整週期")
         v = v[_sample_index(et, mids[0]):_sample_index(et, mids[-1])]
+        if not v.size:
+            raise ScopeError("EDGE：週期內沒有取樣點")
     if interval:
         # 均勻次取樣比例手冊未載明，保留所選區間全部樣本。
         # RMS_Voltage：AC RMS 使用同段平均。
@@ -114,6 +144,8 @@ def measure(name: str, t: np.ndarray, v: np.ndarray, pct: tuple[float, float, fl
     single = {"Vmax": vmax, "Vmin": vmin, "Vp-p": vmax - vmin, "Vtop": top, "Vbase": base,
               "Vamp": top - base}
     if name in single:
+        if name == "Vamp" and top <= base:
+            raise ScopeError("TOP_EQ_BASE：波形沒有振幅（top = base）。")
         return np.array([single[name]])
     amp = top - base
     if amp <= 0:
@@ -141,6 +173,7 @@ def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.n
              pct: tuple[float, float, float] = (10, 50, 90), rising: bool = True,
              rising2: bool | None = None) -> np.ndarray:
     """3000G 雙來源量測；時間軸須為各自已套 dx 的顯示時間。"""
+    _validate_pct(pct)
     for i, (t, v) in enumerate(((t1, v1), (t2, v2)), 1):
         try:
             validate(t, v)
@@ -155,7 +188,10 @@ def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.n
         raise ScopeError(f"未知的雙來源量測：{name}")
     mids = []
     for i, (t, v, up) in enumerate(((t1, v1, rising), (t2, v2, rising if rising2 is None else rising2)), 1):
-        _, _, top, base = levels(v)
+        try:
+            _, _, top, base = levels(v)
+        except ScopeError as exc:
+            raise ScopeError(f"來源 {i}：{exc}") from exc
         es = edge.edges(t, v, *(base + (top - base) * p / 100 for p in pct)) if top > base else []
         m = np.array([e.t_mid for e in es if e.rising == up])
         if not m.size:
@@ -176,7 +212,7 @@ def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.n
     return edge.timed(delay, a)
 
 
-def stats(values: np.ndarray, ref: float | None = None) -> tuple[float, float, float, float, float, float, int]:
+def stats(values: np.ndarray, ref: float | None = None, meas_all_edges: bool = True) -> tuple[float, float, float, float, float, float, int]:
     """目前取距參考最近的事件，同距取較早；未給參考／事件時間時沿用首事件。"""
     at = getattr(values, "at", None)
     i = 0
@@ -184,20 +220,37 @@ def stats(values: np.ndarray, ref: float | None = None) -> tuple[float, float, f
         distance = abs(at - ref)
         candidates = np.flatnonzero(distance == distance.min())
         i = candidates[at[candidates].argmin()]
+    if not meas_all_edges:
+        values = values[i:i + 1]
+        i = 0
     lo, hi = float(values.min()), float(values.max())
     return (float(values[i]), float(values.mean()), lo, hi, hi - lo, float(values.std()), len(values))
 
 
 def measure_all(tasks: list[tuple[str, np.ndarray, np.ndarray, bool]],
-                pct: tuple[float, float, float]) -> list[tuple | str]:
+                pct: tuple[float, float, float], ref_time: float = 0.0,
+                meas_all_edges: bool = True) -> list[tuple | str]:
     """背景執行用：每筆回傳 stats 結果，失敗回傳原因字串（一筆失敗不影響其他筆）。"""
     out: list[tuple | str] = []
     for name, t, v, rising in tasks:
         try:
-            values = measure(name, t, v, pct, rising)
+            try:
+                values = measure(name, t, v, pct, rising)
+            except ScopeError:
+                if meas_all_edges or name not in SLOPED:
+                    raise
+                values = measure(name, t, v, pct, not rising)
+                rising = not rising
+            if not meas_all_edges and name in SLOPED:
+                try:
+                    other = measure(name, t, v, pct, not rising)
+                except ScopeError:
+                    other = None
+                if other is not None:
+                    values = edge.timed(np.concatenate((values, other)), np.concatenate((values.at, other.at)))
             bound = getattr(values, "bound", None)
-            out.append(f"點數不足，僅得{'下界' if bound == '>' else '上界'} {bound}" if bound else stats(values))
-        except ScopeError as exc:
+            out.append(f"點數不足，僅得{'下界' if bound == '>' else '上界'} {bound}" if bound else stats(values, ref_time, meas_all_edges))
+        except Exception as exc:
             out.append(str(exc))
     return out
 

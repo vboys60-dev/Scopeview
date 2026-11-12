@@ -37,12 +37,13 @@ def _self_check() -> None:
         assert np.isclose(measure(name, ct, cv, mode="full")[0], helper(cv))
         for rising, start, stop in ((True, 1, 201), (False, 51, 151)):
             assert np.isclose(measure(name, ct, cv, rising=rising, mode="cycles")[0], helper(cv[start:stop]))
-        for times, signal in ((ct[:100], cv[:100]), (ct, np.ones_like(cv))):
+        for times, signal, reason in ((ct[:100], cv[:100], "No edges：範圍內不足一個完整週期"),
+                                      (ct, np.ones_like(cv), "TOP_EQ_BASE：波形沒有振幅（top = base）。")):
             try:
                 measure(name, times, signal, mode="cycles")
                 raise AssertionError("不足一週期不可退回整段")
             except ScopeError as exc:
-                assert str(exc) == "No edges：範圍內不足一個完整週期"
+                assert str(exc) == reason
     assert measure("Vavg", ct, cv, mode="cycles")[0] == 0.5
     assert measure("Vavg", ct, cv)[0] == 149 / 250
     # 相位、中閾、方向與時間平移：以首末同向緣的獨立樣本切片驗證。
@@ -158,6 +159,7 @@ def _self_check() -> None:
     assert measure("Vp-p", t, flat)[0] == 0
     res = measure_all([("頻率", t, flat, True), ("Vmax", t, v, True)], (10, 50, 90))
     assert isinstance(res[0], str) and "振幅" in res[0] and res[1][0] == 2
+    _new_checks()
     def rejected(times: np.ndarray, values: np.ndarray, message: str = "") -> None:
         try:
             measure("Vmax", times, values)
@@ -281,6 +283,65 @@ def _dual_check() -> None:
     assert result.size == 100000 and np.allclose(result, 1e-7, rtol=0, atol=1e-16)
     assert elapsed < 1, elapsed
     print(f"measure2: 100000 events {elapsed:.3f} s; Delay ±0.05 s, Phase ±90°, Ratio 6.0206 dB OK")
+
+
+
+
+def _new_checks() -> None:
+    from unittest.mock import patch
+    from scope_tool.analysis import measure as module
+    from scope_tool.analysis.measure import measure2
+
+    t = np.arange(11, dtype=float)
+    v = np.array([0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0], dtype=float)
+    for name, expected in (("Vavg", .2), ("Vrms(DC)", np.sqrt(.2)), ("Vrms(AC)", .4)):
+        assert np.isclose(measure(name, t, v, mode="cycle", ref_time=0)[0], expected)
+    assert np.isclose(measure("Vavg", t, v, mode="cycles")[0], 2 / 7)
+    for mode in ("all_cycles", "ALL_CYCLES", "CYCLE", "unknown"):
+        try:
+            measure("Vavg", t, v, mode=mode)
+            assert False
+        except ScopeError as exc:
+            assert "未知的量測模式" in str(exc)
+    try:
+        measure("Vavg", t, v, mode="cycle", ref_time=9.5)
+        assert False
+    except ScopeError as exc:
+        assert "EDGE" in str(exc)
+    near = np.array([1., np.nextafter(1., 2.)])
+    with patch.object(module.np, "histogram", side_effect=AssertionError("不應呼叫直方圖")):
+        assert levels(near)[2] == levels(near)[3]
+    for ulps in (9, 255, 256):
+        signal = np.array([1., 1. + ulps * np.spacing(1.)])
+        assert levels(signal)[2] == levels(signal)[3]
+    for name in ("Vtop", "Vbase", "Vamp"):
+        try:
+            measure(name, t[:2], near)
+            assert False
+        except ScopeError as exc:
+            assert "TOP_EQ_BASE" in str(exc)
+    assert measure("Vmax", t[:2], near)[0] == near.max()
+    assert measure("Vmin", t[:2], near)[0] == near.min()
+    assert measure("Vp-p", t[:2], near)[0] == near[1] - near[0]
+    for pct in ((90, 50, 10), (10, 150, 90), (-1, 50, 90), (10, 50, 101)):
+        for fn in (lambda: measure("週期", t, v, pct), lambda: measure2("延遲", t, v, t, v, pct)):
+            try:
+                fn()
+                assert False
+            except ScopeError as exc:
+                assert "THRESHOLDS" in str(exc)
+    with patch.object(module, "measure", side_effect=[ValueError("測試例外"), np.array([3.])]):
+        result = measure_all([("Vmax", t, v, True)] * 2, (10, 50, 90))
+        assert result[0] == "測試例外" and result[1][0] == 3
+    events = edge.timed(np.array([1., 2.]), [1., 4.])
+    assert stats(events, 1, False) == (1., 1., 1., 1., 0., 0., 1)
+    assert stats(events, 1, True)[-1] == 2
+    result = measure_all([("週期", t, v, True)], (10, 50, 90), ref_time=2.4, meas_all_edges=False)[0]
+    assert result[-1] == 1 and result[0] == 5 and result[1] == 5
+    result = measure_all([("週期", t, v, True)], (10, 50, 90), ref_time=6.5, meas_all_edges=False)[0]
+    assert result[0] == 3 and result[-1] == 1
+    result = measure_all([("週期", t, v, True)], (10, 50, 90), ref_time=1.5)[0]
+    assert result[-1] == 2 and result[1] == 3.5
 
 
 if __name__ == "__main__":
