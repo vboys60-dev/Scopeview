@@ -72,7 +72,7 @@
 5. 離線分析 UI 修正：D1～D6 已確認、規則已授權；階段 A～D 全部完成（2026-11-13）；剩真視窗人工確認（見「離線分析 UI 修正第二輪」）。
 6. 基本量測真機校準：Top/Base 直方圖範圍與格數（N9），見「基本量測審查與修正」。
 8. 分析頁選單與拖放的人工確認與後續（見「分析頁選單與拖放」）：真視窗手感、Qt 版延後、選單 `role="menu"`／方向鍵、`toolbar.js` Node 單元測試。
-7. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
+7. 可選缺口：已於 2026-11-13 全部做完（W0～W8，見「離線分析可選功能」段）；剩真機比對與 Qt 版。
 
 ## 工作流程
 
@@ -202,6 +202,21 @@
 - **待人工**：真視窗（pywebview）開「更多…」後點裡面的下拉，確認 popover 不會被關掉；若會關，改 `more.popover = 'manual'`（約 +3 行）。
 - **殘留限制**：停靠在 1280～1310 時水平列最多多 31px、1280～1367 FFT 列最多多 88px，仍靠原本橫捲；RBW 在 1100／900 只剩約 75px 靠 tooltip。
 - **流程備忘**：Codex 提示檔放 scratchpad，`codex exec ... -o 絕對路徑 "請讀並照做此提示檔：<路徑>" </dev/null`（別用 `\$(cat)` 逸出）；量尺寸用 scratchpad 的 `measure_plan.py [fft|fftpane]`（不入庫）。
+
+## 離線分析可選功能（2026-11-13，W0～W8 全部完成並 commit；僅 Web，Qt 延後）
+
+- **計畫**：Opus 規劃（`plan_optional.md`，scratchpad 不入庫）、Codex 實作、Opus 驗收；使用者「照預設」「每波自動 commit」。授權見 `RULES.md` 檔尾「離線分析可選功能」與 W8 追加（`gestures.js` 可記錄 `time_offset`）。
+- **W0**（`253c58c`）`Analysis.measure` 搬到 `web/analysis_measure.py`（`MeasureMixin`），54 組指紋逐位元相同。
+- **W1**（`e867d6c`）Vmid、上升／下降邊緣計數、±脈衝計數，放新名稱表 `EXTRA`（`analysis/measure_extra.py`），**不併入 `measure.MEASUREMENTS`**（否則 Qt 控制項與 `_TIPS` 自檢會連動）。計數用三閾值完整邊緣；+脈衝＝上升後接下降，只算完整脈衝。
+- **W2**（`70488e1`）Delta Time（相位延遲）：各來源可設 `edge_num`／`edge_level`（lower|middle|upper）／方向，從量測範圍左緣數起，回 `t2−t1`。獨立驗算誤差 <1e-13·dt。原「延遲」「相位」仍是最近邊緣配對（產品自訂）。
+- **W3＋W4**（`1cdea9a`、`1d077bc`）Track Measurements：`measure.current_index` 抽出；`analysis/measure_marks.py` 只對 `track=true` 的列算標記點（MeasureResult `marks`）；前端選 Track 自動追蹤第一列、點列換、主圖標點。**前端絕不寫 `store.cursors`**（游標區間量測會重算迴圈；瀏覽器檢查驗證工作數歸零）。刪除 `summary.js`。追蹤列在 100 萬點週期量測多約 29 ms。
+- **W5**（`b0d5f4b`）FFT Phase 參考（`phase_ref`，顯示時間；null＝舊行為）與 `unwrap`，契約必填、version 仍 2；UI 在「更多…」。**符號與核心 `reference_time` 一致（+360·f·Δ）**，計畫原寫 −360 是錯的，Codex 曾加補償抵消核心，已拿掉。
+- **W6**（`6caa7c7`）Marker 表加「基準」欄（Delta To，預設 M1）與 ΔV，跨單位顯示「—」，刪基準回預設。測試踩坑：`S.command('marker.remove', id)` 要傳 id 本身，不是 `{id}`。
+- **W7**（`a94ed80`）「分析 ▾」加「分開堆疊」（位置式：自動 V/格＋offset、共用格線，非真正分格）與「疊圖（自動縮放）」，整組一次復原。
+- **W8**（`4cc6b03`）比對檔「對齊主檔」：用 Delta Time 對第一個上升緣，整槽通道一起移 `time_offset`，可一次復原；沒邊緣時 toast 不改。
+- **驗收**：每波 Python／Node 自檢、`e2e_check`、`browser_check` 皆過；Codex 每波常需提示「全部做完才報告」，W3 第一輪曾提早停。
+- **只有紙上驗證／待真機**：Delta Time 對 Infiniium（規格 V10，容差 ≤0.1·dt）；有雜訊或突波時計數是否與面板一致（官方用中閾值兩次穿越，本專案三閾值完整邊緣）；Phase 參考與面板比對；真視窗看「更多…」內下拉、堆疊視覺。
+- **未做**：FFT 多頻譜疊圖（後端 `_spec` 只有一份）、真正分格（Infiniium Grids）、Qt 版全部。
 
 ## 九協定解碼（2026-11-12，波 0～3 全部完成並併入 main）
 
