@@ -3,6 +3,7 @@ export function menuPosition(x, y, w, h, vw, vh) {
   return { left: Math.max(0, Math.min(x + w > vw ? x - w : x, vw - w)),
     top: Math.max(0, Math.min(y + h > vh ? y - h : y, vh - h)) };
 }
+import { popoverFallback } from './popover_fallback.js';
 export function markerMenuItems(state, ch, t, hit, model) {
   const full = state.markerTable.filter(p => !p.link && p.ch === ch).length >= 10;
   return [
@@ -55,7 +56,7 @@ export function createMarkerMenu() {
 }
 
 export function popMenu(button, panel, place) {
-  panel.popover = 'auto'; button.popoverTargetElement = panel;
+  panel.popover = 'auto'; button.popoverTargetElement = panel; popoverFallback(button, panel);
   button.setAttribute('aria-haspopup', panel.getAttribute?.('role') === 'menu' ? 'menu' : 'true');
   button.setAttribute('aria-expanded', 'false');
   panel.addEventListener?.('keydown', e => {

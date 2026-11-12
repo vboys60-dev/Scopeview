@@ -123,3 +123,6 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 已知缺口第一波（2026-11-13，使用者「已知缺口 opus 規劃 codex 做 opus 驗收」，依 plan_gaps；**僅 Web，Qt 延後、`ui/*` 不動**）：L4 `layout.js`（停靠改依圖區寬度，新增 `DOCK_PLOT_MIN`）、`dock_check.mjs`；L5 `marker_menu.js`（選單 `role=menu` 與方向鍵）、`toolbar.js`（`role=menu`、`aria-haspopup="menu"`）；L8 新檔 `static/js/analysis/toolbar_check.mjs`，並更新 `menu_check.mjs`、`browser_menu_checks.py`、`browser_marker_checks.py`、`selfcheck_node.js`（FILES 增一項）。不涉及凍結檔。
 
 已知缺口第二波追加授權（2026-11-13，使用者選「預設帶入更聰明」「FFT 疊圖方案 A」「分格可手動指派」）：解凍 L5 `decode.js` 僅限 `defaultConfig` 的來源預設帶入（通道名稱符合 `^角色key\d*$`（不分大小寫）就帶入，找不到才照順序），其餘不動；登記 L4 新檔 `fft_overlay.js`（前端頻譜快照，不改後端與契約）並更新 `fftpane.js`、L8 `fft_overlay_check.mjs`、`browser_fft_checks.py`、`decode_check.mjs`、`decode_proto_check.mjs`。
+
+## 選單修正（Popover 替代做法）
+- 授權新增：`scope_tool/web/static/js/analysis/popover_fallback.js`、`popover_fallback_check.mjs`；修改 `marker_menu.js`（popMenu 呼叫替代）、`css/vertical.css`（`.popmenu[data-open]`）、`selfcheck_node.js`（登記）。

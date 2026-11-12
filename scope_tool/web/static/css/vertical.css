@@ -14,6 +14,7 @@
 /* 共用 Popover 選單：取消瀏覽器預設置中。 */
 .popmenu { inset: auto; margin: 0; flex-direction: column; padding: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); }
 .popmenu:popover-open { display: flex; }
+.popmenu[data-open] { display: flex; }
 .popmenu hr { width: 100%; border: 0; border-top: 1px solid var(--c-border); margin: 4px 0; }
 .popmenu button, .popmenu label { text-align: left; }
 /* 量測鈕拖放：放置目標、懸停目標、跟隨游標的提示標籤。 */
