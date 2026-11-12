@@ -11,3 +11,12 @@
 .chip__color { flex: 0 0 24px; width: 24px; min-width: 24px; height: 20px; padding: 1px; border: 1px solid var(--c-border); border-radius: 3px; background: transparent; cursor: pointer; }
 .chip__reset { flex: 0 0 auto; padding: 0 2px; border: 0; background: none; color: var(--c-text-dim); font: inherit; cursor: pointer; }
 .chip__reset:hover { color: var(--c-text); }
+/* 共用 Popover 選單：取消瀏覽器預設置中。 */
+.popmenu { inset: auto; margin: 0; flex-direction: column; padding: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); }
+.popmenu:popover-open { display: flex; }
+.popmenu hr { width: 100%; border: 0; border-top: 1px solid var(--c-border); margin: 4px 0; }
+.popmenu button, .popmenu label { text-align: left; }
+/* 量測鈕拖放：放置目標、懸停目標、跟隨游標的提示標籤。 */
+.chanbar__col.is-droptarget { outline: 1px dashed var(--c-border); outline-offset: -1px; }
+.chanbar__col.is-dropover { outline: 2px solid var(--c-accent, currentColor); background: color-mix(in srgb, var(--c-accent, #4af) 15%, transparent); }
+.measure__dragtag { position: fixed; z-index: 1000; pointer-events: none; padding: 2px 6px; border: 1px solid var(--c-border); border-radius: 3px; background: var(--c-surface); color: var(--c-text); font-size: 12px; white-space: nowrap; }

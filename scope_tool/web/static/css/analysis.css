@@ -63,8 +63,8 @@
 .results__table { width: 100%; }
 .results__table th, .results__table td { white-space: nowrap; padding: 3px 6px; height: 26px; line-height: 19px; font-size: 13px; }
 .results__menu { position: relative; }
-.results__menu > summary { list-style: none; cursor: pointer; min-width: 24px; text-align: center; }
-.results__choices { position: fixed; z-index: 20; padding: 8px; background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-dlg); }
+.results__menu > button { cursor: pointer; min-width: 24px; text-align: center; }
+.results__choices { position: fixed; inset: auto; margin: 0; padding: 8px; background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-dlg); }
 .results__choices label { display: flex; font-size: 13px; }
 .results__info { font-size: 14px; cursor: help; }
 .results__fftinfo { white-space: nowrap; font-size: 12.5px; padding: 2px 6px; }

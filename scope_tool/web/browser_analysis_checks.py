@@ -180,15 +180,15 @@ def compact_results(c: Cdp, prep: str) -> None:
     assert len(dims["rows"]) == 3 and max(dims["rows"]) <= 34, dims
     assert dims["single"] and dims["fonts"] and dims["parallel"] and dims["actions"], dims
     assert 0 <= dims["readout"] <= 140 and dims["values"] >= 7, dims
-    c.js("document.querySelector('.results__menu summary').click()")
-    c.wait("document.querySelector('.results__menu').open")
+    c.js("document.querySelector('.results__menu button').click()")
+    c.wait("document.querySelector('.results__choices').matches(':popover-open')")
     original_count = c.js("document.querySelector('[data-column=count]').checked")
     if not original_count:
         c.js("document.querySelector('[data-column=count]').click()")
     assert c.js("[...document.querySelectorAll('.analysis__results th')].some(e=>e.textContent==='Count')")
     if not original_count:
         c.js("document.querySelector('[data-column=count]').click()")
-    c.js("document.querySelector('.results__menu summary').click()")
+    c.js("document.querySelector('.results__menu button').click()")
     # 用真正點擊進入匯出處理器，攔截 RPC 避免驗證產生使用者檔案。
     result = c.js("(async()=>{" + prep + """
         const old=B.call,list=S.state.measurements; let exported=0;

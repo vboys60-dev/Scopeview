@@ -2,6 +2,7 @@
 // store.measurements 每筆：{id, channel, channel2?, name, rising, rising2?, mode, all_edges, result: MeasureResult|null（null＝計算中）}。
 // 來源通道與邊緣方向在加入時固定；範圍、閾值、dx、游標（rangeMode=cursors 時）變動都會重算；過期（token／gen）結果丟棄。
 import { T } from "./terms.js";
+import { RECT_MIN_PX } from "./gestures.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const num = (v) => typeof v === "number" && Number.isFinite(v);
@@ -12,6 +13,23 @@ export const dxOf = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_o
 /** catalog 單位樣板（"{u}"、"{u}/s"）換成通道單位。 */
 export const unitFor = (tpl, chUnit) => String(tpl ?? "").replace("{u}", chUnit);
 export const failure = (reason, gen = 0, revision = 0) => ({ ok: false, stats: null, reason, gen, revision, channel: "", name: "", unit: "" });
+
+/** 位移達 RECT_MIN_PX（6 px）才算拖曳，未達視為點擊。 */
+export const isDrag = (dx, dy) => Math.hypot(dx, dy) >= RECT_MIN_PX;
+/** 放置目標：元素所在的通道列欄位（[data-channel]）通道名，沒有就是 null。 */
+export const dropChannel = (el) => el?.closest?.("[data-channel]")?.dataset.channel ?? null;
+
+// 視窗層監聽（Esc、blur、pointerup）整個模組只掛一次，交給最近一次 mount 的處理函式。
+let winHooks = null, winHooked = false;
+function hookWindow(hooks) {
+  winHooks?.blur(); // 先結束舊 mount 的拖曳／長按等待（清計時器、標籤、樣式、capture，不新增）
+  winHooks = hooks;
+  const w = globalThis.window;
+  if (winHooked || !w?.addEventListener) return;
+  winHooked = true;
+  for (const k of ["keydown", "blur"]) w.addEventListener(k, (e) => winHooks[k](e));
+  w.addEventListener("pointerup", (e) => winHooks.pointerup(e), true);
+}
 
 export function createMeasure({ store, bridge, appState }, { delay = 150, onError = () => {} } = {}) {
   const dual = name => (appState?.catalog?.measurements ?? []).some(m => m.name === name && m.sources === 2);
@@ -97,6 +115,71 @@ export function mount(el, ctx) {
   source2.title = "來源 2"; slope2.title = "來源 2 邊緣";
   slope2.append(new Option("同來源 1", "same"), new Option("上升緣 ↑", "1"), new Option("下降緣 ↓", "0"));
   slope2.value = "same";
+  // 拖放：量測鈕拖到通道列欄位＝以該通道為來源 1 新增；位移 <6 px 仍是點擊，觸控需長按 300 ms。
+  let drag = null, swallow = false;
+  const targets = () => [...(document.querySelectorAll?.("[data-channel]") ?? [])];
+  function addFrom(it, channel) { // 點擊與拖放共用
+    const st = store.get();
+    if (!st.file || (it.sources === 2 && st.channels.length < 2)) return;
+    const rising2 = slope2.value === "same" ? slope.value === "1" : slope2.value === "1";
+    m.add(it.name, channel, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked);
+  }
+  function over(x, y) {
+    const ch = dropChannel(document.elementFromPoint(x, y));
+    for (const c of targets()) c.classList.toggle("is-dropover", c.dataset.channel === ch);
+    Object.assign(drag.tag.style, { left: `${x + 12}px`, top: `${y + 12}px` });
+    drag.tag.textContent = `${T(drag.it.name)} → ${ch ?? "?"}`;
+    return ch;
+  }
+  function begin(x, y) {
+    const st = store.get();
+    if (!st.file || (drag.it.sources === 2 && st.channels.length < 2)) return end();
+    drag.active = true;
+    drag.b.setPointerCapture?.(drag.id);
+    drag.tag = h("div", "measure__dragtag"); document.body.append(drag.tag);
+    for (const c of targets()) c.classList.add("is-droptarget");
+    over(x, y);
+  }
+  function end(drop, x, y) {
+    if (!drag) return;
+    const d = drag; clearTimeout(d.timer);
+    const ch = d.active && drop ? dropChannel(document.elementFromPoint(x, y)) : null;
+    drag = null;
+    if (!d.active) { if (!drop) swallow = true; return; } // 按住等待中被取消（Esc／blur／換 mount／短滑）：緊接的指標 click 也不新增
+    swallow = true; // 吞掉緊接的指標 click（放下或取消都不可再新增到 selected）；鍵盤 click 不受影響
+    d.tag.remove();
+    for (const c of targets()) c.classList.remove("is-droptarget", "is-dropover");
+    if (d.b.hasPointerCapture?.(d.id)) d.b.releasePointerCapture(d.id);
+    if (ch) addFrom(d.it, ch);
+  }
+  const hooks = {
+    // Esc：拖曳中或觸控長按等待中都取消（end 會清計時器）
+    keydown: (e) => { if (e.key === "Escape" && drag) { if (drag.active) e.preventDefault(); end(); } },
+    blur: () => end(),
+    // 下一次 pointerup 處理完（含其 click）後解除吞 click；沒有 pointerup 時由下一次 pointerdown 解除
+    pointerup: () => setTimeout(() => { swallow = false; }),
+  };
+  hookWindow(hooks);
+  function draggable(b, it) {
+    b.style.touchAction = "pan-y";
+    b.addEventListener("pointerdown", (e) => {
+      end(); swallow = false;
+      if (e.button !== 0 || winHooks !== hooks) return; // 已被新 mount 取代：只留點擊，不再拖曳
+      drag = { b, it, id: e.pointerId, x: e.clientX, y: e.clientY, active: false, touch: e.pointerType === "touch" };
+      if (drag.touch) drag.timer = setTimeout(() => drag && begin(drag.x, drag.y), 300);
+    });
+    b.addEventListener("pointermove", (e) => {
+      if (drag?.b !== b || drag.id !== e.pointerId) return;
+      if (drag.active) { e.preventDefault(); over(e.clientX, e.clientY); return; }
+      if (!isDrag(e.clientX - drag.x, e.clientY - drag.y)) return;
+      if (drag.touch) end(); else begin(e.clientX, e.clientY); // 觸控未滿 300 ms 就移動＝短滑，不拖
+    });
+    b.addEventListener("pointerup", (e) => { if (drag?.b === b && drag.id === e.pointerId) end(true, e.clientX, e.clientY); });
+    for (const k of ["pointercancel", "lostpointercapture"]) b.addEventListener(k, () => { if (drag?.b === b) end(); });
+    b.addEventListener("contextmenu", (e) => { if (drag?.b === b && drag.touch) e.preventDefault(); }); // 長按不跳出選單
+  }
+  const hint = (st) => `\n點擊：加到目前通道（${st.selected ?? "?"}）；拖到通道列可指定來源`;
+  const allButtons = [];
   function sources(st) {
     const old = source2.value;
     source2.replaceChildren(...st.channels.map(c => new Option(c.name, c.name)));
@@ -104,7 +187,8 @@ export function mount(el, ctx) {
     const keep = st.channels.some(c => c.name === old) && (source2Set || old !== st.selected);
     const other = st.channels.find(c => c.name !== st.selected)?.name;
     source2.value = keep ? old : (other ?? st.channels[0]?.name ?? "");
-    for (const [b, tip] of dualButtons) { b.disabled = st.channels.length < 2; b.title = b.disabled ? "至少需要兩個來源通道" : tip; }
+    for (const [b, tip] of allButtons) b.title = tip + hint(st);
+    for (const [b, tip] of dualButtons) { b.disabled = st.channels.length < 2; b.title = b.disabled ? "至少需要兩個來源通道" : tip + hint(st); }
   }
   store.on(["channels", "selected"], sources);
   for (const category of ["時間", "電壓", "雙來源"]) {
@@ -113,13 +197,11 @@ export function mount(el, ctx) {
     for (const it of (cat.measurements ?? []).filter((x) => x.category === category)) {
       const b = h("button", "btn btn--small", T(it.name) + (it.sloped ? " ↕" : ""));
       if (it.sources === 2) dualButtons.push([b, it.tip]);
+      else allButtons.push([b, it.tip]);
       b.title = it.tip; b.type = "button";
-      b.onclick = () => {
-        const st = store.get();
-        if (!st.file || (it.sources === 2 && st.channels.length < 2)) return;
-        const rising2 = slope2.value === "same" ? slope.value === "1" : slope2.value === "1";
-        m.add(it.name, st.selected, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked);
-      };
+      // 鍵盤觸發的 click（detail===0）一律不吞，取消後殘留的旗標不會吃掉 Enter／Space
+      b.onclick = (e) => { if (swallow && e?.detail !== 0) { swallow = false; return; } addFrom(it, store.get().selected); };
+      draggable(b, it);
       box.append(b);
     }
     el.append(box);

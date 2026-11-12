@@ -6,6 +6,7 @@ import { disableTrackMeasurements } from "./summary.js";
 import { centerButton } from "./cursors.js";
 import { openSlots, appendFileInfo } from "./slots.js";
 import { exportReport } from "./report.js";
+import { popMenu } from "./marker_menu.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
 // 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
@@ -112,21 +113,27 @@ export function mount(el, ctx) {
   marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
   const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
   const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
-  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary"), bClose = btn("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗"))), bReset = btn("完整時間", () => store.command("view.reset")), bInfo = btn("檔案資訊", info), bMath = btn("Math…", math);
-  // 匯出 CSV／報告共用一個下拉，避免 1400 寬時工具列換行；選完即還原成標題項。
-  const bExport = select([["", "匯出…"], ["csv", "波形 CSV…"], ["report", "HTML 報告…"]]);
-  bExport.title = "匯出波形 CSV 或 HTML 報告";
-  bExport.onchange = () => { const v = bExport.value; bExport.value = ""; if (v === "csv") exportCsv(); else if (v === "report") exportReport(ctx, el.closest(".analysis") ?? document, modal); };
-  const bSlots = btn("比對…", () => openSlots(ctx, modal));
-  loaded.push(bSlots, bClose, bInfo, bMath, bExport, marker, bReset);
-  el.append(bOpen, bSlots, bClose, bInfo, bReset, fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr), bExport, bMath);
-
-  // ── FFT ──
+  // 工具列只留常用鈕；其餘收進「檔案 ▾／分析 ▾」Popover（panel 緊接在按鈕後，Tab 順序相鄰）。
+  const item = (t, fn) => { const b = btn(t, fn, "btn"); b.setAttribute("role", "menuitem"); return b; };
+  const menu = (title, ...kids) => {
+    const b = btn(title + " ▾", () => {}), p = h("div", "popmenu"); p.append(...kids); popMenu(b, p); el.append(b, p); return b;
+  };
+  const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary");
+  const bClose = item("關閉", () => closeFile(store, bridge).catch((e) => fail(e, "關閉失敗")));
+  const bSlots = item("比對…", () => openSlots(ctx, modal)), bInfo = item("檔案資訊", info), bMath = item("Math…", math);
+  const bCsv = item("匯出波形 CSV…", exportCsv), bRep = item("匯出 HTML 報告…", () => exportReport(ctx, el.closest(".analysis") ?? document, modal));
+  const bFft = item("FFT 頻譜 ↗", () => store.command("tab.select", "fft"));
+  loaded.push(bSlots, bClose, bInfo, bMath, bCsv, bRep, bFft, marker);
+  el.append(bOpen);
+  menu("檔案", bSlots, bInfo, bCsv, bRep, h("hr"), bClose);
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
   on.onchange = () => fft.setAnalysisOn(on.checked);
+  menu("分析", fieldOf("FFT 計算", on), bFft, bMath);
+  el.append(fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr));
+
+  // ── FFT ──
   const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
   mountFftControls(fftRow, ctx);
-  el.append(fieldOf("FFT 計算", on), btn("FFT 頻譜 ↗", () => store.command("tab.select", "fft")));
   fft.subscribe(() => { on.checked = fft.analysisOn; on.disabled = !store.get().file; });
   const root = el.closest(".analysis") ?? el.parentNode, place = () => { const bar = root.querySelector(".analysis__fftbar"); if (bar) bar.append(fftRow); return !!bar; };
   if (!place()) { const mo = new MutationObserver(() => { if (place()) mo.disconnect(); }); mo.observe(root, { childList: true, subtree: true }); setTimeout(() => { if (!fftRow.parentNode) el.append(fftRow); }, 3000); }

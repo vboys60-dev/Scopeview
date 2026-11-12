@@ -57,6 +57,12 @@ export function mount(el, ctx) {
     const name = h("span", "chip__name", c.name);
     name.title = `${c.name}：點一下選為目前通道／量測來源；雙擊換色`;
     name.onclick = () => store.set({ selected: c.name }, "user");
+    name.tabIndex = 0; name.setAttribute("role", "button");
+    name.onkeydown = (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.key === " ") e.preventDefault();
+      store.set({ selected: c.name }, "user");
+    };
     const col = h("input", "chip__color"); col.type = "color";
     col.setAttribute("aria-label", "通道顏色"); col.title = `${c.name} 通道顏色`;
     col.oninput = col.onchange = () => setChannelColor(store, c.name, col.value);
@@ -78,7 +84,7 @@ export function mount(el, ctx) {
     box.append(...parts);
     const verticalEl = h("div", "vertical");
     const v = mountVertical(verticalEl, ctx, { scaleChange, clampScale, fineScale, coarseScale }, c.name);
-    const colEl = h("div", "chanbar__col"); colEl.append(box, verticalEl);
+    const colEl = h("div", "chanbar__col"); colEl.dataset.channel = c.name; colEl.append(box, verticalEl);
     rows.set(c.name, { box, vis, name, col, sc, badge, v, colEl });
     return colEl;
   }
@@ -92,6 +98,7 @@ export function mount(el, ctx) {
       r.badge.hidden = !hasDx(c);
       r.vis.checked = c.visible;
       r.name.textContent = `${"●▲■◆"[i % 4]}${c.name}`  /* 形狀輔助辨識，不只靠顏色 */; r.name.style.color = c.color; r.col.value = c.color;
+      r.name.setAttribute("aria-pressed", String(c.name === selected));
       r.box.classList.toggle("chip--selected", c.name === selected);
       r.colEl.dataset.selected = String(c.name === selected);
     }

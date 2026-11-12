@@ -143,13 +143,15 @@ def float_panel(c: Cdp, prep: str) -> None:
         assert bounds['overflow'] <= 1 and bounds['body'] <= 1 and bounds['table'], bounds
         # 面板要求 y=0 時夾在分析頁頂端，欄位選單改往下開且完整可見。
         command("S.command('layout.float.rect',{y:0});")
-        c.js("document.querySelector('.analysis__float .results__menu').open=true")
+        c.js("document.querySelector('.analysis__float .results__choices').showPopover()")
         c.pump(0.2)
         choices = rect('.results__choices')
         assert choices['y'] >= 0 and choices['y'] + choices['height'] <= 900, choices
         assert choices['x'] >= 0 and choices['x'] + choices['width'] <= 1400, choices
         assert c.js("document.querySelector('.analysis__float').getBoundingClientRect().top>=document.querySelector('#tab-analysis').getBoundingClientRect().top")
-        c.js("document.querySelector('.results__menu').open=false")
+        assert c.js("""(()=>{const q=document.querySelector('.analysis__float .results__choices'),r=q.getBoundingClientRect();
+            return [[.1,.1],[.5,.5],[.9,.9]].every(([a,b])=>q.contains(document.elementFromPoint(r.left+r.width*a,r.top+r.height*b)))})()""")
+        c.js("document.querySelector('.results__choices').hidePopover()")
         # 分頁與關檔不改浮動偏好；隱藏分析頁後不得留下浮動框。
         c.js("document.querySelector('[data-tab=capture]').click()")
         c.pump(0.2)

@@ -5,6 +5,7 @@ import { fftInfo, mountFftMarkerTable } from './fft_marker_table.js';
 // 過期丟棄：result.gen ≠ 目前檔案 gen 的列一律顯示「…」；匯出只在整批同 gen／同 revision 時才送（後端另驗 STALE）。
 
 import { COLUMNS, load, save } from "./bpanel.js";
+import { popMenu } from "./marker_menu.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
@@ -42,8 +43,8 @@ export function mount(el, ctx) {
   note.setAttribute("aria-label",note.title);
   const bClear = h("button", "btn btn--small results__clear", "清除全部"), bExp = h("button", "btn btn--small results__export", "匯出結果");
   bClear.title = "清除全部量測"; bExp.title = "匯出結果 CSV";
-  const menu = h("details", "results__menu"), toggle = h("summary", "btn btn--small", "⋮"); toggle.title = "選擇量測欄位";
-  menu.ontoggle = () => {
+  const menu = h("span", "results__menu"), toggle = h("button", "btn btn--small", "⋮"); toggle.title = "選擇量測欄位";
+  const place = () => {
     const r = toggle.getBoundingClientRect();
     choices.style.boxSizing = 'border-box'; choices.style.maxHeight = `${innerHeight}px`;
     const height = Math.min(choices.getBoundingClientRect().height,innerHeight);
@@ -52,7 +53,7 @@ export function mount(el, ctx) {
     choices.style.overflowY = 'auto';
     choices.style.right = `${Math.max(0,innerWidth-r.right)}px`;
   };
-  const choices = h("div", "results__choices"); menu.append(toggle, choices);
+  const choices = h("div", "results__choices"); menu.append(toggle, choices); popMenu(toggle, choices, place);
   const columnBoxes = [];
   for (const key of COLUMNS) {
     const label = h("label", "check"), box = h("input"); box.type = "checkbox"; box.dataset.column = key;

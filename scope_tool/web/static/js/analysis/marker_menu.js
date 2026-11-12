@@ -44,3 +44,18 @@ export function createMarkerMenu() {
     menu.querySelector('button:not(:disabled)')?.focus();
   } };
 }
+
+export function popMenu(button, panel, place) {
+  panel.popover = 'auto'; button.popoverTargetElement = panel;
+  button.setAttribute('aria-haspopup', 'true');
+  panel.addEventListener?.('toggle', e => {
+    if (e.newState !== 'open') return;
+    if (place) { place(); return; }
+    const r = button.getBoundingClientRect(), { width, height } = panel.getBoundingClientRect();
+    const p = menuPosition(r.left, r.bottom, width, height, globalThis.innerWidth, globalThis.innerHeight);
+    panel.style.left = `${p.left}px`; panel.style.top = `${p.top}px`;
+  });
+  panel.addEventListener?.('click', e => { if (e.target?.closest?.('[role=menuitem]')) panel.hidePopover?.(); });
+  globalThis.window?.addEventListener?.('resize', () => panel.hidePopover?.());
+  return panel;
+}
