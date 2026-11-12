@@ -7,7 +7,7 @@ export function getFftState(ctx) {
   if (states.has(store)) return states.get(store);
   const catalog = ctx.appState?.catalog ?? {}, listeners = new Set();
   const p = { on: false, source: null, window: 'Hanning', unit: 'dBm', imp: 0, manualR: 50,
-    rbw: null, vbw: null, autoRbw: null, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? ['Decreasing Magnitude'])[0] };
+    rbw: null, vbw: null, autoRbw: null, phaseRef: null, unwrap: false, peakCount: 5, peakLevel: -40, peakSort: (catalog.peak_sorts ?? ['Decreasing Magnitude'])[0] };
   let autoTimer = null;
   let analysisOn = false, active = ctx.activeTab === 'fft';
   const notify = () => { for (const fn of listeners) fn(); };
@@ -87,17 +87,23 @@ export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el, im
   field(sourceHost, '來源', src); field(el, '視窗', win); field(el, '單位', unit);
   if (impHost !== el) { field(impHost, '阻抗', imp); impHost.append(man); } else { if (sourceHost === el) el.append(imp); else field(el, '阻抗', imp); el.append(man); }
   field(markerHost, '排序', sort); field(markerHost, '基準線', lvl); field(markerHost, '顯示數量 n', cnt);
+  const { fmt } = ctx;
+  const refLabel = document.createElement('label'), ref = document.createElement('input'), unwrapLabel = document.createElement('label'), unwrap = document.createElement('input');
+  refLabel.className = unwrapLabel.className = 'field'; refLabel.textContent = '相位參考（空白＝觸發 0） '; ref.className = 'input'; ref.style.width = '6em'; ref.setAttribute('aria-label', '相位參考（空白＝觸發 0）');
+  ref.onchange = () => { const text = ref.value.trim(), value = text ? fmt.parseSI(text) : null; if (value === null && text || value !== null && !Number.isFinite(value)) { ref.value = p.phaseRef === null ? '' : fmt.fmt(p.phaseRef, 's'); return; } state.change('phaseRef', value); };
+  unwrap.type = 'checkbox'; unwrap.setAttribute('aria-label', 'Unwrap'); unwrap.onchange = () => state.change('unwrap', unwrap.checked); refLabel.append(ref); unwrapLabel.append(unwrap, ' Unwrap'); markerHost.append(refLabel, unwrapLabel);
   const sync = () => {
     const st = ctx.store.get(), names = st.channels.map(c => c.name);
     if (src.options.length !== names.length || [...src.options].some((o, i) => o.value !== names[i])) src.replaceChildren(...names.map(n => new Option(n, n)));
     for (const c of [src, win, unit, imp, man, lvl, cnt, sort]) c.disabled = !st.file;
     for (const [c, v] of [[src, p.source ?? ''], [win, p.window], [imp, String(p.imp)], [man, String(p.manualR)]])
       if (document.activeElement !== c) c.value = v;
+    ref.disabled = unwrap.disabled = !st.file || p.unit !== 'Phase'; unwrap.checked = p.unwrap; if (document.activeElement !== ref) ref.value = p.phaseRef === null ? '' : fmt.fmt(p.phaseRef, 's');
     man.disabled = !st.file || (catalog.fft_impedances ?? [])[p.imp]?.[1] !== null;
     for (const c of [sort, lvl, cnt]) c.disabled = !st.file || p.unit === 'Phase';
   };
   const dispose = state.subscribe(sync);
-  return { src, win, unit, imp, man, sort, lvl, cnt, dispose };
+  return { src, win, unit, imp, man, sort, lvl, cnt, ref, unwrap, dispose };
 }
 
 /** 由結果還原取樣率與完整範圍點數；短資料只能整段計算。 */

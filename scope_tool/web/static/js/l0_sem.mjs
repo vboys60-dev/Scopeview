@@ -143,14 +143,14 @@ export async function runSemantics() {
     const f2 = await call(b, "math", { op: "平方", a: "CHAN1", b: null, param: 0 }); assert.equal(f2.name, "F2"); assert.equal(f2.unit, "V²");
 
     // fft
-    const ff = (o = {}) => call(b, "fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, ...o });
+    const ff = (o = {}) => call(b, "fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, phase_ref: null, unwrap: false, ...o });
     let fr = await ff(); assert.ok(fr.ok && fr.peaks.length === 5 && fr.gen === g && fr.peaks[0].x === 1000);
     assert.equal((await ff({ peak_level: -40 })).peaks.length, 4); assert.equal((await ff({ peak_level: -40, peak_sort: "Decreasing Frequency" })).peaks[0].x, 7000);
     const wr = await ff({ rbw: 600, vbw: 100 }); assert.equal(wr.rbw, 600); assert.equal(wr.enbw, 600); assert.equal(wr.segments, 4); assert.equal(wr.vbw, 100);
     assert.equal((await ff({ rbw: 10, vbw: 150 })).vbw, null);
     for (const name of ["rbw", "vbw"]) {
       for (const v of [0, -1]) await rej(ff({ [name]: v }), "BAD_REQUEST");
-      for (const v of [NaN, Infinity, true, "1"]) await rej(b.job("fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, [name]: v }), "BAD_REQUEST");
+      for (const v of [NaN, Infinity, true, "1"]) await rej(b.job("fft", { source: "CHAN1", range: null, dx: DX, window: "Hanning", unit: "dBm", r_ohm: 50, peak_count: 5, peak_level: -100, peak_sort: "Decreasing Magnitude", rbw: null, vbw: null, phase_ref: null, unwrap: false, [name]: v }), "BAD_REQUEST");
       await rej(ff({ unit: "Phase", [name]: 100 }), "BAD_REQUEST");
     }
     const ph = await ff({ unit: "Phase" }); assert.ok(ph.unit === "°" && ph.peaks.length === 0 && ph.ok);
@@ -216,7 +216,7 @@ export async function runSemantics() {
       ...(second ? {channel2:ch} : {}), name:second ? "延遲" : "Vmax", rising:true}], range:null, dx:{}, threshold:"10/50/90 %"});
     const exp = r => call(b, "export_measurements", {rows:r.results, gen:r.gen, revision:r.revision, directory:null});
     const fft = source => call(b, "fft", {source, range:null, dx:{}, window:"Hanning", unit:"dBV", r_ohm:50,
-      peak_count:3, peak_level:-80, peak_sort:"Decreasing Magnitude", rbw:null, vbw:null});
+      peak_count:3, peak_level:-80, peak_sort:"Decreasing Magnitude", rbw:null, vbw:null, phase_ref:null, unwrap:false});
     for (const second of [false, true]) {
       const r = await measure("Mem1.CHAN1", second), fr = await fft("Mem1.CHAN1");
       await add(); await rej(exp(r), "STALE");

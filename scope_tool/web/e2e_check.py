@@ -136,7 +136,7 @@ def main() -> None:
         assert f2["name"] == "F2"
         # 9 fft／spectrum
         fr = job_ok("fft", source="CHAN1", range=[t0, t1], dx={}, window="Hanning", unit="dBm", r_ohm=50,
-                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=None, vbw=None)
+                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=None, vbw=None, phase_ref=None, unwrap=False)
         assert fr["ok"] and fr["spectrum_id"] and fr["peaks"], fr
         assert abs(fr["peaks"][0]["x"] - 1e6) / 1e6 < 0.05, fr["peaks"][0]
         sid = fr["spectrum_id"]
@@ -150,7 +150,7 @@ def main() -> None:
         assert tr["available"] and abs(tr["x"] - 1e6) / 1e6 < 0.05, tr
         assert rpc("fft_track_rf", spectrum_id="zz", x=0, direction=0, level=0)["error"]["code"] == "STALE"
         wr = job_ok("fft", source="CHAN1", range=[t0, t1], dx={}, window="Hanning", unit="dBm", r_ohm=50,
-                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=1e6, vbw=None)
+                    peak_count=5, peak_level=-80, peak_sort="Decreasing Magnitude", rbw=1e6, vbw=None, phase_ref=None, unwrap=False)
         assert wr["ok"] and wr["segments"] > 1 and wr["rbw"] == wr["enbw"] and wr["vbw"] is None
         # 10 cursor／marker
         cr = ok("cursor_readout", t1=t0, t2=t1, dx={"CHAN2": 1e-9})
@@ -274,7 +274,7 @@ def main() -> None:
         assert wave('Mem1.CHAN2', t0, t1, 100, sg)[0] == 200
         sm = job_ok('measure', entries=[dict(channel='Mem1.CHAN1', name='Vmax', rising=True)], range=None, dx={}, threshold='10/50/90 %')
         sf = job_ok('fft', source='Mem1.CHAN1', range=None, dx={}, window='Hanning', unit='dBV', r_ohm=50,
-                    peak_count=3, peak_level=-80, peak_sort='Decreasing Magnitude', rbw=None, vbw=None)
+                    peak_count=3, peak_level=-80, peak_sort='Decreasing Magnitude', rbw=None, vbw=None, phase_ref=None, unwrap=False)
         sub = job_ok('add_waveform', path=cap['path'], slot='Mem1', channels=['CHAN1'])
         assert sub['gen'] == sg and sub['all'] == slot['all'] and len(sub['channels']) == 1
         assert wave('Mem1.CHAN2', t0, t1, 100, sg)[0] == 400

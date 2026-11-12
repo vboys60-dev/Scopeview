@@ -88,7 +88,7 @@ def menu_checks(c: Cdp, prep: str) -> None:
             c.js("document.querySelector('[data-pane=fft]')?.click()"); c.pump(0.3)
             c.js("[...document.querySelectorAll('.analysis__fftbar button')].find(b=>b.textContent==='更多…').click()")
             c.wait("!!document.querySelector('.analysis__fftbar .popmenu:popover-open')")
-            assert c.js("(()=>{const a=[...document.querySelectorAll('.analysis__fftbar .popmenu:popover-open select, .analysis__fftbar .popmenu:popover-open input')];return a.length===5&&a.every(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})})()"), width
+            assert c.js("(()=>{const a=[...document.querySelectorAll('.analysis__fftbar .popmenu:popover-open select, .analysis__fftbar .popmenu:popover-open input')];return a.length===7&&a.every(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})})()"), width
             escape()
             assert c.js("!document.querySelector('.analysis__fftbar .popmenu:popover-open')")
             for name in ('檔案', '分析'):

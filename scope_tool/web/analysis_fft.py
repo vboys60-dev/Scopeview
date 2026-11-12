@@ -18,7 +18,8 @@ _SPEC_IDS = itertools.count(1)  # 程序內遞增，換檔／關檔不重設
 class FftMixin:
     # ---------------------------------------------------------------- FFT
     def fft(self, source: str, range: list, dx: dict, window: str, unit: str, r_ohm: float,
-            peak_count: int, peak_level: float, peak_sort: str, rbw: float | None = None, vbw: float | None = None) -> dict:
+            peak_count: int, peak_level: float, peak_sort: str, rbw: float | None = None, vbw: float | None = None,
+            phase_ref: float | None = None, unwrap: bool = False) -> dict:
         rng, dx = _range(range), _dx(dx)
         if window not in fftmod.WINDOWS:
             raise BadRequest(f"未知視窗：{window}")
@@ -32,6 +33,10 @@ class FftMixin:
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
                                       or not math.isfinite(value) or value <= 0):
                 raise BadRequest(f"{name} 必須是有限正數或 null")
+        if phase_ref is not None and (isinstance(phase_ref, bool) or not isinstance(phase_ref, (int, float)) or not math.isfinite(phase_ref)):
+            raise BadRequest("phase_ref 必須是有限數值或 null")
+        if not isinstance(unwrap, bool):
+            raise BadRequest("unwrap 必須是布林值")
         if unit == "Phase" and (rbw is not None or vbw is not None):
             raise BadRequest("Phase 的 rbw／vbw 必須為 null")
         gen, waves, units = self._need()
@@ -57,7 +62,7 @@ class FftMixin:
                 return fail("所選範圍內沒有資料", out_u)
             if len(t) < 2:
                 return fail("所選範圍內資料不足，無法計算 FFT", out_u)
-            s = (fftmod.spectrum(t, v, window, unit, r_ohm, su) if rbw is None else
+            s = (fftmod.spectrum(t, v, window, unit, r_ohm, su, reference_time=(0.0 if phase_ref is None else phase_ref - dx.get(source, 0.0)) if unit == "Phase" else 0.0, unwrap=unwrap if unit == "Phase" else False) if rbw is None else
                  fft_rbw.welch(t, v, window, unit, r_ohm, su, rbw))
             # ponytail: VBW 變更重跑全 FFT；大檔慢時再加快取原始 mag。
             s["mag"], applied = fft_rbw.video_smooth(s["mag"], s["rbw"], vbw, s["df"])

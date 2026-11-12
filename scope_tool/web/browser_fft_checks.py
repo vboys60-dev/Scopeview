@@ -37,6 +37,9 @@ def fft_page(c: Cdp, prep: str) -> None:
             assert all(e['top'] >= bar['top'] and e['bottom'] <= bar['bottom']
                        for bar in dims['bars'] for e in bar['controls']), dims
             assert len(dims['ids']) == len(set(dims['ids'])), dims
+        c.js("""(()=>{const root=document.querySelector('.fftpage'), unit=[...root.querySelectorAll('select')].find(e=>[...e.options].some(o=>o.value==='Phase')); unit.dataset.previousUnit=unit.value; unit.value='Phase'; unit.dispatchEvent(new Event('change')); const box=root.querySelector('[aria-label="Unwrap"]'); box.checked=true; box.dispatchEvent(new Event('change'));})()""")
+        c.wait(f"(async()=>{{{prep}return S.state.fftResult?.ok && S.state.fftResult.unit === '°'}})()", 20)
+        c.js("""(()=>{const root=document.querySelector('.fftpage'), unit=[...root.querySelectorAll('select')].find(e=>e.dataset.previousUnit); unit.value=unit.dataset.previousUnit; unit.dispatchEvent(new Event('change'));})()""")
     finally:
         c.js(f"(async()=>{{{prep}S.command('tab.select','analysis')}})()")
         c.send("Emulation.setDeviceMetricsOverride", width=original['width'], height=original['height'],

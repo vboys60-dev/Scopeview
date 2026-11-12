@@ -168,6 +168,14 @@ def _self_check() -> None:
         assert auto["rbw"] == baseline["rbw"] and auto["peaks"] == fr["peaks"]
         assert auto["segments"] == 1 and auto["vbw"] is None
         assert np.array_equal(A._get_spec(auto["spectrum_id"])["mag"], baseline["mag"])
+        phase_kw = {**kw, "unit": "Phase"}; base = fftmod.spectrum(t, sin, "Hanning", "Phase", 50.)
+        phase = A.fft("CHAN2", None, {}, **phase_kw, phase_ref=None, unwrap=False); old = A._get_spec(phase["spectrum_id"])["mag"].copy()
+        assert np.array_equal(old, base["mag"])
+        unwrapped = A.fft("CHAN2", None, {}, **phase_kw, unwrap=True); assert np.max(np.abs(np.diff(A._get_spec(unwrapped["spectrum_id"])["mag"]))) <= 180.000000001
+        shifted = A.fft("CHAN2", None, {"CHAN2": 0.00002}, **phase_kw, phase_ref=0.00003); spec = A._get_spec(shifted["spectrum_id"]); i = np.argmax(base["rms"])
+        assert abs((spec["mag"][i] - old[i] - 360 * spec["freq"][i] * 0.00001 + 180) % 360 - 180) < 1e-6
+        for bad in (float("nan"), float("inf"), True, "1"):
+            assert isinstance(err(A.fft, "CHAN2", None, {}, **phase_kw, phase_ref=bad, exc=BadRequest), BadRequest)
         for name in ("rbw", "vbw"):
             for bad in (0., -1., np.nan, np.inf, True, "1"):
                 assert isinstance(err(A.fft, "CHAN2", None, {}, **kw, **{name: bad}, exc=BadRequest), BadRequest)

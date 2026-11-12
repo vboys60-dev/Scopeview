@@ -7,7 +7,7 @@ const dxOf = (chs) => Object.fromEntries(chs.map((c) => [c.name, c.time_offset |
 export function fftParams(st, p, catalog) {
   const imp = (catalog.fft_impedances ?? [])[p.imp]?.[1] ?? p.manualR;
   if (!(imp > 0) || !st.file || !p.source) return null;
-  return { source: p.source, range: rangeOf(st), dx: dxOf(st.channels), window: p.window, unit: p.unit, r_ohm: imp, peak_count: p.peakCount, peak_level: p.peakLevel, peak_sort: p.peakSort, rbw: p.unit === 'Phase' ? null : p.rbw ?? p.autoRbw ?? null, vbw: p.unit === 'Phase' ? null : p.vbw ?? null };
+  return { source: p.source, range: rangeOf(st), dx: dxOf(st.channels), window: p.window, unit: p.unit, r_ohm: imp, peak_count: p.peakCount, peak_level: p.peakLevel, peak_sort: p.peakSort, rbw: p.unit === 'Phase' ? null : p.rbw ?? p.autoRbw ?? null, vbw: p.unit === 'Phase' ? null : p.vbw ?? null, phase_ref: p.unit === 'Phase' ? p.phaseRef ?? null : null, unwrap: p.unit === 'Phase' ? !!p.unwrap : false };
 }
 
 /** FFT 控制器（不碰 DOM）：參數或範圍變動 → 防抖 → bridge.job("fft")；過期結果丟棄；結果帶 peak_level 供 cursors.js 的 RF 使用。 */

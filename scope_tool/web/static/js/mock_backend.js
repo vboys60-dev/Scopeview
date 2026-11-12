@@ -16,7 +16,7 @@ const KEYS = {
   screenshot: "directory name image_format inverted area", capture: "directory name channels points retrigger",
   add_waveform: "path slot channels", remove_slot: "slot", open_waveform: "path", close_waveform: "", cursor_readout: "t1 t2 dx", marker_eval: "mode channel x1 x2 y1 y2 screen_width measurements",
   measure: "entries range dx threshold", math: "op a b param", remove_channel: "name",
-  fft: "source range dx window unit r_ohm peak_count peak_level peak_sort rbw vbw", fft_track_rf: "spectrum_id x direction level",
+  fft: "source range dx window unit r_ohm peak_count peak_level peak_sort rbw vbw phase_ref unwrap", fft_track_rf: "spectrum_id x direction level",
   export_csv: "range max_points directory", export_measurements: "rows gen revision directory", export_report: "html directory", wait_events: "since timeout",
 };
 const err = (code, msg, retry = false) => new BridgeError(code, msg, retry);
@@ -205,6 +205,7 @@ export function createMock(opts = {}) {
       checkRange(p.range); inCat(p.window, Object.keys(CATALOG.fft_windows), "視窗"); inCat(p.unit, CATALOG.fft_units, "單位"); inCat(p.peak_sort, CATALOG.peak_sorts, "峰排序");
       if (!(p.r_ohm > 0) || !Number.isFinite(p.peak_level) || !(p.peak_count >= 1)) bad("r_ohm／peak_level／peak_count 無效");
       for (const v of [p.rbw, p.vbw]) if (v !== null && (!Number.isFinite(v) || v <= 0)) bad("rbw／vbw 必須是有限正數或 null");
+      if ((p.phase_ref !== null && !Number.isFinite(p.phase_ref)) || typeof p.unwrap !== "boolean") bad("phase_ref／unwrap 無效"); // mock 不模擬相位參考或展開
       if (p.unit === "Phase" && (p.rbw !== null || p.vbw !== null)) bad("Phase 的 rbw／vbw 必須為 null");
       return job("fft", () => {
         needFile();
