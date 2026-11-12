@@ -22,3 +22,6 @@
 .measure__dragtag { position: fixed; z-index: 1000; pointer-events: none; padding: 2px 6px; border: 1px solid var(--c-border); border-radius: 3px; background: var(--c-surface); color: var(--c-text); font-size: 12px; white-space: nowrap; }
 
 .measure__head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px; align-items: center; margin-bottom: 8px; }
+
+.measure__dual { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 4px; }
+.measure__dual label, .measure__dual input, .measure__dual select { min-width: 0; width: 100%; box-sizing: border-box; }

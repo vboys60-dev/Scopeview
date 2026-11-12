@@ -30,6 +30,22 @@ def measure_extra(name, t, v, pct):
     return np.array([float(value)])
 
 
+def delta_time(t1, v1, t2, v2, pct, rising1, rising2, n1, n2, level1, level2):
+    """從各自範圍左緣數完整邊緣，回傳指定閾值交越的時間差。"""
+    _validate_pct(pct)
+    crossings = []
+    for i, (t, v, rising, n, level) in enumerate(((t1, v1, rising1, n1, level1), (t2, v2, rising2, n2, level2)), 1):
+        validate(t, v)
+        _, _, top, base = levels(v)
+        if top <= base:
+            raise ScopeError(f"來源 {i}：TOP_EQ_BASE：波形沒有振幅（top = base）。")
+        es = [e for e in edge.edges(t, v, *(vmid(base, top, p) for p in pct)) if e.rising == rising]
+        if len(es) < n:
+            raise ScopeError(f"EDGE_NOT_FOUND：來源 {i} 找不到第 {n} 個指定方向的完整邊緣。")
+        crossings.append(getattr(es[n - 1], {"lower": "t_lo", "middle": "t_mid", "upper": "t_hi"}[level]))
+    return np.array([crossings[1] - crossings[0]])
+
+
 def _self_check():
     t = np.arange(401, dtype=float)
     v = np.tile(np.r_[np.zeros(20), np.ones(20)], 10)
@@ -43,6 +59,10 @@ def _self_check():
                 raise AssertionError(name)
             except ScopeError as exc:
                 assert "TOP_EQ_BASE" in str(exc)
+    # 左界切入漸升緣：半截緣不列入，下一個完整緣才是第 1 個。
+    ramp = np.array([0., 0., .25, .5, .75, 1., 1., 0., 0., .25, .5, .75, 1., 1., 0.])
+    rt = np.arange(len(ramp), dtype=float)
+    assert abs(delta_time(rt[3:], ramp[3:], rt[3:], ramp[3:], (10, 50, 90), True, True, 1, 1, "lower", "upper")[0] - 3.2) < 1e-12
     print("measure_extra self-check OK")
 
 

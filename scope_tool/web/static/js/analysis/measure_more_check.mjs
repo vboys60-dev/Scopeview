@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { dualResult } from '../mock_measure2.js';
 import { singleResult } from '../mock_measure.js';
 import { CATALOG } from '../mock_catalog.js';
 import { fmt } from '../fmt.js';
@@ -16,5 +17,13 @@ for (const pct of [[10,50,90], [20,50,80]]) for (const [i,name] of names.entries
   }
   assert.match(singleResult({name}, t, new Float64Array(t.length), pct, {}, meas, 0).reason, /TOP_EQ_BASE/);
 }
+const data = { A:{t,v}, B:{t,v:Float64Array.from(v, (_, i) => v[(i+v.length-3)%v.length])} };
+const entry = {name:'Delta Time', channel:'A', channel2:'B', rising:true, rising2:true, edge_num:2, edge_num2:2};
+const delta = (e=entry, range=null, dx={}) => dualResult(e, data, range, dx, [10,50,90], {});
+assert.equal(delta().stats.current, 3);
+assert.ok(Math.abs(delta({...entry,edge_level:'lower',edge_level2:'upper'}).stats.current-3.8)<1e-10);
+assert.equal(delta(entry,null,{B:-5}).stats.current,-2);
+assert.match(delta({...entry,edge_num:100}).reason,/EDGE_NOT_FOUND/);
+assert.equal(delta({...entry,edge_num:1,edge_num2:1},[20,200]).stats.current,-37);
 assert.equal(fmt(1234567, ''), '1234570');
 console.log('measure_more_check self-check OK');

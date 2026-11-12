@@ -47,7 +47,7 @@ import { runSemantics } from "./l0_sem.mjs";
   tc({...entry, channel2:"CH2", rising2:false}, "MeasureEntry");
   for (const channel2 of [null, 2]) assert.throws(() => tc({...entry, channel2}, "MeasureEntry"));
   for (const rising2 of [null, 1]) assert.throws(() => tc({...entry, rising2}, "MeasureEntry"));
-  assert.deepEqual(CATALOG.measurements.filter(m => m.sources === 2).map(m => m.name), ["延遲", "相位", "電壓比"]);
+  assert.deepEqual(CATALOG.measurements.filter(m => m.sources === 2).map(m => m.name), ["延遲", "相位", "電壓比", "Delta Time"]);
   for (const bound of [1, true, "bad"]) assert.throws(() => tc({ ...row, bound }, "MeasureResult"));
 }
 

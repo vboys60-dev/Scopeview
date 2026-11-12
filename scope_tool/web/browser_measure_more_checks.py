@@ -7,6 +7,9 @@ def measure_more(c, prep):
     c.wait("[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Vmid')")
     c.js("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Vmid').click()")
     c.wait("(async()=>{" + prep + "return S.state.measurements.some(e=>e.name==='Vmid' && e.result?.ok)})()")
+    c.js("[...document.querySelectorAll('button')].find(b=>b.textContent.trim().startsWith('Delta Time')).click()")
+    c.wait("(async()=>{" + prep + "return S.state.measurements.some(e=>e.name==='Delta Time' && e.result?.ok)})()")
+    assert c.js("document.querySelector('.results__table').textContent.includes('Delta Time')")
     assert c.js("document.querySelector('.results__table').textContent.includes('Vmid')")
 
 

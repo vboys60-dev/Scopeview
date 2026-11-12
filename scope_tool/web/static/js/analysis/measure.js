@@ -52,9 +52,10 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
     // 刪除來源也送入同一批，讓後端快照與畫面保留相同列數。
     let results = [];
     try {
-      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full", all_edges = true }) => ({
+      const entries = list.map(({ channel, channel2, name, rising, rising2, mode = "full", all_edges = true, edge_num, edge_num2, edge_level, edge_level2 }) => ({
         channel, name, rising, mode, all_edges,
         ...(channel2 === undefined ? {} : { channel2, rising2: rising2 ?? rising }),
+        ...(name === "Delta Time" ? { edge_num, edge_num2, edge_level, edge_level2 } : {}),
       }));
       const r = await bridge.job("measure", { entries, range: rangeOf(st), dx: dxOf(st.channels), threshold: st.threshold });
       if (my !== token || store.get().file?.gen !== gen || r.gen !== gen) return; // 過期丟棄
@@ -73,9 +74,9 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
         ...(dual(e.name) ? {channel2:e.channel2} : {}), ok:false, stats:null, reason:"來源通道已刪除" } : result };
     }));
   }
-  function add(name, channel, rising, mode = "full", channel2, rising2 = rising, all_edges = true) {
+  function add(name, channel, rising, mode = "full", channel2, rising2 = rising, all_edges = true, delta = {}) {
     if (!channel) return;
-    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, all_edges, ...(channel2 === undefined ? {} : { channel2, rising2 }), result: null }] }, "program");
+    store.set({ measurements: [...store.get().measurements, { id: nextId++, channel, name, rising, mode, all_edges, ...(channel2 === undefined ? {} : { channel2, rising2 }), ...(name === "Delta Time" ? { edge_num: 1, edge_num2: 1, edge_level: "middle", edge_level2: "middle", ...delta } : {}), result: null }] }, "program");
     schedule();
   }
   function remove(id) { store.set({ measurements: store.get().measurements.filter((e) => e.id !== id) }, "program"); schedule(); }
@@ -126,14 +127,16 @@ export function mount(el, ctx) {
   source2.title = "來源 2"; slope2.title = "來源 2 邊緣";
   slope2.append(new Option("同來源 1", "same"), new Option("上升緣 ↑", "1"), new Option("下降緣 ↓", "0"));
   slope2.value = "same";
+  const nums = [1, 2].map(() => { const e = h("input", "input"); e.type = "number"; e.min = 1; e.max = 65534; e.step = 1; e.value = 1; return e; });
+  const levels = [1, 2].map(() => { const e = h("select", "select"); e.append(new Option("下", "lower"), new Option("中", "middle"), new Option("上", "upper")); e.value = "middle"; return e; });
   // 拖放：量測鈕拖到通道列欄位＝以該通道為來源 1 新增；位移 <6 px 仍是點擊，觸控需長按 300 ms。
   let drag = null, swallow = false;
   const targets = () => [...(document.querySelectorAll?.("[data-channel]") ?? [])];
   function addFrom(it, channel) { // 點擊與拖放共用
     const st = store.get();
-    if (!st.file || (it.sources === 2 && st.channels.length < 2)) return;
+    if (!st.file || (it.sources === 2 && st.channels.length < (it.name === "Delta Time" ? 1 : 2))) return;
     const rising2 = slope2.value === "same" ? slope.value === "1" : slope2.value === "1";
-    m.add(it.name, channel, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked);
+    m.add(it.name, channel, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked, { edge_num: Number(nums[0].value), edge_num2: Number(nums[1].value), edge_level: levels[0].value, edge_level2: levels[1].value });
   }
   function over(x, y) {
     const ch = dropChannel(document.elementFromPoint(x, y));
@@ -144,7 +147,7 @@ export function mount(el, ctx) {
   }
   function begin(x, y) {
     const st = store.get();
-    if (!st.file || (drag.it.sources === 2 && st.channels.length < 2)) return end();
+    if (!st.file || (drag.it.sources === 2 && st.channels.length < (drag.it.name === "Delta Time" ? 1 : 2))) return end();
     drag.active = true;
     drag.b.setPointerCapture?.(drag.id);
     drag.tag = h("div", "measure__dragtag"); document.body.append(drag.tag);
@@ -199,15 +202,22 @@ export function mount(el, ctx) {
     const other = st.channels.find(c => c.name !== st.selected)?.name;
     source2.value = keep ? old : (other ?? st.channels[0]?.name ?? "");
     for (const [b, tip] of allButtons) b.title = tip + hint(st);
-    for (const [b, tip] of dualButtons) { b.disabled = st.channels.length < 2; b.title = b.disabled ? "至少需要兩個來源通道" : tip + hint(st); }
+    for (const [b, tip, name] of dualButtons) { b.disabled = st.channels.length < (name === "Delta Time" ? 1 : 2); b.title = b.disabled ? "至少需要兩個來源通道" : tip + hint(st); }
   }
   store.on(["channels", "selected"], sources);
   for (const category of ["時間", "電壓", "雙來源"]) {
     const box = h("div", "field"); box.append(h("div", "field__label", `${T(category)} Measurements`));
-    if (category === "雙來源") box.append(h("label", "field__label", "來源 2"), source2, h("label", "field__label", "來源 2 邊緣"), slope2);
+    if (category === "雙來源") {
+      box.append(h("label", "field__label", "來源 2"), source2, h("label", "field__label", "來源 2 邊緣"), slope2);
+      if ((cat.measurements ?? []).some(it => it.name === "Delta Time")) {
+        const grid = h("div", "measure__dual");
+        for (const [label, control] of [["邊緣 #1", nums[0]], ["邊緣 #2", nums[1]], ["閾值層 1", levels[0]], ["閾值層 2", levels[1]]]) { const l = h("label", "field__label", label); l.append(control); grid.append(l); }
+        box.append(grid);
+      }
+    }
     for (const it of (cat.measurements ?? []).filter((x) => x.category === category)) {
       const b = h("button", "btn btn--small", T(it.name) + (it.sloped ? " ↕" : ""));
-      if (it.sources === 2) dualButtons.push([b, it.tip]);
+      if (it.sources === 2) dualButtons.push([b, it.tip, it.name]);
       else allButtons.push([b, it.tip]);
       b.title = it.tip; b.type = "button";
       // 鍵盤觸發的 click（detail===0）一律不吞，取消後殘留的旗標不會吃掉 Enter／Space

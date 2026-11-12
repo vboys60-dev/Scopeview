@@ -30,7 +30,7 @@ export function dualResult(e, data, range, dx, pct, base) {
         const st = v[i] < lo+amp*pct[0]/100 ? 0 : v[i] > lo+amp*pct[2]/100 ? 2 : 1;
         if (st === 1) continue;
         if (state >= 0 && st !== state && (state === 0) === up) {
-          let j=prev+1; const mid=lo+amp*pct[1]/100;
+          let j=prev+1; const mid=lo+amp*pct[e.name === "Delta Time" ? ({lower:0,middle:1,upper:2}[index ? e.edge_level2 ?? "middle" : e.edge_level ?? "middle"]) : 1]/100;
           while (j<i && (up ? v[j]<mid : v[j]>mid)) j++;
           es.push(t[j-1]+(mid-v[j-1])/(v[j]-v[j-1])*(t[j]-t[j-1]));
         }
@@ -38,7 +38,12 @@ export function dualResult(e, data, range, dx, pct, base) {
       }
       return es;
     });
-    if (mids.some(a => !a.length)) return fail(`來源 ${mids[0].length ? 2 : 1}：找不到指定方向的邊緣。`);
+    if (mids.some(a => !a.length)) return fail(`${e.name === "Delta Time" ? "EDGE_NOT_FOUND：" : ""}來源 ${mids[0].length ? 2 : 1}：找不到指定方向的邊緣。`);
+    if (e.name === 'Delta Time') {
+      const a = mids[0][(e.edge_num ?? 1)-1], b = mids[1][(e.edge_num2 ?? 1)-1];
+      if (a === undefined || b === undefined) return fail(`EDGE_NOT_FOUND：來源 ${a === undefined ? 1 : 2} 找不到指定邊緣。`);
+      return { ...base, ok:true, reason:null, stats:eventStats([b-a], undefined, signals[0].t, 0, true) };
+    }
     const [t1,t2] = signals.map(s => s.t);
     const a = mids[0].filter(t => t >= Math.max(t1[0],t2[0]) && t <= Math.min(t1.at(-1),t2.at(-1))), b = mids[1];
     if (!a.length) return fail('兩來源時間範圍沒有重疊');

@@ -64,6 +64,7 @@ def _ok(v: Any, t: str) -> bool:
         return (all((k not in v and k in _C["optional_fields"][t]) or
                     (k in v and _ok(v[k], ft)) for k, ft in spec.items())
                 and v.get("mode", "full") in ("full", "cycles", "cycle")
+                and all(v.get(k, "middle") in ("lower", "middle", "upper") for k in ("edge_level", "edge_level2"))
                 and (not any(m["name"] == v.get("name") and m.get("sources") == 2
                              for m in _CAT["measurements"]) or "channel2" in v))
     return True

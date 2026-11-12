@@ -4,6 +4,8 @@ from scope_tool.analysis.measure import MEASUREMENTS
 from scope_tool.analysis.measure_extra import EXTRA
 from scope_tool.contracts import Waveform
 from scope_tool.web.analysis_api import Analysis
+from scope_tool.web.analysis_util import BadRequest
+from scope_tool.web.analysis_params import validate_params
 
 
 def _self_check():
@@ -20,6 +22,27 @@ def _self_check():
                 assert row["unit"] == ("V" if name == "Vmid" else "")
         row = a.measure([dict(channel="A", name="+脈衝計數")], [21., 61.], {}, threshold)["results"][0]
         assert row["ok"] and row["stats"]["current"] == 0, row
+    a._waves = [Waveform("A", t, v), Waveform("B", t, np.roll(v, 3))]
+    entry = dict(channel="A", channel2="B", name="Delta Time", rising=True, edge_num=2, edge_num2=2)
+    def result(e=entry, rng=None, dx=None):
+        return a.measure([e], rng, dx or {}, "10/50/90 %")["results"][0]
+    assert abs(result()["stats"]["current"] - 3) < 1e-10
+    assert abs(result({**entry, "edge_level":"lower", "edge_level2":"upper"})["stats"]["current"] - 3.8) < 1e-10
+    assert result(dx={"B": -5})["stats"]["current"] == -2
+    assert "EDGE_NOT_FOUND" in result({**entry, "edge_num":100})["reason"]
+    assert abs(result({**entry, "edge_num":1, "edge_num2":1}, [20., 200.])["stats"]["current"] + 37) < 1e-10
+    for bad in (0, 65535, 1.5, True):
+        try:
+            result({**entry, "edge_num":bad})
+            raise AssertionError(bad)
+        except BadRequest:
+            pass
+    for key, value in (("edge_level", "bad"), ("edge_num", 1.5)):
+        try:
+            validate_params("measure", dict(entries=[{**entry, key:value}], range=None, dx={}, threshold="10/50/90 %"))
+            raise AssertionError(value)
+        except BadRequest:
+            pass
     a._waves = [Waveform("A", t, np.zeros_like(t))]
     for name in EXTRA:
         row = a.measure([dict(channel="A", name=name)], None, {}, "10/50/90 %")["results"][0]
