@@ -107,9 +107,28 @@ def menu_checks(c: Cdp, prep: str) -> None:
         assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open')")
         c.js("document.querySelector('dialog[open] .dlg__actions button').click()")
         toolbar_menu('分析')
-        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == ['FFT 頻譜 ↗', 'Math…']
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == ['FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）']
         assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open input')")
         escape()
+        original = c.js('(async()=>{' + prep + "return S.get().channels})()")
+        try:
+            command("S.set({channels:S.get().channels.map(c=>({...c,visible:true,vmin:-1,vmax:1,scale:1,position:0}))},'program');")
+            prior = c.js('(async()=>{' + prep + "return S.get().channels.map(({name,scale,position})=>({name,scale,position}))})()")
+            toolbar_menu('分析')
+            c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(b=>b.textContent==='分開堆疊').click()")
+            stacked = c.js('(async()=>{' + prep + "return S.get().channels.map(c=>c.position)})()")
+            assert len(set(stacked)) == len(stacked) and all(-5 <= p <= 5 for p in stacked), stacked
+            command("S.command('view.undo');")
+            assert c.js('(async()=>{' + prep + "return S.get().channels.map(({name,scale,position})=>({name,scale,position}))})()") == prior
+            toolbar_menu('分析')
+            c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(b=>b.textContent==='分開堆疊').click()")
+            toolbar_menu('分析')
+            c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(b=>b.textContent==='疊圖（自動縮放）').click()")
+            assert c.js('(async()=>{' + prep + "const M=await import('/js/analysis/scales.js');return S.get().channels.every(c=>{const [s,p]=M.autoScale(c.vmin,c.vmax,c.unit);return c.scale===s&&c.position===p})})()")
+            command("S.command('view.undo');")
+            assert c.js('(async()=>{' + prep + "return S.get().channels.map(c=>c.position)})()") == stacked
+        finally:
+            command("S.set({channels:" + json.dumps(original) + "},'program');")
         before = c.js('(async()=>{' + prep + "return (await import('/js/analysis/fft_state.js')).getFftState({store:S}).analysisOn})()")
         assert c.js("(()=>{const t=document.querySelector('.analysis__toolbar'),l=[...t.querySelectorAll(':scope > label')].find(e=>e.textContent.includes('FFT 計算'));return !!l&&l.previousElementSibling?.classList.contains('popmenu')&&l.nextElementSibling?.textContent.includes('Marker')})()")
         c.js("[...document.querySelectorAll('.analysis__toolbar > label')].find(e=>e.textContent.includes('FFT 計算')).querySelector('input').click()")

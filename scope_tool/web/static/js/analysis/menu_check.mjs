@@ -45,5 +45,5 @@ assert.doesNotThrow(() => {
 console.log('menu self-check OK');
 
 const toolbar = readFileSync(new URL('./toolbar.js', import.meta.url), 'utf8');
-assert.match(toolbar, /menu\("分析", bFft, bMath\)/);
+assert.match(toolbar, /menu\("分析", bFft, bMath, bStack, bOverlay\)/);
 assert.match(toolbar, /el\.append\(fieldOf\("FFT 計算", on\), fieldOf\("Marker", marker\)/);

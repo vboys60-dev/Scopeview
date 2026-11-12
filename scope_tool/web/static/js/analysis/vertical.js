@@ -14,6 +14,16 @@ export function fitEnvelope(env, unit, scales) {
   const [scale, position] = scales.autoScale(lo, hi, unit);
   return { scale, position };
 }
+/** 依可見且有有限範圍的通道由上而下分配帶狀區。 */
+export function stackLayout(channels, scales) {
+  const valid = channels.filter(c => c.visible && Number.isFinite(c.vmin) && Number.isFinite(c.vmax) && c.vmin <= c.vmax);
+  return valid.map((c, i) => {
+    const steps = scales.scaleSteps(c.unit), height = 10 / valid.length;
+    const scale = steps.find(s => s >= (c.vmax - c.vmin) / (0.8 * height)) ?? steps.at(-1);
+    const position = 5 - (i + 0.5) * height - (c.vmin / 2 + c.vmax / 2) / scale;
+    return { name: c.name, scale, position: position + 0 };
+  });
+}
 const h = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
 export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
   el.classList.add("vertical");
