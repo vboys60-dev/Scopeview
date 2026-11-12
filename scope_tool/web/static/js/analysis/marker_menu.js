@@ -11,6 +11,15 @@ export function markerMenuItems(state, ch, t, hit, model) {
     ...(hit ? [{ text: hit.link ? '刪除連動組（M1 全部通道）' : '刪除', run: () => model.remove(hit.id) }] : []),
   ];
 }
+function menuKey(panel, e, onEsc) {
+  if (e.target?.getAttribute?.('role') !== 'menuitem') return;
+  const items = [...panel.querySelectorAll('[role=menuitem]:not(:disabled)')];
+  const i = items.indexOf(e.target);
+  if (e.key === 'Escape') { e.preventDefault(); onEsc(); return; }
+  if (!items.length || i < 0) return;
+  const next = { ArrowDown: (i + 1) % items.length, ArrowUp: (i + items.length - 1) % items.length, Home: 0, End: items.length - 1 }[e.key];
+  if (next !== undefined) { e.preventDefault(); items[next].focus(); }
+}
 export function createMarkerMenu() {
   let menu = null, previous = null;
   const close = () => {
@@ -24,7 +33,7 @@ export function createMarkerMenu() {
   // 點外面只關選單，這次點擊不穿透到主圖。
   const outside = e => { if (!menu?.contains(e.target)) { e.stopPropagation?.(); e.preventDefault?.(); close(); } };
   const focusout = e => { if (e.relatedTarget && !menu?.contains(e.relatedTarget)) close(); };
-  const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); previous?.focus?.({ preventScroll: true }); } };
+  const key = e => { if (menu) menuKey(menu, e, () => { e.stopPropagation(); close(); previous?.focus?.({ preventScroll: true }); }); };
   return { close, open(x, y, items) {
     close(); previous = document.activeElement;
     menu = document.createElement('div'); menu.className = 'marker-menu'; menu.setAttribute('role', 'menu');
@@ -47,9 +56,15 @@ export function createMarkerMenu() {
 
 export function popMenu(button, panel, place) {
   panel.popover = 'auto'; button.popoverTargetElement = panel;
-  button.setAttribute('aria-haspopup', 'true');
+  button.setAttribute('aria-haspopup', panel.getAttribute?.('role') === 'menu' ? 'menu' : 'true');
+  button.setAttribute('aria-expanded', 'false');
+  panel.addEventListener?.('keydown', e => {
+    if (panel.getAttribute?.('role') === 'menu') menuKey(panel, e, () => panel.hidePopover?.());
+  });
   panel.addEventListener?.('toggle', e => {
-    if (e.newState !== 'open') return;
+    button.setAttribute('aria-expanded', String(e.newState === 'open'));
+    if (e.newState !== 'open') { if (panel.contains?.(document.activeElement)) button.focus(); return; }
+    if (panel.getAttribute?.('role') === 'menu') panel.querySelectorAll('[role=menuitem]:not(:disabled)')[0]?.focus();
     if (place) { place(); return; }
     const r = button.getBoundingClientRect(), { width, height } = panel.getBoundingClientRect();
     const p = menuPosition(r.left, r.bottom, width, height, globalThis.innerWidth, globalThis.innerHeight);

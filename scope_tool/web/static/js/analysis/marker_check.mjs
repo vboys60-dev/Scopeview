@@ -111,6 +111,8 @@ class Surface {
   append(...nodes) { for (const n of nodes) { this.children.push(n); n.parentNode = this; } }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k, v) { this.attrs[k] = v; }
+  getAttribute(k) { return this.attrs[k] ?? null; }
+  querySelectorAll() { return this.children.filter(c => c.attrs.role === "menuitem" && !c.disabled); }
   blur() { globalThis.document.activeElement = null; this.onblur?.(); }
   addEventListener(n, fn) { (this.listeners[n] ??= []).push(fn); }
   removeEventListener(n, fn) { this.listeners[n] = this.listeners[n]?.filter(f => f !== fn); }
@@ -156,7 +158,7 @@ assert.ok(document.body.children.includes(menu));
 menu.emit('focusout', { relatedTarget: canvas });
 assert.equal(document.body.children.length, 0);
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
-document.emit('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() {} });
+document.emit('keydown', { target: document.activeElement, key: 'Escape', preventDefault() {}, stopPropagation() {} });
 assert.equal(document.body.children.length, 0);
 canvas.emit('contextmenu', { clientX: 30, clientY: 50, preventDefault() {} });
 document.emit('pointerdown', { target: canvas }); assert.equal(document.body.children.length, 0);

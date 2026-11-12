@@ -113,7 +113,7 @@ export function mount(el, ctx) {
   // 工具列只留常用鈕；其餘收進「檔案 ▾／分析 ▾」Popover（panel 緊接在按鈕後，Tab 順序相鄰）。
   const item = (t, fn) => { const b = btn(t, fn, "btn"); b.setAttribute("role", "menuitem"); return b; };
   const menu = (title, ...kids) => {
-    const b = btn(title + " ▾", () => {}), p = h("div", "popmenu"); p.append(...kids); popMenu(b, p); el.append(b, p); return b;
+    const b = btn(title + " ▾", () => {}), p = h("div", "popmenu"); p.setAttribute("role", "menu"); p.append(...kids); popMenu(b, p); el.append(b, p); return b;
   };
   const bOpen = btn("開啟", () => store.command("file.open"), "btn btn--primary");
   const bClose = item("關閉", async () => { const st = store.get(); if ((st.measurements.length || st.channels.some(c => c.derived) || st.slots?.length) && !await ui.confirm("關閉後會清除量測、衍生通道與比對槽，確定關閉？", "關閉檔案")) return; closeFile(store, bridge).catch((e) => fail(e, "關閉失敗")); });
