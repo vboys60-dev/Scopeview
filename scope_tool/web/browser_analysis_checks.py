@@ -39,7 +39,7 @@ def center_cursors(c: Cdp, prep: str, click: str, out: Path) -> None:
                 S.command('cursor.intent',{which:'x2',value:v.t0-w*0.8});
                 S.command('cursor.intent',{which:'y1',value:1});
                 S.command('cursor.intent',{which:'y2',value:-1});
-                const b=[...document.querySelectorAll('.analysis__toolbar button')].find(b=>b.textContent==='X軸Maker歸位');
+                const b=[...document.querySelectorAll('.analysis__toolbar button')].find(b=>b.textContent==='游標置中');
                 const visible=!!b&&b.getBoundingClientRect().height>0&&!b.disabled;
                 if(!visible) throw Error('回中央按鈕不可用');
                 b.click();

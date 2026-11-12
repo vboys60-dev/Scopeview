@@ -181,12 +181,9 @@ def main() -> None:
         step("P2a 框選範圍／Undo／20n／通道與游標不變", lambda: analysis_checks.p2a_view(c, prep, click, out))
         step("P3a 來源／Y 真值／摘要移除／禁用模式", lambda: analysis_checks.p3a_markers(c, prep))
         step("P3b 游標結果表／尺寸／TSV 複製", lambda: analysis_checks.p3b_markers(c, prep))
-        from scope_tool.web.browser_marker_checks import p3b2_zoom
+        from scope_tool.web.browser_marker_checks import p3b2_zoom, dock_layout, marker_add_button, marker_rightclick
         step("P3b-2 垂直框選／一次 Undo／游標物理值", lambda: p3b2_zoom(c, prep))
-        from scope_tool.web.browser_marker_checks import dock_layout
-        from scope_tool.web.browser_marker_checks import marker_add_button
         step("Marker 獨立點按鈕可連續新增", lambda: marker_add_button(c, prep))
-        from scope_tool.web.browser_marker_checks import marker_rightclick
         step("Marker 主圖右鍵選單新增", lambda: marker_rightclick(c, prep))
         step("P4 版面 C 右側欄／窄版退回底部", lambda: dock_layout(c, prep))
         step("P2b2 選取通道2／中心電位／左軸電壓與顏色", lambda: analysis_checks.p2b2_vertical(c, prep, click, out))
@@ -276,6 +273,9 @@ def main() -> None:
         step("P2b 多尺寸／splitter／DPR／共用收折", layout_check)
         from scope_tool.web.browser_fft_checks import fft_page
         step("FFT 分頁三尺寸／控制列／峰表", lambda: fft_page(c, prep))
+        from scope_tool.web import browser_menu_checks as menu_c, browser_drag_checks as drag_c
+        step("選單：⋮／檔案▾／分析▾", lambda: menu_c.menu_checks(c, prep))
+        step("量測拖到通道列", lambda: drag_c.drag_checks(c, prep))
         from scope_tool.web.browser_float_checks import float_panel
         step("浮動面板／拖曳／縮放／停靠／窄版／字體", lambda: float_panel(c, prep))
         step("glass_smoke 對比／鍵盤／幾何／降級", lambda: glass_smoke(c))

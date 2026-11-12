@@ -178,7 +178,7 @@ assert.ok(Math.abs(sameSide[0].y - sameSide[1].y) >= 24, "同側越界提示不�
 assert.ok(texts.includes("▲ y1") && texts.includes("▼ y2"));
 const yEdge = cursorEdges(store.get().cursors, store.get().view, rect).find((e) => e.which === "y1");
 const panel = el(); mountCursors(panel, ctx);
-assert.ok(!panel.children[0].children.some((c) => c.textContent === "X軸Maker歸位"), "游標面板不再有歸位鈕");
+assert.ok(!panel.children[0].children.some((c) => c.textContent === "游標置中"), "游標面板不再有歸位鈕");
 const topReset = centerButton(store), reset = topReset;
 assert.equal(topReset.disabled, true);
 assert.equal(reset.title, "t1／t2 回到目前畫面中間");

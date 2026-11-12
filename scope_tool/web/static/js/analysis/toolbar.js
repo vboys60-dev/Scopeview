@@ -7,7 +7,7 @@ import { centerButton } from "./cursors.js";
 import { openSlots, appendFileInfo } from "./slots.js";
 import { exportReport } from "./report.js";
 import { popMenu } from "./marker_menu.js";
-// 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、範圍與閾值、FFT 與 Track RF 控制。
+// 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
 // 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
 
@@ -111,8 +111,6 @@ export function mount(el, ctx) {
   const marker = select([["", "傳統游標 X1/X2"], ...(catalog.marker_modes ?? []).map((m) => [m, m])]);
   disableTrackMeasurements(marker);
   marker.title = "傳統游標：吸附第一通道；其餘為 Marker 模式"; marker.onchange = () => { if (marker.value !== "Track Measurements") store.set({ markerMode: marker.value || null }, "user"); };
-  const range = select([["all", "全部"], ["cursors", "游標區間"]]); range.title = "量測／FFT 範圍"; range.onchange = () => store.set({ rangeMode: range.value }, "user");
-  const thr = select(Object.keys(catalog.thresholds ?? { "10/50/90 %": 0 }).map((k) => [k, k])); thr.onchange = () => store.set({ threshold: thr.value }, "user");
   // 工具列只留常用鈕；其餘收進「檔案 ▾／分析 ▾」Popover（panel 緊接在按鈕後，Tab 順序相鄰）。
   const item = (t, fn) => { const b = btn(t, fn, "btn"); b.setAttribute("role", "menuitem"); return b; };
   const menu = (title, ...kids) => {
@@ -129,7 +127,7 @@ export function mount(el, ctx) {
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
   on.onchange = () => fft.setAnalysisOn(on.checked);
   menu("分析", fieldOf("FFT 計算", on), bFft, bMath);
-  el.append(fieldOf("Marker", marker), centerButton(store), fieldOf("範圍", range), fieldOf("閾值", thr));
+  el.append(fieldOf("Marker", marker), centerButton(store));
 
   // ── FFT ──
   const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
@@ -142,9 +140,9 @@ export function mount(el, ctx) {
     const st = store.get(), has = !!st.file;
     loaded.forEach((c) => { c.disabled = !has; });
     bClose.disabled = !has || !!st.opening; // 開檔進行中不可關檔
-    marker.value = st.markerMode ?? ""; range.value = st.rangeMode; thr.value = st.threshold;
+    marker.value = st.markerMode ?? "";
     on.checked = fft.analysisOn; on.disabled = !has;
   }
-  store.on(["file", "channels", "markerMode", "rangeMode", "threshold", "opening"], sync);
+  store.on(["file", "channels", "markerMode", "opening"], sync);
   sync();
 }

@@ -44,7 +44,7 @@ function resetCursors(store) {
 }
 /** 工具列 Marker 欄使用；不另外建立吸附控制器或新增 command。 */
 export function centerButton(store) {
-  const button = h("button", "btn btn--small", "X軸Maker歸位"); button.type = "button";
+  const button = h("button", "btn btn--small", "游標置中"); button.type = "button";
   button.title = "t1／t2 回到目前畫面中間";
   button.onclick = () => resetCursors(store);
   const sync = () => { button.disabled = !store.get().file; };

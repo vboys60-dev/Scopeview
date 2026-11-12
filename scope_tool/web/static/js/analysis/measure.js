@@ -28,7 +28,8 @@ function hookWindow(hooks) {
   if (winHooked || !w?.addEventListener) return;
   winHooked = true;
   for (const k of ["keydown", "blur"]) w.addEventListener(k, (e) => winHooks[k](e));
-  w.addEventListener("pointerup", (e) => winHooks.pointerup(e), true);
+  // 指標事件掛在 window 的 capture 階段：按下後快速移出按鈕（尚未 setPointerCapture）也收得到
+  for (const k of ["pointermove", "pointerup", "pointercancel"]) w.addEventListener(k, (e) => winHooks[k](e), true);
 }
 
 export function createMeasure({ store, bridge, appState }, { delay = 150, onError = () => {} } = {}) {
@@ -96,6 +97,16 @@ export function createMeasure({ store, bridge, appState }, { delay = 150, onErro
 export function mount(el, ctx) {
   const { store } = ctx, cat = ctx.appState?.catalog ?? {};
   el.classList.add("measure");
+  const head = h("div", "measure__head"), source = h("select", "select"), range = h("select", "select"), threshold = h("select", "select");
+  range.append(new Option("全部", "all"), new Option("游標區間", "cursors")); range.title = "量測與 FFT 的計算範圍";
+  threshold.append(...Object.keys(cat.thresholds ?? { "10/50/90 %": 0 }).map(k => new Option(k, k)));
+  for (const [label, ctl, key] of [["來源", source, "selected"], ["範圍", range, "rangeMode"], ["閾值", threshold, "threshold"]]) {
+    const caption = h("label", "field__label", label); ctl.id = `measure-${key}`; caption.htmlFor = ctl.id;
+    head.append(caption, ctl); ctl.onchange = () => store.set({ [key]: ctl.value }, "user");
+  }
+  el.append(head);
+  const syncHead = (st) => { source.replaceChildren(...st.channels.map(c => new Option(c.name, c.name))); source.value = st.selected ?? ""; range.value = st.rangeMode; threshold.value = st.threshold; for (const ctl of [source, range, threshold]) ctl.disabled = !st.file; };
+  store.on(["channels", "selected", "rangeMode", "threshold", "file"], syncHead); syncHead(store.get());
   const m = createMeasure(ctx, { onError: (e) => ctx.ui.toast(e.message, "error") });
   // 結果表的刪除／清除由 results.js 發出 measure.remove／measure.clear 指令
   store.onCommand("measure.remove", (id) => m.remove(id));
@@ -156,8 +167,15 @@ export function mount(el, ctx) {
     // Esc：拖曳中或觸控長按等待中都取消（end 會清計時器）
     keydown: (e) => { if (e.key === "Escape" && drag) { if (drag.active) e.preventDefault(); end(); } },
     blur: () => end(),
-    // 下一次 pointerup 處理完（含其 click）後解除吞 click；沒有 pointerup 時由下一次 pointerdown 解除
-    pointerup: () => setTimeout(() => { swallow = false; }),
+    pointermove: (e) => {
+      if (drag?.id !== e.pointerId) return;
+      if (drag.active) { e.preventDefault(); over(e.clientX, e.clientY); return; }
+      if (!isDrag(e.clientX - drag.x, e.clientY - drag.y)) return;
+      if (drag.touch) end(); else begin(e.clientX, e.clientY); // 觸控未滿 300 ms 就移動＝短滑，不拖
+    },
+    // 放下；之後（含其 click）解除吞 click，沒有 pointerup 時由下一次 pointerdown 解除
+    pointerup: (e) => { if (drag?.id === e.pointerId) end(true, e.clientX, e.clientY); setTimeout(() => { swallow = false; }); },
+    pointercancel: (e) => { if (drag?.id === e.pointerId) end(); },
   };
   hookWindow(hooks);
   function draggable(b, it) {
@@ -168,14 +186,7 @@ export function mount(el, ctx) {
       drag = { b, it, id: e.pointerId, x: e.clientX, y: e.clientY, active: false, touch: e.pointerType === "touch" };
       if (drag.touch) drag.timer = setTimeout(() => drag && begin(drag.x, drag.y), 300);
     });
-    b.addEventListener("pointermove", (e) => {
-      if (drag?.b !== b || drag.id !== e.pointerId) return;
-      if (drag.active) { e.preventDefault(); over(e.clientX, e.clientY); return; }
-      if (!isDrag(e.clientX - drag.x, e.clientY - drag.y)) return;
-      if (drag.touch) end(); else begin(e.clientX, e.clientY); // 觸控未滿 300 ms 就移動＝短滑，不拖
-    });
-    b.addEventListener("pointerup", (e) => { if (drag?.b === b && drag.id === e.pointerId) end(true, e.clientX, e.clientY); });
-    for (const k of ["pointercancel", "lostpointercapture"]) b.addEventListener(k, () => { if (drag?.b === b) end(); });
+    b.addEventListener("lostpointercapture", () => { if (drag?.b === b) end(); }); // pointermove／up／cancel 在 window 層
     b.addEventListener("contextmenu", (e) => { if (drag?.b === b && drag.touch) e.preventDefault(); }); // 長按不跳出選單
   }
   const hint = (st) => `\n點擊：加到目前通道（${st.selected ?? "?"}）；拖到通道列可指定來源`;

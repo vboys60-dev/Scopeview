@@ -122,10 +122,10 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   const context = { ...ctx,store:state,appState:{ catalog:{measurements:[{name:'Vavg',category:'電壓',tip:'平均'}]} },
     bridge:{ job:async (_method,args) => { sent.push(args); return {gen:1,revision:1,results:args.entries.map(e => ({...e,ok:true,gen:1,revision:1,unit:'V',stats}))}; } } };
   mountMeasure(input,context);
-  const [slope,,mode] = input.children;
+  const [,slope,,mode] = input.children;
   assert.deepEqual(mode.children.map(c => c.value),['full','cycles','cycle']);
   const button = input.children.find(e => e.firstChild?.textContent === 'Voltage Measurements').children.find(c => c.tagName === 'button');
-  const checkbox = input.children[3].children[0];
+  const checkbox = input.children[4].children[0];
   assert.equal(checkbox.checked, true); checkbox.checked = false;
   slope.value = '0'; mode.value = 'cycles'; button.onclick();
   checkbox.checked = true;
@@ -143,14 +143,14 @@ assert.equal(table.children[1].firstChild.textContent,'Vavg(CH1)'); clear.onclic
   const context = {...ctx,store:state,appState:{catalog:{measurements:defs}},resultActions:new Element('div'),fftPeaks:new Element('div'),
     bridge:{...ctx.bridge,job:async (_m,args) => { sent.push(args); return {gen:1,revision:7,results:args.entries.map(e => ({...e,ok:true,gen:1,revision:7,unit:'s',stats}))}; }}};
   state.set({file:{gen:1},channels:[{name:'CH1'}],selected:'CH1'}); mountMeasure(input,context);
-  assert.deepEqual(input.children.slice(4).map(e => e.firstChild.textContent),['Time Measurements','Voltage Measurements','Dual-Source Measurements']);
+  assert.deepEqual(input.children.slice(5).map(e => e.firstChild.textContent),['Time Measurements','Voltage Measurements','Dual-Source Measurements']);
   const dualBox = input.children.at(-1);
   const [label,sourceLabel,source2,edgeLabel,edge2,...buttons] = dualBox.children;
   assert.ok(buttons.every(b => b.disabled && b.title.includes('兩個來源')));
   state.set({channels:[{name:'CH1'},{name:'CH2'},{name:'CH3'}]});
   assert.equal(source2.value,'CH2'); assert.ok(buttons.every(b => !b.disabled));
-  input.firstChild.value='1'; source2.value='CH3'; edge2.value='0'; buttons[0].onclick();
-  input.firstChild.value='0'; edge2.value='same'; buttons[1].onclick();
+  input.children[1].value='1'; source2.value='CH3'; edge2.value='0'; buttons[0].onclick();
+  input.children[1].value='0'; edge2.value='same'; buttons[1].onclick();
   await new Promise(r => setTimeout(r,200));
   assert.deepEqual(sent[0].entries.map(e => [e.channel,e.channel2,e.rising,e.rising2]),[['CH1','CH3',true,false],['CH1','CH3',false,false]]);
   const output = new Element('div'); mountResults(output,context);
@@ -244,7 +244,7 @@ if (process.argv.includes('--mutations')) {
   ];
   mutations.push(
     ['M1 欄位資料錯位','results.js','visibleColumns().includes(COLUMNS[i])','visibleColumns().includes(COLUMNS[(i+1)%7])'],
-    ['M2 寬版峰值混入其他面板','bpanel.js',"!tabbed && tab !== 'cursor' && tab !== 'peaks' && panel !== 'peaks'","!tabbed && tab !== 'cursor' && panel !== 'peaks'"],
+    ['M2 寬版峰值混入其他面板','bpanel.js',"!tabbed && tab === 'measure' && panel === 'cursor'","!tabbed && panel === 'cursor'"],
     ['M3 FFT 關閉仍顯示計數','bpanel.js','fftOn && count','count'],
     ['M4 游標文字縮小','../../css/analysis.css','.cursors__value { display: flex; flex-direction: column; font-size: 12.5px;','.cursors__value { display: flex; flex-direction: column; font-size: 11px;'],
     ['M5 收折摘要錯誤','tab_analysis.js','量測 ${st.measurements.length}／FFT 峰值','量測／FFT 峰值'],

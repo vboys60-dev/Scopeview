@@ -71,6 +71,7 @@
 4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/驗證.md` 第 26 項）；多協定計畫見下方「多協定解碼」與「九協定解碼準則與實作計畫」（`docs/解碼實作計畫_20261112.md`，待使用者核可後開工）。
 5. 離線分析 UI 修正：等使用者確認 D1～D6 與規則授權後，由 Codex 在 `ui-fix` 逐階段編碼（見「離線分析 UI 審查與修正計畫」）。
 6. 基本量測真機校準：Top/Base 直方圖範圍與格數（N9），見「基本量測審查與修正」。
+8. 分析頁選單與拖放的人工確認與後續（見「分析頁選單與拖放」）：真視窗手感、Qt 版延後、選單 `role="menu"`／方向鍵、`toolbar.js` Node 單元測試。
 7. 可選缺口（使用者未定）：Vmid／相位延遲／邊緣脈衝計數、Track Measurements 真實位置、Phase 參考／unwrap UI、多組 Marker UI、疊圖／分開堆疊切換、多檔疊圖比較。
 
 ## 工作流程
@@ -215,3 +216,14 @@
 - **驗收**：Opus 三輪獨立驗收，Web 對 Qt（真實 runner 路徑）69472 案例 0 差異；Python／node／Qt offscreen 自檢共 87 項、`browser_check`、`e2e_check` 皆過。抓到過兩次自己引入的問題：`levels()` 改丟例外使解碼器自檢全掛（已改回契約）、Qt 先減 `dx` 再比造成同距選錯事件（已改在顯示時間比）。
 - **未解／限制**：①**N9（最重要）**：Top/Base 用 256 格、資料 min–max、5% 以單格計，含雜訊波形易回退到極值——50% 方波 σ≥約 2% 振幅時 Top／Base 皆回退，Vamp 偏大約 14%、過衝變負值；20% 工作週期 σ 1% 就讓 Top 回退。程式符合規格，需 Infiniium 實機資料決定 `hist_bins`／`hist_range`（目前未開放參數）。②mock 未實作過衝／前衝，這兩項只由真後端與核心自檢驗證。③`measure2` 遇平坦資料回「找不到指定方向的邊緣」而非 `TOP_EQ_BASE`。④float32 輸入且振幅不到 256 個 float32 ULP 時 `np.histogram` 仍會丟 `ValueError`（修改前就存在，專案讀檔器都轉 float64）。⑤延遲／相位為「取最近事件」的自訂規則，非官方 Delta Time（官方可指定邊緣編號），Phase 專頁未讀。⑥Qt 與 Web 的「全部邊緣」語意不同（Qt 全域、Web 只影響之後新增）。⑦`analysis_controls.py:144` 的 `app` 未使用（修改前就有）。
 - **流程備忘**：Codex 實作、Opus 驗收；Codex 的 `-o file` 取最終回覆，第一次呼叫曾在開頭就提前結束無輸出，重跑即可；Codex 沙箱不能綁埠，`browser_check`／`e2e_check` 由 lead 在沙箱外跑；驗收腳本在該 session 的 scratchpad，不入庫。
+
+## 分析頁選單與拖放（2026-11-12，已 commit；僅 Web，Qt 版延後）
+
+- **緣由**：使用者要求①量測可拖到指定波形、②檔案／分析（FFT、Math、解碼）按鈕收成下拉選單、③結果表右上「⋮」按下去被圖形層遮蔽。Opus、Codex 各自規劃，Fable 排 task，Codex／Sonnet／Opus 實作、互相驗收。使用者指示：**HTML 優先，Qt 以後有空再改**（已存記憶）。授權登記見 `RULES.md` 檔尾「分析頁選單與拖放」。
+- **「⋮」**：是結果表「選擇量測欄位」（Current／Mean／Min／Max／Range／Std Dev／Count），只影響顯示。根因（讀碼，headless 與 WKWebView 皆未能重現）：彈出層被父層 `z-index:3` 困住、位置只在開啟時算一次、`<details>` 不會點外面關。改用原生 Popover（top layer），定位算式仍在 `results.js`（`float_check` 變異測試依賴該字串）。
+- **選單**：新增共用 `popMenu(button, panel, place)`（`marker_menu.js`，登記 L5）與 `.popmenu`（**必須** `.popmenu:popover-open{display:flex}`，否則作者樣式蓋掉 `[popover]` 預設隱藏，關著也顯示）。工具列改為 `[開啟][檔案 ▾][分析 ▾] Marker 游標置中`；檔案▾＝比對…／檔案資訊／匯出波形 CSV…／匯出 HTML 報告…／關閉（不加確認）；分析▾＝FFT 計算（真 checkbox）／FFT 頻譜 ↗／Math…。範圍、閾值移到左欄 `measure__head`（來源／範圍／閾值）；「X軸Maker歸位」改「游標置中」；工具列「完整時間」移除（水平列已有）。UI 計畫 P2 的 Math／FFT 頻譜搬移改以「分析 ▾」取代。
+- **拖放**：量測鈕（`measure.js`）用 Pointer Events 拖到通道列（`[data-channel]`，`chanbar.js`）＝以該通道為來源 1；位移 <6 px 仍是點擊，觸控長按 300 ms；放下不改 `selected`；Esc／pointercancel／lostpointercapture／blur／換 mount 取消；取消與放下後吞緊接的指標 click、不吞鍵盤 click（`detail===0`）。**pointermove／pointerup／pointercancel 必須掛在 window 層**（按鈕上的 pointermove 在快速移出按鈕後收不到；這是 CDP 真滑鼠實測才抓到、Node 假 DOM 測不到）。通道名稱現在可 Tab 聚焦、Enter／Space 選取（原本只能滑鼠）。
+- **檢查**：新增 `menu_check.mjs`、`drag_check.mjs`（掛進 `selfcheck_node.js`）、`web/browser_menu_checks.py`、`web/browser_drag_checks.py`（掛進 `browser_check.py`，**放在 `float_panel` 之前**，因 `float_panel` 會關檔；`browser_check.py` 維持 300 行）。`p2b3_check.mjs` 的 M2 變異字串（HEAD 舊債）已同步 `bpanel.js`，`--mutations` 18/18。最終 `browser_check` 34 步全 OK、`e2e_check` 過。
+- **已知限制**：①多指標交錯（一指被取消仍按著、另一指放開）可能提早解除吞 click 保護；②選單 panel 缺 `role="menu"`、無方向鍵導覽（Tab／Enter／Esc 可用）；③`toolbar.js` 無 Node 單元測試，選單結構只靠瀏覽器檢查；④`browser_menu_checks` 的 hit test 取樣內縮 3 px，漏掉最外圈 3 px；⑤主圖波形當放置目標未做（需動 L4，重疊波形要處理歧義）；⑥Qt 全部延後（`analysis_controls.py` 的 `QToolButton`＋`QMenu`、`QDrag`；`analysis_plot.py` 已 299 行無空間）。
+- **待人工確認**（headless 驗不到）：macOS pywebview 真視窗的選單、真滑鼠拖放手感、Windows 10 觸控長按、使用者原本回報的「⋮ 被遮蔽」情境（headless 未重現）。
+- **流程備忘**：`browser_check` 只在結尾印步驟結果，卡住時看不出停在哪——要加逐步 print 時用 scratchpad 副本，不改專案檔；連續跑被殺掉後要 `pkill -f remote-debugging-port=9222`，否則下一次逾時；Codex 的 `-o` 一律用絕對路徑。
