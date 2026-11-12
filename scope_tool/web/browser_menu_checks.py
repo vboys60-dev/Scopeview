@@ -78,11 +78,19 @@ def menu_checks(c: Cdp, prep: str) -> None:
         assert c.js("!document.querySelector('.results__choices').matches(':popover-open')")
 
         # 未開檔項目全 disabled：略過（會清空量測且不易還原），由 T5 的 Node 驗收涵蓋。
-        for width, height in ((1360, 860), (1100, 700), (900, 600)):
+        command("(await import('/js/analysis/fft_state.js')).getFftState({store:S}).setAnalysisOn(true);")
+        c.js("document.querySelectorAll(':popover-open').forEach(p=>p.hidePopover())")
+        for width, height in ((1400, 900), (1100, 700), (900, 600)):
             viewport(width, height)
             dims = c.js("""(()=>{const t=document.querySelector('.analysis__toolbar');return {
                 height:t.getBoundingClientRect().height,doc:document.documentElement.scrollWidth-document.documentElement.clientWidth};})()""")
             assert dims['height'] <= 50 and dims['doc'] <= 0, (width, dims)
+            c.js("document.querySelector('[data-pane=fft]')?.click()"); c.pump(0.3)
+            c.js("[...document.querySelectorAll('.analysis__fftbar button')].find(b=>b.textContent==='更多…').click()")
+            c.wait("!!document.querySelector('.analysis__fftbar .popmenu:popover-open')")
+            assert c.js("(()=>{const a=[...document.querySelectorAll('.analysis__fftbar .popmenu:popover-open select, .analysis__fftbar .popmenu:popover-open input')];return a.length===5&&a.every(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})})()"), width
+            escape()
+            assert c.js("!document.querySelector('.analysis__fftbar .popmenu:popover-open')")
             for name in ('檔案', '分析'):
                 toolbar_menu(name)
                 bounds = c.js("""(()=>{const p=document.querySelector('.analysis__toolbar .popmenu:popover-open');
@@ -99,11 +107,13 @@ def menu_checks(c: Cdp, prep: str) -> None:
         assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open')")
         c.js("document.querySelector('dialog[open] .dlg__actions button').click()")
         toolbar_menu('分析')
-        before = c.js('(async()=>{' + prep + "return (await import('/js/analysis/fft_state.js')).getFftState({store:S}).analysisOn})()")
-        c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open label')].find(e=>e.textContent.includes('FFT 計算')).querySelector('input').click()")
-        assert c.js('(async()=>{' + prep + "return (await import('/js/analysis/fft_state.js')).getFftState({store:S}).analysisOn})()") != before
-        assert c.js("!!document.querySelector('.analysis__toolbar .popmenu:popover-open')")
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == ['FFT 頻譜 ↗', 'Math…']
+        assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open input')")
         escape()
+        before = c.js('(async()=>{' + prep + "return (await import('/js/analysis/fft_state.js')).getFftState({store:S}).analysisOn})()")
+        assert c.js("(()=>{const t=document.querySelector('.analysis__toolbar'),l=[...t.querySelectorAll(':scope > label')].find(e=>e.textContent.includes('FFT 計算'));return !!l&&l.previousElementSibling?.classList.contains('popmenu')&&l.nextElementSibling?.textContent.includes('Marker')})()")
+        c.js("[...document.querySelectorAll('.analysis__toolbar > label')].find(e=>e.textContent.includes('FFT 計算')).querySelector('input').click()")
+        assert c.js('(async()=>{' + prep + "return (await import('/js/analysis/fft_state.js')).getFftState({store:S}).analysisOn})()") != before
     finally:
         c.js("document.querySelectorAll(':popover-open').forEach(p=>p.hidePopover());document.querySelector('dialog[open] .dlg__actions button')?.click()")
         if c.js("document.querySelector('.analysis').classList.contains('analysis--drawer')"):

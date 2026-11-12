@@ -210,9 +210,9 @@ def main() -> None:
                             f"b.scrollLeft={'b.scrollWidth' if end else '0'};"
                             "const r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height,"
                             "plot:document.querySelector('.analysis__fftplot').getBoundingClientRect().height,"
-                            "labels:[...b.querySelectorAll('label')].map(e=>{const t=e.getBoundingClientRect();"
+                            "labels:[...b.querySelectorAll('label')].filter(e=>e.getClientRects().length).map(e=>{const t=e.getBoundingClientRect();"
                             "return {text:e.textContent.trim(),top:t.top,bottom:t.bottom,font:parseFloat(getComputedStyle(e).fontSize)}})}})()")
-                assert len(dims["labels"]) == 7, dims
+                assert len(dims["labels"]) == 4, dims
                 assert dims["height"] <= 40 and dims["plot"] >= 120, dims
                 assert all(e["top"] >= dims["top"] and e["bottom"] <= dims["bottom"]
                            and e["font"] >= 12 for e in dims["labels"]), dims

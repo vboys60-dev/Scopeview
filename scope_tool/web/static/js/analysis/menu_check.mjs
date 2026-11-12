@@ -1,5 +1,6 @@
 // 無框架驗證 Popover 接線與邊界定位。
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { menuPosition, popMenu } from './marker_menu.js';
 
 class Element {
@@ -42,3 +43,7 @@ assert.doesNotThrow(() => {
   bare.emit('click', { target: { closest: () => ({}) } });
 });
 console.log('menu self-check OK');
+
+const toolbar = readFileSync(new URL('./toolbar.js', import.meta.url), 'utf8');
+assert.match(toolbar, /menu\("分析", bFft, bMath\)/);
+assert.match(toolbar, /el\.append\(fieldOf\("FFT 計算", on\), fieldOf\("Marker", marker\)/);

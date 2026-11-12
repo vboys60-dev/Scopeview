@@ -9,7 +9,7 @@ import { exportReport } from "./report.js";
 import { popMenu } from "./marker_menu.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、FFT 與 Track RF 控制。
 // 對照 ui/analysis_controls.py、analysis_math.py、analysis_export.py。DOM／對話框手感待真人驗證。
-// 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar。
+// 開檔由 L4 處理（按鈕只發 file.open）；本檔負責關檔重設、數學通道、匯出、FFT job。FFT 參數列掛進 L4 的 .analysis__fftbar，次要參數收進「更多…」。
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const num = (v) => typeof v === "number" && Number.isFinite(v);
@@ -126,12 +126,12 @@ export function mount(el, ctx) {
   menu("檔案", bSlots, bInfo, bCsv, bRep, h("hr"), bClose);
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
   on.onchange = () => fft.setAnalysisOn(on.checked);
-  menu("分析", fieldOf("FFT 計算", on), bFft, bMath);
-  el.append(fieldOf("Marker", marker), centerButton(store));
+  menu("分析", bFft, bMath);
+  el.append(fieldOf("FFT 計算", on), fieldOf("Marker", marker), centerButton(store));
 
   // ── FFT ──
-  const fftRow = h("div", "row"); // 掛進 L4 fftpane 的 .analysis__fftbar
-  mountFftControls(fftRow, ctx);
+  const fftRow = h("div", "row"), more = h("div", "popmenu"), bMore = btn("更多…", () => {}, "btn btn--small");
+  popMenu(bMore, more); mountFftControls(fftRow, ctx, { markerHost: more, impHost: more }); fftRow.append(bMore, more); loaded.push(bMore);
   fft.subscribe(() => { on.checked = fft.analysisOn; on.disabled = !store.get().file; });
   const root = el.closest(".analysis") ?? el.parentNode, place = () => { const bar = root.querySelector(".analysis__fftbar"); if (bar) bar.append(fftRow); return !!bar; };
   if (!place()) { const mo = new MutationObserver(() => { if (place()) mo.disconnect(); }); mo.observe(root, { childList: true, subtree: true }); setTimeout(() => { if (!fftRow.parentNode) el.append(fftRow); }, 3000); }
