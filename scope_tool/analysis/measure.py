@@ -212,14 +212,17 @@ def measure2(name: str, t1: np.ndarray, v1: np.ndarray, t2: np.ndarray, v2: np.n
     return edge.timed(delay, a)
 
 
-def stats(values: np.ndarray, ref: float | None = None, meas_all_edges: bool = True) -> tuple[float, float, float, float, float, float, int]:
+def current_index(values: np.ndarray, ref: float | None) -> int:
     """目前取距參考最近的事件，同距取較早；未給參考／事件時間時沿用首事件。"""
     at = getattr(values, "at", None)
-    i = 0
     if ref is not None and at is not None:
         distance = abs(at - ref)
         candidates = np.flatnonzero(distance == distance.min())
-        i = candidates[at[candidates].argmin()]
+        return int(candidates[at[candidates].argmin()])
+    return 0
+
+def stats(values: np.ndarray, ref: float | None = None, meas_all_edges: bool = True) -> tuple[float, float, float, float, float, float, int]:
+    i = current_index(values, ref)
     if not meas_all_edges:
         values = values[i:i + 1]
         i = 0

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure_event, measure2, stats as _stats, unit_of
+from scope_tool.analysis.measure import DUAL, INTERVAL, MEASUREMENTS, SLOPED, THRESHOLDS, measure_event, measure2, stats as _stats, unit_of, current_index
+from scope_tool.analysis.measure_marks import marks
 from scope_tool.analysis.measure_extra import EXTRA, measure_extra, delta_time
 from scope_tool.contracts import ScopeError
 from scope_tool.web.analysis_util import BadRequest, StaleError, _clean, _dx, _range
@@ -23,6 +24,8 @@ class MeasureMixin:
                 raise BadRequest("未知閾值層")
             if ("channel2" in e and not isinstance(e["channel2"], str)) or ("rising2" in e and not isinstance(e["rising2"], bool)):
                 raise BadRequest("channel2 必須為字串，rising2 必須為布林值")
+            if "track" in e and not isinstance(e["track"], bool):
+                raise BadRequest("track 必須為布林值")
             if "all_edges" in e and not isinstance(e["all_edges"], bool):
                 raise BadRequest("all_edges 必須為布林值")
             if e.get("mode", "full") not in ("full", "cycles", "cycle"):
@@ -57,6 +60,8 @@ class MeasureMixin:
                 if name == "Delta Time":
                     lev = {"lower": "下", "middle": "中", "upper": "上"}
                     row["_label"] = f"Delta Time({ch}#{e.get('edge_num', 1)}{'↑' if rising else '↓'}→{ch2}#{e.get('edge_num2', 1)}{'↑' if e.get('rising2', rising) else '↓'} {lev[e.get('edge_level', 'middle')]}／{lev[e.get('edge_level2', 'middle')]})"
+                if e.get("track", False):
+                    row["marks"] = None
                 if dual:
                     row["channel2"] = ch2
                 if w is None or (dual and ch2 not in by):
@@ -91,6 +96,17 @@ class MeasureMixin:
                             s = _stats(values, ref, meas_all_edges=e.get("all_edges", True) or name == "相位")
                             if getattr(values, "bound", None):
                                 row["bound"] = values.bound
+                            if e.get("track", False):
+                                i = current_index(values, ref)
+                                tracked_values = values
+                                if not dual and getattr(values, "at", None) is not None:
+                                    tracked_values = values.view(type(values))
+                                    tracked_values.at = values.at - d
+                                pts = marks(name, t + d if dual else t, v, pct, tracked_values, i, rising, e.get("mode", "full"), ref if dual else ref-d,
+                                            t2 + dx.get(ch2, 0) if dual else None, v2 if dual else None, e.get("rising2", rising),
+                                            e.get("edge_num", 1), e.get("edge_num2", 1), e.get("edge_level", "middle"), e.get("edge_level2", "middle"))
+                                if pts is not None:
+                                    row["marks"] = [[float(x), float(y), c] for group, c in zip(pts, (ch, ch2)) for x, y in group] if dual else [[float(x+d), float(y), ch] for x, y in pts]
                             row["ok"] = True
                             row["stats"] = dict(zip(("current", "mean", "min", "max", "range", "std", "count"), s))
                         except ScopeError as exc:

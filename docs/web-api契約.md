@@ -103,7 +103,7 @@ bridge 對**任何非 200**（含非 JSON 的 500）與非 JSON 的 RPC 回應�
 - catalog 新增 `-工作週期`（時間、%、sloped），等於同組邊緣下 `100 - 工作週期`；工作週期為＋寬度／週期，週期由所選方向定義。cycles 結果標籤如 `Vavg(CH1 整數週期 ↑)`，full 不加註；CSV 同樣標示。
 - JSON `optional_fields` 列出 types 中可省略的欄位；存在時仍須符合欄位型別與上述列舉值。
 - `Stats.current`＝最靠近顯示時間 t=0 的事件；切片不含 0 時取最靠近切片時間中點者，同距取較早。事件時間為起始邊緣中閾交越（延遲／相位用來源 1）；單值取範圍結果，無事件時間時退回首事件。雙來源的參考點依來源 1 切片決定，其他統計欄不變。
-- `MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
+- `MeasureEntry.track` 可省略，預設 false；true 時結果含 `marks`，為 `[顯示時間, 通道值, 通道名]` 陣列或 null（無單一位置或量測失敗）。`MeasureResult.stats` 各欄 `float|null`，並帶 `gen`、`revision`（與 `MeasureBatch` 相同）。
 - 雙來源 catalog：`延遲`（s）、`相位`（°）、`電壓比`（dB）、`Delta Time`（s），分類「雙來源」、可選欄 `sources:2`（單來源省略或 1）。Qt 的 MEASUREMENTS 不含雙來源。
 - `MeasureEntry.mode` 亦可為 `cycle`，以顯示時間參考點選最近邊緣開始的單週期；參考點為範圍含零時的零，否則為範圍中點。CSV 使用英文標籤：單週期為 One Cycle、單一事件為 Single Event、全部邊緣為 All Edges。`all_edges` 可省略，預設為 true；false 時統計僅使用最近的單一事件，SLOPED 比較兩種極性並依最近事件決定方向，標籤不顯示方向箭頭；相位強制使用全部邊緣，標籤註明「全部邊緣」。勾選框只影響之後新增的量測。 Delta Time 使用各來源的 `edge_num`／`edge_num2`（整數 1–65534，預設 1）與 `edge_level`／`edge_level2`（`lower|middle|upper`，預設 `middle`），由量測範圍左緣起數完整指定方向邊緣，結果為來源 2 減來源 1，可為負；不足回 `EDGE_NOT_FOUND`。單來源忽略這四欄。
 - `MeasureEntry.channel2:str`、`rising2:bool` 可省略，不可 null。雙來源缺少 channel2 → BAD_REQUEST；通道不存在／已刪除 → 該列失敗「來源通道已刪除」。rising2 預設同 rising；單來源忽略兩欄。`MeasureResult.channel2:str|null` 可省略／null；雙來源帶來源 2 名稱。
@@ -255,7 +255,7 @@ Liquid Glass 深色單一主題；圖區黑底（#000），不提供淺色切換
 - `add_manual_ip` 回傳整份手動清單，前端以 label 找新增項。
 - `spectrum_id` 程序內遞增，換檔不重用。
 - `request_id` 去重鍵含方法名與參數；同 ID 不同方法／參數 → BAD_REQUEST。BAD_REQUEST 結果（含 job 內產生者）屬可重試，不留在去重表。
-- Track Measurements：MeasureResult 無事件座標，列為已知限制（UI 標「尚未支援」）。
+- Track Measurements：後端可回傳事件座標；UI 尚未支援。
 - CSV 游標區間：游標顯示時間直接切原始軸，不套 dx（與 Qt 一致）。
 - 開檔序列化：開檔進行中，前端禁止再次 file.open／關檔。
 ### I3C 解碼追加（2026-10-26，version 維持 2）

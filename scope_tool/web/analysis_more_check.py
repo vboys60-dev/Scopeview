@@ -43,6 +43,29 @@ def _self_check():
             raise AssertionError(value)
         except BadRequest:
             pass
+    for name in list(MEASUREMENTS) + list(EXTRA) + ["延遲", "相位", "電壓比", "Delta Time"]:
+        e = dict(channel="A", name=name, rising=True, track=True)
+        if name in ("延遲", "相位", "電壓比", "Delta Time"):
+            e["channel2"] = "B"
+        row = result(e, dx={"A": 2, "B": -1})
+        assert row["ok"], (name, row)
+        points = row["marks"]
+        if name == "電壓比" or "計數" in name:
+            assert points is None
+        else:
+            assert points and all(len(p) == 3 and p[2] in ("A", "B") for p in points), (name, points)
+            if name == "Delta Time":
+                assert abs(points[0][0] - 21.5) < 1e-12 and abs(points[1][0] - 21.5) < 1e-12, points
+            if name == "Vmax":
+                assert points == [[22., 2., "A"]], points
+    for mode in ("full", "cycles", "cycle"):
+        row = result(dict(channel="A", name="Vavg", mode=mode, rising=True, track=True), dx={"A":2})
+        assert row["ok"] and len(row["marks"]) == 2, row
+    try:
+        result(dict(channel="A", name="Vmax", track="yes"))
+        raise AssertionError("track must be boolean")
+    except BadRequest:
+        pass
     a._waves = [Waveform("A", t, np.zeros_like(t))]
     for name in EXTRA:
         row = a.measure([dict(channel="A", name=name)], None, {}, "10/50/90 %")["results"][0]

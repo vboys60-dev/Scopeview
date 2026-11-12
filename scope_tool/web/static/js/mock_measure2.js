@@ -17,7 +17,7 @@ export function dualResult(e, data, range, dx, pct, base) {
     if (!v.every(Number.isFinite)) return fail(`來源 ${i+1}：資料含 NaN 或無限大。`);
     signals.push({ t,v });
   }
-  let values, at;
+  let values, at, delays;
   if (e.name === '電壓比') {
     const rms = signals.map(({v}) => { const avg = v.reduce((s,x) => s+x,0)/v.length; return Math.sqrt(v.reduce((s,x) => s+(x-avg)**2,0)/v.length); });
     if (rms.some(x => x === 0)) return fail(`來源 ${rms[0] === 0 ? 1 : 2} 的 AC RMS 為 0，無法計算電壓比。`);
@@ -42,18 +42,26 @@ export function dualResult(e, data, range, dx, pct, base) {
     if (e.name === 'Delta Time') {
       const a = mids[0][(e.edge_num ?? 1)-1], b = mids[1][(e.edge_num2 ?? 1)-1];
       if (a === undefined || b === undefined) return fail(`EDGE_NOT_FOUND：來源 ${a === undefined ? 1 : 2} 找不到指定邊緣。`);
-      return { ...base, ok:true, reason:null, stats:eventStats([b-a], undefined, signals[0].t, 0, true) };
+      return { ...base, ok:true, reason:null, stats:eventStats([b-a], undefined, signals[0].t, 0, true), ...(e.track ? {marks:[[a, Math.min(...signals[0].v)+(Math.max(...signals[0].v)-Math.min(...signals[0].v))*pct[({lower:0,middle:1,upper:2}[e.edge_level ?? "middle"]) ]/100, e.channel],[b, Math.min(...signals[1].v)+(Math.max(...signals[1].v)-Math.min(...signals[1].v))*pct[({lower:0,middle:1,upper:2}[e.edge_level2 ?? "middle"]) ]/100,e.channel2]]} : {}) };
     }
     const [t1,t2] = signals.map(s => s.t);
     const a = mids[0].filter(t => t >= Math.max(t1[0],t2[0]) && t <= Math.min(t1.at(-1),t2.at(-1))), b = mids[1];
     if (!a.length) return fail('兩來源時間範圍沒有重疊');
     at = a;
     values = a.map(t => { const j=bound(b,t), l=b[Math.max(0,j-1)], r=b[Math.min(j,b.length-1)]; return (Math.abs(l-t)<=Math.abs(r-t) ? l : r)-t; });
+    delays = values;
     if (e.name === '相位') {
       if (a.length < 2) return fail('來源 1：找不到完整週期（需要兩個同方向邊緣）。');
       at = a.slice(0,-1);
       values = values.slice(0,-1).map((d,i) => d/(a[i+1]-a[i])*360);
     }
   }
-  return { ...base, ok:true, reason:null, stats:eventStats(values,at,signals[0].t,0,e.all_edges !== false || e.name === "相位") };
+  let marks = null;
+  if (e.track && at) {
+    const ref = signals[0].t[0] <= 0 && signals[0].t.at(-1) >= 0 ? 0 : (signals[0].t[0]+signals[0].t.at(-1))/2;
+    let i = 0; for (let j=1;j<at.length;j++) if (Math.abs(at[j]-ref)<Math.abs(at[i]-ref)) i=j;
+    const delta = delays[i];
+    marks = [at[i],at[i]+delta].map((x,j) => [x,Math.min(...signals[j].v)+(Math.max(...signals[j].v)-Math.min(...signals[j].v))*pct[1]/100,j ? e.channel2 : e.channel]);
+  }
+  return { ...base, ok:true, reason:null, stats:eventStats(values,at,signals[0].t,0,e.all_edges !== false || e.name === "相位"), ...(e.track ? {marks} : {}) };
 }
