@@ -34,7 +34,7 @@ export function mount(el, { store }) {
   const kindGroup = h("span"); kindGroup.setAttribute("role", "group"); kindGroup.setAttribute("aria-label", "框選種類"); kindGroup.append(...kinds);
   const syncKind = () => { kindGroup.style.opacity = mode === "zoom" ? "1" : "0.55"; kinds.forEach((b, i) => { b.disabled = mode !== "zoom"; b.dataset.zoomKind = ZOOM_KINDS[i]; b.setAttribute("aria-pressed", String(zoomKind === ZOOM_KINDS[i])); }); };
   store.onCommand("view.zoomKind", (v) => { if (ZOOM_KINDS.includes(v)) { zoomKind = v; syncKind(); } });
-  const modes = ["pan", "zoom"].map((v, i) => button(i ? "⬚ 框選放大" : "✥ 平移", () => store.command("view.mode", v)));
+  const modes = ["pan", "zoom"].map((v, i) => button(i ? "⬚ 框選" : "✥ 平移", () => store.command("view.mode", v), i ? "框選放大" : "✥ 平移"));
   const syncMode = () => modes.forEach((b, i) => b.setAttribute("aria-pressed", String(mode === (i ? "zoom" : "pan"))));
   store.onCommand("view.mode", (v) => { if (["pan", "zoom"].includes(v)) { mode = v; syncMode(); syncKind(); } });
   syncMode(); syncKind();
@@ -42,7 +42,7 @@ export function mount(el, { store }) {
   undo.disabled = redo.disabled = true;
   store.onCommand("view.history", (s) => { undo.disabled = !s.undo; redo.disabled = !s.redo; });
   const reset = button("完整時間", () => store.command("view.reset"));
-  const modeGroup = h("div", undefined, "analysis__hmodes"); modeGroup.append(...modes, kindGroup, undo, redo); el.append(modeGroup);
+  const modeGroup = h("div", undefined, "analysis__hmodes"); modeGroup.append(...modes, kindGroup, undo, redo, reset); el.append(modeGroup);
   function field(label, key) {
     const wrap = h("label", undefined, "analysis__hfield"), input = h("input", undefined, "input");
     input.type = "text"; input.setAttribute("aria-label", label); input.dataset.axis = key;
@@ -63,10 +63,10 @@ export function mount(el, { store }) {
     wrap.append(h("span", label), down, input, up); el.append(wrap);
     return { input, down, up };
   }
-  const scale = field("時間/格", "scale"), position = field("時間軸位移", "position");
+  const scale = field("時間/格", "scale"), position = field("位置", "position");
   const zero = button("0", () => { const v = horizontalOf(store.get().view); store.command("viewport.intent", rangeOf(v.scale, 0)); }, "檔案時間 0 置中");
   el.append(zero);
-  const range = h("span", undefined, "analysis__hrange"); el.append(range, reset);
+  const range = h("span", undefined, "analysis__hrange"); el.append(range);
   const prev = h("input", undefined, "check"); prev.type = "checkbox"; prev.checked = true; prev.onchange = () => store.command("preview.visible", prev.checked);
   store.onCommand('layout.state', (s) => {
     prev.checked = s.overview; prev.disabled = !!s.blocked;
@@ -81,8 +81,8 @@ export function mount(el, { store }) {
       if (force || document.activeElement !== field.input) field.input.value = field.input.dataset.rendered = formatHorizontal(v[key], v.scale);
     }
     zero.disabled = !f || f.t0 > 0 || f.t1 < 0; reset.disabled = !f;
-    range.textContent = `範圍 ${formatHorizontal(s.view.t0, v.scale)} ～ ${formatHorizontal(s.view.t1, v.scale)}`;
-    range.title = `${s.view.t0} ～ ${s.view.t1} s`;
+    range.textContent = `${formatHorizontal(s.view.t0, v.scale)} ～ ${formatHorizontal(s.view.t1, v.scale)}`;
+    range.title = `目前畫面時間範圍：${s.view.t0} ～ ${s.view.t1} s`;
   }
   store.on(["file", "view"], () => render()); render();
 }

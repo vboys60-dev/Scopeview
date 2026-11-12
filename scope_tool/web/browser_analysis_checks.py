@@ -71,7 +71,7 @@ def p2a_view(c: Cdp, prep: str, click: str, out: Path) -> None:
                   "r=M.layoutRect(b.width,b.height,V.voltageLeft(t=>g.measureText(t).width,V.voltageAxis(S.state.channels.find(c=>c.name===S.state.selected)),H.channelHandles(S.state.channels,r)));"
                   "return {view:S.state.view,channels:S.state.channels,cursors:S.state.cursors,"
                   "x:b.x+r.l,y:b.y+r.t+r.h*0.6,w:r.w}})()")
-    c.js("(" + click + ")('⬚ 框選放大')")
+    c.js("(" + click + ")('⬚ 框選')")
     x0, x1, y = before["x"] + before["w"] * 0.2, before["x"] + before["w"] * 0.7, before["y"]
     c.mouse("mousePressed", x0, y)
     c.mouse("mouseMoved", x1, y, buttons=1)

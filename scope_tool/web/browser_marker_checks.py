@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
 
 def dock_layout(c: Cdp, prep: str) -> None:
-    """版面 C：B 區移到圖右側、游標／Marker 上下疊、<900px 自動退回底部，偏好不被覆寫。"""
+    """版面 C：B 區移到圖右側、游標／Marker 上下疊、<1280px 自動退回底部，偏好不被覆寫。"""
     check = """(async()=>{""" + prep + """
         const R=s=>document.querySelector(s).getBoundingClientRect(),wait=()=>new Promise(r=>setTimeout(r,250));
         const state=()=>{const l=R('.analysis__lower'),p=R('.analysis__plot'),m=R('.analysis__markers'),k=R('.analysis__cursors');

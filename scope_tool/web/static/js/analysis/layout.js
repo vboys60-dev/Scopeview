@@ -3,8 +3,8 @@
 export const FFT_BAR_HEIGHT = 40, FFT_PLOT_MIN = 120, FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN;
 export const VERSION = 1, STORAGE_KEY = 'scope.analysis.layout.v1';
 export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, markerSide: false, overview: null });
-/** 版面 C：B 區搬到圖右側的直欄寬度；視窗 <900px 不啟用。 */
-export const DOCK_WIDTH = 340, DOCK_MIN_VW = 900;
+/** 版面 C：B 區搬到圖右側的直欄寬度；視窗 <1280px 不啟用（避免圖區被 340px 右欄擠到控制列溢出）。 */
+export const DOCK_WIDTH = 340, DOCK_MIN_VW = 1280;
 const clip = (n, a, b) => Math.min(b, Math.max(a, n));
 export function validatePrefs(raw) {
   const p = defaults();

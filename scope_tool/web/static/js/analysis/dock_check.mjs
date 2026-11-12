@@ -10,7 +10,7 @@ assert.equal(off.docked, false); assert.equal(d.docked, true);
 assert.equal(d.lower, 0); assert.equal(d.dockWidth, DOCK_WIDTH);
 assert.equal(d.plotWidth, off.plotWidth - DOCK_WIDTH);
 assert.ok(d.main > off.main, '結果欄移走後主圖變高');
-// <900px 與浮動時不啟用，也不改偏好
+// <1280px 與浮動時不啟用，也不改偏好
 assert.equal(clampLayout({ ...base, vw: 800, prefs: on }).docked, false);
 assert.equal(clampLayout({ ...base, vw: 800, prefs: on }).canDock, false);
 assert.equal(clampLayout({ ...base, prefs: on, lowerFloating: true }).docked, false);
