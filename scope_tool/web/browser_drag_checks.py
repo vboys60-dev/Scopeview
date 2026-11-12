@@ -118,6 +118,14 @@ def drag_checks(c: Cdp, prep: str) -> None:
         before = snapshot(); mouse('mousePressed', a); move(a, b, True); mouse('mouseReleased', b); c.pump(0.2)
         after = added(before, 'CHAN2', '延遲')
         assert after['entries'][-1]['channel2'] == source2, after
+        # 拖到主圖波形上：找一個 hitChannel 回 CHAN2 的點，放開後以 CHAN2 新增。
+        cv = c.js("""(()=>{const k=[...document.querySelectorAll('canvas')].find(e=>e.hitChannel);if(!k)return null;const b=k.getBoundingClientRect();
+          for(let y=b.top+8;y<b.bottom-20;y+=4)for(let x=b.left+90;x<b.right-10;x+=6)
+            if(document.elementFromPoint(x,y)===k&&k.hitChannel(x,y)==='CHAN2')return {x,y};return null})()""")
+        assert cv, '主圖找不到 CHAN2 波形點'
+        a = point(button('Vmax'))
+        before = snapshot(); mouse('mousePressed', a); move(a, cv); mouse('mouseReleased', cv); c.pump(0.2)
+        added(before, 'CHAN2')
         assert not c.errors, c.errors
     finally:
         c.send('Emulation.setTouchEmulationEnabled', enabled=False)

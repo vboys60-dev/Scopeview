@@ -1,4 +1,4 @@
-import { createMarkerLayer } from "./marker_layer.js";
+import { createMarkerLayer, nearestChannel } from "./marker_layer.js";
 import { cursorSource, onCursorSource } from "./cursors.js";
 import { fmt } from "../fmt.js";
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
@@ -139,6 +139,7 @@ export function mount(el, ctx) {
   });
 
   const offSource = onCursorSource(store, draw);
+  canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null); }; // 量測鈕拖放目標
   markers = createMarkerLayer(canvas, ctx, () => rect, cache, draw);
   gestures = bindGestures(canvas, ctx, () => rect, draw, markers);
   draw();

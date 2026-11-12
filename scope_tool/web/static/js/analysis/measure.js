@@ -17,7 +17,7 @@ export const failure = (reason, gen = 0, revision = 0) => ({ ok: false, stats: n
 /** 位移達 RECT_MIN_PX（6 px）才算拖曳，未達視為點擊。 */
 export const isDrag = (dx, dy) => Math.hypot(dx, dy) >= RECT_MIN_PX;
 /** 放置目標：元素所在的通道列欄位（[data-channel]）通道名，沒有就是 null。 */
-export const dropChannel = (el) => el?.closest?.("[data-channel]")?.dataset.channel ?? null;
+export const dropChannel = (el, x, y) => el?.closest?.("[data-channel]")?.dataset.channel ?? el?.hitChannel?.(x, y) ?? null; // 主圖 canvas 由 hitChannel 回傳游標下最近的波形
 
 // 視窗層監聽（Esc、blur、pointerup）整個模組只掛一次，交給最近一次 mount 的處理函式。
 let winHooks = null, winHooked = false;
@@ -149,7 +149,7 @@ export function mount(el, ctx) {
     m.add(it.name, channel, slope.value === "1", mode.value, it.sources === 2 ? source2.value : undefined, rising2, allEdges.checked, { edge_num: Number(nums[0].value), edge_num2: Number(nums[1].value), edge_level: levels[0].value, edge_level2: levels[1].value });
   }
   function over(x, y) {
-    const ch = dropChannel(document.elementFromPoint(x, y));
+    const ch = dropChannel(document.elementFromPoint(x, y), x, y);
     for (const c of targets()) c.classList.toggle("is-dropover", c.dataset.channel === ch);
     Object.assign(drag.tag.style, { left: `${x + 12}px`, top: `${y + 12}px` });
     drag.tag.textContent = `${T(drag.it.name)} → ${ch ?? "?"}`;
@@ -167,7 +167,7 @@ export function mount(el, ctx) {
   function end(drop, x, y) {
     if (!drag) return;
     const d = drag; clearTimeout(d.timer);
-    const ch = d.active && drop ? dropChannel(document.elementFromPoint(x, y)) : null;
+    const ch = d.active && drop ? dropChannel(document.elementFromPoint(x, y), x, y) : null;
     drag = null;
     if (!d.active) { if (!drop) swallow = true; return; } // 按住等待中被取消（Esc／blur／換 mount／短滑）：緊接的指標 click 也不新增
     swallow = true; // 吞掉緊接的指標 click（放下或取消都不可再新增到 selected）；鍵盤 click 不受影響

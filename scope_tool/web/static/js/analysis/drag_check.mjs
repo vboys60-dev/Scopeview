@@ -25,6 +25,8 @@ const { createStore } = await import('./store.js');
 const { mount, isDrag, dropChannel } = await import('./measure.js');
 assert.equal(isDrag(5, 3), false); assert.equal(isDrag(6, 0), true); assert.equal(isDrag(0, -6), true);
 assert.equal(dropChannel(child), 'CH2'); assert.equal(dropChannel(null), null); assert.equal(dropChannel(new El('div')), null);
+const cvs = new El('canvas'); cvs.hitChannel = (x, y) => (y < 10 ? 'CH2' : null);
+assert.equal(dropChannel(cvs, 5, 5), 'CH2'); assert.equal(dropChannel(cvs, 5, 50), null);
 const store = createStore();
 store.set({ file: { gen: 1 }, channels: [{ name: 'CH1' }, { name: 'CH2' }], selected: 'CH1' });
 const root = new El('div');
