@@ -256,20 +256,12 @@
 - **待人工確認**（headless 驗不到）：macOS pywebview 真視窗的選單、真滑鼠拖放手感、Windows 10 觸控長按、使用者原本回報的「⋮ 被遮蔽」情境（headless 未重現）。
 - **流程備忘**：`browser_check` 只在結尾印步驟結果，卡住時看不出停在哪——要加逐步 print 時用 scratchpad 副本，不改專案檔；連續跑被殺掉後要 `pkill -f remote-debugging-port=9222`，否則下一次逾時；Codex 的 `-o` 一律用絕對路徑。
 
-## 已知缺口處理（2026-11-13，**進行中、未驗收、未 commit**；僅 Web，Qt 延後）
+## 已知缺口處理與分割格線（2026-11-13，**全部完成、驗收、已 commit**；僅 Web，Qt 延後）
 
-- **流程**：Opus 規劃（全文未存檔，摘要如下）、Codex 實作、Opus／lead 驗收。Codex 指令（使用者指定模型 `gpt-6.1-sol`、推理 medium）：`codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium --sandbox workspace-write -C <專案> -o <絕對路徑> "$(cat prompt)" </dev/null`（`--full-auto` 已不存在，用了會直接報錯、什麼都沒跑）。提示檔在 scratchpad：`gap_a.md`（停靠）、`gap_b.md`（選單測試＋方向鍵）、`gap_c.md`（H5 預設帶入）、`gap_d.md`（FFT 疊圖）；輸出 `gap_*_out.md`。
-- **使用者決定**：FFT 疊圖＝方案 A（前端快照，不改後端／契約，上限 4 條）；分格＝可手動指派（1／2／4／8 格，Infiniium 式，三波進度見下節）；H5＝預設帶入更聰明（名稱符合 `^角色key\d*$` 就帶入，否則照順序；已授權解凍 `decode.js` 的 `defaultConfig`，RULES.md 已登記）。
-- **工作樹現況（Codex 已寫入、尚未驗收）**：A `layout.js`／`dock_check.mjs`／`browser_marker_checks.py`；B `toolbar_check.mjs`（新）、`marker_menu.js`、`toolbar.js`、`menu_check.mjs`；C `decode.js`、`decode_proto_check.mjs`；D `fft_overlay.js`／`fft_overlay_check.mjs`（新）、`fftpane.js`；`selfcheck_node.js` 被 Codex 動過（D 的提示禁止，需檢查是否多改）。接手先看 `git status`／`git diff`，確認各 Codex 是否已結束（`pgrep -f "codex exec"`）。
-- **驗收待辦**：每項跑 Node 自檢（`selfcheck_node.js`）、`e2e_check`、`browser_check`（lead 在沙箱外跑，`pkill -f remote-debugging-port=9222` 在兩次之間）。A 的 `DOCK_PLOT_MIN` 暫定 780，須用 CDP 在 1300～1400 實測 FFT 開啟時 `.analysis__fftbar`／`.analysis__horizontal` 皆 `scrollWidth<=clientWidth+1` 的最小圖區寬再加 4 px。D 的 `browser_fft_checks` 步驟、B 的 `browser_menu_checks` 步驟都是寫好未跑。通過才分波 commit（每波自動 commit）。
-- **使用者新回報的 bug（未修）**：截圖中「檔案 ▾」「分析 ▾」選單選項一直顯示在工具列、橫排、點按鈕沒作用；「⋮」欄位選單被視窗底部切掉。推測使用者的視窗**不支援 Popover API**（`panel.popover` 被忽略，面板變一般元素），headless Chrome 支援所以測不到；**尚未驗證**。修法：`marker_menu.js` 的 `popMenu` 偵測 `!('popover' in HTMLElement.prototype)` 時改走退路——面板預設隱藏、按鈕切換開關、`position:fixed`＋`flex-direction:column`、點外面／Esc 關、貼視窗邊緣夾位；「更多…」「⋮」同走 `popMenu`。**等 B 的 Codex 結束再改 `marker_menu.js`**，避免互蓋。要問使用者實際是哪個視窗（pywebview 版本／瀏覽器）。
-- **另案待辦**：FFT 疊圖若要原解析度改方案 C，需後端保留與 L0 契約變更。分格追加授權已登記 RULES.md。
-- **Opus 規劃要點**：停靠門檻改依圖區寬度 `W - side - 10 - DOCK_WIDTH >= DOCK_PLOT_MIN`（預設側欄寬時約 1280～1367 的「⇥ 右側欄」鈕會隱藏，推翻 D7「接受殘留」）；選單 `role=menu`／`menuitem`＋↑↓／Home／End／Esc（「更多…」「⋮」是表單，不可加 role=menu 也不攔方向鍵）；已超 300 行的檔不可再加行：`jobs.py` 301、`server.py` 304、`api.py` 326、`fft_marker_check.mjs` 319。
-
-## 分割格線進度（2026-11-13）
-
-- 模型：store 的 `grids={n,assign}`，n 支援 1／2／4／8；assign 以通道名稱對應從 0 起算的格位。缺省依通道順序輪流分配，隱藏通道仍保留格位；超出目前格數的指派暫用輪流分配，增加格數後恢復。
-- 全域記住：localStorage `scope.analysis.grids.v1`，跨開檔保留，不是每檔設定；預設 1 格。使用者變更一律經 `view.zoomRect`，格數／指派可一次復原，亦可與 channels 共用一筆歷史。
-- 第 1 波已 commit：grids 幾何／偏好、分格繪製與命中、Canvas `gridRect()` 測試鉤子。第 2 波已 commit：分格拖曳／框選、游標與歷史接線。
-- 第 3 波已實作、待 lead 驗收：分析選單增加格數與目前項勾號，chip 增加「所在格」（1 格隱藏）；分開堆疊在每格內各自排列，1 格沿用原行為；疊圖仍對全部可見通道自動縮放，保留格位，兩者與分格共存。
-- 測試：擴充 Node 的選單／指派／分格堆疊斷言及 CDP 步驟（一次復原、三尺寸 8 格、截圖）；本輪僅執行指定 Node 自檢與 Python 編譯，不執行 browser_check／e2e_check，不代表瀏覽器驗收通過。細節見 `docs/驗證.md`「分割格線」。
+- **流程**：Opus 規劃、Codex 實作（一律 `codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium --sandbox workspace-write -C <專案> -o <絕對路徑> "$(cat prompt)" </dev/null`）、lead 驗收（Node 自檢、`e2e_check`、`browser_check`，兩次之間 `pkill -f remote-debugging-port=9222`）。提示檔在 scratchpad（`gap_*.md`、`grid1~3.md`、`menu_fix.md`）。注意：背景啟動 Codex 時，「completed」通知可能只是外層 shell 結束，需 `pgrep -f "codex exec"` 確認；直接前景／背景執行 `codex exec` 本身則通知才準。
+- **已知缺口 A～D（已 commit）**：A 右側欄停靠需圖區寬 ≥ `DOCK_PLOT_MIN`＝904（實測 FFT 控制列 897 px；約需視窗 ≥1540 px，較窄一律底部）；B 工具列選單 `role=menu`＋方向鍵（「更多…」「⋮」是表單不加）；C 解碼通道預設依名稱 `^角色key\d*$` 帶入，否則依順序；D FFT 前端快照疊圖（≤4 條，不動後端／契約）。
+- **分割格線（三波已 commit）**：store 鍵 `grids={n:1|2|4|8,assign}`（不改 store.js）；缺省依通道索引 `% n` 輪流分配，隱藏通道仍佔位；localStorage `scope.analysis.grids.v1` 全域記住；所有變更走 `view.zoomRect`（可帶 grids，與 channels 同一筆歷史、一次復原）。「分析 ▾」有 1／2／4／8 格（目前項 `aria-current` 勾號），通道 chip 有「所在格」下拉（1 格時隱藏）；「分開堆疊」每格各自排、「疊圖」保留格位，兩者與分格共存。測試鉤子 `canvas.gridRect()`。已知限制：拖把手到另一格不改所在格（用下拉改）；8 格時每格約 30 px，把手 20 px 手感待真人看。
+- **選單浮層（已 commit，最新）**：使用者視窗（pywebview/WKWebView，可能不支援原生 Popover）下選單變 in-flow、選項像圓角按鈕。修法：`vertical.css` 讓 `.popmenu`／`.results__choices` 一律 `position:fixed`＋z-index、macOS 風格（毛玻璃、無框列、hover 反白、勾號靠左、`hr`）；`popover_fallback.js` 在不支援時以 `hidden`／`data-open` 補 show/hidePopover、點外面與 Esc 關閉，並處理「⋮」的 stacking 祖先；`popMenu` 下方放不下才向上翻。驗收：`browser_menu_checks.fallback_checks`（Page.addScriptToEvaluateOnNewDocument 刪 `HTMLElement.prototype.popover` 後重載，檢查 fixed、鄰近控件 rect 不變、遮擋取樣、hover、鍵盤；用原始擷取檔 `cap['path']` 重開檔）。
+- **待使用者實機確認**：重開程式看三個選單是否為浮層；在視窗 Web Inspector 執行 `'popover' in HTMLElement.prototype`（false＝走替代路徑）。若仍有問題請其給截圖。尚未在真實 WKWebView 實測。
+- **行數／限制**：`browser_check.py` 必須剛好 300 行（只原地改）；已超限不可再加：`jobs.py` 301、`server.py` 304、`api.py` 326、`fft_marker_check.mjs` 319、`gestures.js` 253、`cursors.js` 267 維持不增。RULES.md 已登記各波授權。
+- **另案待辦**：FFT 疊圖若要原解析度改方案 C（後端保留，動 L0 契約）；Qt 版全部延後；8 格把手排開、拖把手跨格改格。
