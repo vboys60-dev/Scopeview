@@ -14,7 +14,7 @@ export function makeDecode({ job, needFile, chan, generation }) {
   };
   return {
     decode: (p) => job('decode', () => {
-      const estimating = p.protocol === 'uart' && p.options?.estimate === true;
+      const estimating = ['uart','i2c'].includes(p.protocol) && p.options?.estimate === true;
       if (!estimating) snapshot = null;
       needFile();
       const def = protocols[p.protocol];
@@ -25,14 +25,14 @@ export function makeDecode({ job, needFile, chan, generation }) {
       for (const th of Object.values(p.thresholds)) if (th !== null && !(Array.isArray(th) && th.length === 2 && th.every(finite) && th[0] < th[1])) bad('門檻無效');
       try { decodeParams({ protocol:p.protocol,ch:p.channels,thr:p.thresholds,opt:p.options },def); } catch (e) { bad(e.message); }
       Object.values(p.channels).forEach(chan);
-      if (!p.options || typeof p.options !== 'object' || Array.isArray(p.options) || Object.keys(p.options).some(k => !def.options.some(o => o.key === k) && !(p.protocol === 'uart' && k === 'estimate'))) bad('options 無效');
-      if (p.protocol === 'uart' && 'estimate' in p.options && typeof p.options.estimate !== 'boolean') bad('estimate 須為布林值');
+      if (!p.options || typeof p.options !== 'object' || Array.isArray(p.options) || Object.keys(p.options).some(k => !def.options.some(o => o.key === k) && !(['uart','i2c'].includes(p.protocol) && k === 'estimate'))) bad('options 無效');
+      if (['uart','i2c'].includes(p.protocol) && 'estimate' in p.options && typeof p.options.estimate !== 'boolean') bad('estimate 須為布林值');
       for (const o of def.options) if (o.parse && o.key in p.options && !(estimating && o.key === 'baud')) {
         if (Array.isArray(o.parse(String(o.value))) && !Array.isArray(p.options[o.key])) bad('options 無效');
         try { o.parse(Array.isArray(p.options[o.key]) ? p.options[o.key].map(v => typeof v === 'number' ? v.toString(16) : '!').join(',') : String(p.options[o.key])); } catch (e) { bad(e.message); }
       }
       if (p.protocol === 'i2c' && 'addr_bits' in p.options && ![7,8].includes(p.options.addr_bits)) bad('I2C addr_bits 須為 7 或 8 的整數');
-      if (estimating) return { ok:false,reason:'估計鮑率 9600；估計值取最短脈寬，請確認',gen:generation(),decode_id:null,protocol:p.protocol,channels:p.channels,thresholds:p.thresholds,t0:null,t1:null,counts:{ frames:0,fields:0,errors:0,warns:0 },truncated:false,warnings:[] };
+      if (estimating) return { ok:false,reason:p.protocol === 'i2c' ? '角色建議：維持（有位址封包 3 對 0）' : '估計鮑率 9600；估計值取最短脈寬，請確認',gen:generation(),decode_id:null,protocol:p.protocol,channels:p.channels,thresholds:p.thresholds,t0:null,t1:null,counts:{ frames:0,fields:0,errors:0,warns:0 },truncated:false,warnings:[] };
       const { frames,addresses } = structuredClone(def.sample);
       snapshot = { decode_id: `d${++serial}`, gen: generation(), frames, addresses };
       return { ok: true, reason: null, gen: snapshot.gen, decode_id: snapshot.decode_id, protocol: p.protocol, channels: p.channels,

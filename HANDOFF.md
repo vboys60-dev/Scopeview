@@ -296,3 +296,9 @@
 - 已知未解：browser_check「替代選單浮層」在乾淨 HEAD 也穩定失敗（⋮ 在 899×600 找不到／reload 後停在資料截取），非本波造成。Fable 調查被中途停止；其第 5 輪曾全過但修改未保留，根因未定。
 - Opus 未處理建議：i3c_quality 測試資料太對稱（中位數改平均抓不到）、加 0.009／0.011 dt 邊界與 other 含 NaN 案例；toolbar_check 加 FFT 分頁＋lowerTab 情境；瀏覽器層補「不按修飾鍵在線上拖線」；Shift 鍵按下時 hover 不更新；觸控無 Shift 時線附近 ±12px 無法框選。
 - 下一步：I2C 自動辨識角色（見項 7 後續）→項 4 →項 6、8 →項 3。
+
+## I2C 角色辨識 波 A（已 commit）
+- 後端 `web/i2c_roles.py` `estimate_waveforms`：兩方向各解一次比較有位址封包數（≥2 倍且 ≥1）＋SCL 邊沿較多才建議對調／維持，否則「無法判斷」；估計不動快照。`i2c_decode.options` 接受布林 `estimate`。
+- 前端 `decode_i2c.js`「辨識角色」鈕（位址位元旁）：對調時交換 SCL／SDA 下拉與手動門檻；維持／無法判斷只顯示訊息。i2cdemo.h5 驗過：對調後 11 筆位址封包與 csv 相符。
+- Opus 驗收通過、無必修。備註：`analysis_decode.py` 第 61 行寫死 `('uart','i2c')`，I3C 接入時要同步改。
+- 待做：波 B（按「解碼」前自動辨識，依通道順序猜的且未手選才執行，警告列＋toast）；瀏覽器尚未驗「無法判斷」下拉不變。

@@ -28,9 +28,27 @@ const frames = [frame(0,'write',0x50,0,[field(1,'addr',0xA0),field(11,'data',0x1
   frame(1,'read',0x50,1,[field(31,'addr',0xA1),field(41,'data',0xAB,1)]),
   frame(2,'gc',0,0,[field(61,'addr',0),{ ...field(71,'data',6),label:'重設並寫入可程式位址' }],'General Call')];
 
+// 僅接受估計摘要的完整文案；無法判斷也保留訊息，絕不修改角色。
+export function estimatedRoles(summary) {
+  if (summary.ok !== false) return null;
+  const reason = summary.reason ?? '';
+  const match = /^角色建議：(對調|維持)（有位址封包 \d+ 對 \d+）$/.exec(reason);
+  return match ? match[1] : /^無法判斷 SCL／SDA（.+）$/.test(reason) ? '無法判斷' : null;
+}
+const roles = { label:'辨識角色',key:'roles',run:({ model,input }) => model.estimate(summary => {
+  if (estimatedRoles(summary) !== '對調') return summary.reason || '無法判斷 SCL／SDA（回應無效）';
+  const root = input.closest('.decode'), scl = root.querySelector('select[data-role="scl"]'), sda = root.querySelector('select[data-role="sda"]');
+  const original = scl.value;
+  [scl.value,sda.value] = [sda.value,scl.value];
+  const a = [...root.querySelectorAll('input[data-line="scl"]')], b = [...root.querySelectorAll('input[data-line="sda"]')];
+  if (model.config.thr.scl !== null || model.config.thr.sda !== null) a.forEach((v,i) => { [v.value,b[i].value] = [b[i].value,v.value]; });
+  scl.dispatchEvent(new Event('input',{ bubbles:true }));
+  return `已對調：SCL=${scl.value}、SDA=${sda.value}（原 SCL=${original}）；可在下拉選單改回`;
+}) };
+
 export default {
   name:'i2c', label:'I2C', order:1, base:'scl', diff:{},
-  roles:[{ key:'scl',label:'SCL' },{ key:'sda',label:'SDA' }], options:[{ key:'addr_bits',label:'位址位元',type:'select',value:7,choices:[[7,'7'],[8,'8']] }], reasons, kinds,
+  roles:[{ key:'scl',label:'SCL' },{ key:'sda',label:'SDA' }], options:[{ key:'addr_bits',label:'位址位元',type:'select',value:7,action:roles,choices:[[7,'7'],[8,'8']] }], reasons, kinds,
   eventKind:f => kinds[f.kind] ?? f.kind, content,
   columns:[{ head:'位址',cell:(f,o) => hex(byteAddress(f,o) ? f.addr << 1 | f.rw : f.addr,f.addr > 0x7F || addr10(f) ? 3 : 2) },
     { head:'R/W',cell:f => f.rw == null ? '—' : f.rw ? 'R' : 'W' }],

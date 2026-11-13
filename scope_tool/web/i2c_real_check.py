@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 import re
 import numpy as np
-from scope_tool.web.i2c_decode import decode_waveforms
+from scope_tool.web.i2c_decode import decode_waveforms, estimate_waveforms
 
 
 def csv_time(value: str) -> tuple[float, float]:
@@ -48,6 +48,9 @@ def check(root: Path | None = None) -> dict:
         assert np.array_equal(*times), '兩通道時間軸不同'
     with cp.open(encoding='utf-8-sig', newline='') as stream:
         rows = list(csv.DictReader(stream))
+    for candidate, expected in ((waves, '維持'), ({'scl': waves['sda'], 'sda': waves['scl']}, '對調')):
+        _, message = estimate_waveforms(times[0], candidate, {'scl': None, 'sda': None})
+        assert message == f'角色建議：{expected}（有位址封包 48 對 0）', message
     manual = decode_waveforms(times[0], waves['scl'], waves['sda'],
                               thresholds={'sda': (1.19, 1.39), 'scl': (.90, 1.10)})
     auto = decode_waveforms(times[0], waves['scl'], waves['sda'])
@@ -141,6 +144,10 @@ def check_reference(root: Path | None = None) -> dict:
         return differences
 
     try:
+        estimated = a.decode('i2c', {'scl': 'Memory 1', 'sda': 'Memory 2'},
+                             {'scl': None, 'sda': None}, {'estimate': True})
+        assert estimated['ok'] is False
+        assert estimated['reason'] == '角色建議：對調（有位址封包 11 對 0）', estimated
         # 原檔只記錄 Memory 名稱、無角色標籤；實機接線為 Memory 1＝SDA、Memory 2＝SCL。
         differences = compare('Memory 2', 'Memory 1', '實機映射 SCL=Memory 2／SDA=Memory 1')
         diagnostic = compare('Memory 1', 'Memory 2', '反向映射（預設通道順序）')

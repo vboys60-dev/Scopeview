@@ -159,3 +159,9 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - 不動 `browser_check.py`、契約、store 鍵、`glass.css`、後端其他檔、`ui/*`。
 - 第一波追加授權（Opus 驗收必修）：L8 `browser_analysis_checks.py`、`browser_marker_checks.py`（框選測試改按 Shift 強制框選）、`browser_grid_checks.py`、`browser_menu_checks.py`（分析選單清單加「解碼…」），皆原地改、行數不增。
 - 第一波追加授權：`menu_check.mjs` 第 72 行正規表示式隨「解碼…」併入 `menu("分析", …)` 同步；`gestures.js` 改為 Shift 一律強制框選（含壓在 Marker 上），`p2_check.mjs` 同步。
+
+## I2C 角色自動辨識 波 A 授權（2026-11-13，使用者「照建議」D1–D7、「開始波 A」；僅 Web，Qt 延後）
+- 後端：新檔 `web/i2c_roles.py`（L1b，含 `__main__` 自檢）；`web/i2c_decode.py`（options 接受布林 `estimate`、一行 import）；`web/analysis_decode.py` 解凍兩行（estimating 分支改依 `hasattr(mod,'estimate_waveforms')`／protocol 含 i2c，行數維持）；`web/i2c_real_check.py`。
+- 前端：`static/js/analysis/decode_i2c.js`（`estimatedRoles` 與「辨識角色」action，交換 SCL/SDA 下拉與手動門檻）、`static/js/mock_decode.js`（i2c 接受 estimate）、`decode.js` 至多一行（estimate 必填檢查放寬）、`decode_proto_check.mjs`。
+- 契約僅說明文字：`static/api_contract.json`、`docs/web-api契約.md` 各加一句；`docs/驗證.md`、`docs/離線分析功能規格.md` I2C 節。
+- 不動 `decode_table.js`、store、契約形狀／version、`analysis/*`、`ui/*`。非 vendor 檔 ≤300 行。瀏覽器驗收由主控執行。

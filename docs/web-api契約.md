@@ -260,7 +260,7 @@ Liquid Glass 深色單一主題；圖區黑底（#000），不提供淺色切換
 - 開檔序列化：開檔進行中，前端禁止再次 file.open／關檔。
 ### I3C 解碼追加（2026-10-26，version 維持 2）
 
-所有參數 required；protocol 接受 i3c／i2c／spi／uart／can／espi／usbpd，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。 型別（欄位型別字串與 api_contract.json 相同）：
+所有參數 required；protocol 接受 i3c／i2c／spi／uart／can／espi／usbpd，模組未提供回「此協定尚未實作」，其他名稱回「不支援的協定」。channels 鍵為協定角色、必填角色齊全、值為不同且存在的通道；thresholds 鍵恰為給定邏輯線，每線 null（自動）或有限 `[lo,hi]`、lo<hi；options 由協定驗證（I3C 只可含 i2c_addrs，0–127 整數陣列）。I2C options 可省略 addr_bits（預設 7），或指定整數 7／8；8 僅將一般 7-bit 位址顯示為含 R/W 的 byte，特殊 frame 與解碼資料不變。全部通道與 BASE 的整條時間軸相等、有限且嚴格遞增。有負端角色時使用正端減負端電壓。頂層缺／多鍵同步 BAD_REQUEST；內容錯以 job BAD_REQUEST 回報。門檻失敗回完整 ok=false 摘要，counts 全零、id 與起迄為 null；I3C 另要求真實轉態，其他協定在手動門檻下允許固定電位，自動估不出平台提示改用手動門檻。 I2C options 可帶布林 estimate（只由辨識角色按鈕送出）；true 時只比較兩種角色配置、不解碼、保留快照，以 ok=false、reason「角色建議：對調／維持（…）」或「無法判斷 SCL／SDA（…）」回覆。 型別（欄位型別字串與 api_contract.json 相同）：
 ```
 DecodeSummary = {"ok": "bool","reason": "str|null","gen": "int","decode_id": "str|null","protocol": "str","channels": "map<str>","thresholds": "map<[float,float]|null>","t0": "float|null","t1": "float|null","counts": "DecodeCounts","truncated": "bool","warnings": "str[]"}
 DecodeCounts = {"frames": "int","fields": "int","errors": "int","warns": "int"}

@@ -6,6 +6,7 @@ from scope_tool.web.logic import Edges, auto_threshold, validate_time, to_edges
 from scope_tool.web.i3c_events import events
 from scope_tool.web.i3c_fields import frame, field
 from scope_tool.web.i3c_ccc import reason
+from scope_tool.web.i2c_roles import estimate_waveforms
 
 ROLES = {'scl': True, 'sda': True}
 BASE = 'scl'
@@ -14,8 +15,10 @@ REQUIRE_EDGES = True
 
 
 def options(options: dict, channels: dict) -> dict:
-    if not isinstance(options, dict) or set(options) - {'addr_bits'}:
+    if not isinstance(options, dict) or set(options) - {'addr_bits', 'estimate'}:
         raise ValueError('I2C 參數不合法')
+    if type(options.get('estimate', False)) is not bool:
+        raise ValueError('I2C estimate 須為布林值')
     if type(options.get('addr_bits', 7)) is not int or options.get('addr_bits', 7) not in (7, 8):
         raise ValueError('I2C addr_bits 須為 7 或 8 的整數')
     return {}  # 只影響顯示，不把選項傳入解碼核心。
@@ -261,4 +264,12 @@ def decode_waveforms(t: np.ndarray, scl: np.ndarray, sda: np.ndarray, *,
 if __name__ == '__main__':
     assert options({}, {}) == {} and BASE == 'scl' and not ADDR_TABLE
     assert options({'addr_bits': 7}, {}) == options({'addr_bits': 8}, {}) == {}
+    assert options({'estimate': True}, {}) == {}
+    for value in (1, None, 'true'):
+        try:
+            options({'estimate': value}, {})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(value)
     print('web.i2c_decode self-check OK')

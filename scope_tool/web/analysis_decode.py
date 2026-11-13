@@ -37,7 +37,7 @@ def protocol(name: str) -> object:
 
 
 def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dict:
-    estimating = getattr(mod, '__name__', '') == 'scope_tool.web.uart_decode' and isinstance(options, dict) and options.get('estimate') is True
+    estimating = hasattr(mod, 'estimate_waveforms') and isinstance(options, dict) and options.get('estimate') is True
     if not isinstance(channels, dict) or set(channels) - mod.ROLES.keys() or any(r not in channels for r, required in mod.ROLES.items() if required and not estimating):
         raise BadRequest('channels 角色無效或缺少必填角色')
     if not all(isinstance(v, str) for v in channels.values()) or len(set(channels.values())) != len(channels):
@@ -58,7 +58,7 @@ def _params(mod: object, channels: dict, thresholds: dict, options: dict) -> dic
 class DecodeMixin:
     def decode(self, protocol: str, channels: dict, thresholds: dict, options: dict) -> dict:
         with self._lock:
-            estimating = protocol == 'uart' and isinstance(options, dict) and options.get('estimate') is True
+            estimating = protocol in ('uart', 'i2c') and isinstance(options, dict) and options.get('estimate') is True
             if not estimating:
                 self._dec = None  # 正式解碼失敗（含參數錯誤）使舊 id 失效；估計保留快照。
             gen, waves, _ = self._need()

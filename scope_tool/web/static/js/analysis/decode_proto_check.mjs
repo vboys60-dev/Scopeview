@@ -268,5 +268,30 @@ if (process.argv.includes('--mutations')) {
   const response = mock.decode({ ...params,channels:{ rx:'CH1' },thresholds:{ rx:null },options:{ estimate:true } });
   assert.equal(estimatedBaud(response),9600); assert.deepEqual(mock.decode_frames({ decode_id:original.decode_id }),mockBefore);
 }
+// I2C 真按鈕：DOM 與 model 同步，手動門檻跟著通道，其他結果保持設定。
+{
+  const { estimatedRoles } = await import('./decode_i2c.js');
+  const messages = ['角色建議：對調（有位址封包 11 對 0）','角色建議：維持（有位址封包 48 對 0）','無法判斷 SCL／SDA（SDA 無有限高低平台）'];
+  messages.forEach((reason,i) => assert.equal(estimatedRoles({ ok:false,reason }),['對調','維持','無法判斷'][i]));
+  for (const reason of ['亂字串','角色建議：對調（有位址封包 11 對 0）尾巴']) assert.equal(estimatedRoles({ ok:false,reason }),null);
+  assert.equal(estimatedRoles({ ok:true,reason:messages[0] }),null);
+  const store = makeStore(), host = new Element('div'); let reason = messages[0], sent;
+  const panel = mount(host,{ store,bridge:{ job:async (n,p) => { sent = p; return { gen:1,ok:false,reason }; } } }); panel.model.change({ protocol:'i2c' });
+  const input = find(host,e => e.dataset.option === 'addr_bits'), root = find(host,e => e.className === 'decode');
+  root.querySelectorAll = selector => walk(root).filter(e => selector.includes('select') ? e.dataset.role === /"(.+)"/.exec(selector)[1] : e.dataset.line === /"(.+)"/.exec(selector)[1]);
+  root.querySelector = selector => root.querySelectorAll(selector)[0]; input.closest = () => root;
+  const button = find(host,e => e.dataset.decodeAction === 'roles'), scl = find(host,e => e.dataset.role === 'scl'), sda = find(host,e => e.dataset.role === 'sda');
+  for (const manual of [false,true]) {
+    if (manual) { const fields = walk(host).filter(e => e.dataset.line); fields.forEach((e,i) => { e.value = String(i+1); }); find(host,e => e.textContent === '手動').onclick(); }
+    const old = [scl.value,sda.value], th = structuredClone(panel.model.config.thr); await button.onclick();
+    assert.equal(sent.options.estimate,true); assert.deepEqual([scl.value,sda.value],[old[1],old[0]]); assert.deepEqual(panel.model.config.ch,{ scl:old[1],sda:old[0] });
+    assert.deepEqual(panel.model.config.thr,{ scl:th.sda,sda:th.scl }); assert.equal(panel.model.config.opt.estimate,undefined);
+    assert.equal(panel.model.message,`已對調：SCL=${old[1]}、SDA=${old[0]}（原 SCL=${old[0]}）；可在下拉選單改回`);
+  }
+  for (reason of messages.slice(1)) { const before = structuredClone(panel.model.config); await button.onclick(); assert.deepEqual(panel.model.config,before); assert.equal(panel.model.message,reason); }
+  const { makeDecode } = await import('../mock_decode.js'), mock = makeDecode({ job:(n,f) => f(),needFile() {},chan() {},generation:() => 1 });
+  const params = decodeParams(defaultConfig(channels,protocols.i2c)), original = mock.decode(params), before = mock.decode_frames({ decode_id:original.decode_id });
+  assert.equal(estimatedRoles(mock.decode({ ...params,options:{ estimate:true } })),'維持'); assert.deepEqual(mock.decode_frames({ decode_id:original.decode_id }),before);
+}
 globalThis.document = oldDocument; delete globalThis.__decodeFake;
 console.log('decode_proto self-check OK');
