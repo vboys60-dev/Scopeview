@@ -187,3 +187,5 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - 3A 建議 S1 補記：`p1_check.mjs:125`、`p2b2_check.mjs:193` 於 3A 驗收時原地修改（`p2b2_check.mjs:193` 斷言偏弱，A 組改為檢查標籤文字）。授權 A 組原地改這兩檔對應行（行數不增）。
 
 GUI-1 右側欄停靠解碼頁溢出修正（2026-11-13，使用者「現在修」；僅 Web）：只改 `static/css/analysis.css`（dock 下 `.analysis__resultTabs` 換行；`.decode__form`／`.decode__params` 加 `flex-wrap`、`min-width:0`）；`docs/驗證.md`、`HANDOFF.md`。不動 JS、契約、其他 CSS。
+
+GUI-1b 右側欄頁籤列仍溢出（2026-11-14，使用者回報截圖，Opus＋Codex 找根因）：只改 `static/css/analysis.css` 第 152 行（dock 下 `.analysis__resultTabs` 覆寫 `flex:0 0 auto`，加 `min-width:0;max-width:100%`）；`docs/驗證.md`。不動 JS、契約、其他 CSS。
