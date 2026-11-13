@@ -150,3 +150,44 @@ def label_checks(c: Cdp, prep: str, directory: str) -> list[dict]:
         state('if(window.__labelBase){S.set({channels:window.__labelBase,grids:{n:1,assign:{}},decodeSel:null});delete window.__labelBase;}')
         (out / 'label_margins.json').write_text(json.dumps(margins, ensure_ascii=False, indent=2), encoding='utf-8')
     return margins
+
+
+def alias_checks(c: Cdp, prep: str, directory: str) -> None:
+    """波 3B B7–B9：真頁面 F2 改名；需先開好含 ≥2 通道的檔案（1400×900）。# 待真機驗證。"""
+    def state(code: str):
+        return c.js('(async()=>{' + prep + code + '})()')
+
+    def rename(index: int, text: str, key: str = 'Enter', composing: bool = False) -> None:
+        c.js(f'''(()=>{{const n=document.querySelectorAll('.chip__name')[{index}];n.dispatchEvent(new KeyboardEvent('keydown',{{key:'F2',bubbles:true}}));
+          const i=document.querySelectorAll('.chip__alias')[0];i.value={json.dumps(text)};
+          i.dispatchEvent(new KeyboardEvent('keydown',{{key:{json.dumps(key)},isComposing:{str(composing).lower()},bubbles:true}}))}})()''')
+        c.pump(0.2)
+
+    out = Path(directory)
+    source = out / f'alias_{time.strftime("%Y%m%d_%H%M%S")}.csv'
+    fixture(source)
+    state("S.command('tab.select','analysis');")
+    gen = state('return S.get().file?.gen??null')
+    state(f"S.command('file.open',{{path:{json.dumps(str(source))}}});")
+    c.wait('(async()=>{' + prep + f'return !!S.get().file&&S.get().file.gen!=={json.dumps(gen)}&&S.get().channels.length>=2' + '})()', 30)
+    c.pump(0.3)
+    base = state('const s=S.get();return {name:s.channels[0].name,second:s.channels[1].name,stale:!!s.decodeResult?.stale,manual:s.fftMarker?.manual?.length??0}')
+    # B7：F2 改名 → 各處顯示名變、value 與其他狀態不變。
+    rename(0, 'SDA')
+    after = state('const s=S.get();return {alias:s.channels[0].alias,name:s.channels[0].name,stale:!!s.decodeResult?.stale,manual:s.fftMarker?.manual?.length??0}')
+    assert after['alias'] == 'SDA' and after['name'] == base['name'] and after['stale'] == base['stale'] and after['manual'] == base['manual'], after
+    options = c.js("[...document.querySelectorAll('.analysis select option')].filter(o=>o.value===" + json.dumps(base['name']) + ").map(o=>o.textContent)")
+    assert options and all(t == 'SDA' for t in options), options
+    # B8：撞名被擋（toast、不寫）；輸入法組字中的 Enter 不提交。
+    rename(1, 'sda')
+    assert state('return S.get().channels[1].alias??""') == ''
+    rename(1, 'SCL', composing=True)
+    assert c.js('!!document.querySelector(".chip__alias")') and state('return S.get().channels[1].alias??""') == ''
+    c.js('document.querySelector(".chip__alias").dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))')
+    # B9：報告波形段含別名／原名對照表。
+    has = state('''const {collectReport}=await import('/js/analysis/report.js'),fmt=await import('/js/fmt.js');
+      const r=await collectReport({store:S,fmt},document.querySelector('.analysis'),{title:'別名驗收',invert:false});
+      return JSON.stringify(r.sections[0].tables)''')
+    assert '別名' in has and 'SDA' in has, has
+    state(f"S.updateChannel({json.dumps(base['name'])},{{alias:''}},'user')")
+    assert not c.errors, c.errors

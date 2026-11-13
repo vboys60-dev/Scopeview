@@ -1,3 +1,4 @@
+import { chLabel } from "./alias.js";
 import { T } from "./terms.js";
 export { fftInfo } from './fft_marker_table.js';
 import { fftInfo, mountFftMarkerTable } from './fft_marker_table.js';
@@ -84,8 +85,8 @@ export function mount(el, ctx) {
       const dual = defs[e.name]?.sources === 2;
       const cycle = ["Vavg", "Vrms(DC)", "Vrms(AC)"].includes(e.name) && e.mode === "cycle";
       const arrow = dual ? (e.name === "電壓比" ? "" : ` ${e.rising ? "↑" : "↓"}${(e.rising2 ?? e.rising) ? "↑" : "↓"}`) : (defs[e.name]?.sloped && e.all_edges !== false) || cycles ? (e.rising ? " ↑" : " ↓") : "";
-      const deltaLabel = e.name === "Delta Time" ? `Delta Time(${e.channel}#${e.edge_num ?? 1}${e.rising ? "↑" : "↓"}→${e.channel2}#${e.edge_num2 ?? 1}${(e.rising2 ?? e.rising) ? "↑" : "↓"} ${{lower:"下",middle:"中",upper:"上"}[e.edge_level ?? "middle"]}／${{lower:"下",middle:"中",upper:"上"}[e.edge_level2 ?? "middle"]})` : null;
-      const row = tr([deltaLabel ?? `${T(e.name)}(${e.channel}${dual ? `→${e.channel2}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), ""], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
+      const deltaLabel = e.name === "Delta Time" ? `Delta Time(${chLabel(channels, e.channel)}#${e.edge_num ?? 1}${e.rising ? "↑" : "↓"}→${chLabel(channels, e.channel2)}#${e.edge_num2 ?? 1}${(e.rising2 ?? e.rising) ? "↑" : "↓"} ${{lower:"下",middle:"中",upper:"上"}[e.edge_level ?? "middle"]}／${{lower:"下",middle:"中",upper:"上"}[e.edge_level2 ?? "middle"]})` : null;
+      const row = tr([deltaLabel ?? `${T(e.name)}(${chLabel(channels, e.channel)}${dual ? `→${chLabel(channels, e.channel2)}` : ""}${cycles ? " N Cycles" : cycle ? " One Cycle" : ""}${arrow}${e.all_edges === false ? (e.name === "相位" ? " All Edges" : " Single Event") : ""})`, ...rowCells(e, state, unit, fmt).filter((_v,i) => visibleColumns().includes(COLUMNS[i])), ""], "td", state === "fail" ? e.result.reason : state === "pending" ? "計算中" : "");
       if (store.get().markerMode === "Track Measurements") { row.classList.toggle("is-selected", !!e.track); row.onclick = () => store.command("measure.track", e.id); }
       row.firstChild.title = row.firstChild.textContent;
       row.firstChild.style.color = ch?.color ?? "";

@@ -1,4 +1,5 @@
 // L4：左緣通道零位把手與畫面外游標提示；只發既有意圖，不寫通道／游標。
+import { chLabel } from "./alias.js";
 import { rowOf, assignGrid, gridsOf, GRID_GAP } from "./grids.js";
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const yPixel = (r, d) => r.t + (5 - d) * r.h / 10;
@@ -21,7 +22,7 @@ export function channelHandles(channels, r) {
     let lane = 0, y;
     while ((y = candidates.find((v) => !placed.some((b) => b.lane === lane && Math.abs(b.y - v) < 24))) === undefined) lane++;
     placed.push({ lane, y });
-    return { name: c.name, title: c.name, color: c.color, position: c.position,
+    return { name: c.name, title: c.alias ? `${chLabel(channels, c.name)}（原名 ${c.name}）` : c.name, color: c.color, position: c.position,
       label: handleLabel(index) + (c.position > 5 ? "▲" : c.position < -5 ? "▼" : ""), anchorY: anchor + 10,
       x: 2 + lane * (width + 6), y, w: width, h: 20 };
   });

@@ -1,6 +1,7 @@
 // L5：精簡通道 chip 與各通道 Vertical 欄位；通道設定經 store.updateChannel。
 // 處理意圖：channel.shift_intent、channel.scale_intent（絕對值）。DOM／手感待真人驗證。
 import { mount as mountVertical, hasDx } from "./vertical.js";
+import { chLabel, aliasValue, aliasError } from "./alias.js";
 import { gridSelect } from "./grids.js";
 import { setChannelColor, resetChannelColor } from "./channel_colors.js";
 
@@ -56,10 +57,28 @@ export function mount(el, ctx) {
     const vis = h("input", "check"); vis.type = "checkbox"; vis.title = "顯示／隱藏";
     vis.onchange = () => store.updateChannel(c.name, { visible: vis.checked }, "user");
     const name = h("span", "chip__name", c.name);
-    name.title = `${c.name}：點一下選為目前通道／量測來源；雙擊換色`;
+    function edit() {
+      if (box.querySelector(".chip__alias")) return;
+      const startGen = store.get().file?.gen, input = h("input", "chip__alias");
+      input.value = store.get().channels.find(ch => ch.name === c.name)?.alias ?? ""; input.placeholder = c.name;
+      name.hidden = true; name.after(input); let done = false;
+      function finish(commit) {
+        if (done) return; done = true; const text = input.value;
+        input.remove(); name.hidden = false;
+        const st = store.get(); if (!commit || st.file?.gen !== startGen || !st.channels.some(ch => ch.name === c.name)) return;
+        const error = aliasError(st.channels, c.name, text);
+        if (error) ui.toast(error, "error"); else store.updateChannel(c.name, { alias: aliasValue(c.name, text) }, "user");
+      }
+      input.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); finish(true); } else if (e.key === "Escape") { e.preventDefault(); finish(false); } };
+      input.onpointerdown = input.onclick = input.ondblclick = e => e.stopPropagation();
+      input.onblur = () => finish(true); input.focus(); input.select();
+    }
+    const aliasBtn = h("button", "chip__alias-btn", "✎"); aliasBtn.type = "button"; aliasBtn.title = "改名"; aliasBtn.setAttribute("aria-label", "改名");
+    aliasBtn.onclick = e => { e.stopPropagation(); store.set({ selected: c.name }, "user"); edit(); };
     name.onclick = () => store.set({ selected: c.name }, "user");
     name.tabIndex = 0; name.setAttribute("role", "button");
     name.onkeydown = (e) => {
+      if (e.key === "F2") { e.preventDefault(); edit(); return; }
       if (e.key !== "Enter" && e.key !== " ") return;
       if (e.key === " ") e.preventDefault();
       store.set({ selected: c.name }, "user");
@@ -74,7 +93,7 @@ export function mount(el, ctx) {
     const badge = h("span", "vertical__badge", "dx"); badge.title = "會影響游標區間量測與 FFT";
     box.onclick = (e) => { if (e.target.closest?.("input,button,select")) return; store.set({ selected: c.name }, "user"); };
     box.ondblclick = (e) => { if (e.target.closest?.("input,button,select")) return; col.click(); };
-    const grid = gridSelect(store, c.name), parts = [vis, name, col, reset, sc, grid.el, badge];
+    const grid = gridSelect(store, c.name), parts = [vis, name, aliasBtn, col, reset, sc, grid.el, badge];
     if (c.derived) {
       const rm = h("button", "chip__remove", "×"); rm.title = "刪除此衍生波形";
       rm.onclick = async () => {
@@ -99,7 +118,8 @@ export function mount(el, ctx) {
       r.sc.textContent = `${fmt.fmt(c.scale, c.unit)}/格`;
       r.badge.hidden = !hasDx(c);
       r.vis.checked = c.visible;
-      r.name.textContent = `${"●▲■◆"[i % 4]}${c.name}`  /* 形狀輔助辨識，不只靠顏色 */; r.name.style.color = c.color; r.col.value = c.color;
+      r.name.textContent = `${"●▲■◆"[i % 4]}${chLabel(channels, c.name)}`  /* 形狀輔助辨識，不只靠顏色 */; r.name.style.color = c.color; r.col.value = c.color;
+      r.name.title = `${chLabel(channels, c.name)}（原名 ${c.name}）：點一下選取；F2 或 ✎ 改名；雙擊空白處換色`;
       r.name.setAttribute("aria-pressed", String(c.name === selected));
       r.box.classList.toggle("chip--selected", c.name === selected);
       r.colEl.dataset.selected = String(c.name === selected);

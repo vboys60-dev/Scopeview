@@ -1,4 +1,5 @@
 // B 區解碼設定、事件表與位址表；與主圖標註列共用解碼模型。
+import { labelsOf } from './alias.js';
 import { fmt, parseSI } from '../fmt.js';
 import { decodeModel, definition, selectFrame, withAscii } from './decode.js';
 export const MAX_ROWS = 2000;
@@ -19,10 +20,10 @@ function table(head) {
 }
 function cells(row, values) { for (const value of values) row.append(node('td','',value)); }
 /** 依目前原始通道重建來源選項；選項不存在時 select.value 會變成 ''。 */
-function fillSources(select, role, raw, value = select.value) {
+function fillSources(select, role, raw, value = select.value, labels) {
   select.replaceChildren();
   if (role.optional || role.allowEmpty) { const o = node('option','','—不使用—'); o.value = ''; select.append(o); }
-  for (const name of raw) { const o = node('option','',name); o.value = name; select.append(o); }
+  for (const name of raw) { const o = node('option','',labels.get(name) ?? name); o.value = name; select.append(o); }
   select.value = value;
 }
 export function mount(el, ctx) {
@@ -48,11 +49,11 @@ export function mount(el, ctx) {
   const details = node('details','decode__addressesTable'), caption = node('summary');
   let addr = table([]); details.append(caption,addr.el);
   filter.append(all,problems); sum.append(info,filter); root.append(bar,sum,wrap,foot,details); el.append(root);
-  function build(def, p, raw) {
+  function build(def, p, raw, labels) {
     actions = []; sources = {}; thresholds = {}; options = {}; form.replaceChildren(); params.replaceChildren();
     const add = (parent,text,input) => { const l = node('label','decode__control',text); l.append(input); parent.append(l); return input; };
     for (const role of def.roles) {
-      const select = node('select','input'); select.dataset.role = role.key; fillSources(select,role,raw,p.ch[role.key]);
+      const select = node('select','input'); select.dataset.role = role.key; fillSources(select,role,raw,p.ch[role.key],labels);
       sources[role.key] = add(form,role.label,select); select.oninput = readSettings;
     }
     auto = Object.values(p.thr).every(v => v === null);
@@ -103,11 +104,11 @@ export function mount(el, ctx) {
   function render() {
     const st = store.get(), r = st.decodeResult, p = model.config;
     const def = definition(r?.protocol ?? p.protocol), formDef = definition(p.protocol);
-    const raw = st.channels.filter(c => !c.derived).map(c => c.name), key = raw.join('\n');
+    const raw = st.channels.filter(c => !c.derived).map(c => c.name), labels = labelsOf(st.channels), key = JSON.stringify(raw.map(n => [n,labels.get(n)]));
     if (fileGen !== st.file?.gen || active !== p.protocol) {
-      fileGen = st.file?.gen; active = p.protocol; sourceKey = key; protocol.value = p.protocol; build(formDef,p,raw);
+      fileGen = st.file?.gen; active = p.protocol; sourceKey = key; protocol.value = p.protocol; build(formDef,p,raw,labels);
     } else if (key !== sourceKey) {
-      sourceKey = key; for (const role of formDef.roles) fillSources(sources[role.key],role,raw);
+      sourceKey = key; for (const role of formDef.roles) fillSources(sources[role.key],role,raw,undefined,labels);
     }
     // 只在已選來源消失時才改設定（會作廢在途解碼並標過期）；加無關通道不動。
     const gone = Object.keys(p.ch).filter(k => p.ch[k] && !raw.includes(p.ch[k]));

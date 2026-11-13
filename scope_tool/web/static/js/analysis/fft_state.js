@@ -1,4 +1,5 @@
 // 每個 store 只有一份 FFT 參數與 runner；兩個頁面的控制列共用此接線。
+import { chLabel } from './alias.js';
 import { createFft } from './fft_runner.js';
 import { bindFftMarkerControls } from './fft_marker_controls.js';
 const states = new WeakMap();
@@ -94,7 +95,7 @@ export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el, im
   unwrap.type = 'checkbox'; unwrap.setAttribute('aria-label', 'Unwrap'); unwrap.onchange = () => state.change('unwrap', unwrap.checked); refLabel.append(ref); unwrapLabel.append(unwrap, ' Unwrap'); markerHost.append(refLabel, unwrapLabel);
   const sync = () => {
     const st = ctx.store.get(), names = st.channels.map(c => c.name);
-    if (src.options.length !== names.length || [...src.options].some((o, i) => o.value !== names[i])) src.replaceChildren(...names.map(n => new Option(n, n)));
+    if (src.options.length !== names.length || [...src.options].some((o, i) => o.value !== names[i] || o.text !== chLabel(st.channels, names[i]))) src.replaceChildren(...names.map(n => new Option(chLabel(st.channels, n), n)));
     for (const c of [src, win, unit, imp, man, lvl, cnt, sort]) c.disabled = !st.file;
     for (const [c, v] of [[src, p.source ?? ''], [win, p.window], [imp, String(p.imp)], [man, String(p.manualR)]])
       if (document.activeElement !== c) c.value = v;

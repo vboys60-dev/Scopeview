@@ -1,4 +1,5 @@
 // L5：Marker_Results 資料與 TSV 為純函式；DOM／剪貼簿另行處理，不寫 store。
+import { chLabel } from './alias.js';
 import { fmt } from '../fmt.js';
 export const HEADERS = ['Marker', '水平(X)', '垂直(Y，來源單位)', 'ΔX', '1/ΔX', 'ΔY', 'ΔY/ΔX', 'Delta To'];
 const finite = Number.isFinite;
@@ -37,7 +38,7 @@ export async function copyText(text, nav = globalThis.navigator, doc = globalThi
   } catch { return false; }
   finally { area.remove(); active?.focus?.({ preventScroll: true }); }
 }
-export function mountCursorTable({ ui }) {
+export function mountCursorTable({ ui, store }) {
   const el = document.createElement('section'); el.className = 'cursor-results';
   const bar = document.createElement('div'); bar.className = 'cursor-results__bar';
   const label = document.createElement('span'); label.textContent = '游標結果';
@@ -45,15 +46,15 @@ export function mountCursorTable({ ui }) {
   const wrap = document.createElement('div'); wrap.className = 'cursor-results__wrap';
   const table = document.createElement('table'); table.className = 'table table--num cursor-results__table'; table.setAttribute('aria-label', '游標結果');
   bar.append(label, button); wrap.append(table); el.append(bar, wrap);
-  let rows = [], timer;
+  let rows = [], timer, lastReadout;
   button.onclick = async () => {
     const ok = await copyText(markerTSV(rows)), message = ok ? '已複製' : '複製失敗';
     if (ui?.toast) ui.toast(message, ok ? 'success' : 'error');
     else { clearTimeout(timer); button.textContent = message; timer = setTimeout(() => { button.textContent = '複製'; }, 1800); }
   };
-  return { el, render(readout) {
-    rows = buildMarkerRows(readout);
-    label.textContent = `游標結果（${readout?.source || '—'}，${readout?.mode ?? '傳統游標'}）`;
+  const view = { el, render(readout) {
+    lastReadout = readout; rows = buildMarkerRows(readout);
+    label.textContent = `游標結果（${chLabel(store?.get().channels ?? [], readout?.source || '—')}，${readout?.mode ?? '傳統游標'}）`;
     table.setAttribute('aria-label', label.textContent);
     table.replaceChildren(...[HEADERS, ...rows].map((row, i) => {
       const tr = document.createElement('tr');
@@ -63,4 +64,6 @@ export function mountCursorTable({ ui }) {
     button.disabled = !rows.length;
     return rows.length;
   } };
+  store?.on(["channels"], () => view.render(lastReadout));
+  return view;
 }

@@ -304,7 +304,7 @@
 
 **3A 實測／決策**：左邊距 1 格 96px；8 格同零位 4 通道分欄 186px（>100，依 U4 只記錄、未改 `voltage.js`）。U1–U4 在效：預設透明＋描邊、重開同主檔不保留別名、標籤超過格寬 50% 收「+N」、左邊距只回報。舊測試因把手變 24px 更新：`p3b_check.mjs:129`、`grid_check.mjs:58–59`。
 
-**下一步：項 3B（通道別名）**——規劃 scratchpad `out/item8_item3_plan_v2.md` §3.5／§3.9／§3.10：新檔 `alias.js`（純顯示欄位，`name` 永不改）＋ 13 檔原地套用（chanbar F2／✎、measure、results、cursors 維持 267 行、cursor_table、marker_table、fft_state、decode_table 解凍、toolbar、report 對照表、slots:23、handles、chanlabels）；別名 ≤24 字、不分大小寫唯一；測試 13–20、B7–B9。
+**項 3B（通道別名）已實作並驗證（2026-11-13，未 commit，待使用者說才 commit；詳見 `docs/驗證.md` 檔尾）。以下為當時計畫備查：**——規劃 scratchpad `out/item8_item3_plan_v2.md` §3.5／§3.9／§3.10：新檔 `alias.js`（純顯示欄位，`name` 永不改）＋ 13 檔原地套用（chanbar F2／✎、measure、results、cursors 維持 267 行、cursor_table、marker_table、fft_state、decode_table 解凍、toolbar、report 對照表、slots:23、handles、chanlabels）；別名 ≤24 字、不分大小寫唯一；測試 13–20、B7–B9。
 - 開工前順手處理 3A 的 Opus 建議：S1 在 RULES.md 補記 `p1_check.mjs:125`、`p2b2_check.mjs:193` 原地修改（後者斷言偏弱，宜改測標籤文字）；S2 `chanlabels.js:46` 截短寬度要扣 +N 預留；S3 選取通道保底候選要把 Y 讀值算進去；S4 B5 hover 測試補「變淡」方向。
 
 **未結小項**

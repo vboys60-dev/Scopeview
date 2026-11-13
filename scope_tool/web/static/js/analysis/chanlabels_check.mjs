@@ -30,6 +30,12 @@ assert.equal(compact.labels[0].name,'CH8'); assert.ok(compact.plus); disjoint(co
 assert.ok(compact.plus.title.includes(crowded.channels[0].alias));
 assert.ok(compact.labels.every(b=>b.w<=220 && b.display.endsWith('…') && b.text.endsWith('1 V/格')));
 assert.ok(compact.labels.at(-1).x+compact.labels.at(-1).w+measure('+9')+8 <= compact.row.l+compact.row.w*.5);
+// 狹窄半格要先扣除 +N 的寬度，再截短選取標籤。
+const narrow=layoutRow({ ...row,w:240 },{measure,selected:'A',labels:['A','B'].map(name=>({name,display:'長名稱'.repeat(20),shape:'●',scale:'1 V/格',anchorY:50}))});
+assert.ok(narrow.labels[0].w <= 240*.5-8-(measure('+9')+8));
+// 選取標籤的保底候選也須計算 Y 讀值的重疊面積。
+const fallback=layoutRow({ ...row,w:100,h:34 },{measure,selected:'A',readouts:[{y:row.t,text:'123456789012',color:'#fff'}],labels:[{name:'A',display:'x',shape:'●',scale:'1 V/格',anchorY:row.t+8}]});
+assert.ok(fallback.labels.length); assert.ok(!overlap(fallback.labels[0],fallback.readouts[0]));
 // 7–8：底緣 ▲ 與整圖頂部 X 游標是固定障礙。
 const bottom={...state,channels:[{...channels[0],position:-4.5}]}, br=geom(bottom);
 const mark={x:br.l+10,row:br.rows[0]}, bm=layout(bottom,{marks:[mark]},br)[0];
@@ -64,7 +70,7 @@ for(const bg of Object.keys(LABEL_BGS)) {
 }
 // 12：命中／hover、隱藏、分格與主圖／報告接線。
 assert.equal(hitLabel([first],first.labels[0].x+2,first.labels[0].y+2)?.name,'CH1'); assert.equal(hitLabel([first],0,0),null);
-paints.length=0; drawLayout(g,[first],'CH1'); assert.ok(paints.some(p=>p.op==='fillText'&&p.globalAlpha===.15));
+paints.length=0; drawLayout(g,[first],'CH1'); assert.ok(paints.some(p=>p.op==='fillText'&&p.args[0]===first.labels[0].text&&p.globalAlpha===.15)); assert.ok(paints.some(p=>p.op==='fillText'&&p.args[0]===first.labels[1].text&&p.globalAlpha===1));
 for(const n of [2,4,8]) for(const r of layout({...state,channels:channels.map((c,i)=>({...c,visible:i!==3}))},{},geom({...state,channels},n))) {
   assert.ok(r.labels.every(b=>b.name!=='CH4')); for(const b of boxes(r)) assert.ok(b.x>=r.row.l && b.x+b.w<=r.row.l+r.row.w && b.y>=r.row.t && b.y+b.h<=r.row.t+r.row.h);
 }

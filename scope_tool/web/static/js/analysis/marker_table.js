@@ -1,10 +1,11 @@
 // Marker 表：註記 Enter 確認、Esc 取消；點列透過既有視圖意圖置中。
+import { chLabel } from './alias.js';
 import { markerModel } from './markers.js';
 import { fmt } from '../fmt.js';
 export const HEADERS = ['#', '通道', '時間', '電壓', 'Δt', 'ΔV', '基準', '註記', '刪除'];
-export function markerCells(row, format = fmt) {
+export function markerCells(row, format = fmt, label = (n) => n) {
   const f = (v, u) => Number.isFinite(v) ? format(v, u) : '—';
-  return [row.id, row.ch, f(row.value === null ? null : row.t, 's'), f(row.value, row.channel.unit), f(row.value === null ? null : row.dt, 's'), f(row.dv, row.channel.unit), row.ref, row.note];
+  return [row.id, label(row.ch), f(row.value === null ? null : row.t, 's'), f(row.value, row.channel.unit), f(row.value === null ? null : row.dt, 's'), f(row.dv, row.channel.unit), row.ref, row.note];
 }
 export function mount(el, ctx) {
   const { store } = ctx, model = markerModel(ctx);
@@ -15,14 +16,14 @@ export function mount(el, ctx) {
   const pick = h('select'); pick.setAttribute('aria-label', '獨立點通道'); pick.style.cssText = 'min-width:0;max-width:12em';
   let channelsSignature = '';
   function fillChannels() {
-    const st = store.get(), next = JSON.stringify(st.channels.map(c => [c.name, c.visible]));
+    const st = store.get(), next = JSON.stringify(st.channels.map(c => [c.name, c.visible, c.alias ?? ""]));
     if (next !== channelsSignature) {
       const value = pick.value || ''; channelsSignature = next;
       const options = ['', ...st.channels.map(c => c.name)].map(name => { const o = h('option', name); o.value = name; return o; });
-      st.channels.forEach((c, i) => { options[i + 1].textContent = c.name + (c.visible ? '' : '（隱藏）'); });
+      st.channels.forEach((c, i) => { options[i + 1].textContent = chLabel(st.channels, c.name) + (c.visible ? '' : '（隱藏）'); });
       pick.replaceChildren(...options); pick.value = st.channels.some(c => c.name === value) ? value : '';
     }
-    pick.children[0].textContent = `目前通道（${st.selected ?? '無'}）`;
+    pick.children[0].textContent = `目前通道（${chLabel(st.channels, st.selected ?? '無')}）`;
   }
   // 獨立點：加在所選通道、畫面中心；已有同位置的點就往右錯開 1/20 畫面。
   const add = h('button', '＋ 獨立點');
@@ -32,7 +33,7 @@ export function mount(el, ctx) {
     let t = (v.t0 + v.t1) / 2; const used = model.rows().filter(r => !r.link && r.ch === ch).map(r => r.t);
     while (used.some(u => Math.abs(u - t) < span / 100) && t < v.t1) t += span / 20;
     store.command('marker.add', { ch, t });
-    if (store.get().markerTable.length > count && st.channels.some(c => c.name === ch && !c.visible)) ctx.ui?.toast?.(`已新增於隱藏通道 ${ch}`, 'info');
+    if (store.get().markerTable.length > count && st.channels.some(c => c.name === ch && !c.visible)) ctx.ui?.toast?.(`已新增於隱藏通道 ${chLabel(st.channels, ch)}`, 'info');
   };
   bar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px'; bar.append(title, link, pick, add);
   const table = h('table'); table.className = 'table table--num'; table.setAttribute('aria-label', 'Marker Table'); table.style.tableLayout = 'fixed';
@@ -42,13 +43,13 @@ export function mount(el, ctx) {
   };
   function render() {
     fillChannels(); link.disabled = pick.disabled = add.disabled = !store.get().file;
-    const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row), store.get().markerTable.map(p => p.id)]));
+    const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row, fmt, n => chLabel(store.get().channels, n)), store.get().markerTable.map(p => p.id)]));
     if (editing || next === signature) { highlight(); return; }
     signature = next;
     const head = h('tr'); HEADERS.forEach(label => { const th = h('th', label); th.style.cssText = 'white-space:normal;overflow-wrap:anywhere;padding:2px'; head.append(th); });
     const rows = data.map(row => {
       const tr = h('tr'); tr.dataset.markerKey = row.key; tr.tabIndex = 0;
-      const values = markerCells(row);
+      const values = markerCells(row, fmt, n => chLabel(store.get().channels, n));
       values.slice(0, 6).forEach(text => { const td = h('td', text); td.style.cssText = 'white-space:normal;overflow-wrap:anywhere;padding:2px'; tr.append(td); });
       const refCell = h('td'), select = h('select'); select.setAttribute('aria-label', `${row.id} ${row.ch} 基準`); select.style.cssText = 'width:100%;min-width:0';
       for (const id of [null, ...store.get().markerTable.map(p => p.id)]) { const option = h('option', id ?? '無'); option.value = id ?? ''; select.append(option); }

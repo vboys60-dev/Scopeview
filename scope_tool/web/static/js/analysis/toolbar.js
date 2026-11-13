@@ -1,3 +1,4 @@
+import { chLabel } from "./alias.js";
 import { T } from "./terms.js";
 import { channelColors } from "./channel_colors.js";
 import { getFftState, mountFftControls } from './fft_state.js';
@@ -71,7 +72,7 @@ export function mount(el, ctx) {
   async function math() {
     const st = store.get(), names = st.channels.map((c) => c.name), ops = catalog.math_ops ?? { binary: [], unary: [], filters: [] };
     const spec = await modal("Math Functions", (b) => {
-      const op = select([...ops.binary, ...ops.unary, ...ops.filters].map((o) => [o, T(o)])), a = select(names.map((n) => [n, n])), bb = select(names.map((n) => [n, n]));
+      const op = select([...ops.binary, ...ops.unary, ...ops.filters].map((o) => [o, T(o)])), a = select(names.map((n) => [n, chLabel(st.channels, n)])), bb = select(names.map((n) => [n, chLabel(st.channels, n)]));
       const fc = h("input", "input"), pts = h("input", "input"); fc.value = "1M"; pts.value = "5"; a.value = st.selected; bb.value = names[Math.min(1, names.length - 1)];
       const upd = () => { bb.disabled = !ops.binary.includes(op.value); fc.disabled = !ops.filters.slice(0, 2).includes(op.value); pts.disabled = op.value !== "平滑"; };
       op.onchange = upd; upd();

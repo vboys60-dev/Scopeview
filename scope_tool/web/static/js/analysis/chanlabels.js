@@ -1,4 +1,5 @@
 // 格內標籤：全部幾何使用 CSS px；先配置再繪圖，不讀 store 或游標模組。
+import { chLabel } from './alias.js';
 import { channelHandles } from './handles.js';
 import { fmt } from '../fmt.js';
 export const LABEL_BGS = Object.freeze({ none: '透明', dark: '深色', panel: '面板', tint: '淡色', solid: '實心' });
@@ -45,12 +46,12 @@ export function layoutRow(row, { fixed = [], readouts = [], labels = [], measure
   const sorted = labels.map((v,i)=>({ ...v, order:i })).sort((a,b)=>(b.name===selected)-(a.name===selected)||a.order-b.order), hidden = [];
   const maxW = Math.min(220,row.w*.5-8), plusWidth = measure(`+${Math.max(9,labels.length)}`)+8;
   for (const [i, label] of sorted.entries()) {
-    const item = shorten(label,maxW,measure), reserve = i < sorted.length-1 ? plusWidth : 0;
+    const reserve = i < sorted.length-1 ? plusWidth : 0, item = shorten(label,maxW-reserve,measure);
     const trials = candidates(row,item,placed,reserve);
     let box = trials.find(b=>!placed.some(p=>intersects(b,p)));
     if (!box && label.name === selected) {
       const fallback = trials.length ? trials : ys(row,item.anchorY).map(y=>({ ...item,x:row.l+4,y }));
-      box = fallback.reduce((a,b)=>fixed.reduce((n,p)=>n+area(b,p),0)<fixed.reduce((n,p)=>n+area(a,p),0)?b:a);
+      box = fallback.reduce((a,b)=>placed.reduce((n,p)=>n+area(b,p),0)<placed.reduce((n,p)=>n+area(a,p),0)?b:a);
     }
     if (box) { placed.push(box); out.labels.push(box); } else hidden.push(label);
   }
@@ -68,8 +69,8 @@ export function plotLayout(s, rect, X, measure, extras = {}) {
     const fixed = (extras.marks ?? []).filter(m=>m.row.index===row.index).map(m=>({ x:m.x-7,y:row.t+row.h-12,w:14,h:14 }));
     fixed.push(...(extras.edges ?? []).filter(b=>b.y < row.t+row.h && b.y+b.h > row.t));
     const xTexts = row.index === 0 ? extras.xTexts ?? [] : []; fixed.push(...xTexts);
-    const labels = s.channels.flatMap((c,i)=>!c.visible || !row.names.includes(c.name) ? [] : [{ name:c.name, display:c.alias || c.name, shape:'●▲■◆'[i%4], scale:`${fmt(c.scale,c.unit ?? "")}/格`, color:c.color, bg:c.labelBg ?? 'none', anchorY:handles.find(b=>b.name===c.name).anchorY,
-      title:`${c.alias ? `${c.alias}（原名 ${c.name}）` : c.name} · ${fmt(c.scale,c.unit ?? "")}/格` }]);
+    const labels = s.channels.flatMap((c,i)=>!c.visible || !row.names.includes(c.name) ? [] : [{ name:c.name, display:chLabel(s.channels,c.name), shape:'●▲■◆'[i%4], scale:`${fmt(c.scale,c.unit ?? "")}/格`, color:c.color, bg:c.labelBg ?? 'none', anchorY:handles.find(b=>b.name===c.name).anchorY,
+      title:`${c.alias ? `${chLabel(s.channels,c.name)}（原名 ${c.name}）` : c.name} · ${fmt(c.scale,c.unit ?? "")}/格` }]);
     return { ...layoutRow(row,{ fixed,readouts:row.index===(rect.cy ?? rect).index ? extras.yReadouts : [], labels,measure,selected:s.selected }), xTexts };
   });
 }

@@ -1,5 +1,6 @@
 // 離線分析 HTML 報告：buildReport 為純函式（資料 → 單一自包含 HTML 字串）；collectReport 從目前畫面的表格與 canvas 取資料（所見即所得）。
 // 圖以 PNG data URI 內嵌、系統字型、不連網。區塊沒有資料就整段省略，編號依實際輸出重排。
+import { chLabel, aliasRows } from './alias.js';
 import { fftInfo } from './fft_marker_table.js';
 import { exportable } from './results.js';
 import { tableFrames } from './decode_table.js';
@@ -102,7 +103,7 @@ export function decodeSection(st, root, F, invert) {
   }) };
   const addresses = def.addresses && { head:def.addresses.head,rows:r.addresses.slice(0,256).map(a => def.addresses.row(a,F,dx)) };
   const band = root.querySelector('.analysis__decodeband');
-  const channels = Object.entries(r.summary.channels ?? {}).map(([k,v]) => k.toUpperCase()+' '+v).join('／');
+  const channels = Object.entries(r.summary.channels ?? {}).map(([k,v]) => k.toUpperCase()+' '+chLabel(st.channels,v)).join('／');
   const thresholds = Object.entries(r.summary.thresholds).map(([k,v]) => k.toUpperCase()+' '+(v?.map(n => F(n,'V')).join('～') ?? '—')).join('；');
   const caption = `${channels}；門檻 ${thresholds}；篩選：${only ? '只錯誤／警告' : '全部'}；表格最多 2000 列${def.addresses ? '，位址表最多 256 列' : ''}。`
     +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '')+(r.summary.warnings?.length ? `警告：${r.summary.warnings.join('；')}。` : '')+(def.reportSummary ? def.summary(r.summary,r.options) : '');
@@ -144,10 +145,10 @@ export async function collectReport({ store, fmt }, root, { title, dut, note, in
   const range = st.rangeMode === 'cursors' ? `游標區間 ${F(st.cursors.x1, 's')} ～ ${F(st.cursors.x2, 's')}` : '全部';
   const info = [...(dut ? [['DUT', dut]] : []), ['來源檔', f.path], ...f.info.filter(([k]) => k !== '檔名'),
     ['顯示範圍', `${F(v.t0, 's')} ～ ${F(v.t1, 's')}`], ['量測範圍', range]];
-  const scales = st.channels.filter((c) => c.visible).map((c) => `${c.name} ${F(c.scale, c.unit)}/div`).join('　');
+  const scales = st.channels.filter((c) => c.visible).map((c) => `${chLabel(st.channels, c.name)} ${F(c.scale, c.unit)}/div`).join('　');
   const r = st.fftResult, fftImg = r?.ok ? await tallSnapshot(fftCanvas, invert) : null;
   return { title, time: stamp(), note, info, sections: [
-    { title: '波形', img: snapshot(q('.analysis__main canvas'), invert), caption: `${scales}　·　水平 ${F((v.t1 - v.t0) / 10, 's')}/div` },
+    { title: '波形', img: snapshot(q('.analysis__main canvas'), invert), caption: `${scales}　·　水平 ${F((v.t1 - v.t0) / 10, 's')}/div`, tables: [aliasRows(st.channels)].filter(Boolean) },
     { title: '量測結果', tables: st.measurements.length ? [tableData(q('.analysis__results .results__table'))] : [] },
     { title: '游標', tables: [tableData(q('.cursor-results__table')), tableData(q('.analysis__cursors > table'))] },
     { title: 'Marker', tables: [tableData(q('.analysis__markers table'))] },

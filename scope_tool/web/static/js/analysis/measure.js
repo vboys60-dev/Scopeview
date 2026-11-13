@@ -1,6 +1,7 @@
 // 量測項目管理：新增／刪除、防抖 150 ms 呼叫 bridge.measure，結果寫入 store.measurements。
 // store.measurements 每筆：{id, channel, channel2?, name, rising, rising2?, mode, all_edges, result: MeasureResult|null（null＝計算中）}。
 // 來源通道與邊緣方向在加入時固定；範圍、閾值、dx、游標（rangeMode=cursors 時）變動都會重算；過期（token／gen）結果丟棄。
+import { chLabel } from "./alias.js";
 import { T } from "./terms.js";
 import { RECT_MIN_PX } from "./gestures.js";
 
@@ -115,7 +116,7 @@ export function mount(el, ctx) {
     head.append(caption, ctl); ctl.onchange = () => store.set({ [key]: ctl.value }, "user");
   }
   el.append(head);
-  const syncHead = (st) => { source.replaceChildren(...st.channels.map(c => new Option(c.name, c.name))); source.value = st.selected ?? ""; range.value = st.rangeMode; threshold.value = st.threshold; for (const ctl of [source, range, threshold]) ctl.disabled = !st.file; };
+  const syncHead = (st) => { source.replaceChildren(...st.channels.map(c => new Option(chLabel(st.channels, c.name), c.name))); source.value = st.selected ?? ""; range.value = st.rangeMode; threshold.value = st.threshold; for (const ctl of [source, range, threshold]) ctl.disabled = !st.file; };
   store.on(["channels", "selected", "rangeMode", "threshold", "file"], syncHead); syncHead(store.get());
   const m = createMeasure(ctx, { onError: (e) => ctx.ui.toast(e.message, "error") });
   // 結果表的刪除／清除由 results.js 發出 measure.remove／measure.clear 指令
@@ -206,7 +207,7 @@ export function mount(el, ctx) {
   const allButtons = [];
   function sources(st) {
     const old = source2.value;
-    source2.replaceChildren(...st.channels.map(c => new Option(c.name, c.name)));
+    source2.replaceChildren(...st.channels.map(c => new Option(chLabel(st.channels, c.name), c.name)));
     if (!st.channels.some(c => c.name === old)) source2Set = false;
     const keep = st.channels.some(c => c.name === old) && (source2Set || old !== st.selected);
     const other = st.channels.find(c => c.name !== st.selected)?.name;

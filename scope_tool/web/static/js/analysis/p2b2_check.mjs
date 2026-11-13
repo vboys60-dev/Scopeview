@@ -182,7 +182,7 @@ store.set({ channels: [first, c], selected: "CH2" });
 store.set({ selected: "CH1" });
 assert.equal(texts.findLast((t) => t.text === voltageAxis(first).ticks[0].label).color, first.color);
 store.set({ selected: null });
-assert.ok(host.children[0].labelLayout()[0].labels.length > 0);
+assert.ok(host.children[0].labelLayout()[0].labels.some(b => b.text.includes("CH1")));
 plot.dispose();
 console.log("P2b2 self-check OK：中心換算／畫面中心換檔／單位與位數／dx／可見範圍適配／選取隔離／實際繪製與把手");
 if (process.argv.includes("--mutations")) {

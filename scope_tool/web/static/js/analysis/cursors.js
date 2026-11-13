@@ -4,7 +4,7 @@
 // 處理 cursor.intent、rf.intent；寫 store.markerResult={mode, points:[{x,y,label}]}（顯示座標，主圖繪製）。
 // 待真人驗證：拖曳手感、DOM 排版。
 
-import { fftMarkerModel } from './fft_markers.js';
+import { fftMarkerModel } from './fft_markers.js'; import { chLabel } from './alias.js';
 import { mountCursorTable } from "./cursor_table.js";
 import { voltageAt } from "./voltage.js";
 
@@ -197,7 +197,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
 }
 
 /** 游標表讀值；ΔY/ΔX 的缺值與有限值規則對齊 analysis/marker.py。 */
-export function cursorRows(r, fmt) {
+export function cursorRows(r, fmt, label = (n) => n) {
   if (!r || r.kind === "unsupported") return [];
   const m = r.kind === "marker", L = m ? ["X1", "X2", "ΔX", "1/ΔX", "Y1", "Y2", "ΔY"] : ["t1", "t2", "Δt", "1/Δt", "v1", "v2", "ΔV"];
   const dt = m ? r.dx : (num(r.t1) && num(r.t2) ? r.t2 - r.t1 : null), dy = m ? r.dy : (num(r.v1) && num(r.v2) ? r.v2 - r.v1 : null);
@@ -206,7 +206,7 @@ export function cursorRows(r, fmt) {
   const rows = L.map((l, i) => [l, fmt(f[i][0], f[i][1])]);
   const slope = num(dt) && num(dy) && dt !== 0 ? dy / dt : null;
   rows.push(["ΔY/ΔX", num(slope) ? fmt(slope, r.unit ? `${r.unit}/s` : "1/s") : "—"]);
-  rows.push(["換算來源", r.source]);
+  rows.push(["換算來源", label(r.source)]);
   if (m) rows.push(["Delta To", "X1↔X2；Y1↔Y2"]);
   return rows;
 }
@@ -232,8 +232,8 @@ export function mount(el, ctx) {
   }
   function syncInputs() {
     const { cursors, markerMode, channels } = store.get(), ax = MODE_AXES(markerMode), src = cursorSource(store);
-    const visible = channels.filter(c => c.visible), sig = visible.map(c => c.name).join("|");
-    if (sig !== sourceSig) { sourceSig = sig; source.replaceChildren(...visible.map(c => { const o = h("option", "", c.name); o.value = c.name; return o; })); }
+    const visible = channels.filter(c => c.visible), sig = JSON.stringify(channels.map(c => [c.name, c.alias ?? "", c.visible]));
+    if (sig !== sourceSig) { sourceSig = sig; source.replaceChildren(...visible.map(c => { const o = h("option", "", chLabel(channels, c.name)); o.value = c.name; return o; })); }
     source.value = src.channel?.name ?? ""; source.disabled = !src.channel;
     for (const k of Object.keys(boxes)) {
       boxes[k].parentNode.hidden = !ax[k[0]];
@@ -246,8 +246,8 @@ export function mount(el, ctx) {
     syncInputs();
     info.textContent = r?.kind === "unsupported" ? r.reason : r && r.kind === "marker" && !r.available ? r.reason : r?.read_only ? "Track Measurements 為唯讀位置" : "";
     info.hidden = !info.textContent;
-    const rows = cursorRows(r, fmt.fmt);
-    source.title = `換算來源：${cursorSource(store).channel?.name ?? "—"}`;
+    const rows = cursorRows(r, fmt.fmt, (n) => chLabel(store.get().channels, n));
+    source.title = `換算來源：${chLabel(store.get().channels, cursorSource(store).channel?.name ?? "—")}`;
     tbl.replaceChildren(...rows.filter(([label]) => label !== '換算來源').map(([label,value],i) => {
       const cell = h("div", `cursors__value${i === 4 ? " cursors__value--newrow" : ""}`);
       cell.append(h("span", "muted", label), h("span", "cursors__number", value)); return cell;
@@ -256,10 +256,10 @@ export function mount(el, ctx) {
     tbl.hidden = markerTable.render(r) > 0;
     chTbl.hidden = r?.kind !== "legacy";
     fill(chTbl, ["通道", "@X1", "@X2", "Δ(X2−X1)"], r?.kind === "legacy"
-      ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [c.name, fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
+      ? cs.filter((c) => r.y[c.name]).map((c) => { const { y1, y2 } = r.y[c.name]; return [chLabel(cs, c.name), fmt.fmt(y1, c.unit), fmt.fmt(y2, c.unit), y1 === null || y2 === null ? "—" : fmt.fmt(y2 - y1, c.unit)]; }) : []);
   }
   const controller = createController(ctx, { onReadout: render, onError: (e) => ui.toast(e.message, "error") });
-  store.on(["cursors", "markerMode", "channels"], syncInputs);
+  store.on(["cursors", "markerMode", "channels"], (s, keys) => { syncInputs(); if (keys.includes("channels")) render(cursorSource(store).readout); });
   onCursorSource(store, syncInputs);
   inputs.append(sourceLabel);
   el.append(inputs, info, chTbl, tbl, markerTable.el);
