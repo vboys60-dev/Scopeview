@@ -48,3 +48,41 @@ export function bindGrids(store, storage) {
   if (store.get().grids === undefined) store.set({ grids: loadGrids(storage) }, 'program');
   return store.on(['grids'], s => saveGrids(s.grids, storage));
 }
+
+/** 每格保留原通道順序與可見狀態，堆疊時才篩選有效通道。 */
+export function groupByGrid(grids, channels) {
+  const groups = Array.from({ length: gridsOf({ grids }).n }, () => []);
+  for (const c of channels) groups[gridIndex(grids, channels, c.name)].push(c);
+  return groups;
+}
+export function gridMenuItems(store, item) {
+  const items = GRID_COUNTS.map(n => {
+    const el = item(`${n} 格`, () => store.command("view.zoomRect", { grids: setCount(gridsOf(store.get()), n) }));
+    el.setAttribute('role', 'menuitem');
+    return el;
+  });
+  const sync = () => items.forEach((el, i) => {
+    if (GRID_COUNTS[i] === gridsOf(store.get()).n) el.setAttribute('aria-current', 'true');
+    else el.removeAttribute('aria-current');
+  });
+  store.on(['grids'], sync); sync();
+  return items;
+}
+export function gridSelect(store, name) {
+  const el = document.createElement('select'); el.className = 'chip__grid'; el.setAttribute('aria-label', '所在格');
+  let count = 0;
+  const sync = () => {
+    const st = store.get(), grids = gridsOf(st);
+    el.hidden = grids.n === 1;
+    if (count !== grids.n) {
+      count = grids.n;
+      el.replaceChildren(...Array.from({ length: count }, (_, i) => {
+        const option = document.createElement('option'); option.textContent = `格 ${i + 1}`; option.value = String(i); return option;
+      }));
+    }
+    el.value = String(gridIndex(grids, st.channels, name));
+  };
+  el.onchange = () => store.command('view.zoomRect', { grids: assignGrid(gridsOf(store.get()), name, Number(el.value)) });
+  sync();
+  return { el, sync };
+}

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
-import { GRID_COUNTS, GRID_GAP, GRIDS_KEY, gridsOf, gridIndex, gridRows, withGrids, rowOf, rowAt, setCount, assignGrid, loadGrids, saveGrids, bindGrids } from './grids.js';
+import { GRID_COUNTS, GRID_GAP, GRIDS_KEY, gridsOf, gridIndex, gridRows, withGrids, rowOf, rowAt, setCount, assignGrid, loadGrids, saveGrids, bindGrids, groupByGrid, gridMenuItems, gridSelect } from './grids.js';
 import { channelHandles, handlePosition, cursorEdges } from './handles.js';
 import { markerPixels } from './mainplot.js';
 import { bindViewport, nearestCursor } from './gestures.js';
 import { verticalRect } from './vzoom.js';
 import { nearestChannel, markerPoints } from './marker_layer.js';
+import { stackLayout } from './vertical.js';
+import * as scales from './scales.js';
 import { createStore } from './store.js';
 const base = { l: 84, t: 8, w: 800, h: 500 };
 const channels = Array.from({ length: 8 }, (_, i) => ({ name: `CH${i + 1}`, visible: i !== 1, color: '#fff', position: 0, scale: 1 }));
@@ -112,4 +114,53 @@ const points = markerPoints(model, { view }, split);
 assert.deepEqual(points.map(p => [p.channel.name, p.x, p.y]), [['CH1', 484, mid(split.rows[0])], ['CH2', 484, mid(second)]]);
 assert.equal(markerPoints(model, { view }, base).length, 2);
 assert.deepEqual(markerPoints(model, { view }, withGrids(base, one, pair)), markerPoints(model, { view }, base));
+// 格數選單與通道選擇器直接使用產品函式及真實歷史接線。
+class Element {
+  constructor(tag) { this.tagName = tag; this.children = []; this.attrs = {}; }
+  setAttribute(k, v) { this.attrs[k] = v; }
+  removeAttribute(k) { delete this.attrs[k]; }
+  getAttribute(k) { return this.attrs[k] ?? null; }
+  replaceChildren(...nodes) { this.children = nodes; }
+  get options() { return this.children; }
+}
+globalThis.document = { createElement: tag => new Element(tag) };
+globalThis.Option = class extends Element {
+  constructor(text, value) { super('option'); this.textContent = text; this.value = value; }
+};
+const uiStore = createStore(), uiHistory = bindViewport(uiStore), sent = [];
+uiStore.set({ channels: pair, grids: one });
+uiStore.onCommand('view.zoomRect', payload => sent.push(payload));
+const items = gridMenuItems(uiStore, (text, fn) => {
+  const el = new Element('button'); el.textContent = text; el.onclick = fn; return el;
+});
+assert.deepEqual(items.map(el => el.textContent), ['1 格', '2 格', '4 格', '8 格']);
+assert.ok(items.every(el => el.getAttribute('role') === 'menuitem'));
+for (const [i, n] of GRID_COUNTS.entries()) {
+  uiStore.set({ grids: setCount(one, n) });
+  assert.deepEqual(items.map(el => el.getAttribute('aria-current')), GRID_COUNTS.map((_, j) => i === j ? 'true' : null));
+}
+uiStore.set({ grids: one });
+items[2].onclick(); assert.deepEqual(sent.at(-1), { grids: { n: 4, assign: {} } });
+assert.deepEqual(uiHistory.status(), { undo: 1, redo: 0 });
+uiStore.command('view.undo'); assert.deepEqual(uiStore.get().grids, one);
+assert.equal(items[0].getAttribute('aria-current'), 'true');
+const chooser = gridSelect(uiStore, 'CH1'); assert.equal(chooser.el.hidden, true);
+assert.equal(chooser.el.className, 'chip__grid'); assert.equal(chooser.el.getAttribute('aria-label'), '所在格');
+uiStore.set({ grids: setCount(one, 4) }); chooser.sync();
+assert.equal(chooser.el.hidden, false); assert.equal(chooser.el.options.length, 4);
+assert.deepEqual(chooser.el.options.map(el => [el.textContent, el.value]), ['格 1', '格 2', '格 3', '格 4'].map((text, i) => [text, String(i)]));
+assert.equal(chooser.el.value, '0');
+chooser.el.value = '3'; chooser.el.onchange();
+assert.deepEqual(sent.at(-1), { grids: { n: 4, assign: { CH1: 3 } } });
+assert.deepEqual(uiStore.get().grids.assign, { CH1: 3 });
+uiStore.command('view.undo'); chooser.sync(); assert.equal(chooser.el.value, '0');
+uiStore.set({ grids: one }); chooser.sync(); assert.equal(chooser.el.hidden, true);
+const stackPair = pair.map(c => ({ ...c, vmin: -1, vmax: 1 }));
+const sameGrid = { n: 2, assign: { CH1: 0, CH2: 0 } };
+assert.deepEqual(groupByGrid(sameGrid, stackPair), [stackPair, []]);
+const stacked = groupByGrid(sameGrid, stackPair).flatMap(g => stackLayout(g, scales));
+assert.notEqual(stacked[0].position, stacked[1].position);
+assert.deepEqual(groupByGrid(two, stackPair).flatMap(g => stackLayout(g, scales)), stackPair.flatMap(c => stackLayout([c], scales)));
+assert.deepEqual(groupByGrid(one, stackPair).flatMap(g => stackLayout(g, scales)), stackLayout(stackPair, scales));
+assert.deepEqual(groupByGrid(two, channels).flat(), [...channels.filter((_, i) => i % 2 === 0), ...channels.filter((_, i) => i % 2 === 1)]);
 console.log('grid self-check OK');

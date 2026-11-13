@@ -5,6 +5,7 @@ export { createFft, fftParams } from './fft_runner.js';
 import { centerButton } from "./cursors.js";
 import { openSlots, appendFileInfo } from "./slots.js";
 import { exportReport } from "./report.js";
+import { gridsOf, groupByGrid, gridMenuItems } from "./grids.js";
 import { stackLayout } from "./vertical.js";
 import { popMenu } from "./marker_menu.js";
 // 分析頁工具列：開檔／關閉／檔案資訊／數學／匯出 CSV、Marker 模式、FFT 與 Track RF 控制。
@@ -121,17 +122,18 @@ export function mount(el, ctx) {
   const bCsv = item("匯出波形 CSV…", exportCsv), bRep = item("匯出 HTML 報告…", () => exportReport(ctx, el.closest(".analysis") ?? document, modal));
   const bFft = item("FFT 頻譜 ↗", () => store.command("tab.select", "fft"));
   const arrange = (stack) => {
-    const channels = store.get().channels, patches = stack ? stackLayout(channels, scales) : channels.filter(c => c.visible).map(c => { const [scale, position] = Number.isFinite(c.vmin) && Number.isFinite(c.vmax) ? scales.autoScale(c.vmin, c.vmax, c.unit) : [1, 0]; return { name: c.name, scale, position }; });
+    const st = store.get(), channels = st.channels, patches = stack ? groupByGrid(gridsOf(st), channels).flatMap(g => stackLayout(g, scales)) : channels.filter(c => c.visible).map(c => { const [scale, position] = Number.isFinite(c.vmin) && Number.isFinite(c.vmax) ? scales.autoScale(c.vmin, c.vmax, c.unit) : [1, 0]; return { name: c.name, scale, position }; });
     store.command("view.historyGroup", { key: "arrange", continuous: true });
     try { store.command("view.zoomRect", { channels: patches }); } finally { store.command("view.historyGroup", { end: true }); }
   };
   const bStack = item("分開堆疊", () => arrange(true)), bOverlay = item("疊圖（自動縮放）", () => arrange(false));
-  loaded.push(bStack, bOverlay, bSlots, bClose, bInfo, bMath, bCsv, bRep, bFft, marker);
+  const gridItems = gridMenuItems(store, item);
+  loaded.push(...gridItems, bStack, bOverlay, bSlots, bClose, bInfo, bMath, bCsv, bRep, bFft, marker);
   el.append(bOpen);
   menu("檔案", bSlots, bInfo, bCsv, bRep, h("hr"), bClose);
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
   on.onchange = () => fft.setAnalysisOn(on.checked);
-  menu("分析", bFft, bMath, bStack, bOverlay);
+  menu("分析", bFft, bMath, bStack, bOverlay, h("hr"), ...gridItems);
   el.append(fieldOf("FFT 計算", on), fieldOf("Marker", marker), centerButton(store));
 
   // ── FFT ──

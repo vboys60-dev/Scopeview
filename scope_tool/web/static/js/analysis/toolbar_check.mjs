@@ -9,6 +9,7 @@ class Element {
   append(...nodes) { for (const n of nodes) { if (typeof n === "string") { this.textContent = (this.textContent ?? "") + n; continue; } n.parentNode = this; this.children.push(n); } }
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(k, v) { this.attrs[k] = v; }
+  removeAttribute(k) { delete this.attrs[k]; }
   getAttribute(k) { return this.attrs[k] ?? null; }
   addEventListener(k, fn) { (this.listeners[k] ??= []).push(fn); }
   closest() { return root; }
@@ -29,10 +30,11 @@ const host = new Element(); mount(host, ctx);
 const [open, file, filePanel, analysis, analysisPanel, fft, marker, center] = host.children;
 assert.deepEqual(host.children.map(e => e.textContent ?? e.tagName), ['開啟', '檔案 ▾', 'div', '分析 ▾', 'div', 'FFT 計算 ', 'Marker ', '游標置中']);
 assert.deepEqual(filePanel.children.map(e => e.textContent ?? e.tagName), ['比對…', '檔案資訊', '匯出波形 CSV…', '匯出 HTML 報告…', 'hr', '關閉']);
-assert.deepEqual(analysisPanel.children.map(e => e.textContent), ['FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）']);
+assert.deepEqual(analysisPanel.children.map(e => e.textContent ?? e.tagName), ['FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）', 'hr', '1 格', '2 格', '4 格', '8 格']);
 assert.equal(filePanel.getAttribute('role'), 'menu'); assert.equal(analysisPanel.getAttribute('role'), 'menu');
 assert.equal(file.getAttribute('aria-haspopup'), 'menu');
 const items = [...filePanel.children, ...analysisPanel.children].filter(e => e.tagName === 'button');
+assert.ok(analysisPanel.children.slice(-4).every(e => e.disabled));
 assert.ok(items.every(e => e.getAttribute('role') === 'menuitem' && e.disabled));
 store.set({ file: { gen: 1 } }); assert.ok(items.every(e => !e.disabled));
 store.set({ opening: true }); assert.equal(filePanel.children.at(-1).disabled, true);

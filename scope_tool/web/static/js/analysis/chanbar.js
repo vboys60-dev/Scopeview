@@ -1,6 +1,7 @@
 // L5：精簡通道 chip 與各通道 Vertical 欄位；通道設定經 store.updateChannel。
 // 處理意圖：channel.shift_intent、channel.scale_intent（絕對值）。DOM／手感待真人驗證。
 import { mount as mountVertical, hasDx } from "./vertical.js";
+import { gridSelect } from "./grids.js";
 import { setChannelColor, resetChannelColor } from "./channel_colors.js";
 
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -71,9 +72,9 @@ export function mount(el, ctx) {
     reset.onclick = () => resetChannelColor(store, c.name);
     const sc = h("span", "chip__scale");
     const badge = h("span", "vertical__badge", "dx"); badge.title = "會影響游標區間量測與 FFT";
-    box.onclick = (e) => { if (e.target.closest?.("input,button")) return; store.set({ selected: c.name }, "user"); };
-    box.ondblclick = (e) => { if (e.target.closest?.("input,button")) return; col.click(); };
-    const parts = [vis, name, col, reset, sc, badge];
+    box.onclick = (e) => { if (e.target.closest?.("input,button,select")) return; store.set({ selected: c.name }, "user"); };
+    box.ondblclick = (e) => { if (e.target.closest?.("input,button,select")) return; col.click(); };
+    const grid = gridSelect(store, c.name), parts = [vis, name, col, reset, sc, grid.el, badge];
     if (c.derived) {
       const rm = h("button", "chip__remove", "×"); rm.title = "刪除此衍生波形";
       rm.onclick = async () => {
@@ -86,7 +87,7 @@ export function mount(el, ctx) {
     const verticalEl = h("div", "vertical");
     const v = mountVertical(verticalEl, ctx, { scaleChange, clampScale, fineScale, coarseScale }, c.name);
     const colEl = h("div", "chanbar__col"); colEl.dataset.channel = c.name; colEl.append(box, verticalEl);
-    rows.set(c.name, { box, vis, name, col, sc, badge, v, colEl });
+    rows.set(c.name, { box, vis, name, col, sc, badge, v, grid, colEl });
     return colEl;
   }
 
@@ -94,7 +95,7 @@ export function mount(el, ctx) {
     const { channels, selected } = store.get();
     for (const [i, c] of channels.entries()) {
       const r = rows.get(c.name); if (!r) continue;
-      r.v.render();
+      r.v.render(); r.grid.sync();
       r.sc.textContent = `${fmt.fmt(c.scale, c.unit)}/格`;
       r.badge.hidden = !hasDx(c);
       r.vis.checked = c.visible;
@@ -109,7 +110,7 @@ export function mount(el, ctx) {
     if (s !== sig) { sig = s; rows = new Map(); el.replaceChildren(toggle, ...channels.map(column)); syncExpanded(); }
     sync();
   }
-  store.on(["channels", "selected", "file"], render);
+  store.on(["channels", "selected", "file", "grids"], render);
   store.onCommand("channel.shift_intent", ({ name, time_offset }) => store.updateChannel(name, { time_offset }, "user"));
   store.onCommand("channel.scale_intent", ({ name, scale, position }) => {
     const patch = {};

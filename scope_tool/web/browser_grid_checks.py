@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from scope_tool.web.browser_check import Cdp
 
 
-def grid_checks(c: Cdp, prep: str) -> None:
-    """共用已開啟的波形，結束時還原格線與本機偏好。"""
+def grid_checks(c: Cdp, prep: str, out: Path) -> None:
+    """共用已開啟的波形；步驟待主控驗收，結束時還原格線、偏好與尺寸。"""
     def command(expr: str) -> None:
         c.js('(async()=>{' + prep + expr + '})()')
         c.pump(0.4)
@@ -34,6 +35,16 @@ def grid_checks(c: Cdp, prep: str) -> None:
           const box=cv.getBoundingClientRect(),r=cv.gridRect().rows[""" + str(index) + """];
           return {x:box.left+r.l+r.w*0.43,y:box.top+r.t+r.h*""" + str(fraction) + """};})()""")
 
+    def analysis_menu() -> None:
+        c.js("[...document.querySelectorAll('.analysis__toolbar > button')].find(e=>e.textContent==='分析 ▾').click()")
+        c.wait("!!document.querySelector('.analysis__toolbar [role=menu]:popover-open')")
+
+    def menu_click(title: str) -> None:
+        analysis_menu()
+        c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(e=>e.textContent===" + json.dumps(title) + ").click()")
+        c.pump(0.4)
+
+    size = c.js('({width:innerWidth,height:innerHeight,scale:devicePixelRatio})')
     saved = c.js('(async()=>{' + prep + """
         return {grids:S.get().grids,channels:S.get().channels,view:S.get().view,cursors:S.get().cursors,
           selected:S.get().selected,measurements:S.get().measurements,markerMode:S.get().markerMode,
@@ -42,6 +53,39 @@ def grid_checks(c: Cdp, prep: str) -> None:
           kind:document.querySelector('[data-zoom-kind][aria-pressed="true"]')?.dataset.zoomKind??'horizontal',
           raw:localStorage.getItem('scope.analysis.grids.v1')};})()""")
     try:
+        # 格數選單：文字不含偽元素勾號，一次點擊只新增一筆歷史。
+        command("S.set({grids:{n:1,assign:{}}},'program');")
+        assert c.js("[...document.querySelectorAll('.chip__grid')].every(e=>e.hidden)")
+        analysis_menu()
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == [
+            'FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）', '1 格', '2 格', '4 格', '8 格']
+        c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(e=>e.textContent==='4 格').click()")
+        c.pump(0.4)
+        assert state('S.get().grids.n') == 4
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar [aria-current=true]')].map(e=>e.textContent)") == ['4 格']
+        command("S.command('view.undo');")
+        assert state('S.get().grids') == {'n': 1, 'assign': {}}
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar [aria-current=true]')].map(e=>e.textContent)") == ['1 格']
+        menu_click('2 格')
+        assert c.js("[...document.querySelectorAll('.chip__grid')].every(e=>!e.hidden&&e.options.length===2)")
+        before = state('S.get().grids')
+        command("const el=document.querySelector('[data-channel=CHAN1] .chip__grid');el.value='1';el.dispatchEvent(new Event('change',{bubbles:true}));")
+        assert state('S.get().grids.assign.CHAN1') == 1
+        assert 'CHAN1' in geometry()['rows'][1]['names']
+        command("S.command('view.undo');")
+        assert state('S.get().grids') == before
+        assert 'CHAN1' in geometry()['rows'][0]['names']
+        # 同格與單格皆用既有 W7 的對稱範圍，檢查各位置及一步復原。
+        for n in (2, 1):
+            command("S.set({grids:{n:" + str(n) + ",assign:{CHAN1:0,CHAN2:0}},channels:S.get().channels.map(ch=>"
+                    "({...ch,visible:" + ("true" if n == 1 else "['CHAN1','CHAN2'].includes(ch.name)") + ",vmin:-1,vmax:1,scale:1,position:0}))},'program');")
+            before = state('S.get().channels')
+            menu_click('分開堆疊')
+            positions = state('S.get().channels.filter(ch=>ch.visible).map(ch=>ch.position)')
+            assert len(positions) == sum(ch['visible'] for ch in before) and len(set(positions)) == len(positions) and all(-5 <= p <= 5 for p in positions), positions
+            command("S.command('view.undo');")
+            assert state('S.get().channels') == before
+        command("S.set({channels:" + json.dumps(saved['channels']) + "},'program');")
         command("const {autoScale}=await import('/js/analysis/scales.js');"
                 "S.set({channels:S.get().channels.map(ch=>{const [scale,position]=Number.isFinite(ch.vmin)&&Number.isFinite(ch.vmax)?autoScale(ch.vmin,ch.vmax,ch.unit):[1,0];"
                 "return {...ch,scale,position}}),grids:{n:2,assign:{}}},'user');")
@@ -122,7 +166,20 @@ def grid_checks(c: Cdp, prep: str) -> None:
         command("S.set({grids:{n:1,assign:{}}},'user');")
         g = geometry()
         assert len(g['rows']) == 1 and g['rows'][0]['t'] == g['t'] and g['rows'][0]['h'] == g['h'], g
+        for width, height in ((1400, 900), (1100, 700), (900, 600)):
+            c.send('Emulation.setDeviceMetricsOverride', width=width, height=height,
+                   deviceScaleFactor=1, mobile=False)
+            command("S.set({grids:{n:8,assign:{}}},'program');")
+            c.wait("[...document.querySelectorAll('canvas')].find(e=>e.hitChannel)?.dataset.pending!=='1'")
+            g = geometry()
+            assert len(g['rows']) == 8 and all(row['h'] > 0 for row in g['rows']), g
+            assert c.js('document.documentElement.scrollWidth<=document.documentElement.clientWidth+1')
+            assert not c.errors, c.errors
+            c.shot(out / f'grids_8_{width}x{height}.png')
     finally:
+        c.js("document.querySelectorAll('.analysis__toolbar .popmenu:popover-open').forEach(e=>e.hidePopover())")
+        c.send('Emulation.setDeviceMetricsOverride', width=size['width'], height=size['height'],
+               deviceScaleFactor=size['scale'], mobile=False)
         patch = {k: saved[k] for k in ('channels', 'view', 'cursors', 'selected', 'measurements', 'markerMode', 'markerResult') if k in saved}
         grids = json.dumps(saved['grids']) if 'grids' in saved else 'undefined'
         command("S.set({..." + json.dumps(patch) + ",grids:" + grids + "},'program');")

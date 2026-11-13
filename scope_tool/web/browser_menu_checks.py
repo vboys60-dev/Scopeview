@@ -136,7 +136,7 @@ def menu_checks(c: Cdp, prep: str) -> None:
         assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open')"), 'L135'
         c.js("document.querySelector('dialog[open] .dlg__actions button').click()")
         toolbar_menu('分析')
-        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == ['FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）']
+        assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == ['FFT 頻譜 ↗','Math…','分開堆疊','疊圖（自動縮放）','1 格','2 格','4 格','8 格']
         assert c.js("!document.querySelector('.analysis__toolbar .popmenu:popover-open input')")
         escape()
         original = c.js('(async()=>{' + prep + "return S.get().channels})()")
