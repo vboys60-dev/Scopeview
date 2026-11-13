@@ -121,7 +121,7 @@ let selected;
 store.onCommand('rf.intent', value => { selected = value; });
 store.set({ fftResult: { ok: true, unit: 'dBm', spectrum_id: 'table', peaks: [{ x: 10, y: -10 }, { x: 20, y: -20 }] } });
 const table = tableHost.children.find(e => e.tagName === 'table');
-assert.deepEqual(table.children[0].children.map(e => e.textContent), ['#', '頻率', '振幅', '高於基準線']);
+assert.deepEqual(table.children[0].children.map(e => e.textContent), ['#', '頻率', '振幅', '高於 Peak Line', '刪除']);
 assert.equal(table.children[1].children[3].textContent, '50 dB');
 table.children[1].onclick(); assert.deepEqual(selected, { direction: 0, x: 10 });
 assert.match(tableHost.children.at(-1).textContent, /頻率已內插/);

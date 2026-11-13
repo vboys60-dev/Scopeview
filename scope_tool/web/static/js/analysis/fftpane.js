@@ -1,4 +1,5 @@
 import { createFftMarkerLayer } from './fft_marker_layer.js';
+import { fftManualModel } from './fft_manual.js';
 import { fftMarkerModel } from './fft_markers.js';
 import * as overlay from './fft_overlay.js';
 // FFT 頻譜窗格：顯示 store.fftResult（由 L5 以 fft job 寫入）；頻譜資料走 /fft 二進位。
@@ -62,6 +63,7 @@ export function mount(el, ctx) {
     + '<span data-rf class="row"><button class="btn btn--small" data-d="-1" type="button">◀ 上一峰</button>'
     + '<button class="btn btn--small" data-d="0" type="button">吸附</button>'
     + '<button class="btn btn--small" data-d="1" type="button">下一峰 ▶</button></span>'
+    + '<button class="btn btn--small" data-add-marker type="button">＋ Marker</button><button class="btn btn--small" data-clear-marker title="清除全部手動 Marker" aria-label="清除全部手動 Marker" type="button">清除</button>'
     + '<span class="muted" data-status></span></div><div class="analysis__fftplot"></div>';
   const host = el.querySelector(".analysis__fftplot"), status = el.querySelector("[data-status]");
   const logBox = el.querySelector("[data-log]");
@@ -79,8 +81,8 @@ export function mount(el, ctx) {
   const Ymap = () => linear(yr[1], yr[0], rect.t, rect.t + rect.h);
 
   overlay.bind(ctx);
-  const markers = fftMarkerModel(ctx);
-  const baseline = createFftMarkerLayer(canvas, ctx, () => rect, Ymap, res, draw);
+  const markers = fftMarkerModel(ctx), manual = fftManualModel(ctx);
+  const baseline = createFftMarkerLayer(canvas, ctx, () => rect, Ymap, res, draw, Fmap);
 
   function draw() {
     const [w, h] = cv.size();
@@ -149,8 +151,15 @@ export function mount(el, ctx) {
     el.querySelector('[data-pin]').disabled = !r;
     el.querySelector('[data-clear-overlay]').disabled = !overlay.list.length;
     if ((r?.spectrum_id ?? null) !== resId) { resId = r?.spectrum_id ?? null; env = null; if (r) setView(store.get().fftView, 'program'); latest.cancel(); if (r) fetchNow(); }
+    markerBtns();
+  };
+  const markerBtns = () => {
+    const r = res(), add = el.querySelector('[data-add-marker]'); add.disabled = !r || r.unit === '°';
+    add.title = r?.unit === '°' ? 'Phase 模式不支援手動 Marker' : `手動 Marker ${manual.points().length}/10`;
+    el.querySelector('[data-clear-marker]').disabled = !manual.points().length;
     draw();
   };
+  const offManual = store.on(['fftMarker'], markerBtns);
   const offOverlay = overlay.on(refreshAll);
   el.querySelector('[data-pin]').addEventListener('click', () => overlay.pin(ctx).catch(e => ui.toast(`疊圖失敗：${e.message}`, 'error')));
   el.querySelector('[data-clear-overlay]').addEventListener('click', overlay.clear);
@@ -174,6 +183,8 @@ export function mount(el, ctx) {
     const d = e.target.closest("[data-d]");
     if (d && res()) store.command("rf.intent", { direction: Number(d.dataset.d), x: rfX() });
   });
+  el.querySelector('[data-add-marker]').addEventListener('click', async () => { try { const reason = await manual.add(rfX()); if (reason) ui.toast(reason, 'warning'); } catch (e) { ui.toast(`手動 Marker 失敗：${e.message}`, 'error'); } });
+  el.querySelector('[data-clear-marker]').addEventListener('click', manual.clear);
   const lx = (e) => e.clientX - canvas.getBoundingClientRect().left;
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || !res() || baseline.owns() || baseline.hit(e)) return;
@@ -207,5 +218,5 @@ export function mount(el, ctx) {
   canvas.addEventListener('pointercancel', cancelPan);
   canvas.addEventListener('lostpointercapture', cancelPan);
   refreshAll();
-  return { draw, dispose() { offOverlay(); offResult(); offView(); offRf(); baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offManual(); offOverlay(); offResult(); offView(); offRf(); baseline.dispose(); cv.dispose(); latest.cancel(); fetchSoon.cancel(); } };
 }

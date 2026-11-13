@@ -152,6 +152,7 @@
 .analysis--dock .analysis__splitter--lower { flex: 0 0 auto; height: auto; min-height: 28px; flex-wrap: wrap; padding: 2px 4px; cursor: default; }
 .analysis--dock .analysis__splitter--lower::before { display: none; }
 .analysis--dock .analysis__lowerbody > * { flex: 1 1 0; }
+.analysis--dock .analysis__fftbar { height: auto; flex: 0 0 auto; min-height: 40px; flex-wrap: wrap; white-space: normal; overflow: visible; }
 .analysis__dockbtn { margin-left: 4px; }
 
 /* 介面美化 A：工具列標籤與控制同一行；量測鈕改兩欄。 */

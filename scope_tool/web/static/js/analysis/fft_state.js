@@ -86,7 +86,7 @@ export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el, im
   bindFftMarkerControls(ctx, p, { unit, lvl, cnt, sort, imp, man }, catalog);
   field(sourceHost, '來源', src); field(el, '視窗', win); field(el, '單位', unit);
   if (impHost !== el) { field(impHost, '阻抗', imp); impHost.append(man); } else { if (sourceHost === el) el.append(imp); else field(el, '阻抗', imp); el.append(man); }
-  field(markerHost, '排序', sort); field(markerHost, '基準線', lvl); field(markerHost, '顯示數量 n', cnt);
+  field(markerHost, '排序', sort); field(markerHost, 'Peak Line', lvl); field(markerHost, '顯示數量 n', cnt);
   const { fmt } = ctx;
   const refLabel = document.createElement('label'), ref = document.createElement('input'), unwrapLabel = document.createElement('label'), unwrap = document.createElement('input');
   refLabel.className = unwrapLabel.className = 'field'; refLabel.textContent = '相位參考（空白＝觸發 0） '; ref.className = 'input'; ref.style.width = '6em'; ref.setAttribute('aria-label', '相位參考（空白＝觸發 0）');
