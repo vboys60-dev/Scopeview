@@ -137,3 +137,11 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 ## 選單浮層樣式授權
 使用者授權僅 Web：L5 `static/css/vertical.css`、`static/js/analysis/marker_menu.js`（僅 popMenu 向上翻）、`popover_fallback.js`（堆疊祖先 class）及 `popover_fallback_check.mjs`；L8 `menu_check.mjs`、`web/browser_menu_checks.py`（≤260 行）、`web/browser_check.py`（原地一行、維持 300 行）、`docs/驗證.md`。
 不動 `app.css`／`glass.css`／`analysis.css`／`toolbar.js`／`results.js`／契約／store／後端／`ui/*`；非 vendor 檔 ≤300 行。只跑 Node 自檢與 Python 編譯檢查，瀏覽器驗收由主控執行。
+
+## 剩餘小項第一波授權（2026-11-13，使用者「照建議」，依 Opus／Codex 兩份規劃；僅 Web，Qt 延後、`ui/*`、`analysis/*`、後端、契約形狀不動）
+- L0：`bridge.js` 第 140 行事件失敗文案（原因空白時不顯示括號）、`l0_check.mjs` 加對應斷言。
+- L4：`mainplot.js`（`pending` 在零尺寸時不設）、`report.js`（零尺寸匯出立即提示「請先切回波形分頁再匯出」，不等 3 秒；有效尺寸才等 pending）、`report_check.mjs`。
+- L5：`measure.js`（吞 click 保護改依 pointerId，原地改、不增行）、`drag_check.mjs`（補交錯案例）。
+- L8：`browser_menu_checks.py` 最外圈 hit test 補邊緣取樣，並抽共用幾何到新檔 `web/browser_menu_geom.py`，原檔降至 ≤260 行；`browser_fft_checks.py` 補 1000×700 FFT 高度斷言與零尺寸匯出計時；`p2b_check.mjs` 補 1000×700 fftOn 斷言；`selfcheck_node.js` 如需登記。
+- 文件：`HANDOFF.md` 更新過期項目（validate_params 已接 server、toolbar Node 測試已存在、FFT 快取／log 軸重算／重入僅 Qt）、`docs/驗證.md`。
+- 決策：A 只加「依通道順序帶入，請確認角色」提示留待下一波；D 的 RF 快取、h5py 懶載入、FFT 疊圖方案 C 不做。F1 另排第二波。非 vendor 檔 ≤300 行；`browser_check.py` 維持 300 行不動。瀏覽器驗收由主控執行。

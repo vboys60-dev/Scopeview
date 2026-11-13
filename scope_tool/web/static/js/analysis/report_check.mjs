@@ -101,8 +101,17 @@ await exportReport({ ...ctx,ui:{ ...ctx.ui,pickPath:async () => { store.set({ vi
 assert.equal(calls.length,1); assert.match(toasts.at(-1)[0],/已變更/);
 // 主圖包絡在途（dataset.pending）：逾時以 REPORT_BUSY 中止；載入完成則正常收集。
 globalThis.requestAnimationFrame = cb => { setTimeout(cb,5); return 1; };
-const main = { dataset:{ pending:'1' },width:0 }, mainRoot = { querySelector:s => s === '.analysis__main canvas' ? main : null };
-await assert.rejects(collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' },{ pendingMs:50 }),{ code:'REPORT_BUSY' });
+let mainWidth = 0, frameCount = 0;
+globalThis.requestAnimationFrame = cb => { frameCount++; setTimeout(cb,5); return 1; };
+const main = { dataset:{ pending:'1' },width:0,getBoundingClientRect:() => ({ width:mainWidth,height:100 }) }, mainRoot = { querySelector:s => s === '.analysis__main canvas' ? main : null };
+const started = performance.now();
+await assert.rejects(collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' }),{ code:'REPORT_BUSY',message:'請先切回波形分頁再匯出' });
+await exportReport(ctx,mainRoot,async () => { assert.fail('零尺寸不應開啟對話框'); });
+assert.equal(frameCount,0); assert.ok(performance.now()-started < 1000); assert.equal(calls.length,1);
+assert.equal(toasts.at(-1)[0],'請先切回波形分頁再匯出');
+mainWidth = 100;
+await assert.rejects(collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' },{ pendingMs:50 }),{ code:'REPORT_BUSY',message:'波形尚未載入完成，請稍後再匯出' });
+assert.ok(frameCount > 0);
 setTimeout(() => { main.dataset.pending = ''; },20);
 assert.equal((await collectReport({ store,fmt:{ fmt:F } },mainRoot,{ title:'t' },{ pendingMs:1000 })).title,'t');
 await exportReport(ctx,mainRoot,async () => { main.dataset.pending = '1'; return { title:'測試' }; });

@@ -58,7 +58,7 @@ export function mount(el, ctx) {
 
   function draw() {
     const [w, h] = cv.size();
-    if (!w || !h) return;
+    if (!w || !h) { (canvas.dataset ?? {}).pending = ""; return; }
     const s = store.get();
     // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
     const grids = gridsOf(s), source = cursorSource(store).channel?.name;
@@ -119,7 +119,7 @@ export function mount(el, ctx) {
     drawHandles(g, s.channels, s.cursors, s.view, rect);
     gestures?.overlay(g);
     // 報告截圖前據此等待：任一通道快取不是目前範圍的包絡即標 pending（取得後 draw 會清掉）。自檢假 canvas 無 dataset。
-    (canvas.dataset ?? {}).pending = fetchTargets(s).some((c) => cache.get(c.name)?.key !== waveKey(c.name, s.view, c.time_offset, pxOf(), s.file?.gen)) ? "1" : "";
+    (canvas.dataset ?? {}).pending = rect.w >= 2 && fetchTargets(s).some((c) => cache.get(c.name)?.key !== waveKey(c.name, s.view, c.time_offset, pxOf(), s.file?.gen)) ? "1" : "";
   }
 
   function fetchNow() {

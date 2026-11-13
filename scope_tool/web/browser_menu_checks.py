@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
+from scope_tool.web.browser_menu_geom import menu_hits
 
 if TYPE_CHECKING:
     from scope_tool.web.browser_check import Cdp
-
 
 def menu_checks(c: Cdp, prep: str) -> None:
     """共用已開啟的波形；實際瀏覽器行為待主控驗證。"""
@@ -56,11 +56,7 @@ def menu_checks(c: Cdp, prep: str) -> None:
             if mode == 'right':
                 assert c.js("document.querySelector('.analysis').classList.contains('analysis--dock')"), '右側欄未啟用'
             open_columns()
-            hits = c.js("""(()=>{const p=document.querySelector('.results__choices'),r=p.getBoundingClientRect();
-                let count=0,miss=[];for(let y=r.top+3;y<r.bottom-3;y+=12)for(let x=r.left+3;x<r.right-3;x+=12){
-                  count++;const e=document.elementFromPoint(x,y);
-                  if(!p.contains(e))miss.push([x,y,e?e.tagName+'.'+e.className:null]);}
-                return {count,miss,inside:r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight};})()""")
+            hits = menu_hits(c, "document.querySelector('.results__choices')")
             assert hits['count'] and hits['inside'] and not hits['miss'], (mode, hits)
             escape()
             assert c.js("!document.querySelector('.results__choices').matches(':popover-open')")
@@ -218,7 +214,7 @@ def fallback_checks(c: Cdp, prep: str, path, data: str = '') -> None:
             select(name); before = c.js(rects); c.mouse('mouseMoved', 1, 1); c.js('fb.click()'); c.pump(0.2); opened(True)
             after = c.js(rects); assert len(before) == len(after) and all(abs(a-b)<=0.5 for aa,bb in zip(before,after) for a,b in zip(aa,bb)), (name,before,after)
             assert c.js("(()=>{const r=fp.getBoundingClientRect(),s=getComputedStyle(fp);return s.position==='fixed'&&+s.zIndex>=900&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&(s.backdropFilter||s.webkitBackdropFilter).includes('blur')})()"), (name, 'L215')
-            assert c.js("(()=>{const r=fp.getBoundingClientRect();for(let y=r.top+10;y<r.bottom-10;y+=9)for(let x=r.left+10;x<r.right-18;x+=9)if(!fp.contains(document.elementFromPoint(x,y)))return false;return true})()"), (name, 'L216')
+            hits = menu_hits(c, 'fp'); assert hits['count'] and hits['inside'] and not hits['miss'], ((name, '選單邊緣遮擋'), hits)
             if name != '更多…':
                 c.js("window.fi=fp.querySelector('[role=menuitem],label.check');fi.blur();fb.focus()"); c.pump(0.3)
                 assert c.js("getComputedStyle(fi).borderTopWidth==='0px'&&['transparent','rgba(0, 0, 0, 0)'].includes(getComputedStyle(fi).backgroundColor)"), (name, 'L219', c.js("(()=>{const s=getComputedStyle(fi);return [fi.matches(':hover'),fi.matches(':focus-visible'),document.activeElement.tagName,s.backgroundColor,s.backgroundImage.slice(0,60),s.borderTopWidth]})()"))
@@ -241,7 +237,7 @@ def fallback_checks(c: Cdp, prep: str, path, data: str = '') -> None:
         for mode in ('float','drawer'):
             viewport(899,600); command("S.command('layout.float'," + str(mode=='float').lower() + ");" + ("S.command('layout.toggle','side');" if mode=='drawer' else ''))
             select('⋮'); c.js('fb.click()'); opened(True)
-            assert c.js("(()=>{const r=fp.getBoundingClientRect();for(let y=r.top+10;y<r.bottom-10;y+=8)for(let x=r.left+10;x<r.right-18;x+=8)if(!fp.contains(document.elementFromPoint(x,y)))return false;return true})()"), mode
+            hits = menu_hits(c, 'fp'); assert hits['count'] and hits['inside'] and not hits['miss'], (mode, hits)
             c.shot(path / ('menu_fallback_' + mode + '.png')); key('Escape',27)
         viewport(1100,400); select('分析'); c.js('fb.click()'); opened(True)
         assert c.js("fp.getBoundingClientRect().bottom<=innerHeight&&getComputedStyle(fp).overflowY==='auto'&&fp.scrollHeight>=fp.clientHeight")

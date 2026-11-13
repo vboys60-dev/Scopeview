@@ -181,6 +181,12 @@ import { runSemantics } from "./l0_sem.mjs";
   t2.onDown(true, new BridgeError("FORBIDDEN", "權杖無效"));
   assert.ok(/事件連線失敗（權杖無效）/.test((await rej(pw2, "NETWORK")).message));
   const e3 = await rej(b2.job("x", {}), "NETWORK"); assert.equal(e3.retryable, false); assert.equal(d2.length, 2);
+  for (const [message, reason] of [["", ""], [" \t\n ", ""], [" 權杖無效 ", "（權杖無效）"]]) {
+    const transport = fake(), bridge = makeBridge(transport, true), messages = [];
+    bridge.on("desync", e => messages.push(e.message)); await bridge.call("get_state");
+    transport.onDown(true, new BridgeError("FORBIDDEN", message));
+    assert.equal(messages[0], `事件連線失敗${reason}，工作結果未知，請重新開啟程式`);
+  }
   console.error = ce;
 }
 

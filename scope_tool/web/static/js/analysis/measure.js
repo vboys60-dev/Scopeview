@@ -140,7 +140,7 @@ export function mount(el, ctx) {
   const nums = [1, 2].map(() => { const e = h("input", "input"); e.type = "number"; e.min = 1; e.max = 65534; e.step = 1; e.value = 1; return e; });
   const levels = [1, 2].map(() => { const e = h("select", "select"); e.append(new Option("下", "lower"), new Option("中", "middle"), new Option("上", "upper")); e.value = "middle"; return e; });
   // 拖放：量測鈕拖到通道列欄位＝以該通道為來源 1 新增；位移 <6 px 仍是點擊，觸控需長按 300 ms。
-  let drag = null, swallow = false;
+  let drag = null, swallow = false, gesture = 0;
   const targets = () => [...(document.querySelectorAll?.("[data-channel]") ?? [])];
   function addFrom(it, channel) { // 點擊與拖放共用
     const st = store.get();
@@ -169,8 +169,8 @@ export function mount(el, ctx) {
     const d = drag; clearTimeout(d.timer);
     const ch = d.active && drop ? dropChannel(document.elementFromPoint(x, y), x, y) : null;
     drag = null;
-    if (!d.active) { if (!drop) swallow = true; return; } // 按住等待中被取消（Esc／blur／換 mount／短滑）：緊接的指標 click 也不新增
-    swallow = true; // 吞掉緊接的指標 click（放下或取消都不可再新增到 selected）；鍵盤 click 不受影響
+    if (!d.active) { if (!drop) swallow = d.id ?? null; return; } // 按住等待中被取消（Esc／blur／換 mount／短滑）：緊接的指標 click 也不新增
+    swallow = d.id ?? null; // 吞掉緊接的指標 click（放下或取消都不可再新增到 selected）；鍵盤 click 不受影響
     d.tag.remove();
     for (const c of targets()) c.classList.remove("is-droptarget", "is-dropover");
     if (d.b.hasPointerCapture?.(d.id)) d.b.releasePointerCapture(d.id);
@@ -187,14 +187,14 @@ export function mount(el, ctx) {
       if (drag.touch) end(); else begin(e.clientX, e.clientY); // 觸控未滿 300 ms 就移動＝短滑，不拖
     },
     // 放下；之後（含其 click）解除吞 click，沒有 pointerup 時由下一次 pointerdown 解除
-    pointerup: (e) => { if (drag?.id === e.pointerId) end(true, e.clientX, e.clientY); setTimeout(() => { swallow = false; }); },
+    pointerup: (e) => { if (drag?.id === e.pointerId) end(true, e.clientX, e.clientY); if (swallow !== false && swallow === (e.pointerId ?? null)) { const version = gesture; setTimeout(() => { if (gesture === version) swallow = false; }); } },
     pointercancel: (e) => { if (drag?.id === e.pointerId) end(); },
   };
   hookWindow(hooks);
   function draggable(b, it) {
     b.style.touchAction = "pan-y";
     b.addEventListener("pointerdown", (e) => {
-      end(); swallow = false;
+      end(); swallow = false; gesture++;
       if (e.button !== 0 || winHooks !== hooks) return; // 已被新 mount 取代：只留點擊，不再拖曳
       drag = { b, it, id: e.pointerId, x: e.clientX, y: e.clientY, active: false, touch: e.pointerType === "touch" };
       if (drag.touch) drag.timer = setTimeout(() => drag && begin(drag.x, drag.y), 300);
@@ -231,7 +231,7 @@ export function mount(el, ctx) {
       else allButtons.push([b, it.tip]);
       b.title = it.tip; b.type = "button";
       // 鍵盤觸發的 click（detail===0）一律不吞，取消後殘留的旗標不會吃掉 Enter／Space
-      b.onclick = (e) => { if (swallow && e?.detail !== 0) { swallow = false; return; } addFrom(it, store.get().selected); };
+      b.onclick = (e) => { if (swallow !== false && e?.detail !== 0 && (e?.pointerId == null || swallow === null || e.pointerId === swallow)) { swallow = false; return; } addFrom(it, store.get().selected); };
       draggable(b, it);
       box.append(b);
     }

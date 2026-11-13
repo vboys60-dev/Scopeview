@@ -115,11 +115,16 @@ const KEYS = ['file','view','channels','cursors','rangeMode','measurements','fft
 export const reportKey = (st) => KEYS.map((k) => st[k]);
 export const sameKey = (a, b) => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
 /** 等主圖包絡載入目前範圍（mainplot 在 canvas.dataset.pending 標記）；逾時丟 REPORT_BUSY。 */
+function mainVisible(canvas) {
+  const r = canvas?.getBoundingClientRect?.();
+  if (r && (r.width < 2 || r.height < 2)) throw Object.assign(new Error('請先切回波形分頁再匯出'), { code: 'REPORT_BUSY' });
+}
 async function mainReady(canvas, ms) {
+  mainVisible(canvas);
   const end = Date.now() + ms;
   while (canvas?.dataset?.pending === '1') {
     if (Date.now() > end) throw Object.assign(new Error('波形尚未載入完成，請稍後再匯出'), { code: 'REPORT_BUSY' });
-    await frames(1);
+    await frames(1); mainVisible(canvas);
   }
 }
 
@@ -158,6 +163,7 @@ export async function exportReport(ctx, root, modal) {
   const { store, bridge, ui } = ctx, stale = () => { const s = store.get(); return !!s.measurements.length && !exportable(s.measurements, s.file); };
   const f = store.get().file;
   if (!f) return;
+  try { mainVisible(root.querySelector('.analysis__main canvas')); } catch (e) { return ui.toast(e.message, 'error'); }
   if (stale()) return ui.toast('量測計算中或結果已過期，請稍後再匯出', 'error');
   const stem = f.path.split(/[\\/]/).pop().replace(/\.[^.]*$/, '');
   const o = await modal('匯出報告', (b) => {

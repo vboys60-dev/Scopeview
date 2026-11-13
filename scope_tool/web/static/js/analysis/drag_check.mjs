@@ -56,4 +56,22 @@ hit = child; down(); win.fire('pointermove', { clientX: 40, clientY: 30, target:
 assert.ok(col.classes.has('is-dropover') && button.capture === 1);
 win.fire('pointerup', { clientX: 40, clientY: 30, target: col }); button.onclick({ detail: 1 });
 assert.deepEqual(entries(), ['CH1', 'CH2', 'CH1', 'CH2']); assert.equal(col.classes.size, 0);
+// id1 被取消仍按住：id2 的放開與 click 不得清掉 id1 保護。
+for (const pointerId of [1, 0]) {
+  down(); // 清掉前次手勢的殘留計時器版本
+  button.fire('pointerdown', { pointerId,clientX:0,clientY:0 });
+  win.fire('pointermove', { pointerId,clientX:10,clientY:0 }); win.fire('keydown', { key:'Escape' });
+  const n = entries().length;
+  win.fire('pointerup', { pointerId:2 }); await new Promise(r => setTimeout(r,5));
+  button.onclick({ detail:1,pointerId:2 }); assert.equal(entries().length,n+1);
+  button.onclick({ detail:1,pointerId }); assert.equal(entries().length,n+1);
+}
+// 舊 pointerup 計時器不得清掉同 pointerId 的新取消手勢。
+down(); move(10); up(10);
+down(); move(10); win.fire('keydown', { key:'Escape' });
+await new Promise(r => setTimeout(r,5));
+const n = entries().length; button.onclick({ detail:1,pointerId:1 }); assert.equal(entries().length,n);
+// 單指正常放開會解除；鍵盤例外與無 pointerId 相容行為沿用上方斷言。
+down(); move(10); up(10); await new Promise(r => setTimeout(r,5));
+button.onclick({ detail:1,pointerId:1 }); assert.equal(entries().length,n+2);
 console.log('drag self-check OK');

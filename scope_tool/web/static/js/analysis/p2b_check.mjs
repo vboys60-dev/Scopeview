@@ -21,9 +21,9 @@ assert.match(rule('.analysis__fftbar .field'),/font-size: 12.5px;/);
 assert.match(rule('.analysis__splitter--lower'),/padding-left: 10px;/,'B 左側保留不被標題列控件覆蓋的拖曳帶');
 const prefs = Object.freeze({ ...defaults(), side:280, lower:180, fft:220, sideCollapsed:false });
 const layout = (vw,vh,p = defaults(),fftOn = false,extra = {}) => clampLayout({ W:vw-24,H:vh-200,vw,vh,prefs:p,fftOn,...extra });
-for (const [vw,vh] of [[1360,860],[1280,800],[1366,768],[1024,768],[900,600],[923,768],[1100,860],[1123,860]]) for (const fftOn of [true,false]) {
+for (const [vw,vh] of [[1360,860],[1280,800],[1366,768],[1024,768],[1000,700],[900,600],[923,768],[1100,860],[1123,860]]) for (const fftOn of [true,false]) {
   const before = JSON.stringify(prefs), e = layout(vw,vh,prefs,fftOn);
-  assert.ok(e.mainGrid >= 240); assert.ok(!fftOn || e.fftCollapsed || e.fft >= 160);
+  if (vw === 1000 && vh === 700 && fftOn) assert.ok(e.tabbed === true && e.fft >= 240); assert.ok(e.mainGrid >= 240); assert.ok(!fftOn || e.fftCollapsed || e.fft >= 160);
   if (fftOn && !e.fftCollapsed) assert.ok(e.fft - FFT_BAR_HEIGHT >= FFT_PLOT_MIN);
   assert.ok(e.side+10+e.plotWidth <= vw-24);
   assert.ok(e.lowerCollapsed || e.lower >= 120); assert.equal(JSON.stringify(prefs),before);

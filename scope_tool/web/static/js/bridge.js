@@ -137,7 +137,8 @@ export function makeBridge(transport, isMock = false, { gapMs = 2000, earlyMax =
     next = seq + 1;
     t.subscribe(onEvent, seq, (fatal, e) => {
       if (fatal) dead = e;
-      desync(fatal ? `事件連線失敗（${e.message}），工作結果未知，請重新開啟程式` : "事件連線中斷，工作結果未知，請重新整理頁面確認");
+      const reason = String(e?.message ?? "").trim();
+      desync(fatal ? `事件連線失敗${reason ? `（${reason}）` : ""}，工作結果未知，請重新開啟程式` : "事件連線中斷，工作結果未知，請重新整理頁面確認");
     });
     return t;
   })().catch((e) => { ready = null; throw e; }));

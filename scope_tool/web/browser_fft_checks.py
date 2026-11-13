@@ -1,4 +1,4 @@
-"""L8：FFT 獨立分頁三尺寸檢查；由 browser_check 注入已開檔的 CDP。"""
+"""L8：FFT 獨立分頁四尺寸與零尺寸匯出檢查；由 browser_check 注入已開檔的 CDP。"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -6,12 +6,27 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from scope_tool.web.browser_check import Cdp
 
-SIZES = ((2000, 1290), (1400, 900), (1000, 800))
+SIZES = ((2000, 1290), (1400, 900), (1000, 800), (1000, 700))
 
 
 def fft_page(c: Cdp, prep: str) -> None:
     original = c.js("({width:innerWidth,height:innerHeight,dpr:devicePixelRatio})")
     try:
+        # 分析頁窄矮視窗切 FFT：頻譜至少 220px（實測 230）；主圖隱藏時匯出應立即提示。
+        c.send('Emulation.setDeviceMetricsOverride', width=1000, height=700, deviceScaleFactor=1, mobile=False)
+        c.js(f"(async()=>{{{prep}S.command('tab.select','analysis');S.command('fft.visible',true)}})()")
+        c.wait("!document.querySelector('.analysis__plotTabs').hidden")
+        c.js("document.querySelector('[data-pane=fft]').click()"); c.pump(0.4)
+        hh = c.js("document.querySelector('.analysis .analysis__fftplot').getBoundingClientRect().height"); assert hh >= 220, f'fftplot 高度 {hh}'
+        assert c.js("document.querySelector('.analysis__main canvas').getBoundingClientRect().width===0"), '主圖未隱藏'
+        response = c.js('(async()=>{' + prep + """
+            const {exportReport}=await import('/js/analysis/report.js');let message='';const start=performance.now();
+            return Promise.race([
+              exportReport({store:S,ui:{toast:m=>{message=m}}},document.querySelector('.analysis'),()=>{throw Error('零尺寸不應開啟對話框')})
+                .then(()=>({message,ms:performance.now()-start})),
+              new Promise(resolve=>setTimeout(()=>resolve({message:'逾時',ms:1000}),1000))]);})()""")
+        assert response['ms'] < 1000 and response['message'] == '請先切回波形分頁再匯出', response
+        c.js("document.querySelector('[data-pane=wave]').click()")
         # 從分析頁新增按鈕切換，連同 tab.select 接線一起驗證。
         c.js("[...document.querySelectorAll('.analysis__toolbar button')].find(e=>e.textContent==='FFT 頻譜 ↗').click()")
         c.wait("!document.querySelector('#tab-fft').hidden")
@@ -55,12 +70,12 @@ def fft_page(c: Cdp, prep: str) -> None:
         c.wait(f"(async()=>{{{prep}return S.state.file?.gen !== {old_gen} && !!S.state.file}})()", 20)
         assert c.js("document.querySelector('.fftpage [data-clear-overlay]').disabled")
     finally:
-        c.js(f"(async()=>{{{prep}S.command('tab.select','analysis')}})()")
+        c.js(f"(async()=>{{{prep}S.command('tab.select','analysis');S.command('fft.visible',false)}})()")
         c.send("Emulation.setDeviceMetricsOverride", width=original['width'], height=original['height'],
                deviceScaleFactor=original['dpr'], mobile=False)
         c.pump(0.2)
 
 
 if __name__ == '__main__':
-    assert len(SIZES) == 3 and min(h for _, h in SIZES) == 800
+    assert len(SIZES) == 4 and (1000, 700) in SIZES and min(h for _, h in SIZES) == 700
     print('browser_fft_checks self-check OK（尺寸清單；實際版面待 browser_check）')

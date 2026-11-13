@@ -17,8 +17,8 @@
 - 權威規格：`docs/web-api契約.md`＋`scope_tool/web/static/api_contract.json`（凍結契約，只有 lead 能改；附錄記錄審查後裁決）。檔案擁有權表在 `RULES.md` 末段。
 - 架構：pywebview 只當視窗；daemon 執行緒跑 stdlib HTTP server（127.0.0.1＋token）；RPC／long-poll 事件／二進位 `/wave` `/fft`；前端為 ES modules＋自繪 Canvas，傳輸全藏在 `bridge.js`，`?mock=1` 可離線開發。VISA 一律經 `web/jobs.py` 儀器執行緒＋全域儀器鎖。
 - 驗證指令：後端 `QT_QPA_PLATFORM=offscreen /opt/anaconda3/bin/python3 -B -m scope_tool.web.{decimate,analysis_api,jobs,server,api,e2e_check,browser_check}`；前端 `node scope_tool/web/static/js/selfcheck_node.js`（或開 `static/selfcheck.html`）。`browser_check` 用 headless Chrome＋CDP 實跑連線→擷取→開檔→游標→量測→FFT（已通過、console 無錯誤）。
-- **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 視窗開 FFT 時頻譜被壓縮需圖區內捲動；Track Measurements 因契約無事件座標而標「尚未支援」；100M×4 記憶體仍是既有上限。逐項清單：`docs/驗證.md`。
-- 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 尚未接到 server（參數錯誤目前走可重試的 job 錯誤）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
+- **未驗證／已知限制**：沒有真機；沒有真人滑鼠手感（拖曳／滾輪）；真正的 pywebview 視窗只確認可啟動 10 秒未崩潰；Win10／WebView2／PyInstaller 打包（`packaging/`、`requirements-web.txt`）完全未驗；剪貼簿與 `<a download>` 在 pywebview 的行為未驗；1000×700 FFT 高度已補 Node 斷言與瀏覽器待驗項；Track Measurements 已接事件座標（實機比對仍待驗）；100M×4 記憶體仍是既有上限。逐項清單：`docs/驗證.md`。
+- 後續：真人／真機驗收後勾清單；Win10 打包；大檔 h5py 懶載入（選配）；validate_params 已接 `server.py:86`（登記工作前同步回 BAD_REQUEST）；確認穩定後再決定是否刪除 `ui/` 與 Qt 入口。
 
 ## 已完成功能的歷史細節（2026-10-24～28：分析頁 GUI、Marker Table、介面美化、版面編輯器、多檔比對、文件整理匯出、Liquid Glass）
 
@@ -28,7 +28,7 @@
 - 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/archive/草案_Jitter與RMS.md.gz`；`docs/驗證.md`（至第四輪）。
 - DSO-X 6004A（10 MHz 方波）：示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps，σ 對 50% 中點門檻極敏感。頻譜比值檢查（第四輪）：增益各頻帶平坦約 0.85，無追蹤跡象，不能用此樣本校準 PLL 頻寬。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
 - **契約 v3 先不升**（使用者決定）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
-- 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 須接上 server（`e2e_check.py:126-128` 將由 job 事件改同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
+- 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 已接 `server.py:86`（錯參同步回覆，`e2e_check` 已同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
 - 已完成：RMS 2 冪縮放（`ef6936f`；公開 `measure` 在 ~1.8e308 資料會卡在 top/base 直方圖，已知限制）；PLL 事件層原型 `analysis/pll.py`＋`pll_check.py`（印 OK；只有事件層，未接 clock／眼圖／GUI／契約，門檻待校準，1400 ppm 重鎖一次、2000 ppm 失鎖）。
 - 待使用者下令：契約 v3＋Jitter／眼圖 Web 實作（PLL 接線另案）、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
 
@@ -67,11 +67,11 @@
 
 1. 真機比對：量測數值與面板讀數、Bessel 低通群延遲補償、Marker／FFT 清單項目。
 2. 上機：HD304 四通道 100M 與 `:DIGitize`（先確認設定已還原）、MXR Error 273／LAN／慢時基、3000T、MSO9254A 截圖／擷取／分析、DSO-X 6004A 的 GUI 全流程與 Single／Normal／`:DIGitize`。
-3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；FFT 快取依賴所有改資料路徑呼叫 `fft.refresh()`；切 log 頻率軸會重算 FFT；重入呼叫被忽略而非延後。
+3. 已知剩餘小項：RF 跳峰仍是 O(n) 約 0.1 s（8M bin）；「FFT 快取依賴 `fft.refresh()`／切 log 軸重算／重入被忽略」僅指 Qt。Web `fft_runner.js` 依資料與參數簽章排程、用 token 丟棄舊結果，log 軸僅重畫。
 4. 解碼：I3C 真機波形與示波器內建解碼比對（`docs/驗證.md` 第 26 項）；多協定計畫見下方「多協定解碼」與「九協定解碼準則與實作計畫」（`docs/解碼實作計畫_20261112.md`，待使用者核可後開工）。
 5. 離線分析 UI 修正：D1～D6 已確認、規則已授權；階段 A～D 全部完成（2026-11-13）；剩真視窗人工確認（見「離線分析 UI 修正第二輪」）。
 6. 基本量測真機校準：Top/Base 直方圖範圍與格數（N9），見「基本量測審查與修正」。
-8. 分析頁選單與拖放的人工確認與後續（見「分析頁選單與拖放」）：真視窗手感、Qt 版延後、選單 `role="menu"`／方向鍵、`toolbar.js` Node 單元測試。
+8. 分析頁選單與拖放的人工確認與後續（見「分析頁選單與拖放」）：真視窗手感、Qt 版延後；選單 `role="menu"`／方向鍵已完成，`toolbar_check.mjs` 已存在並登記完整 Node 自檢。
 7. 可選缺口：已於 2026-11-13 全部做完（W0～W8，見「離線分析可選功能」段）；剩真機比對與 Qt 版。
 
 ## 工作流程
@@ -161,7 +161,7 @@
 **已完成（Codex 實作、Claude 審查，皆已 commit，尚未接 UI／API）**
 - **I2C `1ae664f`**：`web/i2c_{decode,synth,vectors,check,real_check}.py`。實機 48 列與 CSV 位址／資料／缺少確認／Restart 全相符；解出時間比 CSV 早約 0.7 取樣，容差放寬 1 取樣並如實列出。CSV 的 `X`＝`ninth=1`（含讀最後 byte 的正常 NACK，不產生 `nack`）。
 - **UART `a3c0c15`**：`web/uart_*.py`＋分析文件「附錄：UART 錯誤規則」。實機＝19200 baud、LSB first、**反相**；波形像 8O1，但示波器以 **8N1** 解（第九位當 stop，=0 報錯），故 CSV `Unknown Rx/Tx Error`＝我方 framing；27.68 ms 的 TX `31` 是兩種規則的分辨反例。CSV 時間：字元／空白列＝start＋0.5T，錯誤列＝第一 stop＋9.5T。131 列中 130 列可驗相符，首列 `?/65`（視窗前截斷）無法還原。**預設格式定案 8N1**（baud 必填；X6000A 這份要勾反相）。內部私有 `_levels_at`，第 0 步後改用 `logic.levels_at`。
-- **BIN `8143a43`、`0f09887`**：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`／`guess_roles`）；與 H5 只差 float32 捨入（≤1.2e-7 V，容差 4e-7；原規格寫「逐點相等」有誤，已更正）。已接 `reader.py` 的 `.bin` 分派（通道名＝標籤，重複加 `#2`）與開檔對話框；`open_waveform` 實測可開。**GUI 開 BIN 的畫面行為未人工驗。**
+- **BIN `8143a43`、`0f09887`**：`storage/bin_reader.py`（`read_bin_bytes`／`read_bin_file`；`guess_roles` 僅留自檢引用，為產品路徑死碼，已由 `decode.js defaultConfig`＋來源下拉取代）；與 H5 只差 float32 捨入（≤1.2e-7 V，容差 4e-7；原規格寫「逐點相等」有誤，已更正）。已接 `reader.py` 的 `.bin` 分派（通道名＝標籤，重複加 `#2`）與開檔對話框；`open_waveform` 實測可開。**GUI 開 BIN 的畫面行為未人工驗。**
 - 解碼核心照計畫介面（`ROLES／BASE／options／run`）寫成，註冊表接線只需加一行。小項：UART 實機驗收用 h5py（核心只用 numpy）。
 
 **2026-10-27 追加（`f5de088`，使用者已人工確認畫面）**
@@ -173,7 +173,7 @@
 
 **待辦**
 1. 九協定解碼已全部完成；下一步用真機錄 USB PD／CAN FD／eSPI／SPI 波形驗證（見「九協定解碼」的限制）。
-2. H5 無標籤時的通道指派 UI（BIN 可 `guess_roles`）；人工看 BIN 開檔畫面。
+2. H5／BIN 已共用 `decode.js defaultConfig`（名稱角色優先、否則依順序）＋來源下拉；`guess_roles` 為死碼。仍待人工看 BIN 開檔畫面。
 3. CAN：先決定是否在擷取流程加「取完整記憶體」。**先做真機驗證，再決定要不要改程式**（2026-11-12 查證）：
    - InfiniiVision（`instruments/infiniivision.py:135`）已有 `:WAVeform:POINts:MODE RAW`＋`:WAVeform:DATA?` 直讀。
    - Infiniium（`instruments/infiniium.py`，含 DSO-X 6004A）**沒有**這條命令：`capture()` 走 `:DISK:SAVE:WAVeform ALL,…,H5INt,ON` → `:DISK:GETFILE?` → `:DISK:DELete`，只用 `:WAVeform:POINts?`（第 75 行）查記錄長度並與設定點數比較。註解稱此路徑只在 MXR254B 驗過，6004A 未驗。
@@ -252,7 +252,7 @@
 - **選單**：新增共用 `popMenu(button, panel, place)`（`marker_menu.js`，登記 L5）與 `.popmenu`（**必須** `.popmenu:popover-open{display:flex}`，否則作者樣式蓋掉 `[popover]` 預設隱藏，關著也顯示）。工具列改為 `[開啟][檔案 ▾][分析 ▾] Marker 游標置中`；檔案▾＝比對…／檔案資訊／匯出波形 CSV…／匯出 HTML 報告…／關閉（不加確認）；分析▾＝FFT 計算（真 checkbox）／FFT 頻譜 ↗／Math…。範圍、閾值移到左欄 `measure__head`（來源／範圍／閾值）；「X軸Maker歸位」改「游標置中」；工具列「完整時間」移除（水平列已有）。UI 計畫 P2 的 Math／FFT 頻譜搬移改以「分析 ▾」取代。
 - **拖放**：量測鈕（`measure.js`）用 Pointer Events 拖到通道列（`[data-channel]`，`chanbar.js`）＝以該通道為來源 1；位移 <6 px 仍是點擊，觸控長按 300 ms；放下不改 `selected`；Esc／pointercancel／lostpointercapture／blur／換 mount 取消；取消與放下後吞緊接的指標 click、不吞鍵盤 click（`detail===0`）。**pointermove／pointerup／pointercancel 必須掛在 window 層**（按鈕上的 pointermove 在快速移出按鈕後收不到；這是 CDP 真滑鼠實測才抓到、Node 假 DOM 測不到）。通道名稱現在可 Tab 聚焦、Enter／Space 選取（原本只能滑鼠）。
 - **檢查**：新增 `menu_check.mjs`、`drag_check.mjs`（掛進 `selfcheck_node.js`）、`web/browser_menu_checks.py`、`web/browser_drag_checks.py`（掛進 `browser_check.py`，**放在 `float_panel` 之前**，因 `float_panel` 會關檔；`browser_check.py` 維持 300 行）。`p2b3_check.mjs` 的 M2 變異字串（HEAD 舊債）已同步 `bpanel.js`，`--mutations` 18/18。最終 `browser_check` 34 步全 OK、`e2e_check` 過。
-- **已知限制**：①多指標交錯（一指被取消仍按著、另一指放開）可能提早解除吞 click 保護；②選單 panel 缺 `role="menu"`、無方向鍵導覽（Tab／Enter／Esc 可用）；③`toolbar.js` 無 Node 單元測試，選單結構只靠瀏覽器檢查；④`browser_menu_checks` 的 hit test 取樣內縮 3 px，漏掉最外圈 3 px；⑤主圖波形當放置目標已做：`mainplot.js` 在 canvas 掛 `hitChannel(x,y)`（用 marker 的 `nearestChannel`，8 px 內最近者；重疊時取最近、同距取先列者），`measure.js` 的 `dropChannel(el,x,y)` 回退到它；放在沒有波形處不新增；⑥Qt 全部延後（`analysis_controls.py` 的 `QToolButton`＋`QMenu`、`QDrag`；`analysis_plot.py` 已 299 行無空間）。
+- **已知限制**：①多指標吞 click 已依 pointerId 修正（含 0、鍵盤例外與舊 timer 版本核對），Node 已過，實際互動待主控；**殘餘缺口**：一指被取消仍按著時，另一指在任何量測鈕 pointerdown 會無條件清掉保護（measure.js 的 pointerdown），該指若在原按鈕放開會多新增一筆；②工具列選單 `role="menu"`／方向鍵已完成（表單浮層不套 menu）；③`toolbar_check.mjs` 已存在並納入自檢；④hit test 已補四邊 0.5／1／2 px，依 border-radius 排除透明圓角，原生／fallback 共用 `browser_menu_geom.py`，待主控瀏覽器驗收；⑤主圖波形當放置目標已做：`mainplot.js` 在 canvas 掛 `hitChannel(x,y)`（用 marker 的 `nearestChannel`，8 px 內最近者；重疊時取最近、同距取先列者），`measure.js` 的 `dropChannel(el,x,y)` 回退到它；放在沒有波形處不新增；⑥Qt 全部延後（`analysis_controls.py` 的 `QToolButton`＋`QMenu`、`QDrag`；`analysis_plot.py` 已 299 行無空間）。
 - **待人工確認**（headless 驗不到）：macOS pywebview 真視窗的選單、真滑鼠拖放手感、Windows 10 觸控長按、使用者原本回報的「⋮ 被遮蔽」情境（headless 未重現）。
 - **流程備忘**：`browser_check` 只在結尾印步驟結果，卡住時看不出停在哪——要加逐步 print 時用 scratchpad 副本，不改專案檔；連續跑被殺掉後要 `pkill -f remote-debugging-port=9222`，否則下一次逾時；Codex 的 `-o` 一律用絕對路徑。
 
@@ -265,3 +265,8 @@
 - **待使用者實機確認**：重開程式看三個選單是否為浮層；在視窗 Web Inspector 執行 `'popover' in HTMLElement.prototype`（false＝走替代路徑）。若仍有問題請其給截圖。尚未在真實 WKWebView 實測。
 - **行數／限制**：`browser_check.py` 必須剛好 300 行（只原地改）；已超限不可再加：`jobs.py` 301、`server.py` 304、`api.py` 326、`fft_marker_check.mjs` 319、`gestures.js` 253、`cursors.js` 267 維持不增。RULES.md 已登記各波授權。
 - **另案待辦**：FFT 疊圖若要原解析度改方案 C（後端保留，動 L0 契約）；Qt 版全部延後；8 格把手排開、拖把手跨格改格。
+
+## 剩餘小項第一波（2026-11-13，待主控瀏覽器驗收）
+
+- 事件原因 trim 後為空時不顯示括號；零尺寸主圖不留 pending，匯出立即提示「請先切回波形分頁再匯出」，有效尺寸才等包絡。Node 涵蓋空白原因、零尺寸、pending 逾時與載入完成。
+- 交錯指標與選單邊緣檢查見上段；`browser_fft_checks.py` 新增分析頁及獨立 FFT 的 1000×700 高度保底 ≥220px（實測 230，未達原估 240；窄視窗頻譜仍偏矮）、FFT 分頁匯出 <1s。只跑 Node 與 Python 編譯，未啟動瀏覽器／示波器；`browser_check.py` 未改。
