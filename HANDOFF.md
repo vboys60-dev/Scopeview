@@ -308,6 +308,7 @@
 **八項改進點全部完成。** 待人工：真視窗 F2／✎ 手感、實際 IME、長別名排版、Windows 字型寬度；3A 的 8 格把手 20px 手感。
 
 **未結小項**
+- **GUI-1 已修（2026-11-13，未 commit）**：右側欄停靠＋解碼頁籤時頁籤列與解碼設定列溢出。只改 `analysis.css`：dock 下 `.analysis__resultTabs` 換行；`.decode__form`／`.decode__params` 加 `flex-wrap`、`min-width:0`，並覆寫 `.decode__bar > *{flex-shrink:0}`（根因：子項被鎖死撐成 478px，內層 wrap 無效）。驗證：自製 CDP 腳本量 1700／1560 寬 dock 下 `.analysis__lower` 內無元素超出右緣（改前 8 項超出、改後 0）；selfcheck_node 全過；browser_check 僅既有「替代選單浮層」失敗。腳本在 scratchpad、未入庫。
 - browser_check「替代選單浮層」原因未明（乾淨 HEAD 同樣失敗；Fable 調查已停）。
 - Opus 第一波未處理：i3c_quality 對稱資料、`validate_time` 0.009／0.011 dt 與 NaN／inf、FFT 分頁＋lowerTab 情境、無 Shift 拖線瀏覽器測試、Shift hover 重繪、觸控 ±12px。
 - I2C：「無法判斷」下拉不變、手動門檻 DOM 回填、估計 `ok:true` 分支、估計期間換檔，皆未驗；i2cdemo START 偏移約 10.8 µs 原因未明。

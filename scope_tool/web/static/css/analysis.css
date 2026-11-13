@@ -149,6 +149,7 @@
 .analysis.analysis--dock { grid-template-areas: "tool tool tool tool" "side split plot dock" "side split plot dock"; }
 .analysis--dock .analysis__lower { grid-area: dock; border-left: 1px solid var(--c-border); }
 .analysis--dock .analysis__lowerbody { flex-direction: column; }
+.analysis--dock .analysis__resultTabs { flex-wrap: wrap; }
 .analysis--dock .analysis__splitter--lower { flex: 0 0 auto; height: auto; min-height: 28px; flex-wrap: wrap; padding: 2px 4px; cursor: default; }
 .analysis--dock .analysis__splitter--lower::before { display: none; }
 .analysis--dock .analysis__lowerbody > * { flex: 1 1 0; }
@@ -226,9 +227,10 @@
 
 /* 協定設定：通道與門檻一列、參數與動作一列。 */
 .decode__protocol { width: 100px; }
-.decode__form, .decode__params { display: flex; align-items: center; gap: 8px; }
+.decode__form, .decode__params { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .decode__bar { flex-wrap: wrap; }
 .decode__params { flex-basis: 100%; }
+.decode__bar > .decode__form, .decode__bar > .decode__params { flex-shrink: 1; max-width: 100%; }
 .decode__lanes { font-size: 10px; }
 .results__clear--sep { margin-left: 12px; color: var(--c-danger); }
 
