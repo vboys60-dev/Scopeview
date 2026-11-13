@@ -9,6 +9,7 @@ import { voltageAxis, voltageLeft } from "./voltage.js";
 import { bindGestures } from "./gestures.js";
 import { withGrids, gridsOf, rowOf, bindGrids } from "./grids.js";
 export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
+const NO_FETCH = new Set(["grids", "decodeResult", "decodeSel"]);
 export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
 /** 顯示格數 → 像素 y（置頂為 +5 格）。 */
 export const divY = (rect, d) => rect.t + (DIVS - d) * rect.h / (2 * DIVS);
@@ -36,6 +37,17 @@ export const fetchTargets = (s) => {
 };
 /** /wave 請求鍵（來源時間 = 顯示時間 − dx）；相同鍵不重抓。 */
 export const waveKey = (name, v, dx, px, gen) => [name, v.t0 - dx, v.t1 - dx, px, gen].join("|");
+/** 選取解碼事件的格位與顯示時間；來源消失時不可退回第零格。 */
+export function decodeMarks(s, rect, X) {
+  const r = s.decodeResult, sel = s.decodeSel;
+  if (!r || sel == null) return [];
+  const f = r.frames.find(f => f.i === sel) /* ponytail: 每次重畫 O(n)，幀數很大時改索引 */, base = s.channels.find(c => c.name === r.base);
+  if (!f || !base) return [];
+  const t = f.t0 + (base.time_offset ?? 0), rows = new Map();
+  if (t < s.view.t0 || t > s.view.t1) return [];
+  for (const name of Object.values(r.summary?.channels ?? {}).filter(Boolean)) if (s.channels.some(c => c.name === name)) { const row = rowOf(rect, name); rows.set(row.index, row); }
+  return [...rows.values()].map(row => ({ x: X(t), row, stale: !!r.stale }));
+}
 
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
@@ -109,6 +121,9 @@ export function mount(el, ctx) {
       if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); g.fillText("t" + k[1], x + 3, rect.t + 2); }
       else { g.save(); g.beginPath(); g.rect(rect.cy.l, rect.cy.t, rect.cy.w, rect.cy.h); g.clip(); g.beginPath(); const y = Math.round(divY(rect.cy, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText(`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, rect.l + 3, y + 2); g.restore(); }
     }
+    g.save(); g.fillStyle = col.amber; g.strokeStyle = "#000"; g.lineWidth = 0.8; g.setLineDash([]);
+    for (const m of decodeMarks(s, rect, X)) { const y = m.row.t + m.row.h; g.globalAlpha = m.stale ? 0.55 : 1; g.beginPath(); g.moveTo(m.x, y - 10); g.lineTo(m.x + 5, y); g.lineTo(m.x - 5, y); g.closePath(); g.fill(); g.stroke(); }
+    g.restore();
     g.fillStyle = g.strokeStyle = col.c1; g.setLineDash([]); g.textBaseline = "bottom";
     for (const k of markerPixels(s.markerResult, X, rect)) {
       g.beginPath(); g.arc(k.px, k.py, 4, 0, 2 * Math.PI); g.stroke();
@@ -142,17 +157,18 @@ export function mount(el, ctx) {
   }
   const fetchSoon = debounce(fetchNow, 150);
 
-  store.on(["view", "channels", "cursors", "selected", "file", "dataRev", "markerResult", "grids"], (_s, keys) => {
+  store.on(["view", "channels", "cursors", "selected", "file", "dataRev", "markerResult", "grids", "decodeResult", "decodeSel"], (_s, keys) => {
     if (keys.includes("file") || keys.includes("dataRev")) { cache.clear(); latest.forEach((l) => l.cancel()); latest.clear(); }
     const names = new Set(store.get().channels.map((c) => c.name));
     for (const k of [...cache.keys()]) if (!names.has(k)) cache.delete(k);
     draw();
-    if (keys.includes("file") || keys.includes("dataRev")) fetchNow(); else if (keys.some(k => k !== "grids")) fetchSoon();
+    if (keys.includes("file") || keys.includes("dataRev")) fetchNow(); else if (keys.some(k => !NO_FETCH.has(k))) fetchSoon();
   });
 
   const offSource = onCursorSource(store, draw);
   canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null, rect); }; // 量測鈕拖放目標
   canvas.gridRect = () => rect;
+  canvas.decodeMarks = () => decodeMarks(store.get(), rect, Xmap(store.get().view));
   markers = createMarkerLayer(canvas, ctx, canvas.gridRect, cache, draw);
   gestures = bindGestures(canvas, ctx, canvas.gridRect, draw, markers);
   draw();

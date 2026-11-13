@@ -110,7 +110,7 @@ export function decodeSection(st, root, F, invert) {
 }
 
 /** 報告會讀到的 store 鍵（皆不可變，以 Object.is 比對）；不可放 plotRect 等會被截圖流程本身寫入的鍵。 */
-const KEYS = ['file','view','channels','cursors','rangeMode','measurements','fftResult','fftView','fftMarker','decodeResult','decodeAscii',
+const KEYS = ['file','view','channels','cursors','rangeMode','measurements','fftResult','fftView','fftMarker','decodeResult','decodeSel','decodeAscii',
   'dataRev','markerResult','markerMode','markerTable','rfPos','threshold'];
 export const reportKey = (st) => KEYS.map((k) => st[k]);
 export const sameKey = (a, b) => a.length === b.length && a.every((x, i) => Object.is(x, b[i]));
