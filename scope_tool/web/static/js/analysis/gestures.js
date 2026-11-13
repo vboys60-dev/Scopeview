@@ -15,15 +15,15 @@ export function shortcutFor(e, target = e.target) {
   if (e.code === "Space" || e.key === " ") return "space";
   return e.key === "Escape" ? "cancel" : null;
 }
-/** pointerdown 時固定動作；零位 > 邊緣游標 > Marker 點 > 平移模式游標線 > 模式手勢。 */
+/** pointerdown 時固定動作；零位 > 邊緣游標 > Marker 點 > 游標線 > 模式手勢；Shift 強制框選（壓在 Marker 或游標線上也一樣）。 */
 export function gestureFor({ button = 0, mode = DEFAULT_MODE, shiftKey = false, space = false, handle = false, edge = false, cursor = false, marker = false, inside = true }) {
   if (button !== 0 && button !== 1) return null;
   if (handle) return "handle";
   if (edge) return "edge";
-  if (marker && button === 0) return "marker";
+  if (marker && button === 0 && !shiftKey) return "marker";
   if (button === 1 || space) return inside ? "pan" : null;
   const zoom = mode === "zoom" || shiftKey;
-  if (!zoom && cursor) return "cursor";
+  if (!shiftKey && cursor) return "cursor";
   return inside ? (zoom ? "zoom" : "pan") : null;
 }
 /** 最少十個取樣間隔與浮點精度；極短檔案以全長為上限。 */
@@ -139,7 +139,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     return nearestCursor(s.cursors, s.view, r, x, y, pointerType);
   }
   const updateHover = () => {
-    const next = !drag && pointer && store.get().file && mode === "pan" && !space && !pointer.shiftKey ? hitCursor(pointer.x, pointer.y, pointer.pointerType) : null;
+    const next = !drag && pointer && store.get().file && !space && !pointer.shiftKey ? hitCursor(pointer.x, pointer.y, pointer.pointerType) : null;
     if (next === hover) return false;
     hover = next; draw(); return true;
   };

@@ -73,9 +73,9 @@ def p2a_view(c: Cdp, prep: str, click: str, out: Path) -> None:
                   "x:b.x+r.l,y:b.y+r.t+r.h*0.6,w:r.w}})()")
     c.js("(" + click + ")('⬚ 框選')")
     x0, x1, y = before["x"] + before["w"] * 0.2, before["x"] + before["w"] * 0.7, before["y"]
-    c.mouse("mousePressed", x0, y)
-    c.mouse("mouseMoved", x1, y, buttons=1)
-    c.mouse("mouseReleased", x1, y)
+    c.mouse("mousePressed", x0, y, modifiers=8)  # Shift：起點可能壓在游標線上，強制框選
+    c.mouse("mouseMoved", x1, y, buttons=1, modifiers=8)
+    c.mouse("mouseReleased", x1, y, modifiers=8)
     c.pump(0.4)
     snapshot = "(async()=>{" + prep + "return {view:S.state.view,channels:S.state.channels,cursors:S.state.cursors}})()"
     after = c.js(snapshot)

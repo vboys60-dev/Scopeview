@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """協定中立的類比判位；缺值打斷遲滯前態。# 待真機驗證。"""
 from typing import NamedTuple
+import tempfile
 import numpy as np
 from scope_tool.analysis.measure import levels
 
@@ -34,16 +35,36 @@ def auto_threshold(v: np.ndarray) -> tuple[float, float] | None:
     return mid - half, mid + half
 
 
+def _median_interval(t: np.ndarray) -> float:
+    """精確中位數；大檔差分分塊寫入暫存映射，原地選取避免整條 RAM 暫存。"""
+    if len(t) - 1 <= CHUNK:
+        return float(np.median(np.diff(t)))
+    with tempfile.TemporaryFile() as stream:
+        steps = np.memmap(stream, dtype=np.float64, mode='w+', shape=(len(t) - 1,))
+        try:
+            for start in range(0, len(steps), CHUNK):
+                end = min(start + CHUNK, len(steps))
+                steps[start:end] = t[start + 1:end + 1] - t[start:end]
+            return float(np.median(steps, overwrite_input=True))
+        finally:
+            del steps
+
+
 def validate_time(t: np.ndarray, other: np.ndarray | None = None) -> None:
     """完整驗證共同時間軸；由 P2 轉成 BAD_REQUEST。"""
     if t.ndim != 1 or len(t) < 2:
         raise ValueError('時間軸至少兩點且須一維')
-    if other is not None and not np.array_equal(t, other):
+    if other is not None and (other.ndim != 1 or len(t) != len(other)):
         raise ValueError('兩通道時間軸不一致')
     for start in range(0, len(t), CHUNK):
         a = t[max(0, start - 1):start + CHUNK]
         if not np.all(np.isfinite(a)) or np.any(a[1:] <= a[:-1]):
             raise ValueError('時間軸須有限且嚴格遞增')
+    if other is not None:
+        tolerance = .01 * _median_interval(t)
+        for start in range(0, len(t), CHUNK):
+            if not np.all(np.abs(t[start:start + CHUNK] - other[start:start + CHUNK]) <= tolerance):
+                raise ValueError('兩通道時間軸不一致')
 
 
 def to_edges(t: np.ndarray, v: np.ndarray, lo: float, hi: float,

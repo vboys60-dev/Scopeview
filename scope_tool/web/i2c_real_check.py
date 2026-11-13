@@ -88,6 +88,70 @@ def check(root: Path | None = None) -> dict:
     return dict(rows=len(rows), differences=differences, strict_times=strict_times, skipped=False)
 
 
+def check_reference(root: Path | None = None) -> dict:
+    """經 Analysis 開啟原始參考檔；角色／封包／時間差異不補償、不隱藏。"""
+    from scope_tool.web.analysis_api import Analysis
+    root = root or Path(__file__).resolve().parents[2] / 'H5參考波形'
+    hp, cp = root / 'i2cdemo.h5', root / 'i2cdemo.csv'
+    if not hp.exists() or not cp.exists():
+        print('i2cdemo skip：H5 或 CSV 參考檔不存在')
+        return dict(skipped=True, differences=[])
+    a = Analysis()
+    info = a.open_waveform(str(hp))
+    assert {c['name'] for c in info['channels']} == {'Memory 1', 'Memory 2'}, info
+    waves = {w.channel: w for w in a._waves}
+    dt = float(np.median(np.diff(waves['Memory 1'].time)))
+    delta = float(np.max(np.abs(waves['Memory 1'].time - waves['Memory 2'].time)))
+    print(f'i2cdemo 時間軸差 {delta:.12g} s = {delta / dt:.6f} dt；dt={dt:.9g} s')
+    with cp.open(encoding='utf-8-sig', newline='') as stream:
+        rows = list(csv.DictReader(stream))
+    assert len(rows) == 11, len(rows)
+    assert all(int(row['Addr'], 16) == 0x50 for row in rows)
+    assert rows[5]['Data'] == '41 47 49 4C 45 4E 54' and rows[6]['Data'] == '10 4D 53 4F'
+
+    def compare(scl: str, sda: str, label: str) -> list[str]:
+        summary = a.decode('i2c', {'scl': scl, 'sda': sda}, {'scl': None, 'sda': None}, {})
+        assert summary['ok'], summary
+        raw = a.decode_frames(summary['decode_id'])['frames']
+        packets = [f for f in raw if f['addr'] is not None]
+        differences = []
+        print(f'{label}：SCL={scl}／SDA={sda}；原始 frame {len(raw)}，有位址 {len(packets)}，CSV {len(rows)}')
+        if len(raw) != 13:  # 另 2 個無位址 frame：擷取起點截斷封包與尾端 Sr，位置固定
+            differences.append(f'原始 frame 數 {len(raw)} != 13')
+        if len(packets) != 11:  # 原始 frame 另含 2 個無位址 frame（待查），不列入差異
+            differences.append(f'封包數：有位址 {len(packets)} != 11（原始 {len(raw)}）')
+        for i, row in enumerate(rows, 1):
+            expected = (int(row['Addr'], 16), int(row['R/W'] == 'Read'), row['Addr Ack'] == 'Ack',
+                        tuple(int(v, 16) for v in row['Data'].split()),
+                        'Sr' if row['I2C Packet'].startswith('Restart') else 'S')
+            if i > len(packets):
+                differences.append(f'CSV 第 {i} 筆缺少有位址封包：{expected}，時間 {row["Time"]} s')
+                continue
+            f = packets[i - 1]
+            got = (f['addr'], f['rw'], f['ack'], tuple(v['value'] for v in f['fields'] if v['kind'] == 'data'), f['start'])
+            if got != expected:
+                differences.append(f'CSV 第 {i} 筆欄位：{got} != {expected}')
+            residual = f['t0'] - float(row['Time'])
+            if not -11.4e-6 <= residual <= -10.5e-6:  # 示波器 CSV 時間比 START 邊沿晚約 10.8 µs（約一個 SCL 週期；推測為位址第一位元，未確認）
+                differences.append(f'CSV 第 {i} 筆時間：frame #{f["i"] + 1}，Δ={residual * 1e6:+.6f} us ({residual / dt:+.3f} dt)')
+        for difference in differences:
+            print(f'{label}差異：{difference}')
+        if not differences:
+            print(f'{label}：封包、Addr、R/W、Ack/Nack、Data、START 時間全部相符')
+        return differences
+
+    try:
+        # 原檔只記錄 Memory 名稱、無角色標籤；實機接線為 Memory 1＝SDA、Memory 2＝SCL。
+        differences = compare('Memory 2', 'Memory 1', '實機映射 SCL=Memory 2／SDA=Memory 1')
+        diagnostic = compare('Memory 1', 'Memory 2', '反向映射（預設通道順序）')
+        assert diagnostic, '預設順序（Memory 1＝SCL）不應恰好也相符'
+        return dict(skipped=False, differences=differences, diagnostic=diagnostic)
+    finally:
+        a.close_waveform()
+
+
 if __name__ == '__main__':
     check()
+    reference = check_reference()
+    assert not reference['differences'], 'i2cdemo 與 CSV 不符（逐筆差異見上方）；另案待查'
     print('web.i2c_real_check self-check OK')

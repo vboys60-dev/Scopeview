@@ -69,7 +69,7 @@ assert.doesNotThrow(() => {
 console.log('menu self-check OK');
 
 const toolbar = readFileSync(new URL('./toolbar.js', import.meta.url), 'utf8');
-assert.match(toolbar, /menu\("分析", bFft, bMath, bStack, bOverlay, h\("hr"\), \.\.\.gridItems\)/);
+assert.match(toolbar, /menu\("分析", bFft, bMath, bDecode, bStack, bOverlay, h\("hr"\), \.\.\.gridItems\)/);
 assert.match(toolbar, /el\.append\(fieldOf\("FFT 計算", on\), fieldOf\("Marker", marker\)/);
 
 const css = readFileSync(new URL('../../css/vertical.css', import.meta.url), 'utf8');

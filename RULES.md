@@ -150,3 +150,12 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - F1 分割格線跨格拖把手：L4 `handles.js`（新增 `handleDrop`、`dragHandle`、`commitHandle`、`drawDrop`）、`gestures.js` 原地改（**維持 253 行**）；L8 `grid_check.mjs`、`browser_grid_checks.py`、`docs/驗證.md`。不動 `grids.js`、`cursors.js`、`browser_check.py`、契約、store 鍵、後端、`ui/*`。語意：n>1 圖外放開取消（不再能拖出 ±5 div）；n=1 不變。
 - 頻譜偏矮（方案 A，F1 驗收後才開工）：L4 `layout.js`（`FFT_TAB_MIN`、`clampLayout` 加 `fftTab`）、`tab_analysis.js` 原地改；L8 `p2b_check.mjs`、`browser_fft_checks.py`、`docs/驗證.md`。不動 `browser_check.py`。
 - 頻譜偏矮追加授權：`float_check.mjs` 僅補測試用 Function 參數 `activeTab`（`tab_analysis.js` 新增 `fftTab: activeTab === 'fft'` 所致），不改斷言。
+
+## 改進第一波授權（2026-11-13，使用者「開始第一波」，項 1、2、5、7 決策全採建議；僅 Web，Qt 延後）
+- 項 1 框選與游標線分開：L4 `gestures.js` 原地改（**維持 253 行**；框選模式命中游標線時拖線，Shift 仍強制框選，中鍵／Space 平移不變）、hover 提示放寬；L8 `p2_check.mjs`（舊斷言隨語意修改）、`browser_drag_checks.py` 或新 helper。`cursors.js` 不增行。
+- 項 2 框選開啟色：L4 `analysis.css` 檔尾（高 specificity 局部規則，不動 `glass.css`）。
+- 項 5 「分析 ▾」加「解碼…」：L5 `toolbar.js`（目前 155 行）、必要時 `bpanel.js`／`tab_analysis.js` 原地小改（只開 B 區解碼頁籤並展開加高，仍由使用者按解碼）；L8 `toolbar_check.mjs`、`browser_menu_checks.py`（≤260 行，超出則放新 helper）、`docs/驗證.md`。
+- 項 7 I2C 時間軸：L1b `logic.py` `validate_time` 兩通道時間軸比較改容差（`max|Δt| ≤ 0.01×中位取樣間隔`，長度仍須相等；實機 `i2cdemo.h5` 兩通道 XOrg 差 16 ps＝0.0008 dt）；L8 `i2c_real_check.py`／`i3c_quality.py`／`analysis_slots.py` 補/改測試；新增以 `H5參考波形/i2cdemo.h5` 對照 `i2cdemo.csv`（檔案不存在則略過）。解碼只用 base 時間軸，不動資料。
+- 不動 `browser_check.py`、契約、store 鍵、`glass.css`、後端其他檔、`ui/*`。
+- 第一波追加授權（Opus 驗收必修）：L8 `browser_analysis_checks.py`、`browser_marker_checks.py`（框選測試改按 Shift 強制框選）、`browser_grid_checks.py`、`browser_menu_checks.py`（分析選單清單加「解碼…」），皆原地改、行數不增。
+- 第一波追加授權：`menu_check.mjs` 第 72 行正規表示式隨「解碼…」併入 `menu("分析", …)` 同步；`gestures.js` 改為 Shift 一律強制框選（含壓在 Marker 上），`p2_check.mjs` 同步。

@@ -147,9 +147,9 @@ def p3b2_zoom(c: Cdp, prep: str) -> None:
             return {channels:S.state.channels,view:S.state.view,y1:C.cursorSource(S).y1,y2:C.cursorSource(S).y2,
                 x:b.x+b.width*0.55,a:b.y+r.t+r.h*0.3,z:b.y+r.t+r.h*0.6};
         })()""")
-        c.mouse('mousePressed', before['x'], before['a'])
-        c.mouse('mouseMoved', before['x'], before['z'], buttons=1)
-        c.mouse('mouseReleased', before['x'], before['z'])
+        c.mouse('mousePressed', before['x'], before['a'], modifiers=8)  # Shift：起點可能壓在 Y 游標線上，強制框選
+        c.mouse('mouseMoved', before['x'], before['z'], buttons=1, modifiers=8)
+        c.mouse('mouseReleased', before['x'], before['z'], modifiers=8)
         c.pump(0.3)
         result = c.js("(async()=>{" + prep + """
             const C=await import('/js/analysis/cursors.js'),src=C.cursorSource(S),b=""" + json.dumps(before) + """;

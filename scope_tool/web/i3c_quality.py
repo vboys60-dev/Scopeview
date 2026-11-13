@@ -94,11 +94,17 @@ def quality_vectors(heavy: bool = True) -> list[str]:
     r = decode_waveforms(t, c, d)
     assert r['ok'] and any('ambiguous_edge' in s for s in r['warnings'])
     passed.append('34')
-    for other in (np.r_[t[:15], t[15] + .1, t[16:]], t[::-1]):
+    from unittest.mock import patch
+    logic.validate_time(t, t + .0008)
+    with patch.object(logic, 'CHUNK', 7):
+        irregular = np.r_[0., np.cumsum(np.tile([1., 2., 3.], 10))]
+        assert logic._median_interval(irregular) == np.median(np.diff(irregular))
+        logic.validate_time(t, t + .0008)
+    for other in (t + .5, t[:-1], np.r_[t[:15], t[15] + .1, t[16:]], t[::-1]):
         try:
             logic.validate_time(t, other)
-        except ValueError:
-            pass
+        except ValueError as exc:
+            assert str(exc) == '兩通道時間軸不一致'
         else:
             raise AssertionError('時間軸差異未拒絕')
     for bad in (t[::-1], np.r_[t[:-1], np.nan]):

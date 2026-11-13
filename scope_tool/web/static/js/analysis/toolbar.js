@@ -120,6 +120,7 @@ export function mount(el, ctx) {
   const bClose = item("關閉", async () => { const st = store.get(); if ((st.measurements.length || st.channels.some(c => c.derived) || st.slots?.length) && !await ui.confirm("關閉後會清除量測、衍生通道與比對槽，確定關閉？", "關閉檔案")) return; closeFile(store, bridge).catch((e) => fail(e, "關閉失敗")); });
   const bSlots = item("比對…", () => openSlots(ctx, modal)), bInfo = item("檔案資訊", info), bMath = item("Math…", math);
   const bCsv = item("匯出波形 CSV…", exportCsv), bRep = item("匯出 HTML 報告…", () => exportReport(ctx, el.closest(".analysis") ?? document, modal));
+  const bDecode = item("解碼…", () => { const analysis = el.closest(".analysis"), root = analysis?.parentNode ?? analysis; const tab = root?.querySelector("[data-result-tab=decode]"); if (root?.querySelector(".analysis__lowerbody")?.hidden && tab?.closest(".analysis__float")) store.command("layout.float.collapse"); tab?.click(); });
   const bFft = item("FFT 頻譜 ↗", () => store.command("tab.select", "fft"));
   const arrange = (stack) => {
     const st = store.get(), channels = st.channels, patches = stack ? groupByGrid(gridsOf(st), channels).flatMap(g => stackLayout(g, scales)) : channels.filter(c => c.visible).map(c => { const [scale, position] = Number.isFinite(c.vmin) && Number.isFinite(c.vmax) ? scales.autoScale(c.vmin, c.vmax, c.unit) : [1, 0]; return { name: c.name, scale, position }; });
@@ -128,12 +129,12 @@ export function mount(el, ctx) {
   };
   const bStack = item("分開堆疊", () => arrange(true)), bOverlay = item("疊圖（自動縮放）", () => arrange(false));
   const gridItems = gridMenuItems(store, item);
-  loaded.push(...gridItems, bStack, bOverlay, bSlots, bClose, bInfo, bMath, bCsv, bRep, bFft, marker);
+  loaded.push(...gridItems, bStack, bOverlay, bSlots, bClose, bInfo, bMath, bCsv, bRep, bFft, bDecode, marker);
   el.append(bOpen);
   menu("檔案", bSlots, bInfo, bCsv, bRep, h("hr"), bClose);
   const fft = getFftState(ctx), on = h("input", "check"); on.type = "checkbox";
   on.onchange = () => fft.setAnalysisOn(on.checked);
-  menu("分析", bFft, bMath, bStack, bOverlay, h("hr"), ...gridItems);
+  menu("分析", bFft, bMath, bDecode, bStack, bOverlay, h("hr"), ...gridItems);
   el.append(fieldOf("FFT 計算", on), fieldOf("Marker", marker), centerButton(store));
 
   // ── FFT ──

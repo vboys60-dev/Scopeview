@@ -45,7 +45,7 @@ h.clear(); for (let i = 0; i < 60; i++) h.record({ t0: i, t1: i + 1 }, { t0: i +
 assert.equal(h.status().undo, 50); let current = { t0: 60, t1: 61 }; for (let i = 0; i < 50; i++) current = h.undo(current);
 assert.deepEqual(current, { t0: 10, t1: 11 }); assert.equal(h.undo(current), null);
 // P2a 手勢表逐列（未納入本期的軸區／垂直縮放留待後期）。
-for (const [opts, want] of [[{}, "pan"], [{ mode: "zoom" }, "zoom"], [{ shiftKey: true }, "zoom"], [{ mode: "zoom", space: true }, "pan"], [{ mode: "zoom", button: 1 }, "pan"], [{ cursor: true }, "cursor"], [{ mode: "zoom", cursor: true }, "zoom"], [{ shiftKey: true, cursor: true }, "zoom"], [{ handle: true, edge: true, cursor: true }, "handle"], [{ mode: "zoom", edge: true }, "edge"], [{ inside: false }, null], [{ button: 2 }, null]]) assert.equal(gestureFor(opts), want, JSON.stringify(opts));
+for (const [opts, want] of [[{}, "pan"], [{ mode: "zoom" }, "zoom"], [{ shiftKey: true }, "zoom"], [{ mode: "zoom", space: true }, "pan"], [{ mode: "zoom", button: 1 }, "pan"], [{ cursor: true }, "cursor"], [{ mode: "zoom", cursor: true }, "cursor"], [{ shiftKey: true, cursor: true }, "zoom"], [{ marker: true }, "marker"], [{ shiftKey: true, marker: true }, "zoom"], [{ handle: true, edge: true, cursor: true }, "handle"], [{ mode: "zoom", edge: true }, "edge"], [{ inside: false }, null], [{ button: 2 }, null]]) assert.equal(gestureFor(opts), want, JSON.stringify(opts));
 assert.equal(shortcutFor({ code: "Space" }), "space");
 for (const key of [{ key: "z", ctrlKey: true }, { key: "Z", metaKey: true, shiftKey: true }, { code: "Space" }, { key: "y", ctrlKey: true }]) {
   for (const tagName of ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "SUMMARY", "A"]) assert.equal(shortcutFor(key, { tagName }), null);
@@ -159,6 +159,34 @@ assert.notEqual(fire("mousedown", 300).prevented, true);
 window.listeners.keydown({ key: "z", ctrlKey: true, preventDefault() {} });
 window.listeners.keydown({ key: "y", ctrlKey: true, preventDefault() {} }); assert.deepEqual(store.get().view, hiddenView);
 gestures.dispose();
+// 框選模式的真實事件：命中 X／Y 拖線、Marker 拖點、空白／Shift 框選。
+const zs = createStore(); zs.set({ file: f, view: v, cursors: { x1: 1, x2: null, y1: 0, y2: null } });
+bindViewport(zs); zs.onCommand("cursor.intent", ({ which, value }) => zs.set({ cursors: { ...zs.get().cursors, [which]: value } }));
+let markerMoves = 0;
+const markerHooks = { hit: (x, y) => x === 500 && y === 80 ? {} : null, hover: () => null, begin: m => m, move: () => markerMoves++, end() {} };
+const zg = bindGestures(canvas, { store: zs, ui: {} }, () => r, () => {}, markerHooks);
+zs.command("view.mode", "zoom");
+for (const [x, y, xx, yy, which, value] of [[300, 80, 400, 80, "x1", 2], [600, 160, 600, 130, "y1", 1]]) {
+  const before = { ...zs.get().view };
+  fire("pointermove", x, { clientY: y }); assert.equal(zg.hovered(), which); assert.equal(canvas.style.cursor, which === "x1" ? "ew-resize" : "ns-resize");
+  fire("pointerdown", x, { clientY: y }); fire("pointermove", xx, { clientY: yy }); fire("pointerup", xx, { clientY: yy });
+  near(zs.get().cursors[which], value); assert.deepEqual(zs.get().view, before);
+}
+fire("pointerdown", 500, { clientY: 80 }); fire("pointermove", 550, { clientY: 90 }); fire("pointerup", 550, { clientY: 90 });
+assert.equal(markerMoves, 1); assert.deepEqual(zs.get().view, v);
+for (const [x, extra] of [[600, {}], [400, { shiftKey: true }], [500, { shiftKey: true }]]) {
+  zs.set({ view: v }); const before = { ...zs.get().cursors };
+  fire("pointerdown", x, { clientY: 80, ...extra }); fire("pointermove", 800, { clientY: 100, ...extra }); fire("pointerup", 800, { clientY: 100, ...extra });
+  assert.notDeepEqual(zs.get().view, v); assert.deepEqual(zs.get().cursors, before); assert.equal(markerMoves, 1);
+}
+for (const space of [false, true]) {
+  zs.set({ view: v }); const before = { ...zs.get().cursors };
+  if (space) window.listeners.keydown({ code: "Space", preventDefault() {} });
+  fire("pointerdown", 400, { clientY: 80, button: space ? 0 : 1 }); fire("pointermove", 500, { clientY: 80 }); fire("pointerup", 500, { clientY: 80 });
+  assert.deepEqual(zs.get().view, { t0: -2, t1: 8 }); assert.deepEqual(zs.get().cursors, before);
+  if (space) window.listeners.keyup({ code: "Space" });
+}
+zg.dispose();
 console.log("P2a self-check OK：框選／界線／嚴格檔位／歷史／換算／手勢／輸入焦點／產品事件");
 // 有號中心與接近檔位但尚未到檔位的數值都必須嚴格相鄰。
 near(step125Strict(10e-9 * (1 + 1e-10), false), 10e-9, 1e-22);

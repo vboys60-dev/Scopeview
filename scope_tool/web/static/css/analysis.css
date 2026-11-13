@@ -230,3 +230,8 @@
 .decode__params { flex-basis: 100%; }
 .decode__lanes { font-size: 10px; }
 .results__clear--sep { margin-left: 12px; color: var(--c-danger); }
+
+/* 實色模式／框選種類：覆蓋玻璃選取色；既有 token 對比約 10.21:1。 */
+.analysis__horizontal .analysis__hmodes button[aria-pressed="true"] {
+  background: var(--c-accent); color: var(--c-accent-text); border-color: var(--c-accent); box-shadow: none;
+}

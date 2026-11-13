@@ -154,7 +154,7 @@ export function mount(el, ctx) {
   dockBtn.onclick = () => store.command('layout.markerSide');
   for (const name of ['pointerdown','dblclick','keydown']) dockBtn.addEventListener(name,e => e.stopPropagation());
   lowerHeader.append(dockBtn);
-  lowerHeader.querySelector('[data-result-tab=decode]')?.addEventListener('click', () => { const e = effective; if (e && !e.docked && !floatPanel?.floating && !e.lowerCollapsed && !e.steps?.includes('lowerTab') && e.lowerBody < 212) store.command('layout.resize', { kind:'lower', value:Math.min(240, e.lower + e.main - 270) }); });
+  lowerHeader.querySelector('[data-result-tab=decode]')?.addEventListener('click', () => { const e = effective; if (e && !e.docked && !floatPanel?.floating && !e.steps?.includes('lowerTab') && (e.lowerCollapsed || e.lowerBody < 212)) store.command('layout.resize', { kind:'lower', value:Math.min(240, e.lower + e.main - 270) }); });
   const lowerBody = q('analysis__lowerbody');
   floatPanel = mountFloat(el,{ store, lower:q('analysis__lower'), header:lowerHeader, body:lowerBody,
     tabs:lowerHeader.querySelector('.analysis__resultTabs'), actions, schedule });

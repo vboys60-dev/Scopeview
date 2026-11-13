@@ -62,7 +62,7 @@ def grid_checks(c: Cdp, prep: str, out: Path) -> None:
         assert c.js("[...document.querySelectorAll('.chip__grid')].every(e=>e.hidden)")
         analysis_menu()
         assert c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].map(e=>e.textContent)") == [
-            'FFT 頻譜 ↗', 'Math…', '分開堆疊', '疊圖（自動縮放）', '1 格', '2 格', '4 格', '8 格']
+            'FFT 頻譜 ↗', 'Math…', '解碼…', '分開堆疊', '疊圖（自動縮放）', '1 格', '2 格', '4 格', '8 格']
         c.js("[...document.querySelectorAll('.analysis__toolbar .popmenu:popover-open button')].find(e=>e.textContent==='4 格').click()")
         c.pump(0.4)
         assert state('S.get().grids.n') == 4
