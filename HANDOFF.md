@@ -290,31 +290,28 @@
 - Opus 驗收兩項必修已修（prefs 污染、下限斷言）；`p2b_check.mjs` 297 行，下次新增需拆檔。`float_check.mjs` 為此補 `activeTab` 參數（RULES.md 已登記）。
 - `browser_check`「替代選單浮層」偶發失敗（reload 後停在資料截取分頁）基線亦會，未根治。
 
-## 改進第一波（2026-11-13，已 commit）
+## 改進項目（2026-11-13～14，僅 Web，Qt 延後；一次只做一波，開工前先在 RULES.md 登記授權）
 
-- 完成項 1（框選模式命中游標線拖線，Shift 一律強制框選含壓在 Marker 上；把手／邊緣仍優先）、項 2（框選／平移按下實色）、項 5（「分析 ▾」加「解碼…」）、項 7（`validate_time` 容差 0.01×中位 dt）。Opus 驗收必修（授權）已補。
-- 已知未解：browser_check「替代選單浮層」在乾淨 HEAD 也穩定失敗（⋮ 在 899×600 找不到／reload 後停在資料截取），非本波造成。Fable 調查被中途停止；其第 5 輪曾全過但修改未保留，根因未定。
-- Opus 未處理建議：i3c_quality 測試資料太對稱（中位數改平均抓不到）、加 0.009／0.011 dt 邊界與 other 含 NaN 案例；toolbar_check 加 FFT 分頁＋lowerTab 情境；瀏覽器層補「不按修飾鍵在線上拖線」；Shift 鍵按下時 hover 不更新；觸控無 Shift 時線附近 ±12px 無法框選。
-- 下一步：I2C 自動辨識角色（見項 7 後續）→項 4 →項 6、8 →項 3。
+**已 commit**（驗收皆為 Node／e2e／瀏覽器；`browser_check` 僅既有「替代選單浮層」失敗）
+| 項 | commit | 內容 |
+|---|---|---|
+| 1、2、5、7 | `dd7c016` | 框選與游標線分開、框選按下實色、分析選單加解碼、`validate_time` 容差 0.01×中位 dt |
+| I2C 角色辨識 A／B | `05005bc`／`705f3ce` | 後端 `i2c_roles.py` 估計＋「辨識角色」鈕；解碼前自動辨識並對調、警告進報告。備註：`analysis_decode.py:61` 寫死 `('uart','i2c')`，接 I3C 要同步改 |
+| 4 | `4e74d3b` | Marker Table「獨立點通道」下拉（隱藏通道標示僅 Node 覆蓋） |
+| 6 | `4ca8b2b` | FFT 手動 Marker（`fft_manual.js`；M1–M10、拖動 ±8px、上限 10、換來源／檔清除；「基準線」改稱 Peak Line；dock 模式 fftbar 換行） |
+| 8 | `ae472bd` | 解碼事件 ▲（`mainplot.js` 匯出 `decodeMarks`；只重畫不重抓；過期 alpha 0.55；不可點擊；`report.js` KEYS 加 `decodeSel`）。`browser_mark_checks.py` 未接入 browser_check |
+| 3A | `ccd6c87` | 波形內標籤 B（`chanlabels.js` 配置引擎：跟 anchorY、多方向候選、+N 收合；把手縮成「形狀＋序號」；Y 讀值移右緣；`labelBg` 五種底色，預設 none＋黑描邊；hover 淡出、報告前清 hover）。`browser_label_checks.py` 未接入 browser_check |
 
-## I2C 角色辨識 波 A（已 commit）
-- 後端 `web/i2c_roles.py` `estimate_waveforms`：兩方向各解一次比較有位址封包數（≥2 倍且 ≥1）＋SCL 邊沿較多才建議對調／維持，否則「無法判斷」；估計不動快照。`i2c_decode.options` 接受布林 `estimate`。
-- 前端 `decode_i2c.js`「辨識角色」鈕（位址位元旁）：對調時交換 SCL／SDA 下拉與手動門檻；維持／無法判斷只顯示訊息。i2cdemo.h5 驗過：對調後 11 筆位址封包與 csv 相符。
-- Opus 驗收通過、無必修。備註：`analysis_decode.py` 第 61 行寫死 `('uart','i2c')`，I3C 接入時要同步改。
-- 待做：波 B（按「解碼」前自動辨識，依通道順序猜的且未手選才執行，警告列＋toast）；瀏覽器尚未驗「無法判斷」下拉不變。
+**3A 實測／決策**：左邊距 1 格 96px；8 格同零位 4 通道分欄 186px（>100，依 U4 只記錄、未改 `voltage.js`）。U1–U4 在效：預設透明＋描邊、重開同主檔不保留別名、標籤超過格寬 50% 收「+N」、左邊距只回報。舊測試因把手變 24px 更新：`p3b_check.mjs:129`、`grid_check.mjs:58–59`。
 
-## 項 3／4／6 決策（2026-11-13，使用者回答；規劃檔在 scratchpad out/item4_plan.md、item6_plan.md、item3_preview.html）
-- 項 4：全採 Opus 建議（下拉第一項「目前通道」；隱藏通道標「（隱藏）」並提示；換檔同名保留否則退回；右鍵不加；圖上標籤不改）。
-- 項 6：全採建議（M1–M10、＋Marker 鈕加在目前 RF 位置、吸附最近頻格、可拖動 ±8px 放開讀值、上限 10 第 11 次 toast、與峰同表不受篩選、換來源／檔清除、清除全部不確認、Peak Line 只改 UI 文字）。
-- 項 3：標籤擺放選**方案 B（貼波形起點）**（非 Opus 推薦的 A）；別名細節全採建議。B 方案需在規劃時重新處理：左緣把手縮減、疊圖時標籤避讓、「+N」收合是否仍適用、與項 8 三角形（下緣）／游標字樣不互蓋。
-- 項 4、6 實作要等 I2C 波 B commit 後再開（共用 selfcheck_node.js／docs/驗證.md／RULES.md）。
+**下一步：項 3B（通道別名）**——規劃 scratchpad `out/item8_item3_plan_v2.md` §3.5／§3.9／§3.10：新檔 `alias.js`（純顯示欄位，`name` 永不改）＋ 13 檔原地套用（chanbar F2／✎、measure、results、cursors 維持 267 行、cursor_table、marker_table、fft_state、decode_table 解凍、toolbar、report 對照表、slots:23、handles、chanlabels）；別名 ≤24 字、不分大小寫唯一；測試 13–20、B7–B9。
+- 開工前順手處理 3A 的 Opus 建議：S1 在 RULES.md 補記 `p1_check.mjs:125`、`p2b2_check.mjs:193` 原地修改（後者斷言偏弱，宜改測標籤文字）；S2 `chanlabels.js:46` 截短寬度要扣 +N 預留；S3 選取通道保底候選要把 Y 讀值算進去；S4 B5 hover 測試補「變淡」方向。
 
-## 改進項目現況總表（2026-11-13 更新）
-- 已 commit：項 1、2、5、7（`dd7c016`）；I2C 角色辨識波 A（`05005bc`）。
-- **I2C 角色辨識波 B（已 commit）**：解碼前若角色是依通道順序猜的且使用者未動過，先估計；判斷接反就對調（含手動門檻）、toast、說明附加到警告列與報告（`report.js` 解碼報告附 `summary.warnings`，所有協定皆適用）；只辨識一次。Opus 驗收通過。備註：換協定再換回會還原該協定快取設定，`guessed` 維持上次狀態（只有換檔才重算）；未驗：無法判斷／估計期間換檔的瀏覽器案例、手動門檻 DOM 回填的 Node 覆蓋、估計回 ok:true 分支。授權見 RULES.md「波 B 授權」。
-- 待實作（決策已定，見上節）：項 4（Marker Table 選通道，規劃 `out/item4_plan.md`，約 10 行）→ 項 6（FFT 手動標記，規劃 `out/item6_plan.md`）→ 項 8（解碼事件三角形，**尚未規劃**，需與項 3 方案 B 一併考量）→ 項 3（別名＋標籤方案 B，需先重新規劃；UI 預覽 `out/item3_preview.html`）。開工前各自登記 RULES.md 授權；一次只做一波（共用 `selfcheck_node.js`／`docs/驗證.md`）。
-- 未結小項：browser_check「替代選單浮層」原因未明（clean HEAD 同樣失敗；Fable 調查已停）；Opus 第一波未處理建議（i3c_quality 對稱資料、validate_time 0.009／0.011 dt 與 NaN／inf、FFT 分頁＋lowerTab 情境、無 Shift 拖線瀏覽器測試、Shift hover 重繪、觸控 ±12px 限制）；波 A 備註：`analysis_decode.py:61` 寫死 `('uart','i2c')`，I3C 接入須同步；波 A「無法判斷」下拉不變尚未在瀏覽器驗；i2cdemo START 時間偏移約 10.8 µs 原因未明；`H5參考波形` 新檔與 `HD5擷取歷史` 刪除是否追蹤待使用者決定；真機／Win10／WKWebView 未驗；Qt 延後。
-- **項 4 已 commit**：Marker Table 工具列加「獨立點通道」下拉（第一項「目前通道（CHx）」，隱藏通道標「（隱藏）」並 toast，換檔同名保留），只改 `marker_table.js`。備註：隱藏通道提示僅 Node 覆蓋，瀏覽器未實測；下拉未套 `.select`。下一步：項 6（規劃 `out/item6_plan.md`）。
-- **項 6 已 commit**：FFT 手動 Marker（`fft_manual.js` 新檔；＋Marker／清除鈕、M1–M10、拖動 ±8px、上限 10、換來源／檔清除、Peak Line 改名）。驗收追加：dock 模式 fftbar 允許換行（analysis.css）、「清除」鈕縮短。已知：換頻譜時在途新增會提示「頻譜已更新，請再試」；`fft_overlay_check.mjs` 已正式登記進 FILES。下一步：項 8、項 3 規劃已完成（`out/item8_item3_plan.md`，Codex 審查中），待使用者拍板後開工。
-- **項 8 已 commit**：解碼事件 ▲ 標記（`mainplot.js` 匯出 `decodeMarks`，由 `decodeResult`／`decodeSel` 驅動只重畫不重抓波形；過期 alpha 0.55；不可點擊；`report.js` KEYS 加 `decodeSel`）。驗收：Node／e2e／browser_mark（DPR 1、2）通過；`browser_check` 僅既有「替代選單浮層」失敗。`browser_mark_checks.py` 未接入 browser_check。下一步：項 3A（版面 `chanlabels.js`）→ 3B（別名），見 plan v2。
-- **項 3A 已 commit**：波形內標籤版面 B（新檔 `chanlabels.js` 配置引擎；標籤跟真實零位 anchorY、多方向候選、+N 收合、選取通道不收合；把手縮成「形狀＋序號」；Y 讀值移右緣；預設底色 none＋黑描邊，`labelBg` 五種底色由 `vertical.js` 下拉；hover 淡出、報告前清 hover）。驗收：Node／e2e／`browser_label_checks`（DPR 1、2 × 1400×900、1000×700）通過；`browser_check` 僅既有「替代選單浮層」失敗。舊測試更新：`p3b_check.mjs:129`、`grid_check.mjs:58–59`（lead 追加授權）。**左邊距實測**：1 格 96px；8 格同零位 4 通道分欄 186px（>100，依 U4 只記錄、未改 `voltage.js`）。`browser_label_checks.py` 未接入 browser_check。下一步：項 3B（別名，`alias.js` ＋ 13 檔原地套用，見 plan v2 §3.9/§3.10），開工前先在 RULES.md 登記 3B 授權。
+**未結小項**
+- browser_check「替代選單浮層」原因未明（乾淨 HEAD 同樣失敗；Fable 調查已停）。
+- Opus 第一波未處理：i3c_quality 對稱資料、`validate_time` 0.009／0.011 dt 與 NaN／inf、FFT 分頁＋lowerTab 情境、無 Shift 拖線瀏覽器測試、Shift hover 重繪、觸控 ±12px。
+- I2C：「無法判斷」下拉不變、手動門檻 DOM 回填、估計 `ok:true` 分支、估計期間換檔，皆未驗；i2cdemo START 偏移約 10.8 µs 原因未明。
+- 項 6 小缺口：Phase 切換重讀的瞬間 y 單位、視窗外不可見命中區、Peak Line y 非有限時不畫菱形、`fftpane.js` 硬寫 `/10`。
+- 超過 300 行：`fft_marker_check.mjs`（319，待拆）、`docs/驗證.md`（約 470）。
+- `H5參考波形` 新檔與 `HD5擷取歷史` 刪除是否追蹤，待使用者決定（commit 一律不納入）。
+- 真機／Win10／WKWebView 未驗；Qt 延後。
