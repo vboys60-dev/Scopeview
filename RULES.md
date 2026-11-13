@@ -133,3 +133,7 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 本波修改 `mainplot.js`、`handles.js`、`marker_layer.js`（nearestChannel 分格篩選）、`cursors.js`（markerResult 加 ch）、`selfcheck_node.js`、`browser_check.py`（原地改、維持 300 行）。
 後續波追加 `gestures.js`（原地）、`vzoom.js`、`toolbar.js`、`chanbar.js`、`vertical.css`、`toolbar_check.mjs`、`menu_check.mjs`、`browser_menu_checks.py`、`docs/驗證.md`。
 語意變更：分開堆疊改為每格各自堆疊（n=1 不變）。不動 L0、`analysis/*`、`ui/*`、後端、`marker_menu.js`；本波不動 gestures。
+
+## 選單浮層樣式授權
+使用者授權僅 Web：L5 `static/css/vertical.css`、`static/js/analysis/marker_menu.js`（僅 popMenu 向上翻）、`popover_fallback.js`（堆疊祖先 class）及 `popover_fallback_check.mjs`；L8 `menu_check.mjs`、`web/browser_menu_checks.py`（≤260 行）、`web/browser_check.py`（原地一行、維持 300 行）、`docs/驗證.md`。
+不動 `app.css`／`glass.css`／`analysis.css`／`toolbar.js`／`results.js`／契約／store／後端／`ui/*`；非 vendor 檔 ≤300 行。只跑 Node 自檢與 Python 編譯檢查，瀏覽器驗收由主控執行。

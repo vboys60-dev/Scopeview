@@ -11,12 +11,36 @@
 .chip__color { flex: 0 0 24px; width: 24px; min-width: 24px; height: 20px; padding: 1px; border: 1px solid var(--c-border); border-radius: 3px; background: transparent; cursor: pointer; }
 .chip__reset { flex: 0 0 auto; padding: 0 2px; border: 0; background: none; color: var(--c-text-dim); font: inherit; cursor: pointer; }
 .chip__reset:hover { color: var(--c-text); }
-/* 共用 Popover 選單：取消瀏覽器預設置中。 */
-.popmenu { inset: auto; margin: 0; flex-direction: column; padding: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); }
+/* 共用浮層：原生與替代路徑均脫離排版；玻璃欄位面板由 glass.css 上色。 */
+.popmenu, .results__choices { position: fixed; z-index: 950; inset: auto; margin: 0; box-sizing: border-box;
+  width: max-content; max-width: calc(100vw - 8px); max-height: calc(100vh - 8px); overflow: auto;
+  padding: 5px; border: 1px solid var(--c-border); border-radius: var(--radius-ctl);
+  box-shadow: var(--glass-hi), var(--shadow-dlg); color: var(--c-text); font-size: var(--fs-sm); }
+.popmenu { flex-direction: column; gap: 1px; background: var(--c-overlay-solid); }
+/* 舊引擎不認原生偽類，必須與替代選擇器分開。 */
 .popmenu:popover-open { display: flex; }
 .popmenu[data-open] { display: flex; }
-.popmenu hr { width: 100%; border: 0; border-top: 1px solid var(--c-border); margin: 4px 0; }
-.popmenu button, .popmenu label { text-align: left; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .popmenu { background: var(--c-overlay); -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); } }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .popmenu { background: var(--c-overlay-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+.popmenu [role=menuitem] { position: relative; display: block; flex-shrink: 0; width: 100%; height: 22px; min-height: 22px; padding: 0 14px 0 22px;
+  border: 0; border-radius: var(--radius); background: none; box-shadow: none; color: var(--c-text); font: inherit; text-align: left; cursor: default; }
+.popmenu [role=menuitem]:not(:disabled):hover, .popmenu [role=menuitem]:not(:disabled):focus-visible { background: var(--c-primary-fill); outline: none; }
+.popmenu [role=menuitem]:active { box-shadow: none; }
+.popmenu [aria-current="true"]::before { content: "✓"; position: absolute; left: 7px; }
+.popmenu hr { align-self: stretch; height: 0; margin: 4px 8px; border: 0; border-top: 1px solid var(--c-border); }
+@media (forced-colors: active) { .popmenu [role=menuitem]:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; } }
+.popmenu:not([role=menu]) { gap: 6px; padding: 8px 10px; }
+.popmenu .field { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: var(--fs-sm); }
+.popmenu .input, .popmenu .select { height: 24px; font-size: var(--fs-sm); }
+.popmenu:not([role=menu]) > .input { align-self: flex-end; }
+.results__choices label.check { align-items: center; gap: 6px; height: 22px; padding: 0 12px 0 6px; border-radius: var(--radius); cursor: default; }
+.results__choices label.check:hover, .results__choices label.check:focus-within { background: var(--c-primary-fill); }
+/* results.js 的 inline maxHeight 未扣視窗邊距，於此保留捲動餘裕。 */
+.results__choices { max-height: calc(100vh - 8px) !important; }
+/* 替代浮層須連同堆疊祖先提高，才能越過抽屜及浮動面板。 */
+.popover-fallback-stack { z-index: 950 !important; }
 /* 量測鈕拖放：放置目標、懸停目標、跟隨游標的提示標籤。 */
 .chanbar__col.is-droptarget { outline: 1px dashed var(--c-border); outline-offset: -1px; }
 .chanbar__col.is-dropover { outline: 2px solid var(--c-accent, currentColor); background: color-mix(in srgb, var(--c-accent, #4af) 15%, transparent); }
@@ -28,4 +52,3 @@
 .measure__dual label, .measure__dual input, .measure__dual select { min-width: 0; width: 100%; box-sizing: border-box; }
 .chip__grid { flex: 0 0 auto; width: 52px; min-width: 0; height: 22px; padding: 1px 2px; font: inherit; }
 .chip__grid[hidden] { display: none; }
-.popmenu [aria-current="true"]::before{content:"✓ "}

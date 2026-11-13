@@ -175,6 +175,90 @@ def menu_checks(c: Cdp, prep: str) -> None:
         c.js("(()=>{const k='scope.analysis.float.v1',v=" + json.dumps(saved['floatRaw']) + ";if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v)})()")
 
 
+def fallback_checks(c: Cdp, prep: str, path, data: str = '') -> None:
+    """強制走替代浮層；只登記步驟，實際結果交主控驗收。"""
+    def command(expr: str):
+        return c.js('(async()=>{' + prep + expr + '})()')
+    saved = command("return {width:innerWidth,height:innerHeight,scale:devicePixelRatio,file:S.state.file,storage:{...localStorage}};")
+    script = c.send('Page.addScriptToEvaluateOnNewDocument', source="for(const k of ['popover','showPopover','hidePopover','togglePopover'])delete HTMLElement.prototype[k];for(const k of ['popoverTargetElement','popoverTargetAction'])delete HTMLButtonElement.prototype[k];window.__fallbackProbe=true;")['identifier']
+    def viewport(w: int, h: int) -> None:
+        c.send('Emulation.setDeviceMetricsOverride', width=w, height=h, deviceScaleFactor=1, mobile=False); c.pump(0.4)
+    def key(name: str, code: int = 0) -> None:
+        for typ in ('keyDown', 'keyUp'):
+            c.send('Input.dispatchKeyEvent', type=typ, key=name, code=name, windowsVirtualKeyCode=code, **({'text':'\r'} if name == 'Enter' and typ == 'keyDown' else {}))
+        c.pump(0.2)
+    def load() -> None:
+        c.wait("!!document.querySelector('[data-tab=analysis]')")
+        c.js("document.querySelector('[data-tab=analysis]').click()"); c.pump(1.5)
+        if saved['file']:
+            command("S.command('file.open',{path:" + json.dumps(data or saved['file']['path']) + "});")
+            try:
+                c.wait('(async()=>{' + prep + "return !!S.state.file && S.state.channels.length>0})()")
+            except TimeoutError:
+                raise AssertionError('重載後開檔失敗：' + repr(data) + ' ' + json.dumps(c.js('(async()=>{' + prep + "return {file:S.state.file,ch:S.state.channels.length,err:S.state.error??null}})()"), ensure_ascii=False) + str(c.errors[-3:]))
+        c.pump(1.5)
+    buttons = "[...document.querySelectorAll('.analysis__toolbar > button,.analysis__fftbar button,.analysis__splitter--lower .results__menu button')].filter(b=>b.getBoundingClientRect().width)"
+    def select(name: str) -> None:
+        try:
+            c.wait("!!" + buttons + ".find(b=>b.textContent.includes(" + json.dumps(name) + "))", 10)
+        except TimeoutError:
+            raise AssertionError(name + json.dumps(c.js("({tab:[...document.querySelectorAll('#tabs .tab')].map(t=>t.className+':'+t.textContent.trim()),tb:document.querySelector('.analysis__toolbar')?.innerText.slice(0,80),w:innerWidth,h:innerHeight,vis:!!document.querySelector('.analysis__toolbar')?.getBoundingClientRect().width})"), ensure_ascii=False))
+        c.js("window.fb=" + buttons + ".find(b=>b.textContent.includes(" + json.dumps(name) + "));if(!fb)throw Error('找不到替代選單 " + name + "');window.fp=fb.nextElementSibling;")
+    def opened(value: bool) -> None:
+        assert c.js("fp.hasAttribute('data-open')===" + str(value).lower() + " && fp.hidden===" + str(not value).lower() + " && fb.getAttribute('aria-expanded')==='" + str(value).lower() + "'")
+    rects = "(()=>{const t=document.querySelector('.analysis__toolbar');return [...t.querySelectorAll(':scope > label'),...[...t.querySelectorAll('button')].filter(b=>b.textContent.includes('游標置中')),t,...document.querySelector('.analysis__fftbar').children].filter(e=>!e.matches('.popmenu')).map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height]})})()"
+    try:
+        c.send('Page.reload'); c.wait("window.__fallbackProbe===true"); load()
+        assert c.js("!('popover' in HTMLElement.prototype)")
+        viewport(1360, 860)
+        command("S.command('layout.markerSide',false);S.command('layout.float',false);(await import('/js/analysis/fft_state.js')).getFftState({store:S}).setAnalysisOn(true);")
+        c.js("document.querySelector('[data-pane=fft]')?.click()"); c.pump(0.4)
+        command("if(document.querySelector('.analysis__lowerbody').hidden)S.command('layout.toggle','lower');"); c.js("document.querySelector('[data-result-tab=measure]')?.click()"); c.pump(0.4)
+        for name in ('檔案', '分析', '更多…', '⋮'):
+            select(name); before = c.js(rects); c.mouse('mouseMoved', 1, 1); c.js('fb.click()'); c.pump(0.2); opened(True)
+            after = c.js(rects); assert len(before) == len(after) and all(abs(a-b)<=0.5 for aa,bb in zip(before,after) for a,b in zip(aa,bb)), (name,before,after)
+            assert c.js("(()=>{const r=fp.getBoundingClientRect(),s=getComputedStyle(fp);return s.position==='fixed'&&+s.zIndex>=900&&r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&(s.backdropFilter||s.webkitBackdropFilter).includes('blur')})()"), (name, 'L215')
+            assert c.js("(()=>{const r=fp.getBoundingClientRect();for(let y=r.top+10;y<r.bottom-10;y+=9)for(let x=r.left+10;x<r.right-18;x+=9)if(!fp.contains(document.elementFromPoint(x,y)))return false;return true})()"), (name, 'L216')
+            if name != '更多…':
+                c.js("window.fi=fp.querySelector('[role=menuitem],label.check');fi.blur();fb.focus()"); c.pump(0.3)
+                assert c.js("getComputedStyle(fi).borderTopWidth==='0px'&&['transparent','rgba(0, 0, 0, 0)'].includes(getComputedStyle(fi).backgroundColor)"), (name, 'L219', c.js("(()=>{const s=getComputedStyle(fi);return [fi.matches(':hover'),fi.matches(':focus-visible'),document.activeElement.tagName,s.backgroundColor,s.backgroundImage.slice(0,60),s.borderTopWidth]})()"))
+                pt = c.js("(()=>{const r=fi.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
+                c.mouse('mouseMoved', **pt); c.pump(0.15)
+                assert c.js("!['transparent','rgba(0, 0, 0, 0)'].includes(getComputedStyle(fi).backgroundColor)")
+            if name == '⋮':
+                key('Tab',9); assert c.js("fp.contains(document.activeElement)&&document.activeElement.type==='checkbox'&&document.activeElement.matches(':focus-visible')&&getComputedStyle(document.activeElement).outlineStyle!=='none'")
+            c.shot(path / ('menu_fallback_' + {'檔案':'file','分析':'analysis','更多…':'more','⋮':'columns'}[name] + '.png'))
+            pt = c.js("(()=>{const r=document.querySelector('.analysis__main canvas').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
+            c.mouse('mousePressed', **pt); c.mouse('mouseReleased', **pt); c.pump(0.2); opened(False)
+            for _ in range(3):
+                c.js('fb.click()'); opened(True); c.js('fb.click()'); opened(False)
+            assert c.js("!document.querySelector('[data-open],.popover-fallback-stack')")
+        select('檔案'); c.js('fb.focus()'); key('Enter',13); opened(True)
+        for k,text in ((None,'比對…'),('ArrowUp','關閉'),('ArrowDown','比對…'),('End','關閉'),('Home','比對…')):
+            if k: key(k, {'ArrowUp':38,'ArrowDown':40,'End':35,'Home':36}[k])
+            assert c.js('document.activeElement.textContent===' + json.dumps(text))
+        key('Escape',27); opened(False); assert c.js('document.activeElement===fb')
+        for mode in ('float','drawer'):
+            viewport(899,600); command("S.command('layout.float'," + str(mode=='float').lower() + ");" + ("S.command('layout.toggle','side');" if mode=='drawer' else ''))
+            select('⋮'); c.js('fb.click()'); opened(True)
+            assert c.js("(()=>{const r=fp.getBoundingClientRect();for(let y=r.top+10;y<r.bottom-10;y+=8)for(let x=r.left+10;x<r.right-18;x+=8)if(!fp.contains(document.elementFromPoint(x,y)))return false;return true})()"), mode
+            c.shot(path / ('menu_fallback_' + mode + '.png')); key('Escape',27)
+        viewport(1100,400); select('分析'); c.js('fb.click()'); opened(True)
+        assert c.js("fp.getBoundingClientRect().bottom<=innerHeight&&getComputedStyle(fp).overflowY==='auto'&&fp.scrollHeight>=fp.clientHeight")
+        c.shot(path / 'menu_fallback_short.png'); key('Escape',27)
+        viewport(900,600); select('更多…'); c.js('fb.click()'); opened(True)
+        assert c.js("(()=>{const a=[...fp.querySelectorAll('input,select')];return a.length===7&&a.every(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth&&r.bottom<=innerHeight})})()")
+        c.shot(path / 'menu_fallback_more_narrow.png')
+        key('Escape',27); command("S.set({file:null},'program');"); select('檔案'); c.js("fb.click();window.fi=fp.querySelector('[role=menuitem]')"); opened(True)
+        assert c.js('fi.disabled'); pt=c.js("(()=>{const r=fi.getBoundingClientRect();return {x:r.left+10,y:r.top+10}})()"); c.mouse('mouseMoved',**pt); c.pump(0.15)
+        assert c.js("['transparent','rgba(0, 0, 0, 0)'].includes(getComputedStyle(fi).backgroundColor)")
+    finally:
+        c.send('Page.removeScriptToEvaluateOnNewDocument', identifier=script)
+        c.js('localStorage.clear();Object.entries(' + json.dumps(saved['storage']) + ').forEach(([k,v])=>localStorage.setItem(k,v))')
+        c.send('Page.reload'); c.wait("!window.__fallbackProbe && 'popover' in HTMLElement.prototype")
+        c.send('Emulation.setDeviceMetricsOverride', width=saved['width'], height=saved['height'], deviceScaleFactor=saved['scale'], mobile=False); load()
+
+
 if __name__ == '__main__':
     assert callable(menu_checks)
     print('browser_menu_checks self-check OK（實際瀏覽器步驟待主控執行）')
