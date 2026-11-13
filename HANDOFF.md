@@ -27,10 +27,10 @@
 
 - 已 commit：游標表 ΔY/ΔX（`1014c05`）；`marker.py` versus 不給斜率（`52b5c90`）；草案 `docs/archive/草案_Jitter與RMS.md.gz`；`docs/驗證.md`（至第四輪）。
 - DSO-X 6004A（10 MHz 方波）：示波器 TIE≈0.842×離線線性擬合 TIE−250.7 ps，σ 對 50% 中點門檻極敏感。頻譜比值檢查（第四輪）：增益各頻帶平坦約 0.85，無追蹤跡象，不能用此樣本校準 PLL 頻寬。原始資料在 `示波器截圖/N8900A/DSOX6004A_Jitter驗證_20261024/`（gitignore、無備份）。
-- **契約 v3 先不升**（使用者決定）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
+- **契約 v3 先不升**（使用者決定，2026-11-13 再確認）：要改 L0 檔（`docs/web-api契約.md`、`api_contract.json`、`mock_catalog.js`、`mock_backend.js`、`l0_*.mjs`，不是 `scope_tool/contracts.py`），須同一筆含 mock 同步＋Analysis 3 個 stub，否則 `l0_check`、`selfcheck_node`、`contract_check`、`analysis_check` 失敗。v3 只為 Jitter／眼圖新增 3 個 RPC，與 GUI 的 `view.*` 無關。順序：v3 一筆落地 → Jitter／眼圖後端（`jitter_eval`、`eye_density`、`export_timing`）→ 前端面板。
 - 草案要點：revision 以 `Analysis._accept`＋`submit(on_accept=...)` 在 `_tbl_lock` 內配號；`export_timing` `job=false`；`validate_params` 已接 `server.py:86`（錯參同步回覆，`e2e_check` 已同步）；PLL 只接受 `mode=手動`、捕獲 ±1000 ppm、失鎖門檻暫 ±1500 ppm。`analysis/*` 歸 T7。
 - 已完成：RMS 2 冪縮放（`ef6936f`；公開 `measure` 在 ~1.8e308 資料會卡在 top/base 直方圖，已知限制）；PLL 事件層原型 `analysis/pll.py`＋`pll_check.py`（印 OK；只有事件層，未接 clock／眼圖／GUI／契約，門檻待校準，1400 ppm 重鎖一次、2000 ppm 失鎖）。
-- 待使用者下令：契約 v3＋Jitter／眼圖 Web 實作（PLL 接線另案）、push（無 remote）。詳見研究目錄 `HANDOFF_分析修正.md`。
+- 契約 v3＋Jitter／眼圖 Web 實作：使用者 2026-11-13 決定先不動工（PLL 接線另案）；push（無 remote）待下令。詳見研究目錄 `HANDOFF_分析修正.md`。
 
 ## Windows 打包
 
@@ -89,9 +89,9 @@
 ## 工作流程
 
 - **GUI 測試由使用者主導**：使用者逐步手測，Claude 只記錄編號、不改程式，直到使用者說「沒有其他問題」才規劃→實作→審查→重開。
-- 寫程式交 Codex，Opus 審。Codex：`codex exec -s workspace-write -C "$PWD" "<prompt>" < /dev/null > log 2>&1`（**一定要 `< /dev/null`**；背景啟動器的「completed」不等於 Codex 完成，log 結尾自加 `finished` 再輪詢）。Codex 沙箱連不到 VISA，實機由 Claude 執行。
+- 寫程式交 Codex，Opus 審。Codex：`codex exec -s workspace-write -C "$PWD" "<prompt>" < /dev/null > log 2>&1`（**一定要 `< /dev/null`**；背景啟動器的「completed」不等於 Codex 完成，log 結尾自加 `finished` 再輪詢）。Codex 完成後 lead 直接驗證（Node 自檢→e2e_check→browser_check，不先問使用者）；模型一律 `-m gpt-6.1-terra -c model_reasoning_effort=medium`。Codex 沙箱連不到 VISA，實機由 Claude 執行。
 - 繁體中文，直白。沒真機的路徑要說清楚只有紙上驗證。
-- commit 結尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` 與 `Claude-Session: https://claude.ai/code/session_01XpTZuJrncCtdhRkN9fnF48`。**使用者明說才 commit。**
+- commit 結尾加 `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` 與 `Claude-Session: https://claude.ai/code/session_01LCEf8TNV5bGKHN1gF9oWqG`。**使用者明說才 commit。**
 - 「照舊流程」：Opus 子代理寫計畫（docs/，唯讀）→ Codex 審 → Codex 在 worktree 逐階段實作 → lead 驗證（沙箱外跑 e2e_check／browser_check）。UI 功能實作前先給使用者看預覽，說可以才開工。
 
 ## 自我檢查
@@ -270,7 +270,7 @@
 
 ## 已知缺口處理與分割格線（2026-11-13，**全部完成、驗收、已 commit**；僅 Web，Qt 延後）
 
-- **流程**：Opus 規劃、Codex 實作（一律 `codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium --sandbox workspace-write -C <專案> -o <絕對路徑> "$(cat prompt)" </dev/null`）、lead 驗收（Node 自檢、`e2e_check`、`browser_check`，兩次之間 `pkill -f remote-debugging-port=9222`）。提示檔在 scratchpad（`gap_*.md`、`grid1~3.md`、`menu_fix.md`）。注意：背景啟動 Codex 時，「completed」通知可能只是外層 shell 結束，需 `pgrep -f "codex exec"` 確認；直接前景／背景執行 `codex exec` 本身則通知才準。
+- **流程**：Opus 規劃、Codex 實作（一律 `codex exec -m gpt-6.1-terra -c model_reasoning_effort=medium --sandbox workspace-write -C <專案> -o <絕對路徑> "$(cat prompt)" </dev/null`）、lead 驗收（Node 自檢、`e2e_check`、`browser_check`，兩次之間 `pkill -f remote-debugging-port=9222`）。提示檔在 scratchpad（`gap_*.md`、`grid1~3.md`、`menu_fix.md`）。注意：背景啟動 Codex 時，「completed」通知可能只是外層 shell 結束，需 `pgrep -f "codex exec"` 確認；直接前景／背景執行 `codex exec` 本身則通知才準。
 - **已知缺口 A～D（已 commit）**：A 右側欄停靠需圖區寬 ≥ `DOCK_PLOT_MIN`＝904（實測 FFT 控制列 897 px；約需視窗 ≥1540 px，較窄一律底部）；B 工具列選單 `role=menu`＋方向鍵（「更多…」「⋮」是表單不加）；C 解碼通道預設依名稱 `^角色key\d*$` 帶入，否則依順序；D FFT 前端快照疊圖（≤4 條，不動後端／契約）。
 - **分割格線（三波已 commit）**：store 鍵 `grids={n:1|2|4|8,assign}`（不改 store.js）；缺省依通道索引 `% n` 輪流分配，隱藏通道仍佔位；localStorage `scope.analysis.grids.v1` 全域記住；所有變更走 `view.zoomRect`（可帶 grids，與 channels 同一筆歷史、一次復原）。「分析 ▾」有 1／2／4／8 格（目前項 `aria-current` 勾號），通道 chip 有「所在格」下拉（1 格時隱藏）；「分開堆疊」每格各自排、「疊圖」保留格位，兩者與分格共存。測試鉤子 `canvas.gridRect()`。F1 跨格拖把手已驗收並 commit（`cb04ee2`，Opus 13 項變異全抓到；非第一格把手可往上凸出約 8 px，併入 8 格把手排開）：跨格只預覽，放開格位與位置同筆 Undo／Redo，保留抓取偏移；多格圖外放開取消，單格沿用舊行為。8 格時每格約 30 px，把手 20 px 手感待真人看。
 - **選單浮層（已 commit，最新）**：使用者視窗（pywebview/WKWebView，可能不支援原生 Popover）下選單變 in-flow、選項像圓角按鈕。修法：`vertical.css` 讓 `.popmenu`／`.results__choices` 一律 `position:fixed`＋z-index、macOS 風格（毛玻璃、無框列、hover 反白、勾號靠左、`hr`）；`popover_fallback.js` 在不支援時以 `hidden`／`data-open` 補 show/hidePopover、點外面與 Esc 關閉，並處理「⋮」的 stacking 祖先；`popMenu` 下方放不下才向上翻。驗收：`browser_menu_checks.fallback_checks`（Page.addScriptToEvaluateOnNewDocument 刪 `HTMLElement.prototype.popover` 後重載，檢查 fixed、鄰近控件 rect 不變、遮擋取樣、hover、鍵盤；用原始擷取檔 `cap['path']` 重開檔）。
@@ -301,11 +301,11 @@
 | 6 | `4ca8b2b` | FFT 手動 Marker（`fft_manual.js`；M1–M10、拖動 ±8px、上限 10、換來源／檔清除；「基準線」改稱 Peak Line；dock 模式 fftbar 換行） |
 | 8 | `ae472bd` | 解碼事件 ▲（`mainplot.js` 匯出 `decodeMarks`；只重畫不重抓；過期 alpha 0.55；不可點擊；`report.js` KEYS 加 `decodeSel`）。`browser_mark_checks.py` 未接入 browser_check |
 | 3A | `ccd6c87` | 波形內標籤 B（`chanlabels.js` 配置引擎：跟 anchorY、多方向候選、+N 收合；把手縮成「形狀＋序號」；Y 讀值移右緣；`labelBg` 五種底色，預設 none＋黑描邊；hover 淡出、報告前清 hover）。`browser_label_checks.py` 未接入 browser_check |
+| 3B | `35ed2a2` | 通道別名：`alias.js`（`chLabel`／`aliasError`／`aliasValue`／`labelsOf`／`aliasRows`，純顯示欄位，`name` 與 option value 不變）；chanbar F2／✎ 改名（≤24 字、不分大小寫唯一、IME 安全）；套用到量測、結果表、游標、Marker Table、FFT／解碼來源、Math、報告（附別名／原名表）；比對槽同槽同路徑才沿用別名；順手做 3A 的 S1–S4。三組 Codex（`gpt-6.1-terra`）並行、lead 整合。`browser_label_checks.alias_checks`（B7–B9）未接入 browser_check，需 `PYTHONPATH` 與 scratchpad 包裝腳本才能跑。 |
 
 **3A 實測／決策**：左邊距 1 格 96px；8 格同零位 4 通道分欄 186px（>100，依 U4 只記錄、未改 `voltage.js`）。U1–U4 在效：預設透明＋描邊、重開同主檔不保留別名、標籤超過格寬 50% 收「+N」、左邊距只回報。舊測試因把手變 24px 更新：`p3b_check.mjs:129`、`grid_check.mjs:58–59`。
 
-**項 3B（通道別名）已實作並驗證（2026-11-13，未 commit，待使用者說才 commit；詳見 `docs/驗證.md` 檔尾）。以下為當時計畫備查：**——規劃 scratchpad `out/item8_item3_plan_v2.md` §3.5／§3.9／§3.10：新檔 `alias.js`（純顯示欄位，`name` 永不改）＋ 13 檔原地套用（chanbar F2／✎、measure、results、cursors 維持 267 行、cursor_table、marker_table、fft_state、decode_table 解凍、toolbar、report 對照表、slots:23、handles、chanlabels）；別名 ≤24 字、不分大小寫唯一；測試 13–20、B7–B9。
-- 開工前順手處理 3A 的 Opus 建議：S1 在 RULES.md 補記 `p1_check.mjs:125`、`p2b2_check.mjs:193` 原地修改（後者斷言偏弱，宜改測標籤文字）；S2 `chanlabels.js:46` 截短寬度要扣 +N 預留；S3 選取通道保底候選要把 Y 讀值算進去；S4 B5 hover 測試補「變淡」方向。
+**八項改進點全部完成。** 待人工：真視窗 F2／✎ 手感、實際 IME、長別名排版、Windows 字型寬度；3A 的 8 格把手 20px 手感。
 
 **未結小項**
 - browser_check「替代選單浮層」原因未明（乾淨 HEAD 同樣失敗；Fable 調查已停）。
@@ -313,5 +313,5 @@
 - I2C：「無法判斷」下拉不變、手動門檻 DOM 回填、估計 `ok:true` 分支、估計期間換檔，皆未驗；i2cdemo START 偏移約 10.8 µs 原因未明。
 - 項 6 小缺口：Phase 切換重讀的瞬間 y 單位、視窗外不可見命中區、Peak Line y 非有限時不畫菱形、`fftpane.js` 硬寫 `/10`。
 - 超過 300 行：`fft_marker_check.mjs`（319，待拆）、`docs/驗證.md`（約 470）。
-- `H5參考波形` 新檔與 `HD5擷取歷史` 刪除是否追蹤，待使用者決定（commit 一律不納入）。
+- **決定（2026-11-13）**：`H5參考波形/` 新檔與 `HD5擷取歷史/` 刪除**不追蹤、不 commit**（只列檔名 add，勿用 `git add -A`）；契約 v3 與 Jitter／眼圖**都先不動工**。
 - 真機／Win10／WKWebView 未驗；Qt 延後。
