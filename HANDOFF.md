@@ -268,13 +268,20 @@
 
 - **流程**：Opus 規劃、Codex 實作（一律 `codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium --sandbox workspace-write -C <專案> -o <絕對路徑> "$(cat prompt)" </dev/null`）、lead 驗收（Node 自檢、`e2e_check`、`browser_check`，兩次之間 `pkill -f remote-debugging-port=9222`）。提示檔在 scratchpad（`gap_*.md`、`grid1~3.md`、`menu_fix.md`）。注意：背景啟動 Codex 時，「completed」通知可能只是外層 shell 結束，需 `pgrep -f "codex exec"` 確認；直接前景／背景執行 `codex exec` 本身則通知才準。
 - **已知缺口 A～D（已 commit）**：A 右側欄停靠需圖區寬 ≥ `DOCK_PLOT_MIN`＝904（實測 FFT 控制列 897 px；約需視窗 ≥1540 px，較窄一律底部）；B 工具列選單 `role=menu`＋方向鍵（「更多…」「⋮」是表單不加）；C 解碼通道預設依名稱 `^角色key\d*$` 帶入，否則依順序；D FFT 前端快照疊圖（≤4 條，不動後端／契約）。
-- **分割格線（三波已 commit）**：store 鍵 `grids={n:1|2|4|8,assign}`（不改 store.js）；缺省依通道索引 `% n` 輪流分配，隱藏通道仍佔位；localStorage `scope.analysis.grids.v1` 全域記住；所有變更走 `view.zoomRect`（可帶 grids，與 channels 同一筆歷史、一次復原）。「分析 ▾」有 1／2／4／8 格（目前項 `aria-current` 勾號），通道 chip 有「所在格」下拉（1 格時隱藏）；「分開堆疊」每格各自排、「疊圖」保留格位，兩者與分格共存。測試鉤子 `canvas.gridRect()`。F1 跨格拖把手已實作（待驗收）：跨格只預覽，放開格位與位置同筆 Undo／Redo，保留抓取偏移；多格圖外放開取消，單格沿用舊行為。8 格時每格約 30 px，把手 20 px 手感待真人看。
+- **分割格線（三波已 commit）**：store 鍵 `grids={n:1|2|4|8,assign}`（不改 store.js）；缺省依通道索引 `% n` 輪流分配，隱藏通道仍佔位；localStorage `scope.analysis.grids.v1` 全域記住；所有變更走 `view.zoomRect`（可帶 grids，與 channels 同一筆歷史、一次復原）。「分析 ▾」有 1／2／4／8 格（目前項 `aria-current` 勾號），通道 chip 有「所在格」下拉（1 格時隱藏）；「分開堆疊」每格各自排、「疊圖」保留格位，兩者與分格共存。測試鉤子 `canvas.gridRect()`。F1 跨格拖把手已驗收並 commit（`cb04ee2`，Opus 13 項變異全抓到；非第一格把手可往上凸出約 8 px，併入 8 格把手排開）：跨格只預覽，放開格位與位置同筆 Undo／Redo，保留抓取偏移；多格圖外放開取消，單格沿用舊行為。8 格時每格約 30 px，把手 20 px 手感待真人看。
 - **選單浮層（已 commit，最新）**：使用者視窗（pywebview/WKWebView，可能不支援原生 Popover）下選單變 in-flow、選項像圓角按鈕。修法：`vertical.css` 讓 `.popmenu`／`.results__choices` 一律 `position:fixed`＋z-index、macOS 風格（毛玻璃、無框列、hover 反白、勾號靠左、`hr`）；`popover_fallback.js` 在不支援時以 `hidden`／`data-open` 補 show/hidePopover、點外面與 Esc 關閉，並處理「⋮」的 stacking 祖先；`popMenu` 下方放不下才向上翻。驗收：`browser_menu_checks.fallback_checks`（Page.addScriptToEvaluateOnNewDocument 刪 `HTMLElement.prototype.popover` 後重載，檢查 fixed、鄰近控件 rect 不變、遮擋取樣、hover、鍵盤；用原始擷取檔 `cap['path']` 重開檔）。
 - **待使用者實機確認**：重開程式看三個選單是否為浮層；在視窗 Web Inspector 執行 `'popover' in HTMLElement.prototype`（false＝走替代路徑）。若仍有問題請其給截圖。尚未在真實 WKWebView 實測。
 - **行數／限制**：`browser_check.py` 必須剛好 300 行（只原地改）；已超限不可再加：`jobs.py` 301、`server.py` 304、`api.py` 326、`fft_marker_check.mjs` 319、`gestures.js` 253、`cursors.js` 267 維持不增。RULES.md 已登記各波授權。
-- **另案待辦**：FFT 疊圖若要原解析度改方案 C（後端保留，動 L0 契約）；Qt 版全部延後；8 格把手排開；跨格拖把手已做，待主控驗收。
+- **另案待辦**：FFT 疊圖若要原解析度改方案 C（後端保留，動 L0 契約）；Qt 版全部延後；8 格把手排開；跨格拖把手已完成（`cb04ee2`）。
 
-## 剩餘小項第一波（2026-11-13，待主控瀏覽器驗收）
+## 剩餘小項第一波（2026-11-13，已 commit `93823d4`）
 
 - 事件原因 trim 後為空時不顯示括號；零尺寸主圖不留 pending，匯出立即提示「請先切回波形分頁再匯出」，有效尺寸才等包絡。Node 涵蓋空白原因、零尺寸、pending 逾時與載入完成。
 - 交錯指標與選單邊緣檢查見上段；`browser_fft_checks.py` 新增分析頁及獨立 FFT 的 1000×700 高度保底 ≥220px（實測 230，未達原估 240；窄視窗頻譜仍偏矮）、FFT 分頁匯出 <1s。只跑 Node 與 Python 編譯，未啟動瀏覽器／示波器；`browser_check.py` 未改。
+
+## 進行中：1000×700 頻譜偏矮（2026-11-13，尚未動手）
+
+- Opus 診斷：頻譜實高 230＝主圖下限 270−40，主圖已縮到下限，疑為下方結果區（B 區）展開（pref `lowerCollapsed:false`）佔空間。
+- 方案 A：`layout.js` 加 `FFT_TAB_MIN=320`、`clampLayout` 新參數 `fftTab`（窄版 FFT 分頁才壓 B 區，下限 92）；`tab_analysis.js:171` 傳 `fftTab: activeTab==='fft'`；更新 `p2b_check.mjs`（976×544／900×600 實尺寸）、`browser_fft_checks.py`（門檻 220→280，斷言 lowerbody≥90 且無 plot 捲動，finally 還原 layout pref）、`docs/驗證.md`。RULES.md 已登記授權。
+- 前置：先跑 B-0 實測（各區塊高度、localStorage `scope.analysis.layout.v1`）；若 `fft==270 且 lowerbody>0` 才套方案 A，`lowerbody==0` 代表元凶是通道列或解碼帶，需回報重議。
+- 已知不穩：`browser_check` 偶發「替代選單浮層」（reload 後停在資料截取分頁）與 P2b3 逾時，基線亦會，未根治。
