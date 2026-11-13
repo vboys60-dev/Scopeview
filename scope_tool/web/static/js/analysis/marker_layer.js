@@ -2,12 +2,13 @@
 import { createMarkerMenu, markerMenuItems } from './marker_menu.js';
 import { markerModel } from './markers.js';
 import { linear, nearestDist } from './plotcore.js';
+import { rowOf } from './grids.js';
 const inside = (r, x, y) => x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h;
 export function markerPoints(model, state, r) {
   const X = linear(state.view.t0, state.view.t1, r.l, r.l + r.w);
-  return model.rows().filter(p => p.channel.visible && Number.isFinite(p.value)).map(p => ({ ...p,
-    x: X(p.t), y: r.t + (5 - p.value / p.channel.scale - p.channel.position) * r.h / 10,
-  })).filter(p => inside(r, p.x, p.y));
+  return model.rows().filter(p => p.channel.visible && Number.isFinite(p.value)).map(p => { const row = rowOf(r, p.channel.name); return { ...p,
+    x: X(p.t), y: row.t + (5 - p.value / p.channel.scale - p.channel.position) * row.h / 10,
+  }; }).filter(p => inside(rowOf(r, p.channel.name), p.x, p.y));
 }
 export function hitMarker(points, x, y) {
   return points.map(p => ({ p, d: Math.hypot(p.x - x, p.y - y) })).filter(p => p.d <= 6).sort((a, b) => a.d - b.d)[0]?.p ?? null;
@@ -25,7 +26,7 @@ export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {
     const b = canvas.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
     if (!inside(geometry(), x, y) || !store.get().file) return;
     e.preventDefault();
-    const st = store.get(), ch = nearestChannel(st.channels, cache, x, y, st.selected);
+    const st = store.get(), ch = nearestChannel(st.channels, cache, x, y, st.selected, geometry());
     menu.open(e.clientX, e.clientY, markerMenuItems(st, ch, time(x), hitMarker(points(), x, y), model));
   };
   canvas.addEventListener('contextmenu', context);

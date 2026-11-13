@@ -153,8 +153,8 @@ export function mount(el, ctx) {
   const offSource = onCursorSource(store, draw);
   canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null, rect); }; // 量測鈕拖放目標
   canvas.gridRect = () => rect;
-  markers = createMarkerLayer(canvas, ctx, () => rect, cache, draw);
-  gestures = bindGestures(canvas, ctx, () => rect, draw, markers);
+  markers = createMarkerLayer(canvas, ctx, canvas.gridRect, cache, draw);
+  gestures = bindGestures(canvas, ctx, canvas.gridRect, draw, markers);
   draw();
   return { draw, dispose() { offGrids(); offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }

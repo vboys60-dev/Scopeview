@@ -6,7 +6,7 @@ import { hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } fr
 export const DEFAULT_MODE = "pan";
 export const RECT_MIN_PX = 6;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const same = (a, b) => a.t0 === b.t0 && a.t1 === b.t1 && JSON.stringify(a.channels) === JSON.stringify(b.channels);
+const same = (a, b) => a.t0 === b.t0 && a.t1 === b.t1 && JSON.stringify(a.channels) === JSON.stringify(b.channels) && JSON.stringify(a.grids) === JSON.stringify(b.grids);
 export const editableTarget = (el) => !!el && (!!el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A)$/i.test(el.tagName ?? el.tag ?? "") || !!el.closest?.('[contenteditable]:not([contenteditable="false"]), [role="button"]'));
 export function shortcutFor(e, target = e.target) {
   if (editableTarget(target) || e.isComposing || e.altKey) return null;
@@ -73,10 +73,10 @@ export function bindViewport(store) {
   const history = createHistory();
   let group = {};
   const snapshot = (item) => ({
-    ...(item.t0 !== undefined ? store.get().view : {}),
+    ...(item.t0 !== undefined ? store.get().view : {}), ...(item.grids ? { grids: store.get().grids ?? { n: 1, assign: {} } } : {}),
     ...(item.channels ? { channels: store.get().channels.filter((c) => item.channels.some((n) => n.name === c.name)).map((c) => Object.fromEntries(Object.keys(item.channels.find(n => n.name === c.name)).map(k => [k, c[k] ?? (k === "time_offset" ? 0 : c[k])]))) } : {}),
   });
-  const apply = (next) => {
+  const apply = (next) => { if (next.grids) store.set({ grids: next.grids }, "user");
     if (next.t0 !== undefined) store.set({ view: { t0: next.t0, t1: next.t1 } }, "user");
     for (const c of next.channels ?? []) {
       const current = store.get().channels.find((ch) => ch.name === c.name);
@@ -92,11 +92,11 @@ export function bindViewport(store) {
     history.record(before, next, { ...group, time: Date.now() });
     apply(next); notify();
   });
-  store.onCommand("view.zoomRect", ({ view, channels = [] }) => {
+  store.onCommand("view.zoomRect", ({ view, channels = [], grids }) => {
     const valid = view ? limitView(view, viewLimits(store.get().file)) : null;
     if (view && !valid) return;
     const changed = channels.filter((n) => store.get().channels.some((c) => c.name === n.name && ("time_offset" in n ? (c.time_offset ?? 0) !== n.time_offset : c.visible && (c.scale !== n.scale || c.position !== n.position))));
-    const next = { ...(valid && !same(valid, store.get().view) ? valid : {}), ...(changed.length ? { channels: changed } : {}) };
+    const next = { ...(valid && !same(valid, store.get().view) ? valid : {}), ...(changed.length ? { channels: changed } : {}), ...(grids && JSON.stringify(grids) !== JSON.stringify(store.get().grids) ? { grids } : {}) };
     const before = snapshot(next);
     history.end(); history.record(before, next); apply(next); notify();
   });
@@ -115,12 +115,12 @@ export const cursorRadius = (pointerType) => pointerType === "touch" ? 12 : 8;
 export function nearestCursor(cursors, view, r, x, y, pointerType) {
   if (x < r.l || x > r.l + r.w || y < r.t || y > r.t + r.h) return null;
   const X = linear(view.t0, view.t1, r.l, r.l + r.w);
-  const radius = cursorRadius(pointerType);
+  const radius = cursorRadius(pointerType), ry = r.cy ?? r;
   let best = null, distance = radius;
   for (const k of ["x1", "x2", "y1", "y2"]) {
     if (!Number.isFinite(cursors[k])) continue;
     if (k[0] === "x" && (cursors[k] < view.t0 || cursors[k] > view.t1)) continue;
-    const d = Math.abs(k[0] === "x" ? X(cursors[k]) - x : r.t + (5 - cursors[k]) * r.h / 10 - y);
+    const d = Math.abs(k[0] === "x" ? X(cursors[k]) - x : ry.t + (5 - cursors[k]) * ry.h / 10 - y);
     if (d <= radius && (best === null || d < distance)) { best = k; distance = d; }
   }
   return best;
@@ -186,9 +186,9 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     if (!d.moved) return;
     if (d.type === "marker") markers.move(d.marker, x, y);
     else if (d.type === "zoom") draw();
-    else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r));
+    else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r, d.name));
     else if (d.type === "pan") { const dt = -(x - d.x) * (d.view.t1 - d.view.t0) / r.w; store.command("viewport.intent", { t0: d.view.t0 + dt, t1: d.view.t1 + dt }); }
-    else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? X(d.view).inv(x) : 5 - (y - r.t) * 10 / r.h });
+    else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? X(d.view).inv(x) : 5 - (y - (r.cy ?? r).t) * 10 / (r.cy ?? r).h });
   });
   on(canvas, "pointerup", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
@@ -238,10 +238,10 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     hovered: () => hover,
     overlay(g) {
       if (drag?.type !== "zoom" || !drag.moved) return;
-      const r = geometry(), a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
+      const r = geometry(), z = r.at?.(drag.y) ?? r, a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
       g.save(); g.fillStyle = plotColors().ovShade; g.strokeStyle = plotColors().ovWin; g.setLineDash([]);
-      const top = drag.zoomKind === "horizontal" ? r.t : clamp(Math.min(drag.y, drag.currentY), r.t, r.t + r.h);
-      const bottom = drag.zoomKind === "horizontal" ? r.t + r.h : clamp(Math.max(drag.y, drag.currentY), r.t, r.t + r.h);
+      const top = drag.zoomKind === "horizontal" ? r.t : clamp(Math.min(drag.y, drag.currentY), z.t, z.t + z.h);
+      const bottom = drag.zoomKind === "horizontal" ? r.t + r.h : clamp(Math.max(drag.y, drag.currentY), z.t, z.t + z.h);
       const left = drag.zoomKind === "vertical" ? r.l : a, width = drag.zoomKind === "vertical" ? r.w : b - a;
       g.fillRect(left, top, width, bottom - top);
       if (drag.zoomKind === "vertical") { g.beginPath(); g.moveTo(left, top); g.lineTo(left + width, top); g.moveTo(left, bottom); g.lineTo(left + width, bottom); g.stroke(); }

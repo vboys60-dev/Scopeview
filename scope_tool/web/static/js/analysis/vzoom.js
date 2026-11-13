@@ -1,5 +1,6 @@
 // L4：垂直框選純函式；衍生通道沿用 Vertical 的實際單位檔位表。
 import { DIVS, scaleSteps } from "./scales.js";
+import { rowAt } from "./grids.js";
 export const DEFAULT_ZOOM_KIND = "horizontal";
 export const ZOOM_KINDS = ["horizontal", "vertical", "both"];
 export const FIT_DIVS = 2 * DIVS; // 框選範圍使用整個格高，共十格。
@@ -14,6 +15,9 @@ export function verticalZoom(channel, d1, d2, steps) {
 }
 /** 像素先夾在格內；高度門檻與水平框選相同，由呼叫端提供。 */
 export function verticalRect(channels, a, b, r, minPixels) {
+  const row = rowAt(r, a);
+  if (row.names) channels = channels.filter(c => row.names.includes(c.name));
+  r = row;
   const clamp = (y) => Math.max(r.t, Math.min(r.t + r.h, y));
   a = clamp(a); b = clamp(b);
   if (Math.abs(b - a) < minPixels) return [];
