@@ -84,7 +84,7 @@
    7. I2C 讀參考檔（`H5參考波形/i2cdemo.h5` 等）出現「時間軸不一致」而無法解碼（使用者補充：`H5參考波形/i2cdemo.h5` 為實機擷取的 I2C 波形、`i2cdemo.csv` 為示波器的解碼報告，可當期望值對照：12 行，Time 從 -5.02 ms 到 +2.2 ms 以上，含 Start／Restart、Addr 0x50、Ack／Nack、Data 如 `41 47 49 4C 45 4E 54`；待重現：確認是檔案本身 SCL／SDA 時間軸不同，還是解碼器對取樣起點／間隔的檢查過嚴；尚未動程式）。
    8. 解碼表點選事件時，波形區在該事件位置顯示小三角形標示（需先定：畫在哪個通道／格、與既有游標或高亮的關係；與項 3 通道標籤、分格並存時不遮波形）。
    - **已決策（2026-11-13，全採建議）**：命中線拖線、Shift 仍強制框選（中鍵／Space 平移）；別名先只留本次載入；標籤底色逐通道、預設透明；Marker Table 首波只在新增時選通道、保留單一連動 M1；「解碼…」只開設定、仍由使用者按解碼；FFT 手動點上限 10、換來源／換檔清除、Phase 暫不開放。分波：①項 1、2、5、7（7 先重現定位）→②項 4 →③項 6、8 →④項 3（先給 UI 預覽）。
-   - **項 7 後續：I2C 自動辨識 SCL／SDA 角色（2026-11-13，使用者「照建議」D1–D7 全採；規劃：scratchpad `out/i2c_roles_plan.md`）**：實機 `i2cdemo.h5` 為 Memory 1＝SDA、Memory 2＝SCL，預設依通道順序帶入會得 0 個位址；對調後 11 筆與 csv 相符（START 時間 csv 晚約 10.8 µs，原因未確認；另有 2 個無位址 frame 待查）。做法：後端 `i2c_roles.py` `estimate_waveforms`（兩方向各解一次比「有位址封包數」，需 ≥2 倍且 ≥1 筆、SCL 邊沿數須多於 SDA，否則「無法判斷」不改）；契約方法／型別／version／store 鍵不動。分兩波：波 A＝「位址位元」旁「辨識角色」按鈕（對調兩下拉，手動門檻連門檻一起換，不做還原鈕）；波 B＝角色為依順序猜且使用者沒動過下拉時，按「解碼」前自動辨識，對調說明常駐警告列並進報告、另跳提示。只做 I2C。授權待開工時登記：新檔 `i2c_roles.py`、`browser_i2c_roles_checks.py`；解凍 `analysis_decode.py` 兩行、`decode_i2c.js`、`mock_decode.js`、`decode.js`（波 B 限 defaultConfig／change／run）、`decode_table.js` 一行（波 B）。待第一波驗收 commit 後開工。
+   - **項 7 後續：I2C 自動辨識 SCL／SDA 角色（2026-11-13，使用者「照建議」D1–D7 全採；規劃：scratchpad `out/i2c_roles_plan.md`）**：實機 `i2cdemo.h5` 為 Memory 1＝SDA、Memory 2＝SCL，預設依通道順序帶入會得 0 個位址；對調後 11 筆與 csv 相符（START 時間 csv 晚約 10.8 µs，原因未確認；另有 2 個無位址 frame 待查）。做法：後端 `i2c_roles.py` `estimate_waveforms`（兩方向各解一次比「有位址封包數」，需 ≥2 倍且 ≥1 筆、SCL 邊沿數須多於 SDA，否則「無法判斷」不改）；契約方法／型別／version／store 鍵不動。分兩波：波 A＝「位址位元」旁「辨識角色」按鈕（對調兩下拉，手動門檻連門檻一起換，不做還原鈕）；波 B＝角色為依順序猜且使用者沒動過下拉時，按「解碼」前自動辨識，對調說明常駐警告列並進報告、另跳提示。只做 I2C。授權待開工時登記：新檔 `i2c_roles.py`、`browser_i2c_roles_checks.py`；解凍 `analysis_decode.py` 兩行、`decode_i2c.js`、`mock_decode.js`、`decode.js`（波 B 限 defaultConfig／change／run）、`decode_table.js` 一行（波 B）。波 A 已 commit（`05005bc`）；波 B 已由 Codex 實作、尚未驗收（見檔尾）。
 
 ## 工作流程
 
@@ -302,3 +302,15 @@
 - 前端 `decode_i2c.js`「辨識角色」鈕（位址位元旁）：對調時交換 SCL／SDA 下拉與手動門檻；維持／無法判斷只顯示訊息。i2cdemo.h5 驗過：對調後 11 筆位址封包與 csv 相符。
 - Opus 驗收通過、無必修。備註：`analysis_decode.py` 第 61 行寫死 `('uart','i2c')`，I3C 接入時要同步改。
 - 待做：波 B（按「解碼」前自動辨識，依通道順序猜的且未手選才執行，警告列＋toast）；瀏覽器尚未驗「無法判斷」下拉不變。
+
+## 項 3／4／6 決策（2026-11-13，使用者回答；規劃檔在 scratchpad out/item4_plan.md、item6_plan.md、item3_preview.html）
+- 項 4：全採 Opus 建議（下拉第一項「目前通道」；隱藏通道標「（隱藏）」並提示；換檔同名保留否則退回；右鍵不加；圖上標籤不改）。
+- 項 6：全採建議（M1–M10、＋Marker 鈕加在目前 RF 位置、吸附最近頻格、可拖動 ±8px 放開讀值、上限 10 第 11 次 toast、與峰同表不受篩選、換來源／檔清除、清除全部不確認、Peak Line 只改 UI 文字）。
+- 項 3：標籤擺放選**方案 B（貼波形起點）**（非 Opus 推薦的 A）；別名細節全採建議。B 方案需在規劃時重新處理：左緣把手縮減、疊圖時標籤避讓、「+N」收合是否仍適用、與項 8 三角形（下緣）／游標字樣不互蓋。
+- 項 4、6 實作要等 I2C 波 B commit 後再開（共用 selfcheck_node.js／docs/驗證.md／RULES.md）。
+
+## 改進項目現況總表（2026-11-13 更新）
+- 已 commit：項 1、2、5、7（`dd7c016`）；I2C 角色辨識波 A（`05005bc`）。
+- **I2C 角色辨識波 B（已 commit）**：解碼前若角色是依通道順序猜的且使用者未動過，先估計；判斷接反就對調（含手動門檻）、toast、說明附加到警告列與報告（`report.js` 解碼報告附 `summary.warnings`，所有協定皆適用）；只辨識一次。Opus 驗收通過。備註：換協定再換回會還原該協定快取設定，`guessed` 維持上次狀態（只有換檔才重算）；未驗：無法判斷／估計期間換檔的瀏覽器案例、手動門檻 DOM 回填的 Node 覆蓋、估計回 ok:true 分支。授權見 RULES.md「波 B 授權」。
+- 待實作（決策已定，見上節）：項 4（Marker Table 選通道，規劃 `out/item4_plan.md`，約 10 行）→ 項 6（FFT 手動標記，規劃 `out/item6_plan.md`）→ 項 8（解碼事件三角形，**尚未規劃**，需與項 3 方案 B 一併考量）→ 項 3（別名＋標籤方案 B，需先重新規劃；UI 預覽 `out/item3_preview.html`）。開工前各自登記 RULES.md 授權；一次只做一波（共用 `selfcheck_node.js`／`docs/驗證.md`）。
+- 未結小項：browser_check「替代選單浮層」原因未明（clean HEAD 同樣失敗；Fable 調查已停）；Opus 第一波未處理建議（i3c_quality 對稱資料、validate_time 0.009／0.011 dt 與 NaN／inf、FFT 分頁＋lowerTab 情境、無 Shift 拖線瀏覽器測試、Shift hover 重繪、觸控 ±12px 限制）；波 A 備註：`analysis_decode.py:61` 寫死 `('uart','i2c')`，I3C 接入須同步；波 A「無法判斷」下拉不變尚未在瀏覽器驗；i2cdemo START 時間偏移約 10.8 µs 原因未明；`H5參考波形` 新檔與 `HD5擷取歷史` 刪除是否追蹤待使用者決定；真機／Win10／WKWebView 未驗；Qt 延後。

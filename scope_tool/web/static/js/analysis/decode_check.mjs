@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createStore } from './store.js';
 import { REASONS } from './decode_i3c.js';
-import { jumpView, parseAddresses, createDecode, decodeParams, defaultConfig } from './decode.js';
+import { jumpView, parseAddresses, createDecode, decodeParams, defaultConfig, definition } from './decode.js';
 import { mount, frameContent, tableFrames } from './decode_table.js';
 import { bandHeight, visibleFrames, bandLayout, bitCells, ninthLabel, drawBand, mount as mountBand } from './decode_band.js';
 import { clampLayout } from './layout.js';
@@ -57,6 +57,43 @@ async function runnerChecks(factory) {
   store.set({ file:null }); assert.equal(store.get().decodeResult,null);
 }
 await runnerChecks(createDecode);
+// 波 B：只估計依序猜的 I2C；正式參數、門檻、前端警告與報告同步。
+{
+  const def = definition('i2c'), named = ['sDa2','SCL1'].map(name => ({ name }));
+  assert.equal(defaultConfig(named,def).guessed,false); assert.equal(defaultConfig(channels,def).guessed,true);
+  assert.equal('guessed' in defaultConfig(channels),false); assert.equal('guessed' in decodeParams(defaultConfig(channels,def)),false);
+  for (const reason of ['角色建議：對調（有位址封包 11 對 0）','無法判斷 SCL／SDA（平坦線）','角色建議：維持（有位址封包 11 對 0）','例外']) {
+    const s = makeStore(), sent = [], toast = [], m = createDecode({ store:s,ui:{ toast:w => toast.push(w) },bridge:{
+      async job(n,p) { sent.push(p); if (!p.options.estimate) return summary; if (reason === '例外') throw Error(reason); return { ok:false,gen:1,reason }; },async call() { return data; } } });
+    m.change({ protocol:'i2c' }); m.change({ ch:{ ...m.config.ch },thr:{ scl:[1,2],sda:[3,4] } }); assert.equal(m.config.guessed,true);
+    await m.run(); const swapped = reason.includes('對調'), r = s.get().decodeResult;
+    assert.deepEqual(sent.map(p => !!p.options.estimate),[true,false]);
+    assert.deepEqual(sent[1].channels,swapped ? { scl:'CH2',sda:'CH1' } : { scl:'CH1',sda:'CH2' });
+    assert.deepEqual(sent[1].thresholds,swapped ? { scl:[3,4],sda:[1,2] } : { scl:[1,2],sda:[3,4] });
+    assert.equal(m.config.guessed,false); assert.equal(r.summary.warnings.length,swapped ? 1 : 0); assert.deepEqual(summary.warnings,[]);
+    if (swapped) {
+      assert.match(r.summary.warnings[0],/已依波形自動對調 SCL／SDA（原 SCL=CH1）；可在下拉選單改回/); assert.deepEqual(toast,r.summary.warnings);
+      const { decodeSection } = await import('./report.js');
+      assert.ok(decodeSection(s.get(),{ querySelector:() => null },String,false)[0].caption.includes(r.summary.warnings[0]));
+    }
+    await m.run(); assert.equal(sent.length,3); assert.equal(sent[2].options.estimate,undefined);
+  }
+  const s = makeStore(), sent = [], m = createDecode({ store:s,bridge:{ async job(n,p) { sent.push(p); return summary; },async call() { return data; } } });
+  await m.run(); assert.equal(sent.length,1); assert.equal(sent[0].options.estimate,undefined);
+  m.change({ protocol:'i2c' }); m.change({ ch:{ scl:'CH2',sda:'CH1' } }); assert.equal(m.config.guessed,false);
+  await m.run(); assert.equal(sent.length,2); assert.equal(sent[1].options.estimate,undefined);
+  s.set({ file:{ gen:2 } }); m.change({ protocol:'i2c' }); assert.equal(m.config.guessed,true);
+  for (const invalidate of ['設定','世代','來源','回應']) {
+    const st = makeStore(), jobs = [], slot = () => ({ channels:['CH1'] }); st.set({ slots:[slot()] });
+    const model = createDecode({ store:st,bridge:{ job(n,p) { const d = deferred(); jobs.push({ ...d,p }); return d.promise; } } }); model.change({ protocol:'i2c' });
+    const pending = model.run();
+    if (invalidate === '設定') model.change({ ch:{ scl:'CH2',sda:'CH1' } });
+    if (invalidate === '世代') st.set({ file:{ gen:2 } });
+    if (invalidate === '來源') st.set({ slots:[slot()] });
+    jobs[0].resolve({ ok:false,gen:invalidate === '回應' ? 9 : 1,reason:'角色建議：對調（有位址封包 11 對 0）' }); await pending;
+    assert.equal(jobs.length,1); assert.equal(st.get().decodeResult,null); assert.equal(model.busy,false);
+  }
+}
 // 在途時換掉來源槽（新槽物件）不得寫入；換無關槽照常。
 async function sourceChecks(factory) {
   const slot = () => ({ slot:'Mem1',channels:['Mem1.CH1'] });
@@ -97,6 +134,12 @@ const find = (e,fn) => fn(e) ? e : e.children.map(c => find(c,fn)).find(Boolean)
 const store = makeStore(), host = new Element('div'), labels = [], toasts = [], exports = [];
 const ctx = { store, bridge:{ async job() { return summary; }, async call(n,p) { if (n === 'export_decode') { exports.push(p); return { path:'/tmp/test.csv' }; } return data; } },
   ui:{ pickPath:async () => '/out', toast:(...a) => toasts.push(a) }, resultTabs:{ label:(...a) => labels.push(a) } };
+{
+  const st = makeStore(), h = new Element('div'), p = mount(h,{ store:st,bridge:{ async job(n,p) { return p.options.estimate ? { ok:false,gen:1,reason:'角色建議：對調（有位址封包 11 對 0）' } : summary; },async call() { return { ...data,addresses:[] }; } } });
+  p.model.change({ protocol:'i2c' }); await p.model.run();
+  assert.equal(find(h,e => e.dataset.role === 'scl').value,'CH2'); assert.equal(find(h,e => e.dataset.role === 'sda').value,'CH1');
+  assert.ok(find(h,e => e.className === 'decode__warn' && String(e.textContent).includes('已依波形自動對調')),p.model.message);
+}
 const panel = mount(host,ctx); await panel.model.run();
 assert.deepEqual(labels.at(-1),['decode','解碼 (1)']);
 assert.equal(find(host,e => e.attrs['aria-label'] === 'SCL lo').value,'674 mV');

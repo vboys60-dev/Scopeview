@@ -165,3 +165,10 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - 前端：`static/js/analysis/decode_i2c.js`（`estimatedRoles` 與「辨識角色」action，交換 SCL/SDA 下拉與手動門檻）、`static/js/mock_decode.js`（i2c 接受 estimate）、`decode.js` 至多一行（estimate 必填檢查放寬）、`decode_proto_check.mjs`。
 - 契約僅說明文字：`static/api_contract.json`、`docs/web-api契約.md` 各加一句；`docs/驗證.md`、`docs/離線分析功能規格.md` I2C 節。
 - 不動 `decode_table.js`、store、契約形狀／version、`analysis/*`、`ui/*`。非 vendor 檔 ≤300 行。瀏覽器驗收由主控執行。
+
+## I2C 角色自動辨識 波 B 授權（2026-11-13，使用者「波B開工」；僅 Web，Qt 延後）
+- 前端：`static/js/analysis/decode.js`（限 `defaultConfig` 標記 `guessed`、`change` 角色變動清旗標、`run()` 前置估計並附加警告；≤300 行）；`decode_table.js` 一行（`render` 讓角色下拉跟上 `p.ch`）；`decode_i2c.js`（若需提供 `estimateRoles` 套用函式）、`mock_decode.js`（如需）；`decode_check.mjs`、`decode_proto_check.mjs`。
+- 新檔 `web/browser_i2c_roles_checks.py`（L8，≤300 行，不接入 browser_check.py）。
+- 後端、契約、store 鍵、`analysis/*`、`ui/*` 不動；`analysis_decode.py` 不動。
+- 瀏覽器驗收由主控執行。
+- 波 B 驗收追加（lead，依 Opus M1）：`report.js` 解碼報告 caption 附加 `summary.warnings`（原僅 I2C 對調說明經 `decode_i2c.js` summary 帶入，造成警告列重複，已撤回）；toast 改在對調當下跳。

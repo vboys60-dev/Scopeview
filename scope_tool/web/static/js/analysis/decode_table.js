@@ -117,6 +117,7 @@ export function mount(el, ctx) {
       events = table(['#','時間','類型',...def.columns.map(c => c.head),'內容','狀態']); wrap.replaceChildren(events.el);
       addr = table(def.addresses?.head ?? []); details.replaceChildren(caption,addr.el); details.hidden = !def.addresses;
     }
+    for (const [role,select] of Object.entries(sources)) if (select.value !== p.ch[role]) { select.value = p.ch[role]; if (!auto) thresholds[role]?.forEach((e,i) => { e.value = p.thr[role]?.[i] ?? ''; }); }
     band.checked = p.band; asciiBox.checked = model.ascii;
     autoBtn.setAttribute('aria-pressed',String(auto)); manualBtn.setAttribute('aria-pressed',String(!auto));
     all.setAttribute('aria-pressed',String(!onlyProblems)); problems.setAttribute('aria-pressed',String(onlyProblems));

@@ -1,5 +1,6 @@
 // 解碼狀態與手動工作排程；每協定設定只保留於記憶體。
 import * as protocols from './decode_protocols.js';
+import { estimatedRoles } from './decode_i2c.js';
 export { REASONS, reasonText, parseAddresses, eventKind, frameContent } from './decode_i3c.js';
 export const definition = name => protocols[name ?? 'i3c'];
 // 來源通道所屬槽位物件（主檔通道為 null，由 gen 把關）；依賴 slotPatch 保留未變動槽物件的參照。
@@ -16,16 +17,17 @@ export function withAscii(f, text, on) {
 }
 export const defaultConfig = (channels, def = protocols.i3c) => {
   const raw = channels.filter(c => !c.derived);
-  const used = new Set();
+  const used = new Set(); let guessed = false;
   const ch = Object.fromEntries(def.roles.map((r,i) => {
     const match = new RegExp(`^${r.key}\\d*$`,'i');
     const source = raw.find(c => !used.has(c.name) && match.test(c.name))
       ?? (r.optional ? undefined : raw.slice(i).find(c => !used.has(c.name)));
+    if (!source || !match.test(source.name)) guessed = true;
     if (source) used.add(source.name);
     return [r.key,source?.name ?? ''];
   }));
   return { protocol:def.name,ch,thr:Object.fromEntries(def.roles.filter(r => !def.diff?.[r.key]).map(r => [r.key,null])),
-    opt:Object.fromEntries(def.options.map(o => [o.key,o.parse ? o.parse(String(o.value)) : o.value])),band:true };
+    ...(def.name === 'i2c' ? { guessed } : {}),opt:Object.fromEntries(def.options.map(o => [o.key,o.parse ? o.parse(String(o.value)) : o.value])),band:true };
 };
 export function decodeParams(p, def = definition(p.protocol)) {
   const channels = Object.fromEntries(Object.entries(p.ch).filter(([,v]) => v));
@@ -57,6 +59,7 @@ export function createDecode(ctx) {
     if (Object.keys(patch).length === 1 && 'band' in patch) { config = { ...config,...patch }; notify(); return; }
     token++; busy = false; message = ''; configs[config.protocol] = config;
     config = patch.protocol ? (configs[patch.protocol] ?? defaultConfig(store.get().channels,definition(patch.protocol))) : { ...config,...patch };
+    if (config.protocol === 'i2c' && patch.ch && Object.keys(patch.ch).some(k => patch.ch[k] !== configs[config.protocol]?.ch[k])) config = { ...config,guessed:false };
     configs[config.protocol] = config;
     const old = store.get().decodeResult;
     if (old) store.set({ decodeResult:{ ...old, stale:true } });
@@ -72,10 +75,26 @@ export function createDecode(ctx) {
     store.set({ decodeResult:null, decodeSel:null });
     try {
       if (!store.get().file) throw Error('請先開啟波形檔');
-      const params = decodeParams(config), names = Object.values(params.channels), src = sources(store.get(),names);
+      let params = decodeParams(config), warning = '';
+      const names = Object.values(params.channels), src = sources(store.get(),names);
       const moved = () => { if (sameSources(src,sources(store.get(),names))) return false; message = '解碼來源已變更，請重新解碼'; return true; };
       busy = true; message = ''; notify();
-      const summary = await bridge.job('decode',params);
+      if (config.protocol === 'i2c' && config.guessed) {
+        let estimated;
+        try { estimated = await bridge.job('decode',{ ...params,options:{ ...params.options,estimate:true } }); }
+        catch { /* 估計失敗仍以原設定正式解碼。 */ }
+        if (!current(t,g) || moved()) return;
+        if (estimated && estimated.gen !== g) { message = '解碼結果已過期，請重新解碼'; return; }
+        if (estimated && estimatedRoles(estimated) === '對調') {
+          warning = `已依波形自動對調 SCL／SDA（原 SCL=${config.ch.scl}）；可在下拉選單改回`;
+          ui.toast?.(warning,'info');
+          config = { ...config,ch:{ scl:config.ch.sda,sda:config.ch.scl },thr:{ scl:config.thr.sda,sda:config.thr.scl } };
+        }
+        config = { ...config,guessed:false }; configs[config.protocol] = config;
+        params = decodeParams(config); notify();
+      }
+      const result = await bridge.job('decode',params);
+      const summary = warning ? { ...result,warnings:[...(result.warnings ?? []),warning] } : result;
       if (!current(t,g) || moved()) return;
       if (summary.gen !== g) { message = '解碼結果已過期，請重新解碼'; return; }
       if (!summary.ok) { message = summary.reason; return; }

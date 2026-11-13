@@ -92,7 +92,7 @@ async function panelCheck(def, mountPanel = mount, draw = drawBand, report = dec
     input.value = before; input.oninput(); assert.equal(input.validityMessage,'');
   }
   await panel.model.run();
-  assert.equal(jobs.length,1);
+  assert.equal(jobs.length,def.name === 'i2c' ? 2 : 1);
   return { store,host,panel,jobs };
 }
 for (const def of Object.values(protocols)) {

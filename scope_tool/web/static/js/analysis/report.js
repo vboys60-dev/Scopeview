@@ -105,7 +105,7 @@ export function decodeSection(st, root, F, invert) {
   const channels = Object.entries(r.summary.channels ?? {}).map(([k,v]) => k.toUpperCase()+' '+v).join('／');
   const thresholds = Object.entries(r.summary.thresholds).map(([k,v]) => k.toUpperCase()+' '+(v?.map(n => F(n,'V')).join('～') ?? '—')).join('；');
   const caption = `${channels}；門檻 ${thresholds}；篩選：${only ? '只錯誤／警告' : '全部'}；表格最多 2000 列${def.addresses ? '，位址表最多 256 列' : ''}。`
-    +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '')+(def.reportSummary ? def.summary(r.summary,r.options) : '');
+    +(total > 2000 || r.addresses.length > 256 ? '表格已截斷；CSV 含全部。' : '')+(r.summary.truncated ? '解碼達上限，結果已截斷。' : '')+(r.summary.warnings?.length ? `警告：${r.summary.warnings.join('；')}。` : '')+(def.reportSummary ? def.summary(r.summary,r.options) : '');
   return [{ title:`解碼（${def.label}）`,img:band && !band.hidden ? snapshot(band.querySelector('canvas'),invert) : null,caption,tables:[events,...(addresses ? [addresses] : [])] }];
 }
 
