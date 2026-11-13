@@ -134,7 +134,7 @@ assert.ok(voltageLeft(s => s.length * 9, axis, wide) >= wide[0].x + wide[0].w + 
 assert.ok(left > 84); const rect = layoutRect(800, 308, left);
 const tick = texts.findLast((t) => t.text === axis.ticks[0].label);
 assert.equal(tick.color, c.color); near(tick.x, left - 4); near(tick.y, divY(rect, 5));
-assert.ok(texts.some((t) => t.text === axis.title && t.color === c.color));
+assert.ok(texts.some((t) => t.text === `▲${axis.title}` && t.color === c.color));
 const zero = texts.findLast((t) => t.text === "0 V"), handle = channelHandles(store.get().channels, rect)[1];
 near(zero.y, handle.y + handle.h / 2);
 assert.equal(hitHandle(store.get().channels, rect, handle.x + 6, zero.y).name, c.name);
@@ -182,7 +182,7 @@ store.set({ channels: [first, c], selected: "CH2" });
 store.set({ selected: "CH1" });
 assert.equal(texts.findLast((t) => t.text === voltageAxis(first).ticks[0].label).color, first.color);
 store.set({ selected: null });
-assert.ok(texts.some((t) => t.text === "格數"));
+assert.ok(host.children[0].labelLayout()[0].labels.length > 0);
 plot.dispose();
 console.log("P2b2 self-check OK：中心換算／畫面中心換檔／單位與位數／dx／可見範圍適配／選取隔離／實際繪製與把手");
 if (process.argv.includes("--mutations")) {

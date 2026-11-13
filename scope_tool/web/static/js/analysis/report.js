@@ -137,6 +137,7 @@ export async function collectReport({ store, fmt }, root, { title, dut, note, in
   const band = q('.analysis__decodeband');
   if (band && !band.hidden) await frames(3);
   // ponytail: 只等主圖；FFT／標註列包絡在途時仍可能截到舊圖，需要時比照 dataset.pending。
+  q('.analysis__main canvas')?.dispatchEvent?.(new Event('pointerleave'));
   await mainReady(q('.analysis__main canvas'), pendingMs);
   const decoded = decodeSection({ ...st,decodeResult:decodeRef },root,F,invert);
   const fftCanvas = [...document.querySelectorAll('.analysis__fft canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];

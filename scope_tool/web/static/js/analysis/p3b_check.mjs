@@ -126,7 +126,7 @@ const ch={name:'CH1',visible:true,scale:1,position:0};
 for (const b of [...channelHandles([ch],r),...cursorEdges({x1:-1},v,r)]) { const box=hitBox(b); assert.ok(box.w>=24&&box.h>=24); }
 const overlap=[ch,{...ch,name:'CH2'}];
 assert.equal(hitHandle(overlap,r,10,63)?.name,'CH2'); assert.equal(hitHandle(overlap,r,10,62)?.name,'CH1');
-assert.equal(hitHandle(overlap,{...r,h:20},22,10)?.name,'CH2', '矮圖分欄的擴張命中框重疊時仍取最近中心');
+assert.equal(hitHandle(overlap,{...r,h:20},22,10)?.name,'CH1'); assert.equal(hitHandle(overlap,{...r,h:20},34,10)?.name,'CH2', '矮圖分欄（把手 24px 寬）各取自己的命中框');
 assert.equal(hitHandle([ch],r,20,50)?.name,'CH1'); assert.equal(hitHandle([ch],r,8,61)?.name,'CH1');
 // 透過實際 pointerdown 確認 pointerType 傳到純函式。
 store.set({file:{gen:1},channels:[],view:v,cursors:{x1:null,x2:null,y1:null,y2:null}});

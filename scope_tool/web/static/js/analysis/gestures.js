@@ -177,7 +177,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     pointer = { x, y, shiftKey: !!e.shiftKey, pointerType: e.pointerType };
     if (!drag) {
       const marker = markers?.hover(x, y); updateHover();
-      canvas.title = hitHandle(s.channels, r, x, y)?.name ?? "";
+      canvas.title = hitHandle(s.channels, r, x, y)?.title ?? "";
       canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "move" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
     const d = drag; if (e.pointerId !== d.id) return;
     d.current = x; d.currentY = y; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;

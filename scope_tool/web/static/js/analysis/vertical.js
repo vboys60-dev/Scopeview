@@ -1,4 +1,5 @@
 // L5：各通道的 Vertical 欄位；沿用通道列唯一換檔／微調入口。
+import { LABEL_BGS } from "./chanlabels.js";
 import { alignSlot } from "./slots.js";
 import { tickLabel } from "./plotcore.js";
 export const centerPotential = (c) => -c.position * c.scale + 0;
@@ -84,8 +85,13 @@ export function mount(el, { store, bridge, ui, fmt, scales }, changes, name) {
   fields[2].wrap.append(fit);
   const align = button("對齊主檔", async () => { align.disabled = true; try { await alignSlot({ store, bridge, ui }, name); } finally { render(); } });
   if (/^Mem[1-4]\./.test(name)) fields[2].wrap.append(align);
+  const bgRow = h("label", undefined, "vertical__field"), bg = h("select", undefined, "input vertical__labelbg");
+  bg.dataset.vertical = "labelBg"; bg.setAttribute("aria-label", "標籤底");
+  for (const [value,text] of Object.entries(LABEL_BGS)) { const option = h("option",text); option.value=value; bg.append(option); }
+  bg.onchange = () => { const c = current(); if (c) store.updateChannel(c.name,{ labelBg:bg.value },"user"); };
+  bgRow.append(h("span","標籤底"),bg); el.append(bgRow);
   function render(force = false) {
-    const c = current();
+    const c = current(); bg.value = c?.labelBg ?? "none"; bg.disabled = !c;
     for (const f of fields) {
       for (const e of f.wrap.children) if (["INPUT", "BUTTON"].includes(e.tagName)) e.disabled = !c;
       if (force || document.activeElement !== f.input) {

@@ -52,3 +52,4 @@
 .measure__dual label, .measure__dual input, .measure__dual select { min-width: 0; width: 100%; box-sizing: border-box; }
 .chip__grid { flex: 0 0 auto; width: 52px; min-width: 0; height: 22px; padding: 1px 2px; font: inherit; }
 .chip__grid[hidden] { display: none; }
+.vertical .vertical__labelbg { width: 100%; flex: 1 1 auto; }

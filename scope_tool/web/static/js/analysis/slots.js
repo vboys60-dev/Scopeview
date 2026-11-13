@@ -20,7 +20,7 @@ export function slotPatch(st, slot, summary, colors, scales) {
       channels: summary.channels.map(c => c.name), infos: summary.channels });
     for (const info of summary.channels) {
       const record = channelRecord(info, channels.length, colors, scales), prev = st.channels.find(c => c.name === info.name);
-      if (prev) for (const key of ['color', 'visible', 'scale', 'position', 'time_offset']) record[key] = prev[key];
+      if (prev) for (const key of ['color', 'visible', 'scale', 'position', 'time_offset', 'labelBg']) record[key] = prev[key];
       channels.push(record);
     }
   }

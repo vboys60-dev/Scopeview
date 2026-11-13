@@ -4,10 +4,11 @@ import { fmt } from "../fmt.js";
 // 主圖：多通道波形（/wave 包絡）、游標線。只發意圖事件，不直接改別人的狀態。
 // 意圖：viewport.intent／channel.scale_intent／cursor.intent（payload 皆絕對值，見契約 intents）。
 import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLatest, debounce, createCanvas, drawGrid, plotColors } from "./plotcore.js";
-import { channelHandles, drawHandles } from "./handles.js";
+import { channelHandles, drawHandles, cursorEdges } from "./handles.js";
 import { voltageAxis, voltageLeft } from "./voltage.js";
 import { bindGestures } from "./gestures.js";
 import { withGrids, gridsOf, rowOf, bindGrids } from "./grids.js";
+import { plotLayout, drawLayout, hitLabel } from "./chanlabels.js";
 export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
 const NO_FETCH = new Set(["grids", "decodeResult", "decodeSel"]);
 export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
@@ -52,6 +53,7 @@ export function decodeMarks(s, rect, X) {
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
   const offGrids = bindGrids(store);
+  let labelLayout = [], labelHover = null;
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
   let rect = layoutRect(1, 1), warned = 0, gestures = null, markers = null, draggingLayout = false, missed = false, lastWidth = 0;
@@ -98,8 +100,6 @@ export function mount(el, ctx) {
         g.fillText(`0 ${selected.unit}`, row.l - 4, y);
         g.strokeStyle = selected.color; g.beginPath(); g.moveTo(row.l - 3, y); g.lineTo(row.l + 3, y); g.stroke();
       }
-      g.fillStyle = axis.color ?? col.text; g.textAlign = "left"; g.textBaseline = "top";
-      g.fillText(axis.title, row.l + 6, row.t + 2);
     }
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     for (const c of s.channels) {
@@ -110,7 +110,7 @@ export function mount(el, ctx) {
       e.px = envPixels(e.env, (t) => X(t + c.time_offset), valueY(row, c.scale, c.position));
       drawPixels(g, e.px, c.color); g.restore();
     }
-    const cu = s.cursors;
+    const cu = s.cursors, xTexts = [], yReadouts = [], marks = decodeMarks(s, rect, X);
     g.lineWidth = 1; g.font = "12px sans-serif"; g.textBaseline = "top";
     for (const [k, color] of [["x1", col.c1], ["x2", col.c2], ["y1", col.c1], ["y2", col.c2]]) {
       const v = cu[k];
@@ -118,12 +118,15 @@ export function mount(el, ctx) {
       g.lineWidth = gestures?.hovered() === k ? 3 : 1;
       g.strokeStyle = g.fillStyle = color; g.setLineDash(k[0] === "y" ? [5, 4] : []);
       g.beginPath();
-      if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); g.fillText("t" + k[1], x + 3, rect.t + 2); }
-      else { g.save(); g.beginPath(); g.rect(rect.cy.l, rect.cy.t, rect.cy.w, rect.cy.h); g.clip(); g.beginPath(); const y = Math.round(divY(rect.cy, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText(`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, rect.l + 3, y + 2); g.restore(); }
+      if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); xTexts.push({ text:"t"+k[1], x:x+3, y:rect.t+2, w:g.measureText("t"+k[1]).width, h:14, color }); }
+      else { g.save(); g.beginPath(); g.rect(rect.cy.l, rect.cy.t, rect.cy.w, rect.cy.h); g.clip(); g.beginPath(); const y = Math.round(divY(rect.cy, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); yReadouts.push({ text:`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, y, color }); g.restore(); }
     }
+    labelLayout = plotLayout(s, rect, X, text => g.measureText(text).width, { marks, edges:cursorEdges(cu,s.view,rect), xTexts, yReadouts });
+    drawLayout(g, labelLayout, labelHover, "labels");
     g.save(); g.fillStyle = col.amber; g.strokeStyle = "#000"; g.lineWidth = 0.8; g.setLineDash([]);
-    for (const m of decodeMarks(s, rect, X)) { const y = m.row.t + m.row.h; g.globalAlpha = m.stale ? 0.55 : 1; g.beginPath(); g.moveTo(m.x, y - 10); g.lineTo(m.x + 5, y); g.lineTo(m.x - 5, y); g.closePath(); g.fill(); g.stroke(); }
+    for (const m of marks) { const y = m.row.t + m.row.h; g.globalAlpha = m.stale ? 0.55 : 1; g.beginPath(); g.moveTo(m.x, y - 10); g.lineTo(m.x + 5, y); g.lineTo(m.x - 5, y); g.closePath(); g.fill(); g.stroke(); }
     g.restore();
+    drawLayout(g, labelLayout, labelHover, "texts");
     g.fillStyle = g.strokeStyle = col.c1; g.setLineDash([]); g.textBaseline = "bottom";
     for (const k of markerPixels(s.markerResult, X, rect)) {
       g.beginPath(); g.arc(k.px, k.py, 4, 0, 2 * Math.PI); g.stroke();
@@ -168,9 +171,17 @@ export function mount(el, ctx) {
   const offSource = onCursorSource(store, draw);
   canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null, rect); }; // 量測鈕拖放目標
   canvas.gridRect = () => rect;
+  canvas.labelLayout = () => labelLayout;
   canvas.decodeMarks = () => decodeMarks(store.get(), rect, Xmap(store.get().view));
   markers = createMarkerLayer(canvas, ctx, canvas.gridRect, cache, draw);
   gestures = bindGestures(canvas, ctx, canvas.gridRect, draw, markers);
+  const clearLabelHover = () => { const changed = labelHover !== null; labelHover = null; canvas.title = ""; if (changed) draw(); };
+  canvas.onpointermove = e => {
+    const b = canvas.getBoundingClientRect(), hit = hitLabel(labelLayout,e.clientX-b.left,e.clientY-b.top), next = hit?.name ?? hit?.title ?? null;
+    if (hit) canvas.title = hit.title;
+    if (next !== labelHover) { labelHover = next; draw(); }
+  };
+  canvas.onpointerleave = clearLabelHover;
   draw();
-  return { draw, dispose() { offGrids(); offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
+  return { draw, dispose() { canvas.onpointermove = canvas.onpointerleave = null; offGrids(); offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }

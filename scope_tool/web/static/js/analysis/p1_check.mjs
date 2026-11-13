@@ -122,7 +122,7 @@ const many = Array.from({ length: 8 }, (_, i) => ({ name: `CH${i + 1}`, position
 const separate = channelHandles(many, rect); assert.ok(separate.every((h) => h.w >= 12 && h.x === separate[0].x));
 const overlap = channelHandles(many.map((c) => ({ ...c, position: 0 })), rect);
 assert.equal(new Set(overlap.map((h) => h.y)).size, 8);
-assert.ok(hs.every((h) => h.x + h.w <= rect.l - 24), "把手須與刻度數字分離"); assert.ok(texts.includes("1") && texts.includes("2"));
+assert.ok(hs.every((h) => h.x + h.w <= rect.l - 24), "把手須與刻度數字分離"); assert.ok(texts.includes("●1") && texts.includes("▲2"));
 // 把手與 Y 游標重疊仍優先；兩個相同零位的通道各可操作。
 store.set({ cursors: { x1: null, x2: null, y1: 0, y2: null } });
 for (const initial of hs) {
@@ -247,9 +247,9 @@ for (const r of [rect, { ...rect, h: 60 }]) for (const position of [0, 8, -8]) {
   }
 }
 store.set({ channels: ten, cursors: { x1: null, x2: null, y1: null, y2: null } });
-assert.deepEqual(channelHandles(ten, rect).map(b => b.label), ["1", "2", "M1·1", "M1·2", "M2·1", "M2·2", "M3·1", "M3·2", "M4·1", "M4·2"]);
+assert.deepEqual(channelHandles(ten, rect).map(b => b.label), ["●1", "▲2", "■3", "◆4", "●5", "▲6", "■7", "◆8", "●9", "▲10"]);
 assert.equal(new Set(channelHandles(ten, rect).map(b => b.x)).size, 1);
-assert.ok(textPositions.filter(p => /^M[1-4]·[12]$/.test(p.text)).every(p => p.font === "12.5px sans-serif" && p.maxWidth === undefined));
+assert.ok(textPositions.filter(p => /^[●▲■◆]\d+$/.test(p.text)).every(p => p.font === "12.5px sans-serif" && p.maxWidth === undefined));
 // 實際 hover／拖曳每一個避讓後的把手，名稱仍為完整通道名，位移沒有跳位。
 for (const c of ten) {
   const b = channelHandles(store.get().channels, rect).find(b => b.name === c.name);

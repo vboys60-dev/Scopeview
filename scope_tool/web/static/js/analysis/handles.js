@@ -6,13 +6,13 @@ const yPixel = (r, d) => r.t + (5 - d) * r.h / 10;
 export const hitBox = (b) => ({ x: b.x - Math.max(0, 24 - b.w) / 2, y: b.y - Math.max(0, 24 - b.h) / 2, w: Math.max(24, b.w), h: Math.max(24, b.h) });
 const contains = (b, x, y) => { const a = hitBox(b); return x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h; };
 
-export const handleLabel = (name) => name.replace(/^Mem([1-4])\.(?:CHAN|CH)(\d+)$/, "M$1·$2").replace(/^CHAN|^CH/, "");
+export const handleLabel = (index) => "●▲■◆"[index % 4] + (index + 1);
 /** 優先在左側垂直避讓；高度不足才另開欄，命中與繪圖共用配置。 */
 export function channelHandles(channels, r) {
   const placed = [], visible = channels.filter((c) => c.visible);
-  const width = Math.max(16, ...visible.map((c) => (handleLabel(c.name).length + (Math.abs(c.position) > 5 ? 1 : 0)) * 8 + 8));
+  const width = Math.max(16, ...visible.map((c) => (handleLabel(channels.indexOf(c)).length + (Math.abs(c.position) > 5 ? 1 : 0)) * 8 + 8));
   return visible.map((c) => {
-    const row = rowOf(r, c.name), lo = row.t - r.t, hi = Math.max(lo, row.t + row.h - 20);
+    const index = channels.indexOf(c), row = rowOf(r, c.name), lo = row.t - r.t, hi = Math.max(lo, row.t + row.h - 20);
     const anchor = clamp(yPixel(row, c.position) - 10, lo, hi);
     const candidates = [anchor];
     for (let d = 24; d <= r.t + r.h + 24; d += 24) {
@@ -21,8 +21,8 @@ export function channelHandles(channels, r) {
     let lane = 0, y;
     while ((y = candidates.find((v) => !placed.some((b) => b.lane === lane && Math.abs(b.y - v) < 24))) === undefined) lane++;
     placed.push({ lane, y });
-    return { name: c.name, color: c.color, position: c.position,
-      label: handleLabel(c.name) + (c.position > 5 ? "▲" : c.position < -5 ? "▼" : ""), anchorY: anchor + 10,
+    return { name: c.name, title: c.name, color: c.color, position: c.position,
+      label: handleLabel(index) + (c.position > 5 ? "▲" : c.position < -5 ? "▼" : ""), anchorY: anchor + 10,
       x: 2 + lane * (width + 6), y, w: width, h: 20 };
   });
 }

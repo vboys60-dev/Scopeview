@@ -55,8 +55,8 @@ const visible = channels.map(c => ({ ...c, visible: true }));
 const b = channelHandles(visible, r).find(b => b.name === 'CH2');
 assert.ok(b.anchorY >= r.rows[1].t && b.anchorY <= r.rows[1].t + r.rows[1].h);
 // 固定舊版普通 rect 的欄位與避讓結果，並比對單格包裝。
-const old = [{ name: 'CH1', color: '#fff', position: 0, label: '1', anchorY: 258, x: 2, y: 248, w: 16, h: 20 },
-  { name: 'CH2', color: '#fff', position: 0, label: '2', anchorY: 258, x: 2, y: 272, w: 16, h: 20 }];
+const old = [{ name: 'CH1', title: 'CH1', color: '#fff', position: 0, label: '●1', anchorY: 258, x: 2, y: 248, w: 24, h: 20 },
+  { name: 'CH2', title: 'CH2', color: '#fff', position: 0, label: '▲2', anchorY: 258, x: 2, y: 272, w: 24, h: 20 }];
 assert.deepEqual(channelHandles(visible.slice(0, 2), base), old);
 assert.deepEqual(channelHandles(visible, withGrids(base, one, visible)), channelHandles(visible, base));
 assert.equal(handlePosition(2, 25, base), 1.5);
