@@ -12,23 +12,36 @@ export function mount(el, ctx) {
   const bar = h('div'), title = h('span', 'Marker '), link = h('button', '新增／移動連動 M1');
   link.type = 'button'; link.className = 'btn btn--small'; link.title = '把 M1 放在目前畫面中心；右鍵可在指標處新增';
   link.onclick = () => { const v = store.get().view; store.command('marker.link', { t: (v.t0 + v.t1) / 2 }); };
-  // 獨立點：加在目前通道、畫面中心；已有同位置的點就往右錯開 1/20 畫面，避免疊在一起。
-  const add = h('button', '＋ 獨立點（目前通道）');
-  add.type = 'button'; add.className = 'btn btn--small'; add.title = '在目前通道、畫面中心新增獨立 Marker；也可在主圖按右鍵新增';
+  const pick = h('select'); pick.setAttribute('aria-label', '獨立點通道'); pick.style.cssText = 'min-width:0;max-width:12em';
+  let channelsSignature = '';
+  function fillChannels() {
+    const st = store.get(), next = JSON.stringify(st.channels.map(c => [c.name, c.visible]));
+    if (next !== channelsSignature) {
+      const value = pick.value || ''; channelsSignature = next;
+      const options = ['', ...st.channels.map(c => c.name)].map(name => { const o = h('option', name); o.value = name; return o; });
+      st.channels.forEach((c, i) => { options[i + 1].textContent = c.name + (c.visible ? '' : '（隱藏）'); });
+      pick.replaceChildren(...options); pick.value = st.channels.some(c => c.name === value) ? value : '';
+    }
+    pick.children[0].textContent = `目前通道（${st.selected ?? '無'}）`;
+  }
+  // 獨立點：加在所選通道、畫面中心；已有同位置的點就往右錯開 1/20 畫面。
+  const add = h('button', '＋ 獨立點');
+  add.type = 'button'; add.className = 'btn btn--small'; add.title = '在下拉所選通道、畫面中心新增獨立 Marker；也可在主圖按右鍵新增';
   add.onclick = () => {
-    const st = store.get(), v = st.view, span = v.t1 - v.t0, ch = st.selected;
+    const st = store.get(), v = st.view, span = v.t1 - v.t0, ch = pick.value || st.selected, count = st.markerTable.length;
     let t = (v.t0 + v.t1) / 2; const used = model.rows().filter(r => !r.link && r.ch === ch).map(r => r.t);
     while (used.some(u => Math.abs(u - t) < span / 100) && t < v.t1) t += span / 20;
     store.command('marker.add', { ch, t });
+    if (store.get().markerTable.length > count && st.channels.some(c => c.name === ch && !c.visible)) ctx.ui?.toast?.(`已新增於隱藏通道 ${ch}`, 'info');
   };
-  bar.append(title, link, add);
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px'; bar.append(title, link, pick, add);
   const table = h('table'); table.className = 'table table--num'; table.setAttribute('aria-label', 'Marker Table'); table.style.tableLayout = 'fixed';
   el.append(bar, table); let editing = false, signature = '';
   const highlight = () => {
     for (const tr of table.children) if (tr.dataset.markerKey) tr.className = tr.dataset.markerKey === model.selected || tr.dataset.markerKey === model.hovered ? 'is-selected' : '';
   };
   function render() {
-    link.disabled = add.disabled = !store.get().file;
+    fillChannels(); link.disabled = pick.disabled = add.disabled = !store.get().file;
     const data = model.rows(), next = JSON.stringify(data.map(row => [row.key, ...markerCells(row), store.get().markerTable.map(p => p.id)]));
     if (editing || next === signature) { highlight(); return; }
     signature = next;
@@ -57,5 +70,5 @@ export function mount(el, ctx) {
     });
     table.replaceChildren(head, ...rows); highlight();
   }
-  model.on(render); render();
+  store.on(['selected'], fillChannels); model.on(render); render();
 }

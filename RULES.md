@@ -172,3 +172,5 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - 後端、契約、store 鍵、`analysis/*`、`ui/*` 不動；`analysis_decode.py` 不動。
 - 瀏覽器驗收由主控執行。
 - 波 B 驗收追加（lead，依 Opus M1）：`report.js` 解碼報告 caption 附加 `summary.warnings`（原僅 I2C 對調說明經 `decode_i2c.js` summary 帶入，造成警告列重複，已撤回）；toast 改在對調當下跳。
+
+改進第二波 項 4（2026-11-13，使用者「開工」，Q1–Q5 全採建議，僅 Web，Qt 延後、`ui/*` 不動）：Marker Table 工具列加「獨立點通道」下拉，新增獨立點時可選通道，不改 `store.selected`；連動 M1 行為不變；不提供改既有 Marker 通道。可改：L5 `static/js/analysis/marker_table.js`；L8 `static/js/analysis/marker_check.mjs`、`web/browser_marker_checks.py`（原地擴充，≤300 行；超出改新檔 `web/browser_marker_add_checks.py`，不接入 `browser_check.py`）、`docs/驗證.md`。不動 `markers.js`／`marker_menu.js`／`marker_layer.js`／`cursors.js`／`gestures.js`／`browser_check.py`／`selfcheck_node.js`／CSS／契約／store 鍵與 command／後端／`analysis/*`；**不碰 `decode*.js`、`mock_decode.js`、`decode_check.mjs`（已 commit，不需動）**。非 vendor 檔 ≤300 行。實作者只跑 Node 自檢與 `python -m py_compile`，瀏覽器驗收由主控執行。

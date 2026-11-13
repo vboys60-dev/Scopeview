@@ -240,13 +240,18 @@ def marker_add_button(c: Cdp, prep: str) -> None:
         S.set({markerTable:[]},'program');
         document.querySelector('[data-result-tab=marker]').click();
         const b=[...document.querySelectorAll('.analysis__markers button')].find(x=>x.textContent.includes('獨立點'));
+        const pick=document.querySelector('.analysis__markers select[aria-label="獨立點通道"]');pick.value='';
         for(let i=0;i<3;i++){b.click();await wait(150);}
         await wait(600);
         const t=S.state.markerTable,rows=document.querySelectorAll('.analysis__markers tbody tr, .analysis__markers tr[data-marker-key]');
         const r={n:t.filter(p=>!p.link).length,ids:t.map(p=>p.id),rows:rows.length};
+        const selected=S.state.selected,ch=S.state.channels.find(c=>c.name!==selected)?.name;
+        pick.value=ch;pick.dispatchEvent(new Event('change',{bubbles:true}));b.click();await wait(700);
+        const p=S.state.markerTable.at(-1),row=document.querySelector(`.analysis__markers tr[data-marker-key="${p.id}:${ch}"]`);
+        r.channel=p.ch===ch&&S.state.selected===selected&&row?.children[1].textContent===ch;pick.value='';
         S.set({markerTable:[]},'program');return r;
     })()""")
-    assert res["n"] == 3 and res["rows"] == 3, res
+    assert res["n"] == 3 and res["rows"] == 3 and res["channel"], res
     # 900 寬量測表格與基準切換；由 browser_check 的 CDP 執行。
     c.send('Emulation.setDeviceMetricsOverride', width=900, height=600, deviceScaleFactor=1, mobile=False)
     try:
