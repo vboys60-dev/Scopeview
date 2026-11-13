@@ -126,3 +126,10 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 
 ## 選單修正（Popover 替代做法）
 - 授權新增：`scope_tool/web/static/js/analysis/popover_fallback.js`、`popover_fallback_check.mjs`；修改 `marker_menu.js`（popMenu 呼叫替代）、`css/vertical.css`（`.popmenu[data-open]`）、`selfcheck_node.js`（登記）。
+
+
+## 分割格線授權
+使用者授權 Web 分割格線；新檔 `static/js/analysis/grids.js`、`grid_check.mjs`、`web/browser_grid_checks.py`；新 store 鍵 `grids`，localStorage 鍵 `scope.analysis.grids.v1`。
+本波修改 `mainplot.js`、`handles.js`、`marker_layer.js`（nearestChannel 分格篩選）、`cursors.js`（markerResult 加 ch）、`selfcheck_node.js`、`browser_check.py`（原地改、維持 300 行）。
+後續波追加 `gestures.js`（原地）、`vzoom.js`、`toolbar.js`、`chanbar.js`、`vertical.css`、`toolbar_check.mjs`、`menu_check.mjs`、`browser_menu_checks.py`、`docs/驗證.md`。
+語意變更：分開堆疊改為每格各自堆疊（n=1 不變）。不動 L0、`analysis/*`、`ui/*`、後端、`marker_menu.js`；本波不動 gestures。

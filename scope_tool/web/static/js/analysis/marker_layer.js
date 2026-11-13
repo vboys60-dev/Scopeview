@@ -12,8 +12,8 @@ export function markerPoints(model, state, r) {
 export function hitMarker(points, x, y) {
   return points.map(p => ({ p, d: Math.hypot(p.x - x, p.y - y) })).filter(p => p.d <= 6).sort((a, b) => a.d - b.d)[0]?.p ?? null;
 }
-export function nearestChannel(channels, cache, x, y, selected) {
-  const hits = channels.filter(c => c.visible && cache.get(c.name)?.px).map(c => ({ name: c.name, d: nearestDist(cache.get(c.name).px, x, y, 8) })).filter(c => Number.isFinite(c.d)).sort((a, b) => a.d - b.d);
+export function nearestChannel(channels, cache, x, y, selected, r) {
+  const hits = channels.filter(c => c.visible && (!r?.at || r.at(y).names.includes(c.name)) && cache.get(c.name)?.px).map(c => ({ name: c.name, d: nearestDist(cache.get(c.name).px, x, y, 8) })).filter(c => Number.isFinite(c.d)).sort((a, b) => a.d - b.d);
   return hits[0]?.name ?? selected;
 }
 export function createMarkerLayer(canvas, ctx, geometry, cache, draw) {

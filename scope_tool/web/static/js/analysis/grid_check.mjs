@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import { GRID_COUNTS, GRID_GAP, GRIDS_KEY, gridsOf, gridIndex, gridRows, withGrids, rowOf, rowAt, setCount, assignGrid, loadGrids, saveGrids, bindGrids } from './grids.js';
+import { channelHandles, handlePosition, cursorEdges } from './handles.js';
+import { markerPixels } from './mainplot.js';
+import { nearestChannel } from './marker_layer.js';
+import { createStore } from './store.js';
+const base = { l: 84, t: 8, w: 800, h: 500 };
+const channels = Array.from({ length: 8 }, (_, i) => ({ name: `CH${i + 1}`, visible: i !== 1, color: '#fff', position: 0, scale: 1 }));
+const one = { n: 1, assign: {} }, two = { n: 2, assign: {} };
+for (const n of GRID_COUNTS) {
+  const g = { n, assign: {} }, rows = gridRows(base, g, channels);
+  channels.forEach((c, i) => assert.equal(gridIndex(g, channels, c.name), i % n));
+  assert.equal(rows.length, n);
+  assert.ok(rows.every(r => r.h === rows[0].h));
+  assert.equal(rows.reduce((sum, r) => sum + r.h, 0) + GRID_GAP * (n - 1), base.h);
+}
+const first = gridRows(base, one, channels)[0];
+assert.deepEqual({ l: first.l, t: first.t, w: first.w, h: first.h }, base);
+assert.deepEqual(first.names, channels.map(c => c.name));
+assert.deepEqual(gridsOf({ grids: { n: 3, assign: {} } }), one);
+for (const grids of [null, {}, { n: 2, assign: null }, { n: 2, assign: [] }]) assert.deepEqual(gridsOf({ grids }), one);
+assert.equal(gridIndex({ n: 2, assign: { CH1: 1 } }, channels, 'CH1'), 1);
+for (const k of [2, -1, 0.5, '1', NaN]) assert.equal(gridIndex({ n: 2, assign: { CH2: k } }, channels, 'CH2'), 1);
+assert.equal(gridIndex(two, channels.map(c => ({ ...c, visible: true })), 'CH3'), 0);
+const r = withGrids(base, two, channels, 'CH2');
+assert.equal(r.of('CH2'), r.rows[1]); assert.equal(r.cy, r.rows[1]);
+assert.equal(withGrids(base, two, channels).cy.index, 0);
+assert.equal(r.at(-999), r.rows[0]); assert.equal(r.at(9999), r.rows[1]);
+assert.equal(r.at(r.rows[0].t + r.rows[0].h + 2), r.rows[0]);
+assert.equal(r.at(r.rows[1].t), r.rows[1]);
+assert.equal(rowOf(base, 'CH1'), base); assert.equal(rowAt(base, 20), base);
+assert.equal(rowOf(r, 'CH2'), r.rows[1]); assert.equal(rowAt(r, 999), r.rows[1]);
+const snapshot = JSON.stringify(two), counted = setCount(two, 8), assigned = assignGrid(two, 'CH1', 1);
+assert.deepEqual(counted, { n: 8, assign: {} }); assert.deepEqual(assigned, { n: 2, assign: { CH1: 1 } });
+assert.equal(JSON.stringify(two), snapshot); assert.notEqual(counted.assign, two.assign);
+assert.deepEqual(assignGrid(assigned, 'CH1', -1), two);
+let raw = null;
+const storage = { getItem: k => { assert.equal(k, GRIDS_KEY); return raw; }, setItem: (k, v) => { assert.equal(k, GRIDS_KEY); raw = v; } };
+for (const bad of ['{', '{"n":3,"assign":{}}', 'null']) { raw = bad; assert.deepEqual(loadGrids(storage), one); }
+raw = '{"n":2,"assign":{"CH1":9,"CH2":1,"CH3":-1,"CH4":0.5}}';
+assert.deepEqual(loadGrids(storage), { n: 2, assign: { CH2: 1 } });
+saveGrids(assigned, storage); assert.deepEqual(loadGrids(storage), assigned);
+const denied = { getItem() { throw Error(); }, setItem() { throw Error(); } };
+assert.deepEqual(loadGrids(denied), one); saveGrids(two, denied);
+const store = createStore(), origins = [];
+store.on(['grids'], (_s, _keys, origin) => origins.push(origin));
+const off = bindGrids(store, storage); assert.deepEqual(store.get().grids, assigned); assert.deepEqual(origins, ['program']);
+store.set({ grids: two }, 'user'); assert.deepEqual(loadGrids(storage), two);
+off(); store.set({ grids: one }); assert.deepEqual(loadGrids(storage), two);
+const visible = channels.map(c => ({ ...c, visible: true }));
+const b = channelHandles(visible, r).find(b => b.name === 'CH2');
+assert.ok(b.anchorY >= r.rows[1].t && b.anchorY <= r.rows[1].t + r.rows[1].h);
+// 固定舊版普通 rect 的欄位與避讓結果，並比對單格包裝。
+const old = [{ name: 'CH1', color: '#fff', position: 0, label: '1', anchorY: 258, x: 2, y: 248, w: 16, h: 20 },
+  { name: 'CH2', color: '#fff', position: 0, label: '2', anchorY: 258, x: 2, y: 272, w: 16, h: 20 }];
+assert.deepEqual(channelHandles(visible.slice(0, 2), base), old);
+assert.deepEqual(channelHandles(visible, withGrids(base, one, visible)), channelHandles(visible, base));
+assert.equal(handlePosition(2, 25, base), 1.5);
+assert.equal(handlePosition(2, 25, r, 'CH2'), 2 - 250 / r.rows[1].h);
+const pixels = markerPixels({ points: [{ x: 1, y: 0, ch: 'CH1' }, { x: 2, y: 0, ch: 'CH2' }, { x: 3, y: 0 }] }, x => x, r);
+assert.equal(pixels[0].py, r.rows[0].t + r.rows[0].h / 2);
+assert.equal(pixels[1].py, r.rows[1].t + r.rows[1].h / 2); assert.equal(pixels[2].py, pixels[1].py);
+assert.equal(cursorEdges({ y1: 6 }, {}, r)[0].y, r.cy.t + 54);
+const cache = new Map(visible.map(c => [c.name, { px: { x: [10], top: [r.rows[1].t], bot: [r.rows[1].t], mode: 0 } }]));
+assert.equal(nearestChannel(visible, cache, 10, r.rows[1].t, null, r), 'CH2');
+console.log('grid self-check OK');

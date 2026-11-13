@@ -1,4 +1,5 @@
 // L4：左緣通道零位把手與畫面外游標提示；只發既有意圖，不寫通道／游標。
+import { rowOf } from "./grids.js";
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const yPixel = (r, d) => r.t + (5 - d) * r.h / 10;
 // 視覺尺寸不變，命中矩形每軸至少 24px；重疊時選中心最近者。
@@ -11,10 +12,11 @@ export function channelHandles(channels, r) {
   const placed = [], visible = channels.filter((c) => c.visible);
   const width = Math.max(16, ...visible.map((c) => (handleLabel(c.name).length + (Math.abs(c.position) > 5 ? 1 : 0)) * 8 + 8));
   return visible.map((c) => {
-    const anchor = clamp(yPixel(r, c.position) - 10, 0, Math.max(0, r.t + r.h - 20));
+    const row = rowOf(r, c.name), lo = row.t - r.t, hi = Math.max(lo, row.t + row.h - 20);
+    const anchor = clamp(yPixel(row, c.position) - 10, lo, hi);
     const candidates = [anchor];
     for (let d = 24; d <= r.t + r.h + 24; d += 24) {
-      candidates.push(clamp(anchor + d, 0, Math.max(0, r.t + r.h - 20)), clamp(anchor - d, 0, Math.max(0, r.t + r.h - 20)));
+      candidates.push(clamp(anchor + d, lo, hi), clamp(anchor - d, lo, hi));
     }
     let lane = 0, y;
     while ((y = candidates.find((v) => !placed.some((b) => b.lane === lane && Math.abs(b.y - v) < 24))) === undefined) lane++;
@@ -26,7 +28,7 @@ export function channelHandles(channels, r) {
 }
 export const hitHandle = (channels, r, x, y) => channelHandles(channels, r).filter((b) => contains(b, x, y)).sort((a, b) => Math.hypot(x-a.x-a.w/2,y-a.y-a.h/2)-Math.hypot(x-b.x-b.w/2,y-b.y-b.h/2))[0] ?? null;
 /** 用相對位移保留抓取點；越界貼邊的把手拖動時也不會突然跳位。 */
-export const handlePosition = (position, dy, r) => position - dy * 10 / r.h;
+export const handlePosition = (position, dy, r, name) => position - dy * 10 / rowOf(r, name).h;
 export function moveHandle(store, name, position) {
   store.command("channel.scale_intent", { name, position });
 }
@@ -41,9 +43,9 @@ export function outsideCursors(cursors, view) {
 }
 export function cursorEdges(cursors, view, r) {
   return outsideCursors(cursors, view).map((c) => {
-    const x = c.which[0] === "x", second = c.which[1] === "2";
+    const x = c.which[0] === "x", second = c.which[1] === "2", cy = r.cy ?? r;
     return { ...c, x: x ? (c.value < view.t0 ? r.l : r.l + r.w - 52) : r.l + r.w - 52,
-      y: x ? r.t + (second ? 26 : 2) : (c.value > 5 ? r.t + 54 + (second ? 26 : 0) : r.t + r.h - (second ? 50 : 24)), w: 52, h: 24 };
+      y: x ? r.t + (second ? 26 : 2) : (c.value > 5 ? cy.t + 54 + (second ? 26 : 0) : cy.t + cy.h - (second ? 50 : 24)), w: 52, h: 24 };
   });
 }
 export const hitCursorEdge = (cursors, view, r, x, y) => cursorEdges(cursors, view, r).find((b) => contains(b, x, y)) ?? null;

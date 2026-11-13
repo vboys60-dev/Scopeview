@@ -273,9 +273,9 @@ def main() -> None:
         step("P2b 多尺寸／splitter／DPR／共用收折", layout_check)
         from scope_tool.web.browser_fft_checks import fft_page
         step("FFT 分頁三尺寸／控制列／峰表", lambda: fft_page(c, prep))
-        from scope_tool.web import browser_menu_checks as menu_c, browser_drag_checks as drag_c
-        step("選單：⋮／檔案▾／分析▾", lambda: menu_c.menu_checks(c, prep))
-        step("量測拖到通道列", lambda: drag_c.drag_checks(c, prep))
+        from scope_tool.web import browser_menu_checks as menu_c, browser_drag_checks as drag_c, browser_grid_checks as grid_c
+        step("選單：⋮／檔案▾／分析▾", lambda: menu_c.menu_checks(c, prep)); step("量測拖到通道列", lambda: drag_c.drag_checks(c, prep))
+        step("分割格線", lambda: grid_c.grid_checks(c, prep))
         from scope_tool.web.browser_float_checks import float_panel
         step("浮動面板／拖曳／縮放／停靠／窄版／字體", lambda: float_panel(c, prep))
         step("glass_smoke 對比／鍵盤／幾何／降級", lambda: glass_smoke(c))

@@ -124,7 +124,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
       }
       if (mode === "Track Measurements") {
         const entry = st.measurements.find(e => e.track), marks = entry?.result?.marks ?? [];
-        const points = marks.flatMap(([x, y, name], i) => { const c = st.channels.find(c => c.name === name); return c && num(x) && num(y) ? [{ x, y: divisionAt(y, c), label: `M${i + 1}` }] : []; });
+        const points = marks.flatMap(([x, y, name], i) => { const c = st.channels.find(c => c.name === name); return c && num(x) && num(y) ? [{ x, y: divisionAt(y, c), ch: name, label: `M${i + 1}` }] : []; });
         const reason = entry ? "此量測沒有單一位置" : "請在結果表點選要追蹤的量測";
         const [a, b] = marks, ca = st.channels.find(c => c.name === a?.[2]), cb = st.channels.find(c => c.name === b?.[2]);
         const dx = a && b ? b[0] - a[0] : null, dy = a && b && ca && cb && ca.unit === cb.unit ? b[1] - a[1] : null;
@@ -141,7 +141,7 @@ export function createController({ store, bridge }, { delay = 40, onReadout = ()
         setSnap({ x1, x2 });
       }
       const pts = r.points.map(([x, y, label]) => [...toDisplay(x, y, ch), label]);
-      store.set({ markerResult: { mode, available: r.available, reason: r.reason, points: pts.map(([x, y, label]) => ({ x, y, label })) } }, "program");
+      store.set({ markerResult: { mode, available: r.available, reason: r.reason, points: pts.map(([x, y, label]) => ({ x, y, label, ch: ch.name })) } }, "program");
       emit({ kind: "marker", mode, t1: num(p.x1) ? p.x1 + dx1 : null, t2: num(p.x2) ? p.x2 + dx1 : null, v1: p.y1, v2: p.y2, unit: ch.unit, source: ch.name,
         dx: r.delta_x, inv: r.inverse_delta_x, dy: r.delta_y, available: r.available, reason: r.reason, read_only: r.read_only, y: {} });
     } catch (e) { if (alive()) { emit(null); if (e.code !== "STALE") onError(e); } }

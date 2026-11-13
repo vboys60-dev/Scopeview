@@ -7,6 +7,7 @@ import { DIVS, linear, divTicks, timeTickLabels, envPixels, drawPixels, makeLate
 import { channelHandles, drawHandles } from "./handles.js";
 import { voltageAxis, voltageLeft } from "./voltage.js";
 import { bindGestures } from "./gestures.js";
+import { withGrids, gridsOf, rowOf, bindGrids } from "./grids.js";
 export const MARGIN = { l: 84, t: 8, r: 10, b: 22 };
 export const layoutRect = (w, h, left = MARGIN.l) => ({ l: left, t: MARGIN.t, w: Math.max(1, w - left - MARGIN.r), h: Math.max(1, h - MARGIN.t - MARGIN.b) });
 /** 顯示格數 → 像素 y（置頂為 +5 格）。 */
@@ -23,7 +24,7 @@ export function markerPixels(mr, X, rect) {
   const out = [];
   for (const p of mr?.points ?? []) {
     if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    out.push({ px: X(p.x), py: divY(rect, p.y), label: p.label ?? "" });
+    out.push({ px: X(p.x), py: divY(p.ch ? rowOf(rect, p.ch) : (rect.cy ?? rect), p.y), label: p.label ?? "" });
   }
   return out;
 }
@@ -38,6 +39,7 @@ export const waveKey = (name, v, dx, px, gen) => [name, v.t0 - dx, v.t1 - dx, px
 
 export function mount(el, ctx) {
   const { store, bridge, ui } = ctx;
+  const offGrids = bindGrids(store);
   const cache = new Map(); // name → {env, key, px}
   const latest = new Map();
   let rect = layoutRect(1, 1), warned = 0, gestures = null, markers = null, draggingLayout = false, missed = false, lastWidth = 0;
@@ -59,32 +61,42 @@ export function mount(el, ctx) {
     if (!w || !h) return;
     const s = store.get();
     // 通道很多且同零位時擴充左緣，始終保留刻度數字的空間。
-    const selected = s.channels.find((c) => c.name === s.selected), axis = voltageAxis(selected);
+    const grids = gridsOf(s), source = cursorSource(store).channel?.name;
+    rect = withGrids(layoutRect(w, h), grids, s.channels, source);
+    const axisChannel = row => s.channels.find(c => c.name === s.selected && row.names.includes(c.name))
+      ?? (grids.n === 1 ? undefined : s.channels.find(c => c.visible && row.names.includes(c.name)));
     g.font = "12px sans-serif";
-    const left = voltageLeft((text) => g.measureText(text).width, axis, channelHandles(s.channels, rect), MARGIN.l);
-    rect = layoutRect(w, h, left);
+    const handles = channelHandles(s.channels, rect);
+    const left = Math.max(...rect.rows.map(row => voltageLeft(text => g.measureText(text).width, voltageAxis(axisChannel(row)), handles, MARGIN.l)));
+    rect = withGrids(layoutRect(w, h, left), grids, s.channels, source);
     store.set({ plotRect: { l: rect.l, w: rect.w } }, "program");
     const X = Xmap(s.view), col = plotColors();
     g.fillStyle = col.bg; g.fillRect(0, 0, w, h);
     const labels = timeTickLabels(s.view.t0, s.view.t1);
     g.font = "12px sans-serif";
     const dense = labels.some((label) => g.measureText(label).width + 8 > rect.w / 10);
-    drawGrid(g, rect, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: !dense || i % 2 === 1 ? labels[i] : "" })),
-      axis.ticks.map((t) => ({ p: divY(rect, t.division), label: selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * rect.h / 10 < 12 ? "" : t.label })), { ...col, yText: axis.color, center: true });
-    if (selected && Math.abs(selected.position) <= DIVS && !Number.isInteger(selected.position)) {
-      g.fillStyle = selected.color; g.textAlign = "right"; g.textBaseline = "middle";
-      const y = divY(rect, selected.position);
-      g.fillText(`0 ${selected.unit}`, rect.l - 4, y);
-      g.strokeStyle = selected.color; g.beginPath(); g.moveTo(rect.l - 3, y); g.lineTo(rect.l + 3, y); g.stroke();
+    for (const row of rect.rows) {
+      const selected = axisChannel(row), axis = voltageAxis(selected);
+      drawGrid(g, row, divTicks(s.view.t0, s.view.t1).map((v, i) => ({ p: X(v), label: row.index === grids.n - 1 && (!dense || i % 2 === 1) ? labels[i] : "" })),
+        axis.ticks.map(t => ({ p: divY(row, t.division), label: (grids.n === 1 || row.h >= 110 || (row.h >= 44 ? Math.abs(t.division) === 5 || t.division === 0 : t.division === 0))
+          && !(selected && !Number.isInteger(selected.position) && Math.abs(t.division - selected.position) * row.h / 10 < 12) ? t.label : "" })), { ...col, yText: axis.color, center: true });
+      if (selected && Math.abs(selected.position) <= DIVS && !Number.isInteger(selected.position)) {
+        g.fillStyle = selected.color; g.textAlign = "right"; g.textBaseline = "middle";
+        const y = divY(row, selected.position);
+        g.fillText(`0 ${selected.unit}`, row.l - 4, y);
+        g.strokeStyle = selected.color; g.beginPath(); g.moveTo(row.l - 3, y); g.lineTo(row.l + 3, y); g.stroke();
+      }
+      g.fillStyle = axis.color ?? col.text; g.textAlign = "left"; g.textBaseline = "top";
+      g.fillText(axis.title, row.l + 6, row.t + 2);
     }
-    g.fillStyle = axis.color ?? col.text; g.textAlign = "left"; g.textBaseline = "top";
-    g.fillText(axis.title, rect.l + 6, rect.t + 2);
     g.save(); g.beginPath(); g.rect(rect.l, rect.t, rect.w, rect.h); g.clip();
     for (const c of s.channels) {
       const e = cache.get(c.name);
       if (!c.visible || !e) continue;
-      e.px = envPixels(e.env, (t) => X(t + c.time_offset), valueY(rect, c.scale, c.position));
-      drawPixels(g, e.px, c.color);
+      const row = rowOf(rect, c.name);
+      g.save(); g.beginPath(); g.rect(row.l, row.t, row.w, row.h); g.clip();
+      e.px = envPixels(e.env, (t) => X(t + c.time_offset), valueY(row, c.scale, c.position));
+      drawPixels(g, e.px, c.color); g.restore();
     }
     const cu = s.cursors;
     g.lineWidth = 1; g.font = "12px sans-serif"; g.textBaseline = "top";
@@ -95,7 +107,7 @@ export function mount(el, ctx) {
       g.strokeStyle = g.fillStyle = color; g.setLineDash(k[0] === "y" ? [5, 4] : []);
       g.beginPath();
       if (k[0] === "x") { const x = Math.round(X(v)) + 0.5; g.moveTo(x, rect.t); g.lineTo(x, rect.t + rect.h); g.stroke(); g.fillText("t" + k[1], x + 3, rect.t + 2); }
-      else { const y = Math.round(divY(rect, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText(`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, rect.l + 3, y + 2); }
+      else { g.save(); g.beginPath(); g.rect(rect.cy.l, rect.cy.t, rect.cy.w, rect.cy.h); g.clip(); g.beginPath(); const y = Math.round(divY(rect.cy, v)) + 0.5; g.moveTo(rect.l, y); g.lineTo(rect.l + rect.w, y); g.stroke(); g.fillText(`v${k[1]} ${fmt(cursorSource(store)[k], cursorSource(store).channel?.unit ?? "")}`, rect.l + 3, y + 2); g.restore(); }
     }
     g.fillStyle = g.strokeStyle = col.c1; g.setLineDash([]); g.textBaseline = "bottom";
     for (const k of markerPixels(s.markerResult, X, rect)) {
@@ -130,18 +142,19 @@ export function mount(el, ctx) {
   }
   const fetchSoon = debounce(fetchNow, 150);
 
-  store.on(["view", "channels", "cursors", "selected", "file", "dataRev", "markerResult"], (_s, keys) => {
+  store.on(["view", "channels", "cursors", "selected", "file", "dataRev", "markerResult", "grids"], (_s, keys) => {
     if (keys.includes("file") || keys.includes("dataRev")) { cache.clear(); latest.forEach((l) => l.cancel()); latest.clear(); }
     const names = new Set(store.get().channels.map((c) => c.name));
     for (const k of [...cache.keys()]) if (!names.has(k)) cache.delete(k);
     draw();
-    if (keys.includes("file") || keys.includes("dataRev")) fetchNow(); else fetchSoon();
+    if (keys.includes("file") || keys.includes("dataRev")) fetchNow(); else if (keys.some(k => k !== "grids")) fetchSoon();
   });
 
   const offSource = onCursorSource(store, draw);
-  canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null); }; // 量測鈕拖放目標
+  canvas.hitChannel = (cx, cy) => { const b = canvas.getBoundingClientRect(); return nearestChannel(store.get().channels, cache, cx - b.left, cy - b.top, null, rect); }; // 量測鈕拖放目標
+  canvas.gridRect = () => rect;
   markers = createMarkerLayer(canvas, ctx, () => rect, cache, draw);
   gestures = bindGestures(canvas, ctx, () => rect, draw, markers);
   draw();
-  return { draw, dispose() { offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
+  return { draw, dispose() { offGrids(); offSource(); gestures.dispose(); markers.dispose(); cv.dispose(); fetchSoon.cancel(); } };
 }
