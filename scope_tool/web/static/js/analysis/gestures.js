@@ -2,7 +2,7 @@
 import { DEFAULT_ZOOM_KIND, ZOOM_KINDS, verticalRect } from "./vzoom.js";
 import { fullRange } from "./overview.js";
 import { linear, wheelFactor, plotColors } from "./plotcore.js";
-import { hitHandle, handlePosition, moveHandle, hitCursorEdge, revealCursor } from "./handles.js";
+import { hitHandle, moveHandle, dragHandle, commitHandle, drawDrop, hitCursorEdge, revealCursor } from "./handles.js";
 export const DEFAULT_MODE = "pan";
 export const RECT_MIN_PX = 6;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -129,8 +129,7 @@ export function nearestCursor(cursors, view, r, x, y, pointerType) {
 export function bindGestures(canvas, { store, ui }, geometry, draw, markers = null) {
   let drag = null, mode = DEFAULT_MODE, zoomKind = DEFAULT_ZOOM_KIND, space = false, edgeDownAt = -Infinity, hover = null, pointer = null;
   const listeners = [];
-  canvas.tabIndex = 0;
-  const on = (el, key, fn, opts) => { if (!el?.addEventListener) return; el.addEventListener(key, fn, opts); listeners.push(() => el.removeEventListener?.(key, fn, opts)); };
+  canvas.tabIndex = 0; const on = (el, key, fn, opts) => { if (!el?.addEventListener) return; el.addEventListener(key, fn, opts); listeners.push(() => el.removeEventListener?.(key, fn, opts)); };
   const local = (e) => { const b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
   const X = (view) => { const r = geometry(); return linear(view.t0, view.t1, r.l, r.l + r.w); };
   const inside = (x, y) => { const r = geometry(); return x >= r.l && x <= r.l + r.w && y >= r.t && y <= r.t + r.h; };
@@ -169,7 +168,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
     if (type === "edge") { edgeDownAt = e.timeStamp; revealCursor(store, edge, ui); return; }
     if (!type) return;
     e.preventDefault?.();
-    drag = { type, marker: type === "marker" ? markers.begin(marker) : null, x, y, current: x, currentY: y, zoomKind, view: { ...s.view }, name: handle?.name, position: handle?.position, which, id: e.pointerId, moved: false };
+    drag = { type, marker: type === "marker" ? markers.begin(marker) : null, x, y, current: x, currentY: y, zoomKind, view: { ...s.view }, name: handle?.name, position: handle?.position, grab: handle ? y - handle.y - handle.h / 2 : 0, which, id: e.pointerId, moved: false };
     if (type === "pan") store.command("view.historyGroup", { key: "pan", continuous: true });
     canvas.setPointerCapture(e.pointerId);
   });
@@ -180,19 +179,19 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
       const marker = markers?.hover(x, y); updateHover();
       canvas.title = hitHandle(s.channels, r, x, y)?.name ?? "";
       canvas.style.cursor = hitHandle(s.channels, r, x, y) ? "ns-resize" : hitCursorEdge(s.cursors, s.view, r, x, y) ? "pointer" : marker ? "move" : hover ? (hover[0] === "x" ? "ew-resize" : "ns-resize") : inside(x, y) ? (space || mode === "pan" && !e.shiftKey ? "grab" : "crosshair") : "default"; return; }
-    const d = drag;
-    if (e.pointerId !== d.id) return;
+    const d = drag; if (e.pointerId !== d.id) return;
     d.current = x; d.currentY = y; d.moved ||= Math.hypot(x - d.x, y - d.y) >= 4;
     if (!d.moved) return;
     if (d.type === "marker") markers.move(d.marker, x, y);
     else if (d.type === "zoom") draw();
-    else if (d.type === "handle") moveHandle(store, d.name, handlePosition(d.position, y - d.y, r, d.name));
+    else if (d.type === "handle") { d.drop = dragHandle(store, d, y, r); draw(); }
     else if (d.type === "pan") { const dt = -(x - d.x) * (d.view.t1 - d.view.t0) / r.w; store.command("viewport.intent", { t0: d.view.t0 + dt, t1: d.view.t1 + dt }); }
     else store.command("cursor.intent", { which: d.which, value: d.which[0] === "x" ? X(d.view).inv(x) : 5 - (y - (r.cy ?? r).t) * 10 / (r.cy ?? r).h });
   });
   on(canvas, "pointerup", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
     if (drag.type === "marker") { const d = drag; drag = null; markers.end(d.marker, local(e)[0], d.moved); if (canvas.hasPointerCapture?.(d.id)) canvas.releasePointerCapture(d.id); updateHover(); return; }
+    if (drag.type === "handle") commitHandle(store, drag);
     if (drag.type === "zoom") {
       const d = drag, [x, y] = local(e), r = geometry();
       const view = d.zoomKind !== "vertical" ? zoomToRect(d.view, d.x, x, r, viewLimits(store.get().file)) : null;
@@ -237,6 +236,7 @@ export function bindGestures(canvas, { store, ui }, geometry, draw, markers = nu
   return {
     hovered: () => hover,
     overlay(g) {
+      if (drag?.type === "handle") return drawDrop(g, drag.drop, plotColors().ovShade);
       if (drag?.type !== "zoom" || !drag.moved) return;
       const r = geometry(), z = r.at?.(drag.y) ?? r, a = clamp(Math.min(drag.x, drag.current), r.l, r.l + r.w), b = clamp(Math.max(drag.x, drag.current), r.l, r.l + r.w);
       g.save(); g.fillStyle = plotColors().ovShade; g.strokeStyle = plotColors().ovWin; g.setLineDash([]);

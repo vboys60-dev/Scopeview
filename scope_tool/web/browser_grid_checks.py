@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from scope_tool.web.browser_check import Cdp
@@ -22,13 +22,17 @@ def grid_checks(c: Cdp, prep: str, out: Path) -> None:
     def state(expr: str):
         return c.js('(async()=>{' + prep + 'return ' + expr + '})()')
 
-    def drag(start: dict, end: dict) -> None:
+    def drag(start: dict, end: dict, hold: Callable[[], None] | None = None, esc: bool = False) -> None:
         c.mouse('mousePressed', start['x'], start['y'])
         for i in range(1, 9):
             c.mouse('mouseMoved', start['x'] + (end['x'] - start['x']) * i / 8,
                     start['y'] + (end['y'] - start['y']) * i / 8, buttons=1)
+        if hold: hold()
+        if esc:
+            for typ in ('keyDown', 'keyUp'): c.send('Input.dispatchKeyEvent', type=typ, key='Escape', code='Escape', windowsVirtualKeyCode=27)
         c.mouse('mouseReleased', end['x'], end['y'])
         c.pump(0.4)
+        assert not c.errors, c.errors
 
     def plot_point(index: int, fraction: float) -> dict:
         return c.js("""(()=>{const cv=[...document.querySelectorAll('canvas')].find(e=>e.hitChannel);
@@ -122,6 +126,36 @@ def grid_checks(c: Cdp, prep: str, out: Path) -> None:
         drag(start, {**start, 'y': start['y'] + 20})
         after = state("S.get().channels.find(ch=>ch.name==='CHAN2').position")
         assert abs(after - before + 20 * 10 / g['rows'][1]['h']) <= 0.05, (before, after, g)
+
+
+        # 真拖跨格：先還原中途位置、只預覽；格位與位置共用一筆歷史。
+        command("S.updateChannel('CHAN2',{position:0},'user');")
+        snapshot = "({grids:S.get().grids,channels:S.get().channels})"
+        before_drop = state(snapshot)
+        def handle_point() -> dict:
+            return state("""(await (async()=>{const {channelHandles}=await import('/js/analysis/handles.js');
+              const cv=[...document.querySelectorAll('canvas')].find(e=>e.hitChannel),box=cv.getBoundingClientRect();
+              const h=channelHandles(S.get().channels,cv.gridRect()).find(h=>h.name==='CHAN2');
+              return {x:box.left+h.x+h.w/2,y:box.top+h.y+h.h/2+6};})())""")
+        brightness = """(()=>{const cv=[...document.querySelectorAll('canvas')].find(e=>e.hitChannel),r=cv.gridRect().rows[0],k=cv.width/cv.getBoundingClientRect().width;
+          const a=cv.getContext('2d').getImageData(Math.ceil(r.l*k),Math.ceil(r.t*k),Math.floor(r.w*k)-1,Math.floor(r.h*k)-1).data;
+          let sum=0;for(let i=0;i<a.length;i+=4)sum+=a[i]+a[i+1]+a[i+2];return sum/(a.length/4*3)})()"""
+        light = c.js(brightness)
+        def preview() -> None:
+            c.pump(0.2)
+            assert state(snapshot) == before_drop and abs(c.js(brightness) - light) > 2
+            assert not c.errors, c.errors
+        drag(handle_point(), plot_point(0, 0.5), hold=preview)
+        dropped = state(snapshot)
+        assert dropped['grids']['assign']['CHAN2'] == 0 and 'CHAN2' in geometry()['rows'][0]['names'] and 'CHAN2' not in geometry()['rows'][1]['names']
+        assert abs(next(ch['position'] for ch in dropped['channels'] if ch['name'] == 'CHAN2') - 60 / g['rows'][0]['h']) < 0.1
+        command("S.command('view.undo');"); assert state(snapshot) == before_drop and not c.errors
+        command("S.command('view.redo');"); assert state(snapshot) == dropped and not c.errors
+        command("S.command('view.undo');"); assert state(snapshot) == before_drop and not c.errors
+        drag(handle_point(), plot_point(0, 0.5), esc=True)
+        assert state(snapshot) == before_drop and not c.errors
+        drag(handle_point(), plot_point(0, -0.2))
+        assert state(snapshot) == before_drop and not c.errors
 
         command("const e=document.querySelector('.cursors__source');e.value='CHAN1';"
                 "e.dispatchEvent(new Event('change'));S.set({cursors:{x1:null,x2:null,y1:0,y2:null}},'user');")

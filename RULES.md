@@ -145,3 +145,7 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 - L8：`browser_menu_checks.py` 最外圈 hit test 補邊緣取樣，並抽共用幾何到新檔 `web/browser_menu_geom.py`，原檔降至 ≤260 行；`browser_fft_checks.py` 補 1000×700 FFT 高度斷言與零尺寸匯出計時；`p2b_check.mjs` 補 1000×700 fftOn 斷言；`selfcheck_node.js` 如需登記。
 - 文件：`HANDOFF.md` 更新過期項目（validate_params 已接 server、toolbar Node 測試已存在、FFT 快取／log 軸重算／重入僅 Qt）、`docs/驗證.md`。
 - 決策：A 只加「依通道順序帶入，請確認角色」提示留待下一波；D 的 RF 快取、h5py 懶載入、FFT 疊圖方案 C 不做。F1 另排第二波。非 vendor 檔 ≤300 行；`browser_check.py` 維持 300 行不動。瀏覽器驗收由主控執行。
+
+## 第二波授權（2026-11-13，使用者「F1 要做，完成後接著處理 1000×700 頻譜偏矮；Opus 規劃、Codex 做、Opus 驗收」；僅 Web，Qt 延後）
+- F1 分割格線跨格拖把手：L4 `handles.js`（新增 `handleDrop`、`dragHandle`、`commitHandle`、`drawDrop`）、`gestures.js` 原地改（**維持 253 行**）；L8 `grid_check.mjs`、`browser_grid_checks.py`、`docs/驗證.md`。不動 `grids.js`、`cursors.js`、`browser_check.py`、契約、store 鍵、後端、`ui/*`。語意：n>1 圖外放開取消（不再能拖出 ±5 div）；n=1 不變。
+- 頻譜偏矮（方案 A，F1 驗收後才開工）：L4 `layout.js`（`FFT_TAB_MIN`、`clampLayout` 加 `fftTab`）、`tab_analysis.js` 原地改；L8 `p2b_check.mjs`、`browser_fft_checks.py`、`docs/驗證.md`。不動 `browser_check.py`。

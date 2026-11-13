@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { GRID_COUNTS, GRID_GAP, GRIDS_KEY, gridsOf, gridIndex, gridRows, withGrids, rowOf, rowAt, setCount, assignGrid, loadGrids, saveGrids, bindGrids, groupByGrid, gridMenuItems, gridSelect } from './grids.js';
-import { channelHandles, handlePosition, cursorEdges } from './handles.js';
+import { channelHandles, handlePosition, handleDrop, cursorEdges } from './handles.js';
 import { markerPixels } from './mainplot.js';
-import { bindViewport, nearestCursor } from './gestures.js';
+import { bindViewport, bindGestures, nearestCursor } from './gestures.js';
 import { verticalRect } from './vzoom.js';
 import { nearestChannel, markerPoints } from './marker_layer.js';
 import { stackLayout } from './vertical.js';
@@ -163,4 +163,40 @@ assert.notEqual(stacked[0].position, stacked[1].position);
 assert.deepEqual(groupByGrid(two, stackPair).flatMap(g => stackLayout(g, scales)), stackPair.flatMap(c => stackLayout([c], scales)));
 assert.deepEqual(groupByGrid(one, stackPair).flatMap(g => stackLayout(g, scales)), stackLayout(stackPair, scales));
 assert.deepEqual(groupByGrid(two, channels).flat(), [...channels.filter((_, i) => i % 2 === 0), ...channels.filter((_, i) => i % 2 === 1)]);
+// 純幾何：抓取偏移、間隙最近格、圖外、夾限與舊單格行為。
+const target = r.rows[1], center = mid(target), near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9);
+assert.deepEqual(handleDrop(r, 'CH1', center), { row: target, same: false, position: 0 });
+near(handleDrop(r, 'CH1', center, 6).position, 60 / target.h);
+for (const offset of [1, 3]) assert.equal(handleDrop(r, 'CH1', r.rows[0].t + r.rows[0].h + offset).row.index, offset === 1 ? 0 : 1);
+for (const y of [base.t - 1, base.t + base.h + 1]) assert.equal(handleDrop(r, 'CH1', y), null);
+for (const grab of [-9999, 9999]) assert.equal(handleDrop(r, 'CH1', center, grab).position, Math.sign(grab) * 5);
+for (const rect of [base, withGrids(base, one, pair)]) for (const y of [-999, 9999]) assert.equal(handleDrop(rect, 'CH1', y).same, true);
+const savedDOM = [globalThis.document, globalThis.window];
+function element() { return { style: {}, listeners: {}, addEventListener(k, fn) { this.listeners[k] = fn; }, removeEventListener(k) { delete this.listeners[k]; },
+  setPointerCapture() { this.captured = true; }, hasPointerCapture() { return this.captured; }, releasePointerCapture() { this.captured = false; }, getBoundingClientRect: () => ({ left: 0, top: 0 }) }; }
+globalThis.document = { activeElement: null }; globalThis.window = element();
+function gestureCase(action, n = 2) {
+  const st = createStore(); st.set({ channels: pair.map(c => ({ ...c, position: 1 })), grids: { n, assign: {} } });
+  const hist = bindViewport(st), intents = [], commits = [], cv = element(), rect = () => withGrids(base, st.get().grids, st.get().channels);
+  st.onCommand('channel.scale_intent', ({ name, ...patch }) => { intents.push(patch); st.updateChannel(name, patch, 'user'); }); st.onCommand('view.zoomRect', p => commits.push(p));
+  const gs = bindGestures(cv, { store: st, ui: {} }, rect, () => {}), h = channelHandles(st.get().channels, rect()).find(b => b.name === 'CH2'), start = h.y + h.h / 2 + 6;
+  const fire = (type, y) => cv.listeners[type]({ clientX: h.x + h.w / 2, clientY: y, pointerId: 1, button: 0, preventDefault() {} });
+  const initial = structuredClone(st.get()), row = rect().rows[0], y = mid(row), pos = () => st.get().channels[1].position, check = () => { assert.deepEqual(st.get(), initial); assert.equal(hist.status().undo, 0); assert.equal(commits.length, 0); };
+  fire('pointerdown', start); fire('pointermove', start + 20); near(pos(), 1 - 200 / rect().of('CH2').h);
+  if (action === 'same') { fire('pointerup', start + 20); assert.deepEqual(st.get().grids, initial.grids); assert.equal(hist.status().undo, 0); }
+  else if (action === 'single') { fire('pointermove', -100); fire('pointerup', -100); assert.ok(pos() > 5); assert.equal(hist.status().undo, 0); }
+  else {
+    fire('pointermove', y); assert.equal(pos(), 1); assert.deepEqual(st.get().grids, initial.grids);
+    const count = intents.length; fire('pointermove', y); assert.equal(intents.length, count);
+    const fills = [], g = { save() {}, restore() {}, fillRect(...args) { fills.push(args); } }; gs.overlay(g); assert.deepEqual(fills, [[row.l, row.t, row.w, row.h]]);
+    if (action === 'commit') { fire('pointerup', y); assert.deepEqual(st.get().grids, assignGrid(initial.grids, 'CH2', 0)); near(pos(), 60 / row.h); assert.equal(commits.length, 1); assert.equal(hist.status().undo, 1);
+      const after = structuredClone(st.get()); st.command('view.undo'); assert.deepEqual(st.get(), initial); st.command('view.redo'); assert.deepEqual(st.get(), after); }
+    else { if (action === 'return') fire('pointermove', start); else if (action === 'outside') { fire('pointermove', base.t - 1); fills.length = 0; gs.overlay(g); assert.deepEqual(fills, []); }
+      else if (action === 'Escape') window.listeners.keydown({ key: 'Escape' }); else if (action === 'blur') window.listeners.blur(); else fire(action, y);
+      fire('pointerup', action === 'return' ? start : base.t - 1); check(); }
+  }
+  gs.dispose();
+}
+for (const action of ['commit', 'same', 'return', 'Escape', 'pointercancel', 'lostpointercapture', 'blur', 'outside']) gestureCase(action);
+gestureCase('single', 1); [globalThis.document, globalThis.window] = savedDOM;
 console.log('grid self-check OK');

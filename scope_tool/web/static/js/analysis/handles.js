@@ -1,5 +1,5 @@
 // L4：左緣通道零位把手與畫面外游標提示；只發既有意圖，不寫通道／游標。
-import { rowOf } from "./grids.js";
+import { rowOf, assignGrid, gridsOf, GRID_GAP } from "./grids.js";
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const yPixel = (r, d) => r.t + (5 - d) * r.h / 10;
 // 視覺尺寸不變，命中矩形每軸至少 24px；重疊時選中心最近者。
@@ -32,6 +32,26 @@ export const handlePosition = (position, dy, r, name) => position - dy * 10 / ro
 export function moveHandle(store, name, position) {
   store.command("channel.scale_intent", { name, position });
 }
+
+
+export function handleDrop(r, name, y, grab = 0) {
+  const src = rowOf(r, name);
+  if (!(r.rows?.length > 1)) return { row: src, same: true };
+  if (y < r.t || y > r.t + r.h) return null;
+  const row = r.at(y + GRID_GAP / 2);
+  return { row, same: row.index === src.index, position: clamp(5 - (y - grab - row.t) * 10 / row.h, -5, 5) };
+}
+export function dragHandle(store, d, y, r) {
+  const drop = handleDrop(r, d.name, y, d.grab);
+  if (drop?.same) moveHandle(store, d.name, handlePosition(d.position, y - d.y, r, d.name));
+  else if (store.get().channels.find((c) => c.name === d.name)?.position !== d.position) moveHandle(store, d.name, d.position);
+  return drop;
+}
+export function commitHandle(store, d) {
+  const s = store.get(), c = s.channels.find((ch) => ch.name === d.name);
+  if (c && d.moved && d.drop && !d.drop.same) store.command("view.zoomRect", { grids: assignGrid(gridsOf(s), d.name, d.drop.row.index), channels: [{ name: c.name, scale: c.scale, position: d.drop.position }] });
+}
+export function drawDrop(g, drop, shade) { if (!drop || drop.same) return; g.save(); g.fillStyle = shade; g.fillRect(drop.row.l, drop.row.t, drop.row.w, drop.row.h); g.restore(); }
 
 /** 邊緣提示只為有限且越界的游標產生；Y 判斷完全不依賴時間視窗。 */
 export function outsideCursors(cursors, view) {
