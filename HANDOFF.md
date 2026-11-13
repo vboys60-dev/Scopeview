@@ -288,7 +288,7 @@
 - 方案 A 完成：`layout.js` `FFT_TAB_MIN=320`、`clampLayout` 新參數 `fftTab`；窄版（tabbed）FFT 分頁把展開的 B 區壓到 ≥92px，使頻譜 ≥280px（B-0 實測 230→280）。壓縮只存在 effective：壓縮狀態（`steps` 含 `lowerTab`）下 lower splitter／`layout.resize` 停用、點「解碼」頁籤不 resize，不寫回 prefs。
 - 已知限制：通道列展開（多約 72px）時預算不足，頻譜仍約 230px 且圖區會捲動；測試先收折通道列。B 區收折時頻譜約 391px。
 - Opus 驗收兩項必修已修（prefs 污染、下限斷言）；`p2b_check.mjs` 297 行，下次新增需拆檔。`float_check.mjs` 為此補 `activeTab` 參數（RULES.md 已登記）。
-- `browser_check`「替代選單浮層」偶發失敗（reload 後停在資料截取分頁）基線亦會，未根治。
+- `browser_check`「替代選單浮層」基線必敗，根因見 GUI-1b 條下方（兩個測試腳本問題），待套修。
 
 ## 改進項目（2026-11-13～14，僅 Web，Qt 延後；一次只做一波，開工前先在 RULES.md 登記授權）
 
@@ -308,8 +308,9 @@
 **八項改進點全部完成。** 待人工：真視窗 F2／✎ 手感、實際 IME、長別名排版、Windows 字型寬度；3A 的 8 格把手 20px 手感。
 
 **未結小項**
-- **GUI-1 已修（2026-11-13，未 commit）**：右側欄停靠＋解碼頁籤時頁籤列與解碼設定列溢出。只改 `analysis.css`：dock 下 `.analysis__resultTabs` 換行；`.decode__form`／`.decode__params` 加 `flex-wrap`、`min-width:0`，並覆寫 `.decode__bar > *{flex-shrink:0}`（根因：子項被鎖死撐成 478px，內層 wrap 無效）。驗證：自製 CDP 腳本量 1700／1560 寬 dock 下 `.analysis__lower` 內無元素超出右緣（改前 8 項超出、改後 0）；selfcheck_node 全過；browser_check 僅既有「替代選單浮層」失敗。腳本在 scratchpad、未入庫。
-- browser_check「替代選單浮層」原因未明（乾淨 HEAD 同樣失敗；Fable 調查已停）。
+- **GUI-1 已修（2026-11-13，`f0dd5a0`）**：右側欄停靠＋解碼頁籤時頁籤列與解碼設定列溢出。只改 `analysis.css`：dock 下 `.analysis__resultTabs` 換行；`.decode__form`／`.decode__params` 加 `flex-wrap`、`min-width:0`，並覆寫 `.decode__bar > *{flex-shrink:0}`（根因：子項被鎖死撐成 478px，內層 wrap 無效）。驗證：自製 CDP 腳本量 1700／1560 寬 dock 下 `.analysis__lower` 內無元素超出右緣（改前 8 項超出、改後 0）；selfcheck_node 全過；browser_check 僅既有「替代選單浮層」失敗。腳本在 scratchpad、未入庫。
+- **GUI-1b 已修（2026-11-14，`c6cad9c`）**：頁籤列在 WKWebView 較寬字型下仍溢出。根因 `analysis.css:58` `.analysis__resultTabs{flex:0 0 auto}` 使 dock 下容器不縮、內部 wrap 無效；dock 覆寫 `flex:1 1 auto;min-width:0;max-width:100%`（Opus＋Codex 同結論；letter-spacing 模擬量測：溢出 +45px→0）。待人工：真視窗同位置再看。
+- **「替代選單浮層」根因已查明、尚未修（2026-11-14，Fable＋Codex gpt-6-astra）**：實際上乾淨 HEAD 每次都失敗，兩個測試腳本問題疊加，皆在 `web/browser_menu_checks.py`。A（約 1/4）：`:187-188` reload 後只等分頁按鈕存在就點，`main.js:42` listener 未掛上、點擊被丟，停在資料截取。B（其餘必然）：`:211` 點 FFT 窗格後，`:238` 縮至 899×600 進入 `lowerTab`（77096bd），`tab_analysis.js:50`＋`splitter.js:53` 使 lower 標頭 hidden，⋮ 寬 0。建議修（只動該檔）：①`:187` 改等 `#tab-analysis .analysis__toolbar`；②`:237` 前切回波形窗格並展開 B 區；③`:245` 前切回 FFT 窗格。驗證：兩處都修後完整 browser_check 3/3 過、精簡腳本 6/6 過。**待使用者決定**：窄版 FFT 分頁藏起整個 B 區標頭（結果頁籤、⋮、浮動鈕）是否為 77096bd 本意；若否，應改產品端只停用拖曳不隱藏標頭。
 - Opus 第一波未處理：i3c_quality 對稱資料、`validate_time` 0.009／0.011 dt 與 NaN／inf、FFT 分頁＋lowerTab 情境、無 Shift 拖線瀏覽器測試、Shift hover 重繪、觸控 ±12px。
 - I2C：「無法判斷」下拉不變、手動門檻 DOM 回填、估計 `ok:true` 分支、估計期間換檔，皆未驗；i2cdemo START 偏移約 10.8 µs 原因未明。
 - 項 6 小缺口：Phase 切換重讀的瞬間 y 單位、視窗外不可見命中區、Peak Line y 非有限時不畫菱形、`fftpane.js` 硬寫 `/10`。
