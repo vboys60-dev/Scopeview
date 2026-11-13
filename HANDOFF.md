@@ -279,9 +279,9 @@
 - 事件原因 trim 後為空時不顯示括號；零尺寸主圖不留 pending，匯出立即提示「請先切回波形分頁再匯出」，有效尺寸才等包絡。Node 涵蓋空白原因、零尺寸、pending 逾時與載入完成。
 - 交錯指標與選單邊緣檢查見上段；`browser_fft_checks.py` 新增分析頁及獨立 FFT 的 1000×700 高度保底 ≥220px（實測 230，未達原估 240；窄視窗頻譜仍偏矮）、FFT 分頁匯出 <1s。只跑 Node 與 Python 編譯，未啟動瀏覽器／示波器；`browser_check.py` 未改。
 
-## 進行中：1000×700 頻譜偏矮（2026-11-13，尚未動手）
+## 1000×700 頻譜偏矮（2026-11-13，已 commit）
 
-- Opus 診斷：頻譜實高 230＝主圖下限 270−40，主圖已縮到下限，疑為下方結果區（B 區）展開（pref `lowerCollapsed:false`）佔空間。
-- 方案 A：`layout.js` 加 `FFT_TAB_MIN=320`、`clampLayout` 新參數 `fftTab`（窄版 FFT 分頁才壓 B 區，下限 92）；`tab_analysis.js:171` 傳 `fftTab: activeTab==='fft'`；更新 `p2b_check.mjs`（976×544／900×600 實尺寸）、`browser_fft_checks.py`（門檻 220→280，斷言 lowerbody≥90 且無 plot 捲動，finally 還原 layout pref）、`docs/驗證.md`。RULES.md 已登記授權。
-- 前置：先跑 B-0 實測（各區塊高度、localStorage `scope.analysis.layout.v1`）；若 `fft==270 且 lowerbody>0` 才套方案 A，`lowerbody==0` 代表元凶是通道列或解碼帶，需回報重議。
-- 已知不穩：`browser_check` 偶發「替代選單浮層」（reload 後停在資料截取分頁）與 P2b3 逾時，基線亦會，未根治。
+- 方案 A 完成：`layout.js` `FFT_TAB_MIN=320`、`clampLayout` 新參數 `fftTab`；窄版（tabbed）FFT 分頁把展開的 B 區壓到 ≥92px，使頻譜 ≥280px（B-0 實測 230→280）。壓縮只存在 effective：壓縮狀態（`steps` 含 `lowerTab`）下 lower splitter／`layout.resize` 停用、點「解碼」頁籤不 resize，不寫回 prefs。
+- 已知限制：通道列展開（多約 72px）時預算不足，頻譜仍約 230px 且圖區會捲動；測試先收折通道列。B 區收折時頻譜約 391px。
+- Opus 驗收兩項必修已修（prefs 污染、下限斷言）；`p2b_check.mjs` 297 行，下次新增需拆檔。`float_check.mjs` 為此補 `activeTab` 參數（RULES.md 已登記）。
+- `browser_check`「替代選單浮層」偶發失敗（reload 後停在資料截取分頁）基線亦會，未根治。

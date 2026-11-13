@@ -1,7 +1,7 @@
 // L8：純版面矩陣、偏好儲存與真正 splitter 事件；變異只改暫存副本。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { FFT_BAR_HEIGHT, FFT_PLOT_MIN, FFT_MIN_HEIGHT, clampLayout, defaults, validatePrefs, loadPrefs, savePrefs, resizeValue, resetPref } from './layout.js';
+import { FFT_TAB_MIN, FFT_BAR_HEIGHT, FFT_PLOT_MIN, FFT_MIN_HEIGHT, clampLayout, defaults, validatePrefs, loadPrefs, savePrefs, resizeValue, resetPref } from './layout.js';
 import { mountSplitter } from './splitter.js';
 import { createStore } from './store.js';
 import { createController } from './cursors.js';
@@ -29,6 +29,20 @@ for (const [vw,vh] of [[1360,860],[1280,800],[1366,768],[1024,768],[1000,700],[9
   assert.ok(e.lowerCollapsed || e.lower >= 120); assert.equal(JSON.stringify(prefs),before);
   assert.equal(e.scroll,e.usedHeight > vh-200);
   if (vw >= 900) assert.equal(e.drawer,false);
+}
+// 實尺寸 FFT 分頁只壓縮展開的 B 區；波形／寬版／停靠／收折維持原結果。
+const actual = { W:976,H:544,vw:1000,vh:700,chrome:63,fftOn:true,prefs:{ ...defaults(),lower:240,lowerCollapsed:false } };
+const fftTab = clampLayout({ ...actual,fftTab:true });
+assert.equal(FFT_TAB_MIN,320,'FFT 分頁預算為 320px'); assert.ok(fftTab.tabbed,'實尺寸應分頁');
+assert.ok(fftTab.fft >= 320,'FFT 區至少 320px'); assert.ok(fftTab.lowerBody >= 92,'B 內容至少 92px'); assert.ok(fftTab.usedHeight <= actual.H,'實尺寸不可捲動');
+assert.equal(clampLayout({ ...actual,fftTab:false }).lowerBody,212,'波形分頁保留原 B 內容高度 212px');
+{ const st = createStore(), ctl = bindLayoutCommands(st,{ initial:{ ...actual.prefs },persist(){},schedule(){},viewport:() => 1000 }); ctl.update(fftTab);
+  st.command('layout.resize',{ kind:'lower',value:183 }); assert.equal(ctl.prefs.lower,240,'FFT 分頁自動壓縮不可寫回 prefs'); }
+const smallTab = clampLayout({ ...actual,W:876,H:444,vw:900,vh:600,fftTab:true });
+assert.ok(smallTab.lowerBody >= 92,'B 內容不得低於 92px'); assert.ok(smallTab.fft >= 320 || smallTab.lowerBody === 92,'小視窗頻譜不足時 B 必須已壓至 92px');
+assert.ok(smallTab.usedHeight <= Math.max(444,63+56+92+270),'小視窗只容許主圖下限造成的必要高度');
+for (const extra of [{ W:1376,H:744,vw:1400,vh:900 },{ W:1976,H:744,vw:2000,vh:900,prefs:{ ...actual.prefs,markerSide:true } },{ prefs:{ ...actual.prefs,lowerCollapsed:true } },{ fftOn:false }]) {
+  assert.deepEqual(clampLayout({ ...actual,...extra,fftTab:true }),clampLayout({ ...actual,...extra,fftTab:false }),'寬版／停靠／B 收折／非 FFT 不受影響');
 }
 assert.equal(layout(1360,860).overview,56);
 for (const vw of [900,923]) assert.equal(layout(vw,860,{ ...defaults(),sideCollapsed:false }).side,240);

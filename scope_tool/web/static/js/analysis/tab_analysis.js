@@ -47,7 +47,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
     const e = effective, value = prefs[kind] ?? (kind === 'side' ? 240 : kind === 'lower' ? 180 : 180);
     const shown = kind === 'side' ? (e.drawer ? e.drawerWidth : e.side) : e[kind];
     const max = kind === 'side' ? 360 : shown + Math.max(0,e.main-270);
-    return { value, max, collapsed:e[kind+'Collapsed'], disabled:kind === 'fft' && e.tabbed, prefs };
+    return { value, max, collapsed:e[kind+'Collapsed'], disabled:(kind === 'fft' && e.tabbed) || (kind === 'lower' && !!e.steps?.includes('lowerTab')), prefs };
   };
   store.onCommand('layout.resize', ({ kind, value }) => { if (valid(kind) && !state(kind).disabled) change({ ...prefs,[kind]:value,[kind+'Collapsed']:false }); });
   store.onCommand('layout.toggle', (kind) => {
@@ -154,7 +154,7 @@ export function mount(el, ctx) {
   dockBtn.onclick = () => store.command('layout.markerSide');
   for (const name of ['pointerdown','dblclick','keydown']) dockBtn.addEventListener(name,e => e.stopPropagation());
   lowerHeader.append(dockBtn);
-  lowerHeader.querySelector('[data-result-tab=decode]')?.addEventListener('click', () => { const e = effective; if (e && !e.docked && !floatPanel?.floating && !e.lowerCollapsed && e.lowerBody < 212) store.command('layout.resize', { kind:'lower', value:Math.min(240, e.lower + e.main - 270) }); });
+  lowerHeader.querySelector('[data-result-tab=decode]')?.addEventListener('click', () => { const e = effective; if (e && !e.docked && !floatPanel?.floating && !e.lowerCollapsed && !e.steps?.includes('lowerTab') && e.lowerBody < 212) store.command('layout.resize', { kind:'lower', value:Math.min(240, e.lower + e.main - 270) }); });
   const lowerBody = q('analysis__lowerbody');
   floatPanel = mountFloat(el,{ store, lower:q('analysis__lower'), header:lowerHeader, body:lowerBody,
     tabs:lowerHeader.querySelector('.analysis__resultTabs'), actions, schedule });
@@ -165,7 +165,7 @@ export function mount(el, ctx) {
     const bandOn = !!store.get().decodeResult?.summary.ok && decodeTable.model.config.band;
     const chrome = q('analysis__chanbar').getBoundingClientRect().height+28+(bandOn ? bandHeight(store.get()) : 0);
     const floating = floatPanel.update();
-    effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, chrome });
+    effective = clampLayout({ W:root.clientWidth, H, vw:innerWidth, vh:innerHeight, prefs:controller.prefs, lowerFloating:!!floating, drawerOpen:controller.drawerOpen, fftOn, fftTab: activeTab === 'fft', chrome });
     controller.update(effective);
     const e = effective, plot = q('analysis__plot');
     root.style.gridTemplateColumns = `${e.side}px 10px minmax(0,1fr)${e.docked ? ` ${e.dockWidth}px` : ''}`;

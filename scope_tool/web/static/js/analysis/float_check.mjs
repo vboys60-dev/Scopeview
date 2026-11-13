@@ -64,8 +64,8 @@ Function('resultTabs','floating','lowerBody','e','store','fftOn',`resultTabs.upd
 assert.equal(received.width,480);assert.equal(received.height,230);assert.equal(received.lowerCollapsed,false);
 const compute=source.match(/effective = (clampLayout\([^;]+\));/)[1];
 let layoutArgs;
-Function('clampLayout','root','H','innerWidth','innerHeight','controller','floating','fftOn','chrome',`return ${compute};`)(
-  p=>layoutArgs=p,{clientWidth:1300},700,1400,900,{prefs,drawerOpen:false},{width:480},false,56);
+Function('clampLayout','root','H','innerWidth','innerHeight','controller','floating','fftOn','chrome','activeTab',`return ${compute};`)(
+  p=>layoutArgs=p,{clientWidth:1300},700,1400,900,{prefs,drawerOpen:false},{width:480},false,56,'wave');
 assert.equal(layoutArgs.lowerFloating,true);
 const layoutStore=createStore();let locked=true;
 const layoutCtl=bindLayoutCommands(layoutStore,{initial:prefs,persist(){},schedule(){},lowerLocked:()=>locked});

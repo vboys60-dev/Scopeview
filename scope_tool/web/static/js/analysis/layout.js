@@ -1,6 +1,7 @@
 // L4：版面偏好與純尺寸計算；自動退讓只存在 effective，不回寫 prefs。
 // FFT 預算與 analysis.css 同步：40px 同行控制列＋至少 120px 繪圖區。
 export const FFT_BAR_HEIGHT = 40, FFT_PLOT_MIN = 120, FFT_MIN_HEIGHT = FFT_BAR_HEIGHT + FFT_PLOT_MIN;
+export const FFT_TAB_MIN = 320;
 export const VERSION = 1, STORAGE_KEY = 'scope.analysis.layout.v1';
 export const defaults = () => ({ version: VERSION, side: 240, lower: null, fft: null, sideCollapsed: null, lowerCollapsed: null, fftCollapsed: false, markerSide: false, overview: null });
 /** 版面 C：B 區搬到圖右側的直欄寬度；視窗 <1280px 不啟用（避免圖區被 340px 右欄擠到控制列溢出）。 */
@@ -28,7 +29,7 @@ export function savePrefs(p, storage = () => globalThis.localStorage) {
   try { storage().setItem(STORAGE_KEY, JSON.stringify({ ...memory, overview:undefined })); } catch { /* 私密模式也正常運作 */ }
 }
 /** H 為工具列以下可用高度；chrome 為實測通道列＋Horizontal 列。 */
-export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, drawerOpen = false, lowerFloating = false }) {
+export function clampLayout({ W, H, prefs, fftOn, fftTab = false, chrome = 56, vw = W, vh = H, drawerOpen = false, lowerFloating = false }) {
   const p = validatePrefs(prefs), steps = [];
   W = Math.max(0, Number.isFinite(W) ? W : 0); H = Math.max(0, Number.isFinite(H) ? H : 0);
   const narrow = vw <= 899, drawer = narrow && drawerOpen;
@@ -48,6 +49,10 @@ export function clampLayout({ W, H, prefs, fftOn, chrome = 56, vw = W, vh = H, d
   if (room() < 270 && lower && p.lowerCollapsed !== false) { lower = 0; lowerCollapsed = true; steps.push('lower'); }
   if (room() < 270 && fft > FFT_MIN_HEIGHT) { fft = FFT_MIN_HEIGHT; steps.push('fft'); }
   let tabbed = fftOn && !fftCollapsed && (room() < 270 || vw < 1100);
+  if (tabbed && fftTab && lower) {
+    const shrunk = Math.max(Math.min(lower, 92), lower - Math.max(0, FFT_TAB_MIN - (H - chrome - separators - lower - overview)));
+    if (shrunk < lower) { lower = shrunk; steps.push('lowerTab'); }
+  }
   if (tabbed) { steps.push('tabs'); fft = Math.max(FFT_MIN_HEIGHT, H - chrome - separators - lower - overview); }
   let main = tabbed ? Math.max(270, fft) : Math.max(270, room());
   if (tabbed) fft = main;

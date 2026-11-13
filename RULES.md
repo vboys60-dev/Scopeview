@@ -149,3 +149,4 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 ## 第二波授權（2026-11-13，使用者「F1 要做，完成後接著處理 1000×700 頻譜偏矮；Opus 規劃、Codex 做、Opus 驗收」；僅 Web，Qt 延後）
 - F1 分割格線跨格拖把手：L4 `handles.js`（新增 `handleDrop`、`dragHandle`、`commitHandle`、`drawDrop`）、`gestures.js` 原地改（**維持 253 行**）；L8 `grid_check.mjs`、`browser_grid_checks.py`、`docs/驗證.md`。不動 `grids.js`、`cursors.js`、`browser_check.py`、契約、store 鍵、後端、`ui/*`。語意：n>1 圖外放開取消（不再能拖出 ±5 div）；n=1 不變。
 - 頻譜偏矮（方案 A，F1 驗收後才開工）：L4 `layout.js`（`FFT_TAB_MIN`、`clampLayout` 加 `fftTab`）、`tab_analysis.js` 原地改；L8 `p2b_check.mjs`、`browser_fft_checks.py`、`docs/驗證.md`。不動 `browser_check.py`。
+- 頻譜偏矮追加授權：`float_check.mjs` 僅補測試用 Function 參數 `activeTab`（`tab_analysis.js` 新增 `fftTab: activeTab === 'fft'` 所致），不改斷言。
