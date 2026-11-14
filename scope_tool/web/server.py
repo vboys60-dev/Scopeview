@@ -96,6 +96,7 @@ class Server:
 
 class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
+    timeout = 60  # ponytail: 只限閒置逾時，慢送仍可拖延，非整個請求的期限。
     srv: Server
 
     log_message = lambda *a: None  # noqa: E731 — 安靜
@@ -145,9 +146,12 @@ class _Handler(BaseHTTPRequestHandler):
         u = urlsplit(self.path)
         q = parse_qs(u.query)
         parts = [p for p in u.path.split("/") if p]
-        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = MAX_BODY + 1
         raw = self.rfile.read(n) if 0 < n <= MAX_BODY else b""
-        if n > MAX_BODY:
+        if not 0 <= n <= MAX_BODY:
             self.close_connection = True
             return self._err("BAD_REQUEST", "body 過大")
         if len(parts) != 2 or parts[0] != "rpc":
@@ -160,8 +164,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             body = json.loads(raw.decode("utf-8")) if raw else {}
         except ValueError:
-            return self._json({"ok": False, "error": {"code": "BAD_REQUEST", "message": "body 不是合法 JSON",
-                                                      "retryable": False}})
+            return self._err("BAD_REQUEST", "body 不是合法 JSON", 200)
         try:
             self._json(self.srv.rpc(name, body))
         except (BrokenPipeError, ConnectionResetError):
@@ -209,96 +212,6 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(200, data, "image/bmp" if data[:2] == b"BM" else "image/png")
 
 
-
-def _self_check() -> None:
-    import tempfile
-    import time
-    import urllib.error
-    import urllib.request
-    from scope_tool.instruments.fake import FakeDriver
-    from scope_tool.web.api import Api
-    from scope_tool.web.jobs import StaleError
-    class SlowFake(FakeDriver):
-        def screenshot(self, opts):  # type: ignore[override]
-            time.sleep(0.6)
-            return super().screenshot(opts)
-    class FakeAna:  # 只為驗證 server 對分析工作的包裝
-        def open_waveform(self, path):
-            return {"path": path, "x": float("nan")}
-        def close_waveform(self):
-            return None
-    def wave_bytes(ana, ch, t0, t1, px, gen):
-        if gen != 1:
-            raise StaleError("開檔世代已變更")
-        return b"\x00" * 16
-    FakeMod = type("FakeMod", (), {"wave_bytes": staticmethod(wave_bytes),
-                                  "fft_bytes": staticmethod(lambda *a: b"\x01" * 16)})
-    jobs = Jobs()
-    api = Api(jobs, cfg=dict(__import__("scope_tool.config", fromlist=["x"]).DEFAULTS), persist=False)
-    srv = Server(api, FakeAna(), jobs, token="tok", analysis_mod=FakeMod)
-    srv.start()
-    base = f"http://127.0.0.1:{srv.port}"
-    def req(path, body=None):
-        r = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode())
-        try:
-            with urllib.request.urlopen(r, timeout=10) as resp:
-                return resp.status, resp.read(), resp.headers
-        except urllib.error.HTTPError as e:
-            return e.code, e.read(), e.headers
-    def rpc(name, body, k="tok"):
-        s, b, _ = req(f"/rpc/{name}?k={k}", body)
-        return s, json.loads(b)
-    assert (rpc("get_state", {}, k="bad")[0], rpc("no_such_method", {})[0], req("/wave?ch=C&t0=0")[0]) == (403, 404, 403)
-    assert req("/")[2]["Content-Type"][:9] == "text/html" and req("/js/bridge.js")[0] == 200
-    assert req("/js/../../server.py")[0] == req("/nope")[0] == 404
-    st = rpc("get_state", {})[1]["result"]
-    assert st["connected"] is False and st["native_dialogs"] is False and "catalog" in st
-    seq0 = st["seq"]
-    rpc("open_waveform", {"path": "x"})
-    ev = rpc("wait_events", {"since": seq0, "timeout": 5})[1]["result"]
-    assert ev["events"][0]["type"] == "job" and ev["events"][0]["result"]["x"] is None, ev
-    assert rpc("close_waveform", {})[1]["ok"]
-    for bad in ({"screenshot_dir": None}, {"screenshot_dir": ""}, {"points": None}, {"points": 0}):
-        assert rpc("save_config", {"patch": bad})[1]["error"]["code"] == "BAD_REQUEST", bad  # 型別錯誤
-    assert rpc("connect_fake", {})[1]["result"]["model"] == "FAKE-SCOPE"
-    cap = dict(directory="/x", name="n", channels=["CHAN1"], points=10, retrigger=False)
-    for bad in ({"retrigger": "false"}, {"channels": "CHAN1"}, {"channels": ["CHAN10"]}):  # 型別／白名單：不得碰儀器
-        assert rpc("capture", {**cap, **bad})[1]["error"]["code"] == "BAD_REQUEST", bad
-    api._drv = SlowFake()
-    tmp = tempfile.mkdtemp()
-    shot = {"directory": tmp, "name": "s", "image_format": "PNG", "inverted": False, "area": "full"}
-    a = rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"]
-    b = rpc("capture_info", {})[1]
-    assert not b["ok"] and b["error"]["code"] == "BUSY" and b["error"]["retryable"], b
-    assert rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"] == a
-    assert rpc("screenshot", {**shot, "name": "o", "request_id": "r1"})[1]["error"]["code"] == "BAD_REQUEST"
-    assert rpc("capture_info", {"request_id": "r1"})[1]["error"]["code"] == "BAD_REQUEST"  # 同 id 不同方法
-    since, got = seq0 + 1, []
-    while not any(e.get("id") == a["job"] for e in got):
-        o = rpc("wait_events", {"since": since, "timeout": 2})[1]["result"]
-        got += o["events"]
-        since = o["seq"]
-    seqs = [e["seq"] for e in got]
-    assert seqs == sorted(set(seqs)), seqs
-    done = [e for e in got if e.get("id") == a["job"]][0]
-    assert done["ok"] and done["result"]["preview"] == 1 and Path(done["result"]["path"]).exists(), done
-    assert rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"]["done"]["ok"]
-    s, data, h = req("/screenshot/last?k=tok&n=1")
-    assert data.startswith(b"\x89PNG") and h["Content-Type"] == "image/png"
-    assert req("/wave?k=tok&ch=CHAN1&t0=0&t1=1&px=10&gen=1")[:2] == (200, b"\x00" * 16)
-    s, b, _ = req("/wave?k=tok&ch=CHAN1&t0=0&t1=1&px=10&gen=2")
-    assert s == 409 and json.loads(b)["error"]["code"] == "STALE"
-    assert req("/fft?k=tok&id=s1&f0=0&f1=1&px=10&log=0")[0] == 200 and req("/wave?k=tok&ch=CHAN1")[0] == 400
-    api._drv = None
-    j = rpc("connect", {"resource": "BOGUS::nowhere", "series_override": None})[1]["result"]["job"]
-    time.sleep(1)
-    e = [x for x in rpc("wait_events", {"since": 0, "timeout": 1})[1]["result"]["events"] if x.get("id") == j][0]
-    assert not e["ok"] and e["error"]["code"] == "SCOPE_ERROR" and "BOGUS" in e["error"]["message"], e
-    assert rpc("wait_events", {"since": 10**6, "timeout": 0.3})[1]["result"]["events"] == []
-    srv.stop()
-    assert jobs.close(lambda: None, 2) and STATIC.is_dir()
-    print("server self-check OK")
-
-
 if __name__ == "__main__":
-    _self_check()
+    from scope_tool.web.server_http_check import _self_check
+    _self_check(Server, _Handler)
