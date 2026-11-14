@@ -20,6 +20,13 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install -r requirements-web.txt pyinstaller
       - run: pyinstaller --noconfirm --distpath dist --workpath build packaging/scope_tool_web.spec
+      - name: 檢查動態載入的模組有進包
+        shell: bash
+        run: |
+          for m in i2c_decode i3c_decode spi_decode uart_decode can_decode espi_decode usbpd_decode; do
+            grep -rq "scope_tool.web.$m" build/ || { echo "缺 $m"; exit 1; }
+          done
+          grep -rq "scope_tool.instruments.infiniivision" build/ || { echo "缺 infiniivision"; exit 1; }
       - name: 打包 (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/scope_tool_web -DestinationPath ScopeView-Windows.zip

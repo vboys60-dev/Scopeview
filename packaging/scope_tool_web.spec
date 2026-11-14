@@ -4,7 +4,10 @@
 import sys
 from PyInstaller.utils.hooks import collect_submodules
 
-hidden = collect_submodules("webview.platforms") + ["pyvisa_py", "zeroconf"]
+# 動態 import（importlib／__import__）PyInstaller 看不到，必須明列：解碼協定與儀器 driver
+hidden = collect_submodules("webview.platforms") + ["pyvisa_py", "zeroconf"] \
+    + [f"scope_tool.web.{n}_decode" for n in ("i3c", "i2c", "spi", "uart", "can", "espi", "usbpd")] \
+    + ["scope_tool.instruments.infiniivision", "scope_tool.instruments.infiniium"]
 if sys.platform == "win32":
     hidden += ["clr_loader", "pythonnet", "clr", "webview.platforms.edgechromium", "webview.platforms.winforms"]
 # PySide6 必須保留（infiniivision 用 QImage）；只排除其他綁定與大型 Qt 模組
