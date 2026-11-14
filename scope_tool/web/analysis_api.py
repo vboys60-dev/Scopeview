@@ -84,7 +84,7 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin, MeasureMixin):
         p = Path(path).expanduser()
 
         def work() -> dict:
-            waves = read_waveform_file(p)
+            waves = [w for w in read_waveform_file(p) if len(w.time)]
             if not waves:
                 raise ScopeError("沒有波形資料可畫。")
             info = read_file_info(p)
@@ -157,6 +157,9 @@ class Analysis(SlotMixin, DecodeMixin, FftMixin, ExportMixin, MeasureMixin):
             t, v, unit = mathfn.derive(op, wa.time, wa.voltage, units[wa.channel], *args, float(param))
             with self._lock:
                 self._alive(gen)
+                names = {w.channel for w in self._waves}
+                while f"F{self._next_f}" in names:
+                    self._next_f += 1
                 name = f"F{self._next_f}"  # F 編號不重用
                 self._next_f += 1
                 w = Waveform(name, t, v)

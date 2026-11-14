@@ -24,7 +24,7 @@ class SlotMixin:
         p = Path(path).expanduser()
         # ponytail: 改勾選仍重讀整檔；大檔慢時再暫存完整槽位資料。
         try:
-            waves = read_waveform_file(p)
+            waves = [w for w in read_waveform_file(p) if len(w.time)]
         except OSError as exc:
             raise ScopeError(f"讀取比對檔失敗：{exc}") from exc
         if not waves:
@@ -248,6 +248,37 @@ if __name__ == "__main__":
         assert "Mem2" not in a._slots
         with patch("scope_tool.web.analysis_slots.read_waveform_file", return_value=[]):
             raises(ScopeError, lambda: a.add_waveform(main, "Mem1", []))
+        # 全空開檔／替換既有槽都須保留世代、路徑、波形物件與槽位。
+        empty = [Waveform("EMPTY", np.array([]), np.array([]))]
+        before_gen, before_path = a._gen, a._path
+        before_waves = list(a._waves)
+        before_slots = {s: list(names) for s, names in a._slots.items()}
+        for module, operation in (
+                ("analysis_api", lambda: a.open_waveform(other)),
+                ("analysis_slots", lambda: a.add_waveform(other, "Mem1", []))):
+            with patch(f"scope_tool.web.{module}.read_waveform_file", return_value=empty):
+                assert str(raises(ScopeError, operation)) == "沒有波形資料可畫。"
+            assert (a._gen, a._path, a._slots) == (before_gen, before_path, before_slots)
+            assert len(a._waves) == len(before_waves)
+            assert all(x is y for x, y in zip(a._waves, before_waves))
+        # 混合空／非空通道只留下可畫資料，主檔與比對檔皆如此。
+        mixed = empty + [Waveform("CH1", t, v)]
+        with patch("scope_tool.web.analysis_api.read_waveform_file", return_value=mixed):
+            assert [c["name"] for c in a.open_waveform(main)["channels"]] == ["CH1"]
+        with patch("scope_tool.web.analysis_slots.read_waveform_file", return_value=mixed):
+            summary = a.add_waveform(main, "Mem1", [])
+            assert summary["all"] == ["CH1"]
+            assert [c["name"] for c in summary["channels"]] == ["Mem1.CH1"]
+        # 原檔的 F1／F2 不得被 Math 配號占用，刪除 F3 後也不重用。
+        math_file = tmp / "math.csv"
+        with math_file.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Time(s)", "F1(V)", "F2(V)"])
+            writer.writerows((x, y, 1-y) for x, y in zip(t, v))
+        a.open_waveform(str(math_file))
+        assert a.math("反相", "F1", None, 0)["name"] == "F3"
+        a.remove_channel("F3")
+        assert a.math("反相", "F2", None, 0)["name"] == "F4"
         read = read_waveform_file
         for change in (lambda: a.open_waveform(main), a.close_waveform):
             a.open_waveform(main)
