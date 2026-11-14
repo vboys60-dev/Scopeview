@@ -39,9 +39,7 @@ export function mount(el, ctx) {
   const labels = () => (cat().stat_columns ?? ["目前", "平均", "最小", "最大", "範圍", "標準差", "次數"]).map(T);
   const cols = () => [T("量測"), ...COLUMNS.filter(k => visibleColumns().includes(k)).map(k => labels()[COLUMNS.indexOf(k)]), ""];
   const meas = h("table", "table table--num results__table");
-  const note = h("span", "results__info", "ⓘ"); note.tabIndex = 0;
-  note.title = "『目前』＝最靠近顯示時間 t=0 的事件；範圍不含 0 時用範圍中點，同距取較早；無事件時間時取首事件（離線單檔）";
-  note.setAttribute("aria-label",note.title);
+  const NOTE = "『目前』＝最靠近顯示時間 t=0 的事件；範圍不含 0 時用範圍中點，同距取較早；無事件時間時取首事件（離線單檔）";
   const bClear = h("button", "btn btn--small results__clear results__clear--sep", "清除全部"), bExp = h("button", "btn btn--small results__export", "匯出結果");
   bClear.title = "清除全部量測"; bExp.title = "匯出結果 CSV";
   const menu = h("span", "results__menu"), toggle = h("button", "btn btn--small", "⋮"); toggle.title = "選擇量測欄位";
@@ -65,7 +63,7 @@ export function mount(el, ctx) {
       renderMeas();
     };
   }
-  const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(note, menu, bExp, bClear);
+  const bar = ctx.resultActions ?? h("div", "results__actions"); bar.append(menu, bExp, bClear);
   if (!ctx.resultActions) el.append(bar);
   const fftBox = ctx.fftPeaks ?? h("div", "analysis__peaks");
   mountFftMarkerTable(fftBox, ctx, fftInfo);
@@ -77,6 +75,8 @@ export function mount(el, ctx) {
     const { measurements: list, file, channels } = store.get(), defs = Object.fromEntries((cat().measurements ?? []).map((m) => [m.name, m]));
     for (const box of columnBoxes) box.checked = visibleColumns().includes(box.dataset.column);
     const rows = [tr(cols(), "th")];
+    const ci = COLUMNS.filter(k => visibleColumns().includes(k)).indexOf("current");
+    if (ci >= 0) { const th = rows[0].children[ci + 1]; th.title = NOTE; th.setAttribute("aria-label", `${th.textContent}：${NOTE}`); }
     for (const e of list) {
       const ch = channels.find((c) => c.name === e.channel), state = rowState(e, file);
       const unit = e.result?.unit || unitFor(defs[e.name]?.unit, ch?.unit ?? "V");

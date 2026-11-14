@@ -18,7 +18,7 @@
 .analysis__fftbar .field { flex-direction: row; align-items: center; margin-bottom: 0; font-size: 12.5px; line-height: 16px; }
 .analysis__fftbar .input, .analysis__fftbar .select { height: 24px; font-size: 12.5px; }
 .analysis__fftplot { flex: 1 0 120px; min-height: 120px; position: relative; }
-.analysis__lower { font-size: 13px; grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.analysis__lower { font-size: 13px; grid-area: results; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: visible; /* ⋮ 浮層（fixed）在 WKWebView 會被此層 hidden 裁掉；內容由 .analysis__lowerbody 自己捲動 */ }
 .analysis__lowerbody { flex: 1 1 0; min-height: 0; display: flex; gap: 8px; overflow: auto; }
 .analysis__lower .analysis__results { flex: 1 1 0; min-width: 0; max-height: none; overflow: auto; }
 .plot__canvas { position: absolute; inset: 0; display: block; touch-action: none; user-select: none; }
@@ -54,6 +54,7 @@
 /* 左側保留 10px 純拖曳帶，收折鈕與頁籤不得覆蓋。 */
 .analysis__splitter--lower { padding-left: 10px; justify-content: flex-start; gap: 4px; overflow: visible; z-index: 3; }
 .analysis__splitter--lower > button { font-size: 12.5px; }
+.analysis__splitter[data-resize="off"] { cursor: default; }
 .analysis__resultTabs, .results__actions { position: relative; display: flex; align-items: center; gap: 4px; background: var(--c-bg); }
 .analysis__resultTabs { flex: 0 0 auto; }
 .results__actions { margin-left: auto; }
@@ -70,7 +71,6 @@
 .results__menu > button { cursor: pointer; min-width: 24px; text-align: center; }
 .results__choices { position: fixed; inset: auto; margin: 0; padding: 8px; background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-dlg); }
 .results__choices label { display: flex; font-size: 13px; }
-.results__info { font-size: 14px; cursor: help; }
 .results__fftinfo { white-space: nowrap; font-size: 12.5px; padding: 2px 6px; }
 .cursors__inputs { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 2px; }
 .cursors__field { display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; font-size: 12.5px; line-height: 16px; white-space: nowrap; }

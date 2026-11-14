@@ -73,12 +73,12 @@ const ctx = { store, fmt, resultActions:actions, fftPeaks:panels.peaks,
   ui:{ confirm:async () => true, pickPath:async () => '/out', toast:() => {},showError:() => {} }, appState:{ catalog:{ measurements:[] } },
   bridge:{ call:async (method,args) => { calls.push([method,args]); return method === 'cursor_readout' ? { t1:1,t2:2,y:{} } : { path:'/tmp/results.csv' }; } } };
 mountMeasure(new Element('div'),ctx); mountResults(panels.measure,ctx);
-assert.ok(actions.firstChild.title.includes('最靠近顯示時間 t=0') && actions.firstChild.title.includes('同距取較早'));
-const table = panels.measure.firstChild;
+const table = panels.measure.firstChild, cur = table.firstChild.children[1];
+assert.ok(cur.title.includes('最靠近顯示時間 t=0') && cur.title.includes('同距取較早') && cur.attrs['aria-label'] === `Current：${cur.title}`);
 assert.ok(table.className.includes('results__table'));
 const empty = panels.measure.children[1]; assert.equal(empty.hidden,false);
 assert.deepEqual(table.firstChild.children.map(c => c.textContent),['Measure','Current','Mean','Min','Max','Std Dev','']);
-const menu = actions.children[1], boxes = menu.children[1].children.map(l => l.firstChild);
+const menu = actions.children[0], boxes = menu.children[1].children.map(l => l.firstChild);
 assert.deepEqual(boxes.filter(b => b.checked).map(b => b.dataset.column),expected);
 tabButtons[2].onclick();
 const count = boxes.find(b => b.dataset.column === 'count'); count.checked = true; count.onchange();
@@ -86,7 +86,7 @@ assert.ok(table.firstChild.children.some(c => c.textContent === 'Count'));
 assert.equal(load().tab,'peaks','欄位選單不可覆寫頁籤偏好');
 assert.deepEqual(load().columns,[...expected,'count'].sort((a,b) => COLUMNS.indexOf(a)-COLUMNS.indexOf(b)));
 const otherActions = new Element('div'); mountResults(new Element('div'),{ ...ctx,resultActions:otherActions });
-assert.ok(otherActions.children[1].children[1].lastChild.firstChild.checked,'選單重新掛載保留次數');
+assert.ok(otherActions.children[0].children[1].lastChild.firstChild.checked,'選單重新掛載保留次數');
 store.set({ file:{ gen:1 },channels:[{ name:'CH1',visible:true,unit:'V',scale:1,position:0,time_offset:0 }],selected:'CH1' });
 const stats = { current:954.126,mean:954,min:950,max:960,range:10,std:1,count:42 };
 store.set({ measurements:[1,2].map(id => ({ id,name:'上升時間',channel:'CH1',result:{ ok:true,gen:1,revision:2,unit:'ps',stats } })) });
@@ -107,7 +107,7 @@ for (const box of boxes) { box.checked = ['mean','range','count'].includes(box.d
 checkRows(['mean','range','count']);
 const clear = actions.children.find(e => e.className.includes('results__clear')), exp = actions.children.find(e => e.className.includes('results__export'));
 assert.ok(clear.title && exp.title); assert.equal(exp.textContent,'匯出結果');
-assert.equal(actions.firstChild.attrs['aria-label'],actions.firstChild.title); assert.equal(exp.disabled,false); await exp.onclick();
+assert.ok(!table.firstChild.children.some(c => c.title),'Current 隱藏時說明不可掛到其他欄'); assert.equal(exp.disabled,false); await exp.onclick();
 assert.equal(calls[0][0],'export_measurements'); assert.equal(calls[0][1].rows.length,2); assert.equal(calls[0][1].directory,'/out');
 const savedMeasurements = store.get().measurements; remove.onclick(); assert.equal(store.get().measurements.length,1); store.set({ measurements:savedMeasurements });
 ctx.ui.confirm = async () => false; await clear.onclick(); assert.equal(store.get().measurements.length,2); ctx.ui.confirm = async () => true;
@@ -196,7 +196,7 @@ assert.match(css,/\.cursors__field \.input \{[^}]*height: 24px;[^}]*font-size: 1
 const fontRules = [
   '.analysis__lower', '.analysis__splitter--lower > button', '.analysis__lower .btn, .analysis__lower summary',
   '.analysis__lowerbody > *', '.results__table th, .results__table td', '.results__choices label',
-  '.results__info', '.results__fftinfo', '.cursors__field', '.cursors__field .input',
+  '.results__fftinfo', '.cursors__field', '.cursors__field .input',
   '.cursors__value', '.cursors__number', '.analysis__cursors .table th, .analysis__cursors .table td',
   '.analysis__lower .analysis__placeholder',
 ];

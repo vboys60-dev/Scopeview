@@ -189,3 +189,7 @@ I3C P2（2026-10-26，沿用上段授權）：L0 固定解碼 mock 拆至 `stati
 GUI-1 右側欄停靠解碼頁溢出修正（2026-11-13，使用者「現在修」；僅 Web）：只改 `static/css/analysis.css`（dock 下 `.analysis__resultTabs` 換行；`.decode__form`／`.decode__params` 加 `flex-wrap`、`min-width:0`）；`docs/驗證.md`、`HANDOFF.md`。不動 JS、契約、其他 CSS。
 
 GUI-1b 右側欄頁籤列仍溢出（2026-11-14，使用者回報截圖，Opus＋Codex 找根因）：只改 `static/css/analysis.css` 第 152 行（dock 下 `.analysis__resultTabs` 覆寫 `flex:0 0 auto`，加 `min-width:0;max-width:100%`）；`docs/驗證.md`。不動 JS、契約、其他 CSS。
+
+窄版 B 區標頭與 ⓘ（2026-11-14，使用者「先修正題2與題3」；僅 Web，Qt 延後、`ui/*` 不動；分支 `fix/narrow-fft-header`）：題 2＝lowerTab 下 B 區標頭照常顯示、只停用拖曳與雙擊重設，▾ 仍可收折。可改 L4 `splitter.js`（`host.hidden` 只對 fft、加 `data-resize`、雙擊在停用時不重設）、`tab_analysis.js`（`layout.toggle` 僅 fft 停用時擋、`lowerHeader.tabIndex`）；`css/analysis.css`（`[data-resize="off"]` 游標）；新檔 L8 `static/js/analysis/lowertab_check.mjs`、`selfcheck_node.js`（FILES 原地加一項）；`web/browser_menu_checks.py` 只改 `load()` 的等待（維持 ≤260 行）。題 3＝移除 `results.js` 的 ⓘ，說明搬到 Current 表頭（title＋aria-label）；可改 `results.js`、`analysis.css`（刪 `.results__info`）、`p2b3_check.mjs`（note 斷言改到表頭、動作列子節點索引）、`float_check.mjs`（142／146 索引）。不動契約、store 鍵與 command、後端、`analysis/*`、`layout.js`、`marker_menu.js`、`popover_fallback.js`。非 vendor 檔 ≤300 行。「⋮ 要拉很低才有用」根因未明，本次不改。
+
+⋮ 選單被 B 區裁掉（2026-11-14，使用者實測：Console 將 `.analysis__lower` 的 overflow 改 visible 後選單出現）：只改 `static/css/analysis.css` 的 `.analysis__lower`（`overflow:hidden`→`visible`）；`docs/驗證.md`、`HANDOFF.md`。不動 JS、契約、其他 CSS。

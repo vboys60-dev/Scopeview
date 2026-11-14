@@ -51,7 +51,7 @@ export function bindLayoutCommands(store, { schedule, dragging = () => {}, initi
   };
   store.onCommand('layout.resize', ({ kind, value }) => { if (valid(kind) && !state(kind).disabled) change({ ...prefs,[kind]:value,[kind+'Collapsed']:false }); });
   store.onCommand('layout.toggle', (kind) => {
-    if (!valid(kind) || state(kind).disabled) return;
+    if (!valid(kind) || (kind === 'fft' && state(kind).disabled)) return;
     if (kind === 'side' && viewport() <= 899) { drawerOpen = !drawerOpen; schedule(); }
     else change({ ...prefs,[kind+'Collapsed']:!effective[kind+'Collapsed'] });
   });
@@ -204,7 +204,7 @@ export function mount(el, ctx) {
     buttons.lower.setAttribute('aria-label',buttons.lower.title);
     buttons.fft.textContent = `${e.fftCollapsed ? '▾ 展開' : '▴ 收折'} FFT 窗格`;
     for (const kind of ['side','lower','fft']) splitters[kind].update(state(kind));
-    lowerHeader.tabIndex = floating ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
+    lowerHeader.tabIndex = floating || state('lower').disabled ? -1 : 0; lowerHeader.setAttribute('aria-disabled',String(!!floating));
   }
   store.onCommand('fft.visible', (on) => { fftOn = !!on; schedule(); });
   store.on(['measurements','fftResult','fftMarker','cursors','decodeResult','decodeAscii','view','channels','plotRect'],schedule);

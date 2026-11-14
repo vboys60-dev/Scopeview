@@ -185,7 +185,7 @@ def fallback_checks(c: Cdp, prep: str, path, data: str = '') -> None:
         c.pump(0.2)
     def load() -> None:
         c.wait("!!document.querySelector('[data-tab=analysis]')")
-        c.js("document.querySelector('[data-tab=analysis]').click()"); c.pump(1.5)
+        c.wait("(()=>{const b=document.querySelector('[data-tab=analysis]');if(!b.classList.contains('tab--active'))b.click();return b.classList.contains('tab--active')})()"); c.pump(1.5)
         if saved['file']:
             command("S.command('file.open',{path:" + json.dumps(data or saved['file']['path']) + "});")
             try:

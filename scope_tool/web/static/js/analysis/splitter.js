@@ -37,7 +37,7 @@ export function mountSplitter(host, { kind, button, store, getState }) {
   const escape = (e) => { if (e.key === 'Escape') end(true); };
   const blur = () => end(true);
   window.addEventListener('keydown',escape); window.addEventListener('blur',blur);
-  host.addEventListener('dblclick', (e) => { if (e.target !== button) store.command('layout.reset',kind); });
+  host.addEventListener('dblclick', (e) => { if (e.target !== button && !getState().disabled) store.command('layout.reset',kind); });
   button.onclick = () => store.command('layout.toggle',kind);
   host.addEventListener('keydown', (e) => {
     if (e.target === button) return;
@@ -50,7 +50,7 @@ export function mountSplitter(host, { kind, button, store, getState }) {
     send(resizeValue(kind,s.value,(e.key === keys[0] ? -1 : 1)*(vertical ? 1 : -1)*(e.shiftKey ? 40 : 10),s.max));
   });
   return { update({ value, collapsed, max, disabled = false }) {
-    host.hidden = disabled; host.tabIndex = disabled ? -1 : 0; attr('aria-disabled',disabled);
+    host.hidden = disabled && kind === 'fft'; attr('data-resize',disabled ? 'off' : 'on'); host.tabIndex = disabled ? -1 : 0; attr('aria-disabled',disabled);
     attr('aria-valuenow',Math.round(value)); attr('aria-valuemin',collapsed ? (vertical ? 36 : 28) : vertical ? 180 : kind === 'lower' ? 120 : 160);
     attr('aria-valuemax',Math.round(Math.max(value,max))); button.setAttribute('aria-expanded',String(!collapsed));
   }, dispose() { end(true); window.removeEventListener('keydown',escape); window.removeEventListener('blur',blur); } };

@@ -139,11 +139,11 @@ const resultHost=new Element(),resultActions=new Element(),peaks=new Element();
 mountResults(resultHost,{store,bridge:{},ui:{},fmt:{fmt:String},resultActions,fftPeaks:peaks});
 const table=resultHost.children[0],dockColumns=table.children[0].children.length;
 store.command('layout.float.state',true);assert.equal(table.children[0].children.length,9);
-const boxes=resultActions.children[1].children[1].children.map(label=>label.children[0]);
+const boxes=resultActions.children[0].children[1].children.map(label=>label.children[0]);
 assert.ok(boxes.every(box=>box.checked));boxes[0].checked=false;boxes[0].onchange();assert.equal(table.children[0].children.length,8);
 store.command('layout.float.state',false);assert.equal(table.children[0].children.length,dockColumns);
 store.command('layout.float.state',true);assert.equal(table.children[0].children.length,8);
-const menu=resultActions.children[1],choices=menu.children[1];choices.fire('toggle',{newState:'open'});assert.equal(choices.style.top,'28px');
+const menu=resultActions.children[0],choices=menu.children[1];choices.fire('toggle',{newState:'open'});assert.equal(choices.style.top,'28px');
 console.log('float self-check OK');
 if(process.argv.includes('--mutations')) {
   const root=dirname(dirname(fileURLToPath(import.meta.url)));
