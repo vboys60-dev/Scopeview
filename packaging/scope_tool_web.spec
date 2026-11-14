@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec：Windows 單資料夾（onedir）。從專案根目錄執行：pyinstaller packaging/scope_tool_web.spec
-# 待 Win10 實機驗證
+# PyInstaller spec：Windows 單資料夾（onedir）／macOS .app。從專案根目錄執行：pyinstaller packaging/scope_tool_web.spec
+# 待 Win10／macOS 實機驗證；CI 見 .github/workflows/build.yml
+import sys
 from PyInstaller.utils.hooks import collect_submodules
 
-hidden = collect_submodules("webview.platforms") + [
-    "clr_loader", "pythonnet", "clr", "webview.platforms.edgechromium", "webview.platforms.winforms",
-    "pyvisa_py", "zeroconf",
-]
+hidden = collect_submodules("webview.platforms") + ["pyvisa_py", "zeroconf"]
+if sys.platform == "win32":
+    hidden += ["clr_loader", "pythonnet", "clr", "webview.platforms.edgechromium", "webview.platforms.winforms"]
 # PySide6 必須保留（infiniivision 用 QImage）；只排除其他綁定與大型 Qt 模組
 excludes = [
     "PyQt5", "PyQt6", "tkinter",
@@ -25,3 +25,6 @@ a = Analysis(
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="scope_tool_web", console=False)
 coll = COLLECT(exe, a.binaries, a.datas, name="scope_tool_web")
+if sys.platform == "darwin":
+    app = BUNDLE(coll, name="示波器截圖工具.app", bundle_identifier="com.scopeview.scopetool",
+                 info_plist={"NSHighResolutionCapable": True, "CFBundleDisplayName": "示波器截圖工具"})
