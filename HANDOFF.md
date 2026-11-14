@@ -321,3 +321,4 @@
 - 超過 300 行：`fft_marker_check.mjs`（319，待拆）、`docs/驗證.md`（約 470）。
 - **決定（2026-11-13）**：`H5參考波形/` 新檔與 `HD5擷取歷史/` 刪除**不追蹤、不 commit**（只列檔名 add，勿用 `git add -A`）；契約 v3 與 Jitter／眼圖**都先不動工**。
 - 真機／Win10／WKWebView 未驗；Qt 延後。
+- **GitHub 封裝（2026-11-14）**：`.github/workflows/build.yml`（windows-latest／macos-latest，PyInstaller；手動觸發或推 `v*` tag 會附到 Release）；`packaging/scope_tool_web.spec` 已跨平台（darwin 加 BUNDLE）。首次手動觸發兩平台建置皆成功（run 43567440726）。**未實機驗證**：Windows 需 WebView2 Runtime；macOS app 僅 ad-hoc 簽章、未公證，首次開啟需右鍵→打開（或 `xattr -cr`）；執行檔能否啟動、連儀器皆待實測。
