@@ -73,21 +73,21 @@ export function getFftState(ctx) {
 export function mountFftControls(el, ctx, { sourceHost = el, markerHost = el, impHost = el } = {}) {
   const state = getFftState(ctx), { p, catalog } = state;
   const h = (tag, cls) => { const e = document.createElement(tag); e.className = cls; return e; };
-  const field = (host, name, control) => { const label = h('label', 'field'); label.textContent = name + ' '; label.append(control); host.append(label); };
+  const field = (host, name, control) => { const label = h('label', 'field'); label.textContent = name + ' '; label.append(control); host.append(label); return label; };
   const select = opts => { const s = h('select', 'select'); s.append(...opts.map(([v, t]) => new Option(t, v))); return s; };
   const src = select([]), win = select(Object.keys(catalog.fft_windows ?? {}).map(k => [k, k]));
   const unit = select((catalog.fft_units ?? []).map(k => [k, k]));
   const imp = select((catalog.fft_impedances ?? []).map(([t], i) => [i, t]));
   const sort = select((catalog.peak_sorts ?? []).map(k => [k, k]));
-  const man = h('input', 'input'), lvl = h('input', 'input'), cnt = h('input', 'input');
+  const lvlUnit = h('span', 'muted'), man = h('input', 'input'), lvl = h('input', 'input'), cnt = h('input', 'input');
   for (const input of [man, lvl, cnt]) input.style.width = '5em';
   for (const [control, key, conv] of [[src, 'source', String], [win, 'window', String], [imp, 'imp', Number]])
     control.onchange = () => state.change(key, conv(control.value));
   man.onchange = () => { const n = Number(man.value); if (Number.isFinite(n) && n > 0) state.change('manualR', n); else man.value = String(p.manualR); };
-  bindFftMarkerControls(ctx, p, { unit, lvl, cnt, sort, imp, man }, catalog);
+  bindFftMarkerControls(ctx, p, { unit, lvl, cnt, sort, imp, man, lvlUnit }, catalog);
   field(sourceHost, '來源', src); field(el, '視窗', win); field(el, '單位', unit);
   if (impHost !== el) { field(impHost, '阻抗', imp); impHost.append(man); } else { if (sourceHost === el) el.append(imp); else field(el, '阻抗', imp); el.append(man); }
-  field(markerHost, '排序', sort); field(markerHost, 'Peak Line', lvl); field(markerHost, '顯示數量 n', cnt);
+  field(markerHost, '排序', sort); field(markerHost, 'Peak Line', lvl).append(lvlUnit); field(markerHost, '顯示數量 n', cnt);
   const { fmt } = ctx;
   const refLabel = document.createElement('label'), ref = document.createElement('input'), unwrapLabel = document.createElement('label'), unwrap = document.createElement('input');
   refLabel.className = unwrapLabel.className = 'field'; refLabel.textContent = '相位參考（空白＝觸發 0） '; ref.className = 'input'; ref.style.width = '6em'; ref.setAttribute('aria-label', '相位參考（空白＝觸發 0）');

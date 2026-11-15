@@ -238,3 +238,6 @@
 .analysis__horizontal .analysis__hmodes button[aria-pressed="true"] {
   background: var(--c-accent); color: var(--c-accent-text); border-color: var(--c-accent); box-shadow: none;
 }
+/* FFT 右欄窄：峰表不換行，由 .fftpage__table 橫向捲動；刪除欄不 sticky 以免蓋住內容 */
+.fftpage__table .results__table { width: max-content; min-width: 100%; }
+.fftpage__table .results__table th:last-child, .fftpage__table .results__table td:last-child { position: static; }
