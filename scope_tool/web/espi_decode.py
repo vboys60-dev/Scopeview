@@ -46,7 +46,7 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
         spans.append((start, end, start == float(cs.time[0]), True))
     sample = clk.time[(clk.time <= end) & ~clk.resync & (clk.value == 1)]
     frames, bits_t, bits_v, warnings = [], [], [], []
-    truncated, count = bool(cuts), 0
+    truncated, count, halt = bool(cuts), 0, False
     for a, b, first, last in spans:
         if len(frames) >= max_frames:
             truncated, end = True, a
@@ -60,12 +60,12 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             truncated = True
         pos = 0
         def take(kind: str, n: int, vals: np.ndarray) -> int | None:
-            nonlocal pos, count, truncated, end
+            nonlocal pos, count, truncated, end, halt
             if pos >= len(ts):
                 reason(f, 'incomplete', 'warn')
                 return None
             if count >= max_fields:
-                truncated, end = True, min(end, float(ts[pos]))
+                truncated, halt, end = True, True, min(end, float(ts[pos]))
                 f['t1'] = end
                 reason(f, 'truncated', 'warn')
                 return None
@@ -107,12 +107,12 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             f['label'] = name or '未知命令'
             if not name:
                 reason(f, 'unknown_opcode', 'warn')
-                while pos < len(ts) and not truncated:
+                while pos < len(ts) and not halt:
                     take('data', 8, v0)
             elif length is None:
                 reason(f, 'incomplete', 'warn')
             else:
-                while len(cmd) < length and pos < len(ts) and not truncated:
+                while len(cmd) < length and pos < len(ts) and not halt:
                     index = len(cmd)
                     kind = 'crc' if index == length-1 else ('addr' if op in (0x21, 0x22) and index < 3 else 'hdr' if op == 4 and index == 1 else 'data')
                     x = take(kind, 8, v0)
@@ -126,7 +126,7 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
                         reason(f, 'crc_cmd')
                     pos += 2
                     resp = take('resp', 8, v1)
-                    while resp == 0x0f and not truncated:
+                    while resp == 0x0f and not halt:
                         f['fields'][-1]['kind'] = 'wait'
                         resp = take('resp', 8, v1)
                     if resp == 0xff:
@@ -154,7 +154,7 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
                                 if o['crc'] and crc8(response[:-1]) != response[-1]:
                                     reason(f, 'crc_resp')
         frames.append(f)
-        if truncated and end < b:
+        if halt:
             break
     if cuts:
         warnings.append(f'邊沿超過上限，只解到 t={end:.12g}')

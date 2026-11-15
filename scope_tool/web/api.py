@@ -27,15 +27,14 @@ for _m in ("infiniivision", "infiniium"):  # 註冊 driver；缺相依時略過�
 STATIC = (Path(getattr(sys, "_MEIPASS")) / "scope_tool" / "web" / "static") if hasattr(sys, "_MEIPASS") \
     else Path(__file__).parent / "static"
 CONTRACT_PATH = STATIC / "api_contract.json"
-_PATH_KEYS = ("screenshot_dir", "waveform_dir")
+_PATH_KEYS, _NAME_KEYS = ("screenshot_dir", "waveform_dir"), ("screenshot_name", "waveform_name")
 _IP_RE = re.compile(r"^[\w.\-:]+$")
 
 
 def _path(s: str) -> Path:
     return Path(s).expanduser()
 
-def _asdict(f: FoundInstrument) -> dict[str, str]:
-    return dict(resource=f.resource, source=f.source, label=f.label)
+def _asdict(f: FoundInstrument) -> dict[str, str]: return dict(resource=f.resource, source=f.source, label=f.label)
 
 
 log = logging.getLogger(__name__)
@@ -78,12 +77,12 @@ def _check_cfg(k: str, v: Any) -> None:
     if not ok:
         raise BadRequestError(f"設定 {k} 的值型別不合法：{v!r}")
     enum = {"image_format": ImageFormat, "area": CaptureArea, "waveform_format": WaveformFormat}.get(k)
-    if enum:
-        _enum(enum, v, k)
+    _enum(enum, v, k) if enum else _filename(v) if k in _NAME_KEYS else None
 
 
-def _filename(name: str) -> str:
-    if not name or name in (".", "..") or len(name) > 200 or re.search(r'[<>:"/\\|?*\x00-\x1f]', name):
+def _filename(name: str, fallback: str | None = None) -> str:
+    if not isinstance(name, str) or not name or name in (".", "..") or len(name) > 200 or re.search(r'[<>:"/\\|?*\x00-\x1f]', name):
+        if fallback is not None: return fallback
         raise BadRequestError(f'檔名不合法：{name!r}（不可含 < > : " / \\ | ? * 或控制字元，長度上限 200）')
     return name
 
@@ -92,6 +91,7 @@ class Api:
     def __init__(self, jobs: Jobs, cfg: dict[str, Any] | None = None, persist: bool = True) -> None:
         self._jobs = jobs
         self._cfg = cfg if cfg is not None else config_mod.load()
+        self._cfg.update({k: _filename(self._cfg[k], config_mod.DEFAULTS[k]) for k in _NAME_KEYS})
         self._persist = persist
         self._drv: ScopeDriver | None = None
         self._window: Any = None

@@ -26,22 +26,28 @@ jobs:
         with: {node-version: "22"}
       - run: pip install -r requirements-web.txt pyinstaller
       - name: 打包前自檢
-        continue-on-error: true
         shell: bash
         run: |
-          set -e
-          python -B -m scope_tool.web.decimate
-          python -B -m scope_tool.web.jobs
-          python -B -m scope_tool.web.api
-          python -B -m scope_tool.web.server
-          python -B -m scope_tool.web.analysis_api
-          python -B -m scope_tool.web.analysis_slots
-          python -B -m scope_tool.web.e2e_check
-          python -B -m scope_tool.storage.writer
-          python -B -m scope_tool.storage.reader
-          python -B -m scope_tool.storage.csv_export
-          python -B -m scope_tool.web.i2c_real_check
-          node scope_tool/web/static/js/selfcheck_node.js
+          fail=0
+          run() { "$@" || { echo "自檢失敗：$*"; fail=1; }; }
+          run python -B -m scope_tool.web.decimate
+          run python -B -m scope_tool.web.jobs
+          run python -B -m scope_tool.web.api
+          run python -B -m scope_tool.web.server
+          run python -B -m scope_tool.web.analysis_api
+          run python -B -m scope_tool.web.analysis_slots
+          run python -B -m scope_tool.web.e2e_check
+          run python -B -m scope_tool.storage.writer
+          run python -B -m scope_tool.storage.reader
+          run python -B -m scope_tool.storage.csv_export
+          run python -B -m scope_tool.web.i2c_real_check
+          run python -B -m scope_tool.web.espi_check
+          run python -B -m scope_tool.web.spi_check
+          run python -B -m scope_tool.instruments.base
+          run python -B -m scope_tool.instruments.infiniivision
+          run python -B -m scope_tool.instruments.infiniium
+          run node scope_tool/web/static/js/selfcheck_node.js
+          exit $fail
       - run: pyinstaller --noconfirm --distpath dist --workpath build packaging/scope_tool_web.spec
       - name: 檢查動態載入的模組有進包
         shell: bash

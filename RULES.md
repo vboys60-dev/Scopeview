@@ -202,3 +202,6 @@ GitHub 封裝（2026-11-14，使用者「在 github 上封裝 windows 執行檔�
 
 ## 審查修正第一波授權（2026-11-15，使用者「先修第 1～3 項 opus規劃codex 編寫代碼opus驗收」，依 Codex／Opus 交叉審查結論）
 - 授權修改：L1a `web/api.py`（`_filename`／`_write_or_temp`，行數不增）、L8 `web/server_http_check.py`（補自檢）、`storage/csv_export.py`（解凍，僅 `export_csv` 時間軸一致性檢查與自檢）、L1b `web/analysis_check.py`（補匯出拒絕案例）、`.github/workflows/build.yml`（成品檢查與自檢步驟）。其餘凍結不變；不動契約、H5、Qt、`ui/*`、`analysis/*`。
+
+## 審查修正第二波授權（2026-11-15，使用者「照你建議」，依第二次 Codex／Opus 交叉審查結論；Opus 規劃、Codex 實作、Opus 驗收；僅 Web，Qt 延後）
+- 解凍並授權：`instruments/base.py`（僅 `_clear`、`_query_binary`、`_prepare_capture`、新 `_record_wait` 與搬出自檢）、新檔 `instruments/base_check.py`（T1 自檢，由 base.py `__main__` 呼叫）；L1b `web/espi_decode.py`／`espi_check.py`（補登；僅 `truncated`／`halt` 旗標與新案例）、`web/spi_decode.py`／`spi_check.py`（僅 `run()` 分段與取字、新 `unknown_checks`）；L1a `web/api.py`（`_filename` fallback、`_check_cfg`、`__init__` 載入退回預設；行數不增）；L8 `web/server_http_check.py`（補自檢；Windows 連線重設容錯）、`.github/workflows/build.yml`（自檢全跑完再判定失敗，移除 `continue-on-error`）。可選：L2 `tab_capture.js` 第 109 行。`infiniivision.py`／`infiniium.py`／`config.py`／契約不動。

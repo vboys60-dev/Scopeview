@@ -31,6 +31,17 @@ def check(module: types.ModuleType = dec) -> None:
             assert [x['value'] for x in f['fields'] if x['kind'] == 'status'] == [15,3]
         assert np.all(np.diff(r['bits_t']) > 0)
         assert all(f['t0'] <= x['t0'] <= x['t1'] <= f['t1'] for x in f['fields'])
+    b = bus([0x25], [8,15,3])
+    combined = dict(b, trans=b['trans'] + [(t+b['end']+3e-6, k, v) for t,k,v in b['trans']], end=2*b['end']+3e-6)
+    e = edges(combined)
+    e['cs'] = e['cs']._replace(value=e['cs'].value.copy())
+    e['cs'].value[0] = 0
+    r = module.run(e, t1=combined['end'])
+    assert 'truncated' in r['frames'][0]['reasons'] and r['truncated']
+    f = r['frames'][1]
+    assert 'incomplete' not in f['reasons']
+    assert [x['value'] for x in f['fields'] if x['kind'] == 'status'] == [15,3]
+    assert any(x['kind'] == 'crc' for x in f['fields'])
     for lane, expected, cutoff in [('io0', 'crc_cmd', 11e-6), ('io1', 'crc_resp', 50e-6)]:
         b = bus([0x25], [8,15,3])
         e = edges(b)
@@ -78,7 +89,7 @@ def performance() -> None:
 
 def mutations() -> None:
     source = Path(dec.__file__).read_text(encoding='utf-8')
-    for old, new in [("pos += 2", "pos += 1"), ("clk.value == 1", "clk.value == 0"),
+    for old, new in [("not halt", "not truncated"), ("pos += 2", "pos += 1"), ("clk.value == 1", "clk.value == 0"),
                      ("response[-3] | response[-2] << 8", "response[-2] | response[-3] << 8"),
                      ("crc8(response[:-1])", "crc8([15, 15] + response[:-1])")]:
         assert old in source

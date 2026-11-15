@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import time
+import math
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -16,6 +17,8 @@ import pyvisa
 
 from scope_tool.contracts import Preamble, RemoteDesktopError, ScopeDriver, ScopeError, ScopeTimeoutError, Waveform
 
+
+MAX_RECORD_WAIT_S = 30
 
 def _binary_block(data: bytes) -> bytes:
     """自我檢查共用：產生含結尾換行的 IEEE488.2 block。"""
@@ -55,12 +58,13 @@ class SCPIDriver(ScopeDriver):
         except Exception as exc:
             raise self._wrap(exc, cmd) from exc
 
-    def _clear(self) -> None:
+    def _clear(self) -> bool:
         """VISA device clear，卡住的查詢之後用來恢復通訊；失敗就算了。"""
         try:
             self.res.clear()
+            return True
         except Exception:
-            pass
+            return False
 
     def _query(self, cmd: str) -> str:
         """送出查詢命令，回傳去除頭尾空白的字串。"""
@@ -71,9 +75,11 @@ class SCPIDriver(ScopeDriver):
 
     def _query_binary(self, cmd: str, datatype: str) -> np.ndarray:
         """送出回傳 IEEE488.2 binary block 的查詢，回傳 numpy 陣列。"""
+        sent = False
         try:
             dtype = {"B": np.dtype("uint8"), "H": np.dtype("<u2")}[datatype]
             self.res.write(cmd)
+            sent = True
             header = self.res.read_bytes(2)
             if len(header) != 2 or header[:1] != b"#" or not b"1" <= header[1:] <= b"9":
                 raise ValueError("不是 definite-length block")
@@ -91,7 +97,10 @@ class SCPIDriver(ScopeDriver):
                 raise ValueError("binary block 缺少結尾換行")
             return np.frombuffer(data, dtype=dtype)
         except Exception as exc:
-            raise self._wrap(exc, cmd) from exc
+            err = self._wrap(exc, cmd)
+            if sent and not self._clear():
+                err = type(err)(f"{err}；清除儀器通訊也失敗，請斷線後重新連線")
+            raise err from exc
 
     def _wrap(self, exc: Exception, cmd: str) -> ScopeError:
         """把 pyvisa 例外轉成本工具的 ScopeError 子類別。"""
@@ -127,9 +136,24 @@ class SCPIDriver(ScopeDriver):
         """用操作暫存器的 RUN 位元（bit3，值8）判斷是否在跑。"""
         return bool(int(self._query(":OPERegister:CONDition?")) & 0x8)
 
+    def _record_wait(self) -> float:
+        resp = None
+        try:
+            resp = self._query(":TIMebase:SCALe?")
+            scale = float(resp)
+            if not math.isfinite(scale) or scale <= 0:
+                raise ValueError()
+        except (ValueError, TypeError) as exc:
+            raise ScopeError(f"無法讀取時基：{resp!r}") from exc
+        wait = 10 * scale + 1
+        if wait > MAX_RECORD_WAIT_S:
+            raise ScopeError(f"目前時基 {scale:g} s/div，等待完整記錄約需 {wait:.0f} 秒，超過上限 {MAX_RECORD_WAIT_S} 秒。請先在示波器按 STOP 後再擷取（不勾「重新觸發」），或把時基縮短到約 {(MAX_RECORD_WAIT_S-1)/10:.1f} s/div 以下。")
+        return wait
+
     def _prepare_capture(self, retrigger: bool) -> None:
         """RUN 中先等完整記錄再 STOP；擷取後維持 STOP。Infiniium 待真機驗證。"""
         if retrigger:
+            self._record_wait()
             try:
                 self._write(":DIGitize")
             except ScopeTimeoutError as exc:
@@ -140,8 +164,7 @@ class SCPIDriver(ScopeDriver):
                     "請檢查觸發設定，或切到 Auto 觸發再試。"
                 ) from exc
         elif self._is_running():
-            scale = float(self._query(":TIMebase:SCALe?"))
-            time.sleep(10 * scale + 1)
+            time.sleep(self._record_wait())
             self._write(":STOP")
 
     def channels(self) -> list[str]:
@@ -165,120 +188,4 @@ class SCPIDriver(ScopeDriver):
 
 
 if __name__ == "__main__":
-    class _StubResource:
-        """假的 pyvisa resource，只記錄收到的命令並回固定值。"""
-
-        def __init__(self) -> None:
-            self.timeout = 5000
-            self.commands: list[str] = []
-            self.payload = bytes([1, 2, 3])
-            self.read_sizes: list[int] = []
-            self.cleared = False
-
-        def clear(self) -> None:
-            self.cleared = True
-
-        def write(self, cmd: str) -> None:
-            self.commands.append(cmd)
-            self.block = _binary_block(self.payload)
-
-        def query(self, cmd: str) -> str:
-            self.commands.append(cmd)
-            if cmd == "*OPC?":
-                return "1"
-            if cmd == ":SYSTem:ERRor?":
-                return "+0,\"No error\""
-            if cmd == ":OPERegister:CONDition?":
-                return "8"
-            if cmd.startswith(":CHANnel"):
-                return "1" if cmd in (":CHANnel1:DISPlay?", ":CHANnel2:DISPlay?") else "0"
-            return "0"
-
-        def read_bytes(self, count: int) -> bytes:
-            self.read_sizes.append(count)
-            data, self.block = self.block[:count], self.block[count:]
-            return data
-
-    class _StubDriver(SCPIDriver):
-        series = None
-        model_prefixes = ()
-
-        def screenshot(self, opts):
-            raise NotImplementedError
-
-        def max_points(self):
-            raise NotImplementedError
-
-        def capture(self, channels, points, retrigger):
-            raise NotImplementedError
-
-    res = _StubResource()
-    d = _StubDriver(res, "STUB")
-
-    d._write(":RUN")
-    assert res.commands[-2:] == [":RUN", "*OPC?"]
-
-    assert d._query(":SYSTem:ERRor?") == "+0,\"No error\""
-
-    d._check_error()  # 不應該拋例外
-
-    with d._timeout(15000):
-        assert res.timeout == 15000
-    assert res.timeout == 5000
-
-    assert d.channels() == ["CHAN1", "CHAN2"]
-
-    arr = d._query_binary(":WAVeform:DATA?", "B")
-    assert arr.dtype == np.uint8 and list(arr) == [1, 2, 3]
-    assert res.block == b"" and res.read_sizes[-1] == 1
-    res.payload = np.arange(2_100_000, dtype="<u2").tobytes()
-    arr = d._query_binary(":WAVeform:DATA?", "H")
-    assert arr.dtype == np.dtype("<u2") and len(arr) == 2_100_000
-    assert arr[-1] == 2_099_999 % 65536
-    assert res.read_sizes[-3:] == [4 * 1024 * 1024, 5696, 1] and res.block == b""
-
-    class _TimeoutResource(_StubResource):
-        def read_bytes(self, count: int) -> bytes:
-            raise pyvisa.errors.VisaIOError(pyvisa.constants.StatusCode.error_timeout)
-    try:
-        _StubDriver(_TimeoutResource(), "STUB")._query_binary("DATA?", "B")
-    except ScopeTimeoutError:
-        pass
-    else:
-        raise AssertionError("binary block 逾時應轉成 ScopeTimeoutError")
-
-    class _TriggerTimeoutResource(_StubResource):
-        def query(self, cmd: str) -> str:
-            if cmd == "*OPC?" and self.commands[-1:] == [":DIGitize"]:
-                self.commands.append(cmd)
-                raise pyvisa.errors.VisaIOError(pyvisa.constants.StatusCode.error_timeout)
-            return super().query(cmd)
-
-    trigger_res = _TriggerTimeoutResource()
-    try:
-        _StubDriver(trigger_res, "STUB")._prepare_capture(True)
-    except ScopeError as exc:
-        assert not isinstance(exc, ScopeTimeoutError)
-        assert "等不到觸發" in str(exc)
-        assert isinstance(exc.__cause__, ScopeTimeoutError)
-        assert trigger_res.cleared
-        assert trigger_res.commands == [":DIGitize", "*OPC?"]
-    else:
-        raise AssertionError("等不到觸發應清除通訊並轉成 ScopeError")
-
-    # Error 273 要轉成 RemoteDesktopError
-    class _ErrResource(_StubResource):
-        def query(self, cmd: str) -> str:
-            if cmd == ":SYSTem:ERRor?":
-                return "273,\"Remote desktop\""
-            return super().query(cmd)
-
-    d2 = _StubDriver(_ErrResource(), "STUB")
-    try:
-        d2._check_error()
-    except RemoteDesktopError:
-        pass
-    else:
-        raise AssertionError("Error 273 應該轉成 RemoteDesktopError")
-
-    print("base self-check OK")
+    from scope_tool.instruments.base_check import _self_check; _self_check()

@@ -47,27 +47,27 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
     if 'cs' in edges:
         cs = edges['cs']
         active = int(o['cs_active'] == 'high')
-        start = None
-        for tm, value in zip(cs.time, cs.value):
+        start, first = None, False
+        for i, (tm, value) in enumerate(zip(cs.time, cs.value)):
             if tm > end:
                 break
             if value == active and start is None:
-                start = float(tm)
+                start, first = float(tm), bool(cs.resync[i])
             elif value != active and start is not None:
-                spans.append((start, float(tm), start == float(cs.time[0]), False, False))
+                spans.append((start, float(tm), first, False, False, value < 0))
                 start = None
         if start is not None:
-            spans.append((start, end, start == float(cs.time[0]), True, False))
+            spans.append((start, end, first, True, False, False))
     elif len(ct):
         indexes = np.flatnonzero(np.diff(ct) > o['idle']) + 1 if o['idle'] is not None else np.array([], dtype=int)
         for group in np.split(ct, indexes):
             if len(group):
-                spans.append((float(group[0]), float(group[-1]), False, False, True))
+                spans.append((float(group[0]), float(group[-1]), False, False, True, False))
     frames, bits_t, bits_v, warnings = [], [], [], []
     truncated = bool(cuts)
     count = 0
     halted = False
-    for a, b, first, last, no_cs in spans:
+    for a, b, first, last, no_cs, cut in spans:
         st = sample[(sample >= a) & (sample <= b if no_cs or last else sample < b)]
         if no_cs and not len(st):
             continue
@@ -80,16 +80,22 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             if prior != cpol:
                 reason(f, 'clk_phase', 'warn')
         else:
-            if first or last:
+            if first or last or cut:
                 reason(f, 'truncated', 'warn')
-                f['label'] = '擷取開始時 CS 已有效，對齊未知' if first else '擷取結束時 CS 仍有效'
+                f['label'] = ('CS 進入未知區段，交易可能未結束' if cut else
+                              ('擷取開始時 CS 已有效，對齊未知' if a == cs.time[0] else 'CS 未知區段後恢復有效，對齊未知') if first else '擷取結束時 CS 仍有效')
                 truncated = True
             if levels_at(clk, np.array([a]), end)[0] != cpol:
                 reason(f, 'clk_phase', 'warn')
         values = {lane: levels_at(edges[lane], st, end) for lane in ('mosi', 'miso') if lane in edges}
         primary = 'mosi' if 'mosi' in values else 'miso'
-        for pos in range(0, len(st), o['bits']):
-            ts = st[pos:pos + o['bits']]
+        gaps = [g0 for g0, g1 in clk.unknown if g0 < b and g1 > a]
+        bounds = [0, *np.searchsorted(st,gaps), len(st)]
+        words = [(p, min(p+o['bits'], hi)) for lo, hi in zip(bounds, bounds[1:]) for p in range(lo, hi, o['bits'])]
+        if gaps:
+            reason(f, 'unknown_bit', 'warn')
+        for p, q in words:
+            ts = st[p:q]
             if len(frames) >= max_frames or count + len(values) > max_fields:
                 truncated = True
                 halted = True
@@ -100,7 +106,7 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             if len(ts) < o['bits']:
                 reason(f, 'incomplete', 'warn')
             for lane, vals in values.items():
-                v = vals[pos:pos + len(ts)]
+                v = vals[p:q]
                 unknown = bool(np.any(v < 0))
                 if unknown:
                     reason(f, 'unknown_bit', 'warn')
@@ -114,7 +120,7 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
                                         ok=not unknown and len(ts) == o['bits'], label=label))
                 count += 1
             bits_t.extend(map(float, ts))
-            bits_v.extend(map(int, values[primary][pos:pos + len(ts)]))
+            bits_v.extend(map(int, values[primary][p:q]))
         if len(frames) >= max_frames:
             truncated = True
             end = min(end, a)
@@ -125,8 +131,10 @@ def run(edges: dict[str, Edges], *, t1: float | None = None, max_frames: int = 1
             break
     if 'cs' in edges:
         inside = np.zeros(len(ct), dtype=bool)
-        for a, b, _, last, _ in spans:
+        for a, b, _, last, _, _ in spans:
             inside |= (ct >= a) & ((ct <= b) if last else (ct < b))
+        for g0, g1 in cs.unknown:
+            inside |= (ct >= g0) & (ct < g1)
         outside = int(np.sum(~inside))
         if outside:
             warnings.append(f'CS 外時脈 {outside} 個')

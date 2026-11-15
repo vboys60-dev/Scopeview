@@ -157,6 +157,28 @@ def waveform_checks() -> None:
     assert r['truncated']
 
 
+def unknown_checks(module: types.ModuleType = dec) -> None:
+    from scope_tool.web.synth import render
+    b = spi_bus([(0x96, 0), (0xA5, 0)])
+    names = ('sclk', 'mosi', 'miso', 'cs')
+    t, *v = render(b['trans'], 32e6, lines=names, noise=.01, end=b['end'])
+    for lane in ('sclk', 'cs'):
+        volts = {k: x.copy() for k, x in zip(names, v)}
+        volts[lane][(t >= 7e-6) & (t < 15e-6)] = np.nan
+        e, _, end, error = prepare(t, volts, dict.fromkeys(names), require_edges=False)
+        assert not error
+        r = module.run(e, t1=end)
+        invariants(r)
+        if lane == 'sclk':
+            fields = [x for f in r['frames'] for x in f['fields'] if x['kind'] == 'mosi']
+            assert all(x['value'] != 0x95 and x['nbits'] != 8 for x in fields)
+            assert [(x['value'], x['nbits']) for x in fields] == [(9, 4), (5, 4)]
+            assert 'unknown_bit' in r['frames'][0]['reasons']
+        else:
+            assert len(r['frames']) == 2 and all('truncated' in f['reasons'] for f in r['frames'])
+            assert not any(w.startswith('CS 外時脈') for w in r['warnings'])
+
+
 def integration() -> None:
     from scope_tool.web.analysis_api import Analysis
     with TemporaryDirectory() as directory:
@@ -188,7 +210,8 @@ def mutations() -> None:
     source = Path(dec.__file__).read_text(encoding='utf-8')
     for old, new in [('rising = (cpol == cpha)', 'rising = (cpha == 0)'),
                      ("j if o['lsb'] else len(v)-1-j", "len(v)-1-j if o['lsb'] else j"),
-                     ("range(0, len(st), o['bits'])", "range(0, len(st), len(st))")]:
+                     ("np.searchsorted(st,gaps)", "[]"),
+                     ("range(lo, hi, o['bits'])", "range(lo, hi, max(1, hi-lo))")]:
         assert old in source
         mutant = types.ModuleType('mutant')
         exec(compile(source.replace(old, new), str(dec.__file__), 'exec'), mutant.__dict__)
@@ -199,6 +222,10 @@ def mutations() -> None:
                 except AssertionError:
                     continue
                 raise AssertionError(f'變異未被偵測：{target}')
+        elif old.startswith('np.searchsorted'):
+            try: unknown_checks(mutant)
+            except AssertionError: continue
+            raise AssertionError('未知時脈變異未被偵測')
         else:
             b = spi_bus([(0x96, 0x2d), (0x55, 0xaa)], cs=False)
             e = edges(b)
@@ -214,6 +241,7 @@ if __name__ == '__main__':
     vectors()
     edge_cases()
     waveform_checks()
+    unknown_checks()
     integration()
     performance()
     if '--mutations' in sys.argv:

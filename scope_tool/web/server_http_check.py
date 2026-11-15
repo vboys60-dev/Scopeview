@@ -64,17 +64,21 @@ def _http_check(handler_cls: type) -> None:
             resp.begin()
             return resp.status, json.loads(resp.read())
 
+    def closed(client):
+        try: return client.recv(1) == b""
+        except (ConnectionResetError, ConnectionAbortedError): return True
+
     for length in ("abc", "-1", "²", "9" * 30, str(8 * 1024 * 1024 + 1)):
         with connection() as client:
             send(client, length)
             send(client, "2", b"{}")  # 若沒關線，伺服器會回應這筆（recv 得到 b"H"）
             status, payload = response(client)
             assert status == 400 and payload["error"]["code"] == "BAD_REQUEST", length
-            assert client.recv(1) == b"", length  # 無 body 也立即拒絕並關線
+            assert closed(client), length  # 無 body 也立即拒絕並關線
     assert not calls and not auth
     with connection() as client:
         send(client, "2", token="bad")  # 宣告 body 卻不送，必須先讀到閒置逾時
-        assert client.recv(1) == b"", "應逾時關線，不應提前回 403"
+        assert closed(client), "應逾時關線，不應提前回 403"
     assert not calls and not auth, "token 檢查不得前移"
     with connection() as client:
         for raw, expected in ((b"{}", {}), (b"", {}), (b'{"x": 1}', {"x": 1})):
@@ -101,7 +105,7 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
     import urllib.error
     import urllib.request
     from scope_tool.instruments.fake import FakeDriver
-    from scope_tool.web.api import Api, _filename, _write_or_temp
+    from scope_tool.web.api import Api, _filename, _write_or_temp, _check_cfg
     from scope_tool.web.jobs import BadRequestError
     from scope_tool.web.jobs import StaleError
     class SlowFake(FakeDriver):
@@ -136,6 +140,12 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
         return directory / name
     _write_or_temp(Path("/unused"), "original", fake_write)
     assert writes[1] == (Path(tempfile.gettempdir()) / "scope_tool", "scope_tool_recovered")
+    _check_cfg("screenshot_name", "scope")
+    try: _check_cfg("waveform_name", "a:b")
+    except BadRequestError: pass
+    else: raise AssertionError("不合法檔名應被拒絕")
+    from scope_tool.config import DEFAULTS
+    assert Api(Jobs(), cfg={**DEFAULTS, "waveform_name": "a:b"}, persist=False)._cfg["waveform_name"] == "wave"
     jobs = Jobs()
     api = Api(jobs, cfg=dict(__import__("scope_tool.config", fromlist=["x"]).DEFAULTS), persist=False)
     srv = server_cls(api, FakeAna(), jobs, token="tok", analysis_mod=FakeMod)
@@ -163,6 +173,9 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
     assert rpc("close_waveform", {})[1]["ok"]
     for bad in ({"screenshot_dir": None}, {"screenshot_dir": ""}, {"points": None}, {"points": 0}):
         assert rpc("save_config", {"patch": bad})[1]["error"]["code"] == "BAD_REQUEST", bad  # 型別錯誤
+    old_name = api._cfg["screenshot_name"]
+    assert rpc("save_config", {"patch": {"screenshot_name": "a:b"}})[1]["error"]["code"] == "BAD_REQUEST"
+    assert api._cfg["screenshot_name"] == old_name
     assert rpc("connect_fake", {})[1]["result"]["model"] == "FAKE-SCOPE"
     cap = dict(directory="/x", name="n", channels=["CHAN1"], points=10, retrigger=False)
     for bad in ({"retrigger": "false"}, {"channels": "CHAN1"}, {"channels": ["CHAN10"]}):  # 型別／白名單：不得碰儀器
