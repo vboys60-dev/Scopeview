@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import socket
+import sys
 import threading
 from contextlib import contextmanager
 from http.client import HTTPResponse
@@ -71,7 +72,7 @@ def _http_check(handler_cls: type) -> None:
     for length in ("abc", "-1", "²", "9" * 30, str(8 * 1024 * 1024 + 1)):
         with connection() as client:
             send(client, length)
-            send(client, "2", b"{}")  # 若沒關線，伺服器會回應這筆（recv 得到 b"H"）
+            if sys.platform != "win32": send(client, "2", b"{}")  # 若沒關線，伺服器會回應這筆（recv 得到 b"H"）；Windows 關線有未讀資料會 RST 吞掉 400，改只靠 closed()
             status, payload = response(client)
             assert status == 400 and payload["error"]["code"] == "BAD_REQUEST", length
             assert closed(client), length  # 無 body 也立即拒絕並關線
@@ -211,8 +212,12 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
     assert req("/fft?k=tok&id=s1&f0=0&f1=1&px=10&log=0")[0] == 200 and req("/wave?k=tok&ch=CHAN1")[0] == 400
     api._drv = None
     j = rpc("connect", {"resource": "BOGUS::nowhere", "series_override": None})[1]["result"]["job"]
-    time.sleep(1)
-    e = [x for x in rpc("wait_events", {"since": 0, "timeout": 1})[1]["result"]["events"] if x.get("id") == j][0]
+    e = None
+    for _ in range(40):  # CI runner 開 VISA 資源可能 >1 秒，輪詢最多約 20 秒
+        time.sleep(.5)
+        e = next((x for x in rpc("wait_events", {"since": 0, "timeout": 1})[1]["result"]["events"] if x.get("id") == j), None)
+        if e: break
+    assert e, "connect 事件逾時"
     assert not e["ok"] and e["error"]["code"] == "SCOPE_ERROR" and "BOGUS" in e["error"]["message"], e
     assert rpc("wait_events", {"since": 10**6, "timeout": 0.3})[1]["result"]["events"] == []
     srv.stop()
