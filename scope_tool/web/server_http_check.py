@@ -101,7 +101,8 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
     import urllib.error
     import urllib.request
     from scope_tool.instruments.fake import FakeDriver
-    from scope_tool.web.api import Api
+    from scope_tool.web.api import Api, _filename, _write_or_temp
+    from scope_tool.web.jobs import BadRequestError
     from scope_tool.web.jobs import StaleError
     class SlowFake(FakeDriver):
         def screenshot(self, opts):  # type: ignore[override]
@@ -118,6 +119,23 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
         return b"\x00" * 16
     FakeMod = type("FakeMod", (), {"wave_bytes": staticmethod(wave_bytes),
                                   "fft_bytes": staticmethod(lambda *a: b"\x01" * 16)})
+    for name in ("a:b", "C:x", "a?b", "a*b", 'a"b', "a<b", "a>b", "a|b", "a\x01b", "", ".", "..", "a/b", "a\\b", "x" * 201):
+        try:
+            _filename(name)
+        except BadRequestError:
+            pass
+        else:
+            raise AssertionError(name)
+    for name in ("scope", "測試 波形", "a.b", "abc.", "abc ", "x" * 200):
+        assert _filename(name) == name
+    writes = []
+    def fake_write(directory, name):
+        writes.append((directory, name))
+        if len(writes) == 1:
+            raise OSError("測試")
+        return directory / name
+    _write_or_temp(Path("/unused"), "original", fake_write)
+    assert writes[1] == (Path(tempfile.gettempdir()) / "scope_tool", "scope_tool_recovered")
     jobs = Jobs()
     api = Api(jobs, cfg=dict(__import__("scope_tool.config", fromlist=["x"]).DEFAULTS), persist=False)
     srv = server_cls(api, FakeAna(), jobs, token="tok", analysis_mod=FakeMod)
@@ -152,6 +170,10 @@ def _self_check(server_cls: type, handler_cls: type) -> None:
     api._drv = SlowFake()
     tmp = tempfile.mkdtemp()
     shot = {"directory": tmp, "name": "s", "image_format": "PNG", "inverted": False, "area": "full"}
+    before = set(Path(tmp).iterdir())
+    bad_shot = rpc("screenshot", {**shot, "name": "a:b"})[1]
+    assert not bad_shot["ok"] and bad_shot["error"]["code"] == "BAD_REQUEST" and "result" not in bad_shot
+    assert set(Path(tmp).iterdir()) == before
     a = rpc("screenshot", {**shot, "request_id": "r1"})[1]["result"]
     b = rpc("capture_info", {})[1]
     assert not b["ok"] and b["error"]["code"] == "BUSY" and b["error"]["retryable"], b

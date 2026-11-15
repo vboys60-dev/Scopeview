@@ -51,13 +51,13 @@ def _check_writable(d: Path) -> None:
         raise BadRequestError(f"資料夾無法寫入：{d}（{e.strerror or e}）") from None
 
 
-def _write_or_temp(out: Path, write) -> Path:
+def _write_or_temp(out: Path, base: str, write) -> Path:
     """寫入失敗（例如寫到一半被拔除）時改存系統暫存目錄，避免已擷取的資料遺失。"""
     try:
-        return write(out)
+        return write(out, base)
     except OSError as e:
         log.warning("寫入 %s 失敗，改存暫存目錄：%s", out, e)
-        return write(Path(tempfile.gettempdir()) / "scope_tool")
+        return write(Path(tempfile.gettempdir()) / "scope_tool", "scope_tool_recovered")
 
 
 def _enum(cls: Any, value: Any, what: str) -> Any:
@@ -83,8 +83,8 @@ def _check_cfg(k: str, v: Any) -> None:
 
 
 def _filename(name: str) -> str:
-    if not name or any(c in name for c in "/\\") or name in (".", ".."):
-        raise BadRequestError(f"檔名不合法：{name!r}")
+    if not name or name in (".", "..") or len(name) > 200 or re.search(r'[<>:"/\\|?*\x00-\x1f]', name):
+        raise BadRequestError(f'檔名不合法：{name!r}（不可含 < > : " / \\ | ? * 或控制字元，長度上限 200）')
     return name
 
 
@@ -271,7 +271,7 @@ class Api:
         def work() -> dict[str, Any]:
             d = self._need_drv()
             data = d.screenshot(opts)
-            path = _write_or_temp(out, lambda o: writer.write_screenshot(o, base, data, fmt))
+            path = _write_or_temp(out, base, lambda o, n: writer.write_screenshot(o, n, data, fmt))
             with self._lock:
                 self._shot_n += 1
                 self._shot = (self._shot_n, data)
@@ -292,7 +292,7 @@ class Api:
         def work() -> dict[str, Any]:
             d = self._need_drv()
             result = d.capture(list(channels), points, bool(retrigger))
-            path = _write_or_temp(out, lambda o: writer.write_waveform(o, base, result, WaveformFormat.HDF5))  # 規則：擷取一律 HDF5
+            path = _write_or_temp(out, base, lambda o, n: writer.write_waveform(o, n, result, WaveformFormat.HDF5))  # 規則：擷取一律 HDF5
             return {"path": str(path), "requested": points,
                     "got_points": min(len(w.voltage) for w in result.waveforms)}
         return self._jobs.submit("capture", work, lock=True)

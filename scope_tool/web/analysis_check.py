@@ -216,6 +216,10 @@ def _self_check() -> None:
         assert Path(ex["path"]).parent == tmp and 1 <= len(got_w[0].time) <= 50 and len(got_w) == 2
         assert isinstance(err(A.export_csv, [5.0, 6.0], None, str(tmp), exc=ScopeError), ScopeError)
 
+        from scope_tool.web.jobs import map_error
+        with h5py.File(tmp / "different.h5", "w") as hf:
+            for i in (1, 2): g = hf.create_group(f"Waveforms/Channel {i}"); g.create_dataset(f"Channel {i}Data", data=np.arange(3)); g.attrs.update({"XInc": 1e-6, "XOrg": (i - 1) * 10e-6})
+        other = Analysis(); other.open_waveform(str(tmp / "different.h5")); assert map_error(err(other.export_csv, None, None, str(tmp), exc=ScopeError))["code"] == "SCOPE_ERROR"
         # NaN → null：含 NaN 的 h5；二進位保留 NaN
         nan_v = sq.copy()
         nan_v[100:110] = np.nan

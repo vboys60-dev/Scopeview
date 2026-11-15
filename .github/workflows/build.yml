@@ -14,19 +14,50 @@ jobs:
           - {os: windows-latest, name: Windows}
           - {os: macos-latest, name: macOS}
     runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "22"}
       - run: pip install -r requirements-web.txt pyinstaller
+      - name: 打包前自檢
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -e
+          python -B -m scope_tool.web.decimate
+          python -B -m scope_tool.web.jobs
+          python -B -m scope_tool.web.api
+          python -B -m scope_tool.web.server
+          python -B -m scope_tool.web.analysis_api
+          python -B -m scope_tool.web.analysis_slots
+          python -B -m scope_tool.web.e2e_check
+          python -B -m scope_tool.storage.writer
+          python -B -m scope_tool.storage.reader
+          python -B -m scope_tool.storage.csv_export
+          python -B -m scope_tool.web.i2c_real_check
+          node scope_tool/web/static/js/selfcheck_node.js
       - run: pyinstaller --noconfirm --distpath dist --workpath build packaging/scope_tool_web.spec
       - name: 檢查動態載入的模組有進包
         shell: bash
         run: |
-          for m in i2c_decode i3c_decode spi_decode uart_decode can_decode espi_decode usbpd_decode; do
-            grep -rq "scope_tool.web.$m" build/ || { echo "缺 $m"; exit 1; }
+          set -eo pipefail
+          EXE=dist/scope_tool_web/scope_tool_web
+          if [ "$RUNNER_OS" = Windows ]; then EXE="$EXE.exe"; fi
+          if ! pyi-archive_viewer --list --recursive --brief "$EXE" | tr -d '\r' | tee archive_list.txt; then
+            pyi-archive_viewer -l build/scope_tool_web/PYZ-00.pyz | tr -d '\r' | tee archive_list.txt
+          fi
+          for m in scope_tool.web.i2c_decode scope_tool.web.i3c_decode scope_tool.web.spi_decode scope_tool.web.uart_decode scope_tool.web.can_decode scope_tool.web.espi_decode scope_tool.web.usbpd_decode scope_tool.instruments.infiniivision scope_tool.instruments.infiniium scope_tool.web.server; do
+            grep -Eq "(^|[[:space:]])${m//./\\.}$" archive_list.txt || { echo "缺 $m"; exit 1; }
           done
-          grep -rq "scope_tool.instruments.infiniivision" build/ || { echo "缺 infiniivision"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: "archive-list-${{ matrix.name }}", path: archive_list.txt}
       - name: 打包 (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/scope_tool_web -DestinationPath ScopeView-Windows.zip

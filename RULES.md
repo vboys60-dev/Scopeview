@@ -199,3 +199,6 @@ Astra 審查 WARNING 修復（2026-11-14，使用者「照這個規劃開分支�
 GitHub 封裝（2026-11-14，使用者「在 github 上封裝 windows 執行檔與 macos app 檔」；僅打包，不改程式）：可改 `packaging/scope_tool_web.spec`（依平台加 hiddenimports、darwin 加 BUNDLE）、新增 `.github/workflows/build.yml`（Actions：windows-latest／macos-latest，PyInstaller，tag `v*` 或手動觸發，產出 zip 並附到 Release）、`HANDOFF.md`。不新增相依（沿用 requirements-web.txt＋CI 內的 pyinstaller）。
 
 封裝修正（2026-11-14，使用者實測封裝檔「解碼失敗：此協定尚未實作」；根因＝`analysis_decode.protocol()` 與 `api.py` 以 importlib／`__import__` 動態載入，PyInstaller 未收）：可改 `packaging/scope_tool_web.spec`（hiddenimports 明列 `*_decode` 與 instruments driver）、`.github/workflows/build.yml`（加模組有進包的檢查步驟）、`HANDOFF.md`。不改程式。
+
+## 審查修正第一波授權（2026-11-15，使用者「先修第 1～3 項 opus規劃codex 編寫代碼opus驗收」，依 Codex／Opus 交叉審查結論）
+- 授權修改：L1a `web/api.py`（`_filename`／`_write_or_temp`，行數不增）、L8 `web/server_http_check.py`（補自檢）、`storage/csv_export.py`（解凍，僅 `export_csv` 時間軸一致性檢查與自檢）、L1b `web/analysis_check.py`（補匯出拒絕案例）、`.github/workflows/build.yml`（成品檢查與自檢步驟）。其餘凍結不變；不動契約、H5、Qt、`ui/*`、`analysis/*`。

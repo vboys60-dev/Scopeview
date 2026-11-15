@@ -54,6 +54,14 @@ def export_csv(directory: Path, name: str, waveforms: list[Waveform],
     count = hi - lo
     stride = math.ceil(count / max_points) if max_points else 1
     selected = [c[lo:hi:stride] for c in columns]
+    t0 = selected[0]
+    dt = (time[-1] - time[0]) / (len(time) - 1) if len(time) > 1 else 0
+    tol = 0.01 * dt
+    for w in waveforms[1:]:
+        for start in range(0, len(t0), _BLOCK):
+            d = np.max(np.abs(w.time[lo:hi:stride][start:start + _BLOCK] - t0[start:start + _BLOCK]))
+            if not d <= tol:
+                raise ScopeError(f"通道 {w.channel} 的時間軸與 {waveforms[0].channel} 不一致（最大差 {d:.3g} s，容差 {tol:.3g} s），無法共用時間欄匯出。")
     formats = [_sci_format(column) for column in selected]
     header = ["Time(s)"] + [f"{n}(V)" for n in writer._unique_names([w.channel for w in waveforms], "CH{n}")]
     try:
@@ -104,6 +112,22 @@ def _self_check() -> None:
                 pass
             else:
                 raise AssertionError("無效參數應拋 ScopeError")
+        t = np.array([0., 1., 2.])
+        first = Waveform("first", t, t)
+        for offset in (10., 0.02, np.nan):
+            second = Waveform("second", t + offset, t)
+            try:
+                export_csv(directory, "mismatch", [first, second])
+            except ScopeError as exc:
+                assert "second" in str(exc)
+            else:
+                raise AssertionError("時間軸不一致應拋 ScopeError")
+        second = Waveform("second", t + 0.0008, t)
+        back = read_waveform_file(export_csv(directory, "tolerance", [first, second]))[0]
+        assert np.array_equal(back.time, t)
+        second = Waveform("second", np.array([10., 1., 2.]), t)
+        export_csv(directory, "selected", [first, second], (1, 2))
+        export_csv(directory, "single", [first])
         constant = Waveform("CHAN1", time, np.full(100, 0.0123456789))
         back = read_waveform_file(export_csv(directory, "constant", [constant]))[0]
         assert np.array_equal(back.voltage, constant.voltage)
